@@ -420,7 +420,7 @@ Add to layout solve:
 
 **Goal:** Detect overlapping elements. Implement stack layout primitives.
 
-### 5.1 Collision Detection
+### 5.1 Collision Detection [DONE]
 
 After layout solve resolves all positions, run AABB intersection checks:
 
@@ -435,7 +435,7 @@ Collision object:
 { elementA: "id1", elementB: "id2", overlapRect: {x, y, w, h}, overlapArea: number }
 ```
 
-### 5.2 `vstack(items, props)`
+### 5.2 `vstack(items, props)` [DONE]
 
 Implementation:
 
@@ -449,7 +449,7 @@ Implementation:
 
 Return a group element with children whose positions have been resolved to absolute coordinates.
 
-### 5.3 `hstack(items, props)`
+### 5.3 `hstack(items, props)` [DONE]
 
 Same as vstack but horizontal:
 
@@ -458,7 +458,7 @@ Same as vstack but horizontal:
 3. Vertical alignment: `"top"`, `"middle"`, `"bottom"`
 4. Stack's total width = sum of children widths + gaps
 
-### 5.4 Stack Integration with Layout Solve
+### 5.4 Stack Integration with Layout Solve [DONE]
 
 Stacks participate as **nodes in the dependency graph**, not as a separate pre-phase. This follows the 4-phase pipeline from M3:
 
@@ -467,7 +467,7 @@ Stacks participate as **nodes in the dependency graph**, not as a separate pre-p
 - **Phase 3 (Transforms):** Alignment/distribution can target stack children just like any other element
 - **Phase 4 (Finalize):** Collision detection treats stack children as individual elements
 
-### 5.5 Tests
+### 5.5 Tests [DONE]
 
 - Test collision detection finds overlapping elements
 - Test collision detection ignores elements in different layers
