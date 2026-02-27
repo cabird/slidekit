@@ -122,7 +122,7 @@ describe("M1.4: render() — basic DOM structure", () => {
 
   it("returns empty array for empty slides input", async () => {
     await withContainer(async (container) => {
-      const sections = render([], { container });
+      const { sections } = await render([], { container });
       assert.equal(sections.length, 0);
       assert.equal(container.querySelectorAll("section").length, 0);
     });
