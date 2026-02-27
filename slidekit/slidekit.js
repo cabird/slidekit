@@ -434,6 +434,33 @@ export function filterStyle(style = {}, elementType = "unknown", convenienceProp
 let _config = null;
 let _safeRectCache = null;
 
+// =============================================================================
+// Font Loading & Text Measurement State (M2)
+// =============================================================================
+
+/**
+ * Set of successfully loaded font descriptors: "family:weight"
+ * e.g., "Inter:400", "Space Grotesk:700"
+ */
+let _loadedFonts = new Set();
+
+/**
+ * The off-screen measurement container element (created lazily or during init).
+ */
+let _measureContainer = null;
+
+/**
+ * Cache for measureText results.
+ * Key: stringified tuple of (content, font, size, weight, lineHeight, letterSpacing, w)
+ * Value: measurement result object
+ */
+let _measureCache = new Map();
+
+/**
+ * Font loading warnings accumulated during init().
+ */
+let _fontWarnings = [];
+
 /**
  * Default configuration values.
  */
@@ -453,7 +480,7 @@ const DEFAULT_CONFIG = {
  * @param {object} [config.safeZone] - Safe zone margins { left, right, top, bottom }
  * @param {boolean} [config.strict] - Validation mode (strict vs lenient)
  * @param {number} [config.minFontSize] - Minimum font size for projection warnings
- * @param {Array} [config.fonts] - Fonts to preload (font loading implemented in M2)
+ * @param {Array} [config.fonts] - Fonts to preload: [{ family, weights, source }]
  * @returns {Promise<object>} Resolves with the config when ready
  */
 export async function init(config = {}) {
@@ -483,9 +510,150 @@ export async function init(config = {}) {
     h: safeH,
   };
 
-  // Font loading will be implemented in M2.
-  // For now, resolve immediately.
+  // Reset font state
+  _loadedFonts = new Set();
+  _fontWarnings = [];
+  _measureCache = new Map();
+
+  // Create or re-create the measurement container
+  _ensureMeasureContainer();
+
+  // M2.1: Font Preloading
+  if (_config.fonts.length > 0) {
+    await _loadFonts(_config.fonts);
+  }
+
   return _config;
+}
+
+/**
+ * Load fonts specified in the config.
+ *
+ * For Google Fonts: dynamically inject <link> elements.
+ * For each font/weight combo: call document.fonts.load().
+ * Wait for document.fonts.ready.
+ * Timeout: 5s per font — emit warning and fall back on failure.
+ *
+ * @param {Array} fonts - Array of { family, weights, source }
+ */
+async function _loadFonts(fonts) {
+  const FONT_TIMEOUT_MS = 5000;
+  const testString = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+  // Step 1: Inject Google Font <link> elements for fonts with source: "google"
+  for (const fontDef of fonts) {
+    if (fontDef.source === "google") {
+      _injectGoogleFontLink(fontDef);
+    }
+  }
+
+  // Step 2: For each font/weight combination, try to load it with a timeout
+  const loadPromises = [];
+  for (const fontDef of fonts) {
+    const family = fontDef.family;
+    const weights = fontDef.weights || [400];
+
+    for (const weight of weights) {
+      const fontString = `${weight} 16px "${family}"`;
+      const key = `${family}:${weight}`;
+
+      const loadPromise = _loadSingleFont(fontString, key, testString, FONT_TIMEOUT_MS);
+      loadPromises.push(loadPromise);
+    }
+  }
+
+  // Wait for all font load attempts to complete (they won't reject — failures are warnings)
+  await Promise.all(loadPromises);
+
+  // Step 3: Also wait for document.fonts.ready for any other fonts
+  try {
+    await document.fonts.ready;
+  } catch (e) {
+    // document.fonts.ready failing is non-fatal
+  }
+}
+
+/**
+ * Attempt to load a single font with a timeout.
+ *
+ * @param {string} fontString - CSS font shorthand, e.g. "700 16px \"Space Grotesk\""
+ * @param {string} key - Font tracking key, e.g. "Space Grotesk:700"
+ * @param {string} testString - String to use for font loading test
+ * @param {number} timeoutMs - Timeout in milliseconds
+ */
+async function _loadSingleFont(fontString, key, testString, timeoutMs) {
+  try {
+    const loadResult = await Promise.race([
+      document.fonts.load(fontString, testString),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), timeoutMs)
+      ),
+    ]);
+
+    // If we got a result (array of FontFace), check if it's non-empty
+    if (Array.isArray(loadResult) && loadResult.length > 0) {
+      _loadedFonts.add(key);
+    } else {
+      // Font load returned empty — the font may not exist or hasn't been registered
+      // Still add it if document.fonts.check passes
+      if (document.fonts.check(fontString, testString)) {
+        _loadedFonts.add(key);
+      } else {
+        _fontWarnings.push({
+          type: "font_load_failed",
+          font: key,
+          message: `Font "${key}" could not be loaded. Falling back to system font.`,
+        });
+      }
+    }
+  } catch (err) {
+    // Timeout or other error
+    _fontWarnings.push({
+      type: "font_load_timeout",
+      font: key,
+      message: `Font "${key}" failed to load within timeout. Falling back to system font.`,
+    });
+  }
+}
+
+/**
+ * Inject a Google Fonts <link> element into the document head.
+ *
+ * @param {{ family: string, weights: number[] }} fontDef
+ */
+function _injectGoogleFontLink(fontDef) {
+  const family = fontDef.family.replace(/ /g, "+");
+  const weights = (fontDef.weights || [400]).join(";");
+  const href = `https://fonts.googleapis.com/css2?family=${family}:wght@${weights}&display=swap`;
+
+  // Check if this link already exists to avoid duplicates
+  const existing = document.querySelector(`link[href="${href}"]`);
+  if (existing) return;
+
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
+/**
+ * Check if a specific font+weight is loaded.
+ *
+ * @param {string} family - Font family name
+ * @param {number} weight - Font weight
+ * @returns {boolean}
+ */
+export function isFontLoaded(family, weight = 400) {
+  return _loadedFonts.has(`${family}:${weight}`);
+}
+
+/**
+ * Get font loading warnings from the most recent init() call.
+ *
+ * @returns {Array} Array of warning objects
+ */
+export function getFontWarnings() {
+  return [..._fontWarnings];
 }
 
 /**
@@ -519,6 +687,174 @@ export function _resetForTests() {
   _config = null;
   _safeRectCache = null;
   _idCounter = 0;
+  _loadedFonts = new Set();
+  _fontWarnings = [];
+  _measureCache = new Map();
+  // Remove measurement container from DOM if it exists
+  if (_measureContainer && _measureContainer.parentNode) {
+    _measureContainer.parentNode.removeChild(_measureContainer);
+  }
+  _measureContainer = null;
+}
+
+// =============================================================================
+// Measurement Container & measureText (M2.2, M2.3)
+// =============================================================================
+
+/**
+ * Ensure the off-screen measurement container exists in the DOM.
+ * Creates it if it doesn't exist yet.
+ *
+ * The container is a hidden div positioned off-screen, styled identically
+ * to the slidekit-layer base settings so measurements match rendering.
+ */
+function _ensureMeasureContainer() {
+  if (_measureContainer && _measureContainer.parentNode) return;
+
+  _measureContainer = document.createElement("div");
+  _measureContainer.style.position = "absolute";
+  _measureContainer.style.left = "-9999px";
+  _measureContainer.style.top = "-9999px";
+  _measureContainer.style.visibility = "hidden";
+  // Prevent scrolling or interaction
+  _measureContainer.style.overflow = "hidden";
+  _measureContainer.style.pointerEvents = "none";
+  // No max dimensions — let content determine size
+  _measureContainer.setAttribute("data-sk-role", "measure-container");
+
+  document.body.appendChild(_measureContainer);
+}
+
+/**
+ * Build a cache key for measureText results.
+ *
+ * @param {string} content - Text content
+ * @param {object} props - Measurement properties
+ * @returns {string} Cache key
+ */
+function _measureCacheKey(content, props) {
+  return JSON.stringify([
+    content,
+    props.font || "Inter",
+    props.size || 32,
+    props.weight || 400,
+    props.lineHeight || 1.3,
+    props.letterSpacing || "0",
+    props.w ?? null,
+  ]);
+}
+
+/**
+ * Measure how text will render without placing it on the slide.
+ *
+ * Uses a hidden off-screen <div> with identical CSS to the rendering target.
+ * Results are cached by (content, font, size, weight, lineHeight, letterSpacing, w).
+ *
+ * Implementation: <div> + scrollHeight (NOT <span> + getClientRects()).
+ *
+ * @param {string} content - The text to measure (supports \n for line breaks)
+ * @param {object} props - Measurement properties
+ * @param {string} [props.font="Inter"] - Font family
+ * @param {number} [props.size=32] - Font size in pixels
+ * @param {number} [props.weight=400] - Font weight
+ * @param {number} [props.lineHeight=1.3] - Line height multiplier
+ * @param {string} [props.letterSpacing="0"] - Letter spacing CSS value
+ * @param {number} [props.w] - Constraining width (if provided, limits wrapping)
+ * @returns {{ block: { w: number, h: number }, lineCount: number, fontSize: number }}
+ */
+export function measureText(content, props = {}) {
+  const font = props.font || "Inter";
+  const size = props.size || 32;
+  const weight = props.weight || 400;
+  const lineHeight = props.lineHeight || 1.3;
+  const letterSpacing = props.letterSpacing || "0";
+  const constrainW = props.w ?? null;
+
+  // Check if the required font is loaded (warn if not, but don't block)
+  const fontKey = `${font}:${weight}`;
+  if (_loadedFonts.size > 0 && !_loadedFonts.has(fontKey)) {
+    // Only warn if fonts were configured — if no fonts were configured,
+    // we're using system fonts and can't validate.
+    if (_config && _config.fonts.length > 0) {
+      console.warn(
+        `SlideKit.measureText: Font "${fontKey}" is not loaded. ` +
+        `Measurement may be inaccurate. Call init() with fonts config first.`
+      );
+    }
+  }
+
+  // Check cache
+  const cacheKey = _measureCacheKey(content, props);
+  if (_measureCache.has(cacheKey)) {
+    return _measureCache.get(cacheKey);
+  }
+
+  // Ensure measurement container exists
+  _ensureMeasureContainer();
+
+  // Create the measurement div
+  const measureDiv = document.createElement("div");
+
+  // Apply CSS properties matching the rendering target
+  measureDiv.style.fontFamily = `"${font}", sans-serif`;
+  measureDiv.style.fontSize = `${size}px`;
+  measureDiv.style.fontWeight = String(weight);
+  measureDiv.style.lineHeight = String(lineHeight);
+  measureDiv.style.letterSpacing = letterSpacing;
+  measureDiv.style.whiteSpace = "pre-wrap";
+  measureDiv.style.wordBreak = "break-word";
+  measureDiv.style.boxSizing = "border-box";
+  measureDiv.style.padding = "0";
+  measureDiv.style.margin = "0";
+  measureDiv.style.border = "none";
+
+  // If width is constrained, set it
+  if (constrainW !== null) {
+    measureDiv.style.width = `${constrainW}px`;
+  } else {
+    // Unconstrained — let it be as wide as it needs
+    measureDiv.style.display = "inline-block";
+    measureDiv.style.whiteSpace = "pre";
+  }
+
+  // Set content using textContent + br nodes (same approach as renderer for safety)
+  const textContent = String(content ?? "");
+  const parts = textContent.split("\n");
+  parts.forEach((part, i) => {
+    if (i > 0) measureDiv.appendChild(document.createElement("br"));
+    measureDiv.appendChild(document.createTextNode(part));
+  });
+
+  // Append to measurement container, read dimensions, then remove
+  _measureContainer.appendChild(measureDiv);
+
+  const measuredHeight = measureDiv.scrollHeight;
+  const measuredWidth = constrainW !== null ? constrainW : measureDiv.offsetWidth;
+
+  // Compute line count from scrollHeight / computed lineHeight
+  const computedLineHeight = size * lineHeight;
+  const lineCount = Math.max(1, Math.round(measuredHeight / computedLineHeight));
+
+  // Clean up
+  _measureContainer.removeChild(measureDiv);
+
+  const result = {
+    block: { w: measuredWidth, h: measuredHeight },
+    lineCount,
+    fontSize: size,
+  };
+
+  // Cache the result
+  _measureCache.set(cacheKey, result);
+
+  return result;
+}
+
+/**
+ * Clear the measureText cache. Useful when fonts are loaded or for testing.
+ */
+export function clearMeasureCache() {
+  _measureCache.clear();
 }
 
 // =============================================================================
@@ -586,10 +922,13 @@ function extractConvenienceProps(props) {
 
 /**
  * Compute the effective width and height for an element, including
- * type-specific logic for rules.
+ * type-specific logic for rules and auto-height for text elements (M2.4).
+ *
+ * For text elements without an explicit `h`, calls measureText() to
+ * determine the height based on the text content and styling properties.
  *
  * @param {object} element - SlideKit element
- * @returns {{ w: number, h: number }}
+ * @returns {{ w: number, h: number, _autoHeight: boolean }}
  */
 function getEffectiveDimensions(element) {
   const { props, type } = element;
@@ -597,12 +936,31 @@ function getEffectiveDimensions(element) {
     const dir = props.direction || "horizontal";
     const thickness = props.thickness || 2;
     if (dir === "horizontal") {
-      return { w: props.w || 0, h: thickness };
+      return { w: props.w || 0, h: thickness, _autoHeight: false };
     } else {
-      return { w: thickness, h: props.h || 0 };
+      return { w: thickness, h: props.h || 0, _autoHeight: false };
     }
   }
-  return { w: props.w || 0, h: props.h || 0 };
+
+  // M2.4: Auto-height for text elements
+  if (type === "text" && (props.h === undefined || props.h === null)) {
+    const w = props.w || 0;
+    if (w > 0 && element.content) {
+      const metrics = measureText(element.content, {
+        font: props.font,
+        size: props.size,
+        weight: props.weight,
+        lineHeight: props.lineHeight,
+        letterSpacing: props.letterSpacing,
+        w: w,
+      });
+      return { w, h: metrics.block.h, _autoHeight: true };
+    }
+    // If no width or no content, can't auto-measure — fall through to default
+    return { w, h: 0, _autoHeight: true };
+  }
+
+  return { w: props.w || 0, h: props.h || 0, _autoHeight: false };
 }
 
 /**
@@ -864,6 +1222,10 @@ const SlideKit = {
   safeRect,
   getConfig,
   resetIdCounter,
+  measureText,
+  clearMeasureCache,
+  isFontLoaded,
+  getFontWarnings,
   _resetForTests,
 };
 
