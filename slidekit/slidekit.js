@@ -164,6 +164,56 @@ export function group(children, props = {}) {
 }
 
 // =============================================================================
+// Stack Primitives (M5.2, M5.3)
+// =============================================================================
+
+/**
+ * Create a vertical stack element. Children are laid out top-to-bottom
+ * with a configurable gap and horizontal alignment.
+ *
+ * During layout solve, the stack computes absolute positions for each child
+ * based on the stack's origin and the children's measured sizes.
+ *
+ * @param {Array} items - Array of SlideKit elements (children)
+ * @param {object} props - Positioning and layout properties
+ * @param {number} [props.gap=0] - Gap between children in pixels
+ * @param {string} [props.align="left"] - Horizontal alignment: "left", "center", "right"
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function vstack(items, props = {}) {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
+    gap: 0,
+    align: "left",
+  });
+  return { id, type: "vstack", children: items, props: resolved };
+}
+
+/**
+ * Create a horizontal stack element. Children are laid out left-to-right
+ * with a configurable gap and vertical alignment.
+ *
+ * During layout solve, the stack computes absolute positions for each child
+ * based on the stack's origin and the children's measured sizes.
+ *
+ * @param {Array} items - Array of SlideKit elements (children)
+ * @param {object} props - Positioning and layout properties
+ * @param {number} [props.gap=0] - Gap between children in pixels
+ * @param {string} [props.align="top"] - Vertical alignment: "top", "middle", "bottom"
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function hstack(items, props = {}) {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
+    gap: 0,
+    align: "top",
+  });
+  return { id, type: "hstack", children: items, props: resolved };
+}
+
+// =============================================================================
 // Anchor Resolution (M1.2)
 // =============================================================================
 
@@ -1281,15 +1331,22 @@ function deepClone(obj) {
 
 /**
  * Flatten all elements from a slide definition into a flat map by ID.
- * Recursively traverses groups to extract children.
- * Returns { flatMap: Map<id, element>, groupParent: Map<childId, groupId> }
+ * Recursively traverses groups and stacks to extract children.
+ * Returns { flatMap, groupParent, stackParent, stackChildren }
  *
  * @param {Array} elements - Slide elements array
- * @returns {{ flatMap: Map<string, object>, groupParent: Map<string, string> }}
+ * @returns {{
+ *   flatMap: Map<string, object>,
+ *   groupParent: Map<string, string>,
+ *   stackParent: Map<string, string>,
+ *   stackChildren: Map<string, string[]>
+ * }}
  */
 function flattenElements(elements) {
   const flatMap = new Map();
   const groupParent = new Map();
+  const stackParent = new Map();   // childId -> stackId
+  const stackChildren = new Map(); // stackId -> [childId, ...]
 
   function walk(els, parentGroupId) {
     for (const el of els) {
@@ -1300,11 +1357,38 @@ function flattenElements(elements) {
       if (el.type === "group" && el.children) {
         walk(el.children, el.id);
       }
+      if ((el.type === "vstack" || el.type === "hstack") && el.children) {
+        const childIds = [];
+        for (const child of el.children) {
+          flatMap.set(child.id, child);
+          stackParent.set(child.id, el.id);
+          childIds.push(child.id);
+          // Recursively flatten if a stack child is itself a stack or group
+          if ((child.type === "vstack" || child.type === "hstack") && child.children) {
+            // Recurse into nested stacks
+            const nested = flattenElements([child]);
+            for (const [nid, nel] of nested.flatMap) {
+              if (nid !== child.id) {
+                flatMap.set(nid, nel);
+              }
+            }
+            for (const [cid, sid] of nested.stackParent) {
+              stackParent.set(cid, sid);
+            }
+            for (const [sid, cids] of nested.stackChildren) {
+              stackChildren.set(sid, cids);
+            }
+          } else if (child.type === "group" && child.children) {
+            walk(child.children, child.id);
+          }
+        }
+        stackChildren.set(el.id, childIds);
+      }
     }
   }
 
   walk(elements, null);
-  return { flatMap, groupParent };
+  return { flatMap, groupParent, stackParent, stackChildren };
 }
 
 /**
@@ -1420,24 +1504,50 @@ function buildProvenance(authoredValue, prop, element, wasMeasured) {
 }
 
 /**
+ * Compute AABB (Axis-Aligned Bounding Box) intersection between two rectangles.
+ * Returns null if no intersection, or the intersection rectangle if they overlap.
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} a
+ * @param {{ x: number, y: number, w: number, h: number }} b
+ * @returns {{ x: number, y: number, w: number, h: number }|null}
+ */
+function computeAABBIntersection(a, b) {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+
+  const w = x2 - x1;
+  const h = y2 - y1;
+
+  if (w > 0 && h > 0) {
+    return { x: x1, y: y1, w, h };
+  }
+  return null;
+}
+
+/**
  * Layout solve pipeline — 4-phase resolution.
  *
- * Phase 1: Resolve intrinsic sizes (measure text, compute dimensions)
- * Phase 2: Resolve positions via unified topological sort
+ * Phase 1: Resolve intrinsic sizes (measure text, compute stack dimensions)
+ * Phase 2: Resolve positions via unified topological sort (stacks as nodes)
  * Phase 3: Apply transforms (placeholder for M6)
- * Phase 4: Finalize (provenance, validation placeholders, scene graph)
+ * Phase 4: Finalize (collision detection, provenance, validation, scene graph)
  *
  * @param {object} slideDefinition - A slide definition { elements, transforms, ... }
+ * @param {object} [options={}] - Layout options
+ * @param {number} [options.collisionThreshold=0] - Minimum overlap area to report
  * @returns {Promise<object>} Scene graph: { elements, transforms, warnings, errors, collisions }
  */
-export async function layout(slideDefinition) {
+export async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
   const elements = slideDefinition.elements || [];
   const transforms = slideDefinition.transforms || [];
+  const collisionThreshold = options.collisionThreshold ?? 0;
 
   // Flatten elements to a map for easy lookup
-  const { flatMap, groupParent } = flattenElements(elements);
+  const { flatMap, groupParent, stackParent, stackChildren } = flattenElements(elements);
 
   // =========================================================================
   // Phase 1: Resolve Intrinsic Sizes
@@ -1486,11 +1596,12 @@ export async function layout(slideDefinition) {
     };
   }
 
-  // Resolve intrinsic sizes for all elements
+  // Resolve intrinsic sizes for all non-stack elements first
   // Map of id -> { w, h, wMeasured, hMeasured }
   const resolvedSizes = new Map();
 
   for (const [id, el] of flatMap) {
+    if (el.type === "vstack" || el.type === "hstack") continue; // handled below
     const dims = getEffectiveDimensions(el);
     resolvedSizes.set(id, {
       w: dims.w,
@@ -1500,41 +1611,168 @@ export async function layout(slideDefinition) {
     });
   }
 
+  // Phase 1 (cont): Compute stack sizes from children + gaps
+  // Must handle nested stacks bottom-up. We do a simple iterative approach:
+  // repeatedly process stacks whose children all have known sizes.
+  const pendingStacks = new Set();
+  for (const [id, el] of flatMap) {
+    if (el.type === "vstack" || el.type === "hstack") {
+      pendingStacks.add(id);
+    }
+  }
+
+  let progress = true;
+  while (pendingStacks.size > 0 && progress) {
+    progress = false;
+    for (const stackId of pendingStacks) {
+      const el = flatMap.get(stackId);
+      const childIds = stackChildren.get(stackId) || [];
+      const gap = el.props.gap ?? 0;
+      const stackW = el.props.w ?? 0;
+
+      // Check all children have resolved sizes
+      const allChildrenSized = childIds.every(cid => resolvedSizes.has(cid));
+      if (!allChildrenSized) continue;
+
+      if (el.type === "vstack") {
+        // For vstack children without explicit w, default to stack's w
+        for (const cid of childIds) {
+          const child = flatMap.get(cid);
+          if ((child.props.w === undefined || child.props.w === null) && stackW > 0) {
+            // Update child's resolved size width to use stack width
+            const childSize = resolvedSizes.get(cid);
+            if (child.type === "text") {
+              // Re-measure text with the stack width constraint
+              const contentStr = String(child.content ?? "");
+              if (contentStr) {
+                const metrics = measureText(contentStr, {
+                  font: child.props.font,
+                  size: child.props.size,
+                  weight: child.props.weight,
+                  lineHeight: child.props.lineHeight,
+                  letterSpacing: child.props.letterSpacing,
+                  w: stackW,
+                });
+                childSize.w = stackW;
+                childSize.h = metrics.block.h;
+                childSize.hMeasured = true;
+              } else {
+                childSize.w = stackW;
+              }
+            } else {
+              childSize.w = stackW;
+            }
+          }
+        }
+
+        // vstack total: width = max child width (or stack w), height = sum heights + gaps
+        let totalH = 0;
+        let maxW = 0;
+        for (let i = 0; i < childIds.length; i++) {
+          const cs = resolvedSizes.get(childIds[i]);
+          totalH += cs.h;
+          if (i > 0) totalH += gap;
+          maxW = Math.max(maxW, cs.w);
+        }
+        const finalW = stackW || maxW;
+        const finalH = (el.props.h !== undefined && el.props.h !== null) ? el.props.h : totalH;
+
+        resolvedSizes.set(stackId, {
+          w: finalW,
+          h: finalH,
+          wMeasured: false,
+          hMeasured: el.props.h === undefined || el.props.h === null,
+        });
+      } else {
+        // hstack
+        const stackH = el.props.h ?? 0;
+
+        // For hstack children without explicit h, default to stack's h (if provided)
+        // hstack children can have their own w; if not provided, they stay as measured
+        let totalW = 0;
+        let maxH = 0;
+        for (let i = 0; i < childIds.length; i++) {
+          const cs = resolvedSizes.get(childIds[i]);
+          totalW += cs.w;
+          if (i > 0) totalW += gap;
+          maxH = Math.max(maxH, cs.h);
+        }
+        const finalW = (el.props.w !== undefined && el.props.w !== null) ? el.props.w : totalW;
+        const finalH = stackH || maxH;
+
+        resolvedSizes.set(stackId, {
+          w: finalW,
+          h: finalH,
+          wMeasured: el.props.w === undefined || el.props.w === null,
+          hMeasured: el.props.h === undefined || el.props.h === null,
+        });
+      }
+
+      pendingStacks.delete(stackId);
+      progress = true;
+    }
+  }
+
+  // If any stacks couldn't resolve (circular nesting), error out
+  if (pendingStacks.size > 0) {
+    errors.push({
+      type: "unresolvable_stack_sizes",
+      elementIds: Array.from(pendingStacks),
+      message: `Could not resolve sizes for stacks: ${Array.from(pendingStacks).join(", ")}`,
+    });
+    return {
+      elements: {},
+      transforms: deepClone(transforms),
+      warnings,
+      errors,
+      collisions: [],
+    };
+  }
+
   // =========================================================================
   // Phase 2: Resolve Positions via Unified Topological Sort
   // =========================================================================
 
   // Build dependency graph
   // For each element, find what elements it depends on (via _rel markers on x and y)
+  // Stack children depend on their parent stack (not on _rel markers — their position
+  // is computed by the stack layout algorithm after the stack is positioned).
   const deps = new Map(); // id -> Set<refId>
   for (const [id, el] of flatMap) {
     const depSet = new Set();
-    const xRef = getRelRef(el.props.x);
-    const yRef = getRelRef(el.props.y);
-    if (xRef) {
-      if (!flatMap.has(xRef)) {
-        errors.push({
-          type: "unknown_ref",
-          elementId: id,
-          property: "x",
-          ref: xRef,
-          message: `Element "${id}": x references unknown element "${xRef}"`,
-        });
-      } else {
-        depSet.add(xRef);
+
+    // Stack children depend on their parent stack
+    if (stackParent.has(id)) {
+      depSet.add(stackParent.get(id));
+    } else {
+      // Only process _rel markers for non-stack-children
+      const xRef = getRelRef(el.props.x);
+      const yRef = getRelRef(el.props.y);
+      if (xRef) {
+        if (!flatMap.has(xRef)) {
+          errors.push({
+            type: "unknown_ref",
+            elementId: id,
+            property: "x",
+            ref: xRef,
+            message: `Element "${id}": x references unknown element "${xRef}"`,
+          });
+        } else {
+          depSet.add(xRef);
+        }
       }
-    }
-    if (yRef) {
-      if (!flatMap.has(yRef)) {
-        errors.push({
-          type: "unknown_ref",
-          elementId: id,
-          property: "y",
-          ref: yRef,
-          message: `Element "${id}": y references unknown element "${yRef}"`,
-        });
-      } else {
-        depSet.add(yRef);
+      if (yRef) {
+        if (!flatMap.has(yRef)) {
+          errors.push({
+            type: "unknown_ref",
+            elementId: id,
+            property: "y",
+            ref: yRef,
+            message: `Element "${id}": y references unknown element "${yRef}"`,
+          });
+        } else {
+          depSet.add(yRef);
+        }
       }
     }
     deps.set(id, depSet);
@@ -1628,13 +1866,29 @@ export async function layout(slideDefinition) {
     const w = sizes.w;
     const h = sizes.h;
 
+    // Stack children get their position from the stack layout algorithm,
+    // not from their own x/y props. Skip them here — they are resolved
+    // when we process their parent stack.
+    if (stackParent.has(id)) {
+      // Check if the parent stack has already been resolved
+      const parentId = stackParent.get(id);
+      if (resolvedBounds.has(id)) {
+        // Already positioned by parent stack processing below
+        continue;
+      }
+      // If we get here, the parent was just processed and this child
+      // should have been positioned. Something went wrong.
+      // Fallback: position at (0, 0)
+      resolvedBounds.set(id, { x: 0, y: 0, w, h });
+      continue;
+    }
+
     // Resolve x
     const xIsRel = isRelMarker(el.props.x);
     let x;
     if (xIsRel) {
       const marker = el.props.x;
       if (marker._rel === "centerIn") {
-        // centerIn uses the rect directly, no refBounds needed
         const r = marker.rect;
         x = r.x + r.w / 2 - w / 2;
       } else {
@@ -1652,7 +1906,6 @@ export async function layout(slideDefinition) {
     if (yIsRel) {
       const marker = el.props.y;
       if (marker._rel === "centerIn") {
-        // centerIn uses the rect directly, no refBounds needed
         const r = marker.rect;
         y = r.y + r.h / 2 - h / 2;
       } else {
@@ -1665,14 +1918,59 @@ export async function layout(slideDefinition) {
     }
 
     // Apply anchor resolution ONLY to authored (non-_rel) coordinates.
-    // _rel helpers already compute absolute top-left corner positions;
-    // applying resolveAnchor again would double-shift for non-tl anchors.
     const anchor = el.props.anchor || "tl";
     const { left: anchoredX, top: anchoredY } = resolveAnchor(x, y, w, h, anchor);
     const finalX = xIsRel ? x : anchoredX;
     const finalY = yIsRel ? y : anchoredY;
 
     resolvedBounds.set(id, { x: finalX, y: finalY, w, h });
+
+    // If this is a stack, position all children now
+    if (el.type === "vstack" || el.type === "hstack") {
+      const childIds = stackChildren.get(id) || [];
+      const gap = el.props.gap ?? 0;
+      const stackX = finalX;
+      const stackY = finalY;
+
+      if (el.type === "vstack") {
+        const align = el.props.align || "left";
+        let curY = stackY;
+        for (let i = 0; i < childIds.length; i++) {
+          const cid = childIds[i];
+          const cs = resolvedSizes.get(cid);
+          let childX;
+          if (align === "center") {
+            childX = stackX + (w - cs.w) / 2;
+          } else if (align === "right") {
+            childX = stackX + w - cs.w;
+          } else {
+            // "left" (default)
+            childX = stackX;
+          }
+          resolvedBounds.set(cid, { x: childX, y: curY, w: cs.w, h: cs.h });
+          curY += cs.h + gap;
+        }
+      } else {
+        // hstack
+        const align = el.props.align || "top";
+        let curX = stackX;
+        for (let i = 0; i < childIds.length; i++) {
+          const cid = childIds[i];
+          const cs = resolvedSizes.get(cid);
+          let childY;
+          if (align === "middle") {
+            childY = stackY + (h - cs.h) / 2;
+          } else if (align === "bottom") {
+            childY = stackY + h - cs.h;
+          } else {
+            // "top" (default)
+            childY = stackY;
+          }
+          resolvedBounds.set(cid, { x: curX, y: childY, w: cs.w, h: cs.h });
+          curX += cs.w + gap;
+        }
+      }
+    }
   }
 
   // =========================================================================
@@ -1834,12 +2132,24 @@ export async function layout(slideDefinition) {
     const sizes = resolvedSizes.get(id);
 
     // Build provenance for each dimension
-    const provenance = {
-      x: buildProvenance(authored.props.x, "x", el, false),
-      y: buildProvenance(authored.props.y, "y", el, false),
-      w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
-      h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
-    };
+    // Stack children get provenance source: "stack"
+    let provenance;
+    if (stackParent.has(id)) {
+      const parentStackId = stackParent.get(id);
+      provenance = {
+        x: { source: "stack", stackId: parentStackId },
+        y: { source: "stack", stackId: parentStackId },
+        w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
+        h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
+      };
+    } else {
+      provenance = {
+        x: buildProvenance(authored.props.x, "x", el, false),
+        y: buildProvenance(authored.props.y, "y", el, false),
+        w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
+        h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
+      };
+    }
 
     sceneElements[id] = {
       id,
@@ -1855,8 +2165,61 @@ export async function layout(slideDefinition) {
     }
   }
 
-  // Collision detection placeholder (M5)
+  // =========================================================================
+  // Phase 4 (cont): Collision Detection (M5.1)
+  // =========================================================================
+
   const collisions = [];
+
+  // Collect elements for collision detection, grouped by layer.
+  // Stack children appear as individual elements.
+  // Skip: group children (positioned relative to group), stacks themselves
+  // (their children are the real elements).
+  const layerElements = { bg: [], content: [], overlay: [] };
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    // Skip group children (they use group-relative coordinates)
+    if (groupParent.has(id)) continue;
+    // Skip stack containers (their children represent the real space)
+    if (el.type === "vstack" || el.type === "hstack") continue;
+
+    const layer = el.props.layer || "content";
+    if (!layerElements[layer]) layerElements[layer] = [];
+    layerElements[layer].push(id);
+  }
+
+  // Check collisions within each layer: O(n^2/2)
+  for (const layer of Object.keys(layerElements)) {
+    const ids = layerElements[layer];
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const idA = ids[i];
+        const idB = ids[j];
+
+        // Skip if one is a child of the other (group/stack containment)
+        const parentA = stackParent.get(idA) || groupParent.get(idA);
+        const parentB = stackParent.get(idB) || groupParent.get(idB);
+        if (parentA === idB || parentB === idA) continue;
+
+        const boundsA = resolvedBounds.get(idA);
+        const boundsB = resolvedBounds.get(idB);
+        if (!boundsA || !boundsB) continue;
+
+        const overlapRect = computeAABBIntersection(boundsA, boundsB);
+        if (overlapRect) {
+          const overlapArea = overlapRect.w * overlapRect.h;
+          if (overlapArea > collisionThreshold) {
+            collisions.push({
+              elementA: idA,
+              elementB: idB,
+              overlapRect,
+              overlapArea,
+            });
+          }
+        }
+      }
+    }
+  }
 
   // =========================================================================
   // Phase 4 (cont): Presentation-Specific Validations (M4.3)
@@ -1893,6 +2256,10 @@ export async function layout(slideDefinition) {
       if (el.props.layer === "bg") continue;
       // Skip group children (they are positioned relative to the group)
       if (groupParent.has(id)) continue;
+      // Skip stack children (they inherit the stack's positioning context)
+      if (stackParent.has(id)) continue;
+      // Skip stack containers — validate their children individually instead
+      if (el.type === "vstack" || el.type === "hstack") continue;
 
       const bounds = resolvedBounds.get(id);
       const outsideSafe = bounds.x < sr.x ||
@@ -1927,6 +2294,9 @@ export async function layout(slideDefinition) {
     const el = flatMap.get(id);
     // Skip group children
     if (groupParent.has(id)) continue;
+    // Skip stack children and stack containers for this check
+    if (stackParent.has(id)) continue;
+    if (el.type === "vstack" || el.type === "hstack") continue;
 
     const bounds = resolvedBounds.get(id);
     const outsideSlide = bounds.x < 0 ||
@@ -1964,9 +2334,10 @@ export async function layout(slideDefinition) {
     for (const id of sortedOrder) {
       const el = flatMap.get(id);
       // Only check content-layer elements, skip group children
-      // layer defaults to "content" in applyDefaults; skip bg/overlay
       if (el.props.layer !== "content") continue;
       if (groupParent.has(id)) continue;
+      // Skip stack containers — count their children instead
+      if (el.type === "vstack" || el.type === "hstack") continue;
 
       const bounds = resolvedBounds.get(id);
       hasContentElements = true;
@@ -2129,6 +2500,35 @@ function renderElementFromScene(element, zIndex, sceneElements) {
       break;
     }
 
+    case "vstack":
+    case "hstack": {
+      // Stack containers render their children as absolutely-positioned elements.
+      // Children have absolute (slide-level) coordinates in the scene graph,
+      // but since they are nested in the stack div, we need to offset them
+      // relative to the stack's position.
+      div.style.overflow = "visible";
+      const stackChildren = element.children || [];
+      for (let i = 0; i < stackChildren.length; i++) {
+        const child = stackChildren[i];
+        const childResolved = sceneElements[child.id]?.resolved;
+        if (childResolved) {
+          // Create a modified scene elements map with child positions relative to stack
+          const adjustedScene = { ...sceneElements };
+          adjustedScene[child.id] = {
+            ...sceneElements[child.id],
+            resolved: {
+              ...childResolved,
+              x: childResolved.x - left,
+              y: childResolved.y - top,
+            },
+          };
+          const childEl = renderElementFromScene(child, i + 1, adjustedScene);
+          div.appendChild(childEl);
+        }
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -2273,6 +2673,9 @@ const SlideKit = {
   centerIn,
   // M4: fitText
   fitText,
+  // M5: Stack primitives
+  vstack,
+  hstack,
 };
 
 export default SlideKit;
