@@ -92,14 +92,14 @@ describe("M4.1: fitText() — projection threshold warning", () => {
   it("emits font_small warning when below projection threshold", async () => {
     _resetForTests();
     await init({ minFontSize: 24 });
-    // Force fitText to find a small size
-    const longText = "This is a long piece of text that will need to be shrunk significantly to fit in this tiny box";
-    const result = fitText(longText, { w: 200, h: 40 }, { minSize: 8, maxSize: 72 });
-    if (result.fontSize < 24) {
-      const warning = result.warnings.find(w => w.type === "font_small");
-      assert.ok(warning, "should have font_small warning");
-      assert.equal(warning.threshold, 24, "threshold should match config");
-    }
+    // Use a very long text in a tiny box to guarantee fontSize < 24
+    const longText = "Word ".repeat(200);
+    const result = fitText(longText, { w: 150, h: 30 }, { minSize: 8, maxSize: 72 });
+    // Verify the font was actually shrunk below threshold
+    assert.ok(result.fontSize < 24, "fontSize should be below threshold for this test to be valid");
+    const warning = result.warnings.find(w => w.type === "font_small");
+    assert.ok(warning, "should have font_small warning");
+    assert.equal(warning.threshold, 24, "threshold should match config");
   });
 
   it("does not emit font_small warning when fontSize >= threshold", async () => {
@@ -474,11 +474,13 @@ describe("M4.3: content area usage", () => {
     _resetForTests();
     await init();
     const sr = safeRect();
-    // Place element covering ~64% area (0.8 * 0.8 = 0.64)
+    // Place element covering ~64% area (0.8 * 0.8 = 0.64), centered in safe zone
     const midW = sr.w * 0.8;
     const midH = sr.h * 0.8;
+    const offsetX = (sr.w - midW) / 2;
+    const offsetY = (sr.h - midH) / 2;
     const elements = [
-      rect({ id: "r1", x: sr.x + 10, y: sr.y + 10, w: midW, h: midH }),
+      rect({ id: "r1", x: sr.x + offsetX, y: sr.y + offsetY, w: midW, h: midH }),
     ];
     const result = await layout({ elements });
     const usage = result.warnings.filter(
