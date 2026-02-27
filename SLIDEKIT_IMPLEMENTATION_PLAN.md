@@ -188,7 +188,7 @@ Implement `SlideKit.init(config)`:
 
 **Goal:** Implement `measureText()` and font preloading so the agent can compute text dimensions before placing elements. This unblocks auto-height for text elements.
 
-### 2.1 Font Preloading
+### 2.1 Font Preloading [DONE]
 
 Extend `SlideKit.init()`:
 
@@ -199,7 +199,7 @@ Extend `SlideKit.init()`:
 - Track loaded fonts in a set for validation later
 - If a font fails to load within a timeout (5s), emit a warning and fall back to system font
 
-### 2.2 Measurement Element
+### 2.2 Measurement Element [DONE]
 
 Create a hidden off-screen measurement container:
 
@@ -207,7 +207,7 @@ Create a hidden off-screen measurement container:
 - Styled identically to the slidekit-layer (same base font settings)
 - This element is reused for all text measurements
 
-### 2.3 `measureText(content, props)`
+### 2.3 `measureText(content, props)` [DONE]
 
 Implementation:
 
@@ -223,14 +223,14 @@ Implementation:
 
 **Cross-browser note:** `scrollHeight` on a hidden `<div>` is the most reliable way to measure wrapped text height. Avoid depending on `getClientRects()` for block metrics — it returns per-fragment rects that vary by browser for wrapped inline content.
 
-### 2.4 Auto-Height for Text Elements
+### 2.4 Auto-Height for Text Elements [DONE]
 
 Update the renderer to handle `h: null` (unspecified height) for text elements:
 
 - During rendering, if a text element has no explicit `h`, call `measureText()` to determine height
 - Store the measured height in the element's resolved data
 
-### 2.5 Tests
+### 2.5 Tests [DONE]
 
 - Test measureText with single-line text returns correct width/height
 - Test measureText with multi-line text (explicit `\n`) returns correct lineCount
