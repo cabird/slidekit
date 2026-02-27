@@ -3,14 +3,13 @@
 import { describe, it, assert } from './test-runner.js';
 import {
   text, image, rect, rule, group,
-  render, resolveAnchor, layout,
-  init, safeRect, getConfig, resetIdCounter, _resetForTests,
+  render, layout,
+  init, safeRect, _resetForTests,
   below, above, rightOf, leftOf,
   centerVWith, centerHWith,
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
   centerIn,
-  measureText,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -145,7 +144,6 @@ describe("M3.1: layout() — basic scene graph shape", () => {
   });
 
   it("resolves a single static element", async () => {
-    resetIdCounter();
     const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
     const scene = await layout({ elements: [el] });
 
@@ -376,15 +374,18 @@ describe("M3.2: layout() — centerIn()", () => {
   it("centers element within safeRect()", async () => {
     _resetForTests();
     await init();
-    const sr = safeRect(); // default: {x:120, y:90, w:1680, h:900}
-    const el = rect({ id: "c", x: centerIn(sr), y: centerIn(sr), w: 400, h: 200 });
-    const scene = await layout({ elements: [el] });
+    try {
+      const sr = safeRect(); // default: {x:120, y:90, w:1680, h:900}
+      const el = rect({ id: "c", x: centerIn(sr), y: centerIn(sr), w: 400, h: 200 });
+      const scene = await layout({ elements: [el] });
 
-    // centerIn x: 120 + 840 - 200 = 760
-    // centerIn y: 90 + 450 - 100 = 440
-    assert.equal(scene.elements["c"].resolved.x, 760);
-    assert.equal(scene.elements["c"].resolved.y, 440);
-    _resetForTests();
+      // centerIn x: 120 + 840 - 200 = 760
+      // centerIn y: 90 + 450 - 100 = 440
+      assert.equal(scene.elements["c"].resolved.x, 760);
+      assert.equal(scene.elements["c"].resolved.y, 440);
+    } finally {
+      _resetForTests();
+    }
   });
 });
 
@@ -608,14 +609,17 @@ describe("M3.4: provenance tracking", () => {
   it("measured text height gets source:measured provenance", async () => {
     _resetForTests();
     await init();
-    const el = text("Hello world", { id: "t1", x: 0, y: 0, w: 600, font: "sans-serif", size: 32 });
-    const scene = await layout({ elements: [el] });
-    const prov = scene.elements["t1"].provenance;
+    try {
+      const el = text("Hello world", { id: "t1", x: 0, y: 0, w: 600, font: "sans-serif", size: 32 });
+      const scene = await layout({ elements: [el] });
+      const prov = scene.elements["t1"].provenance;
 
-    assert.equal(prov.h.source, "measured");
-    assert.ok(prov.h.measuredAt, "should have measuredAt metadata");
-    assert.equal(prov.h.measuredAt.size, 32);
-    _resetForTests();
+      assert.equal(prov.h.source, "measured");
+      assert.ok(prov.h.measuredAt, "should have measuredAt metadata");
+      assert.equal(prov.h.measuredAt.size, 32);
+    } finally {
+      _resetForTests();
+    }
   });
 
   it("centerIn provenance includes rect", async () => {
@@ -865,5 +869,209 @@ describe("M3.2: gap=0 works correctly (nullish coalescing)", () => {
     const scene = await layout({ elements: [anchor, target] });
 
     assert.equal(scene.elements["t"].resolved.x, 250);
+  });
+});
+
+// =============================================================================
+// M3.1: Self-referencing cycle detection
+// =============================================================================
+
+describe("M3.1: self-referencing cycle detection", () => {
+  it("detects a single-element self-reference", async () => {
+    const el = rect({ id: "self", x: 0, y: below("self"), w: 100, h: 50 });
+    const scene = await layout({ elements: [el] });
+
+    assert.ok(scene.errors.length > 0, "should have errors");
+    assert.equal(scene.errors[0].type, "dependency_cycle");
+    assert.ok(scene.errors[0].elementIds.includes("self"), "cycle should include self");
+  });
+});
+
+// =============================================================================
+// M3.1: Scene graph per-element structural validation
+// =============================================================================
+
+describe("M3.1: scene graph element structure", () => {
+  it("each element has id, type, authored, resolved, provenance", async () => {
+    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
+    const scene = await layout({ elements: [el] });
+    const node = scene.elements["r1"];
+
+    assert.ok(node, "r1 should exist");
+    assert.equal(node.id, "r1");
+    assert.equal(node.type, "rect");
+    assert.ok(node.authored, "should have authored");
+    assert.ok(node.resolved, "should have resolved");
+    assert.ok(node.provenance, "should have provenance");
+    assert.ok("x" in node.resolved, "resolved should have x");
+    assert.ok("y" in node.resolved, "resolved should have y");
+    assert.ok("w" in node.resolved, "resolved should have w");
+    assert.ok("h" in node.resolved, "resolved should have h");
+  });
+
+  it("text element has correct type in scene graph", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const el = text("Hello", { id: "t1", x: 0, y: 0, w: 200, h: 50 });
+      const scene = await layout({ elements: [el] });
+      assert.equal(scene.elements["t1"].type, "text");
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("image element has correct type in scene graph", async () => {
+    const el = image("test.jpg", { id: "img1", x: 0, y: 0, w: 200, h: 150 });
+    const scene = await layout({ elements: [el] });
+    assert.equal(scene.elements["img1"].type, "image");
+  });
+
+  it("rule element has correct type in scene graph", async () => {
+    const el = rule({ id: "r1", x: 0, y: 0, w: 500, thickness: 3 });
+    const scene = await layout({ elements: [el] });
+    assert.equal(scene.elements["r1"].type, "rule");
+  });
+
+  it("group element has correct type in scene graph", async () => {
+    const g = group([], { id: "g1", x: 0, y: 0, w: 100, h: 100 });
+    const scene = await layout({ elements: [g] });
+    assert.equal(scene.elements["g1"].type, "group");
+  });
+});
+
+// =============================================================================
+// M3.1: Group child coordinate contract
+// =============================================================================
+
+describe("M3.1: group child coordinates in scene graph", () => {
+  it("group child resolved position is group-relative (not slide-absolute)", async () => {
+    const g = group([
+      rect({ id: "child", x: 10, y: 20, w: 50, h: 50 }),
+    ], { id: "grp", x: 200, y: 100, w: 400, h: 300 });
+    const scene = await layout({ elements: [g] });
+
+    // Group children in the scene graph use group-relative coordinates,
+    // because the DOM rendering nests them inside the group div.
+    assert.equal(scene.elements["child"].resolved.x, 10);
+    assert.equal(scene.elements["child"].resolved.y, 20);
+  });
+});
+
+// =============================================================================
+// M3.2: Negative coordinates and edge cases
+// =============================================================================
+
+describe("M3.2: negative and edge-case coordinates", () => {
+  it("above() can produce negative y coordinate", async () => {
+    const anchor = rect({ id: "anchor", x: 0, y: 30, w: 100, h: 50 });
+    const target = rect({ id: "target", x: 0, y: above("anchor", { gap: 10 }), w: 100, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // above: y = 30 - 50 - 10 = -30
+    assert.equal(scene.elements["target"].resolved.y, -30);
+  });
+
+  it("leftOf() can produce negative x coordinate", async () => {
+    const anchor = rect({ id: "anchor", x: 20, y: 0, w: 100, h: 50 });
+    const target = rect({ id: "target", x: leftOf("anchor", { gap: 10 }), y: 0, w: 50, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // leftOf: x = 20 - 50 - 10 = -40
+    assert.equal(scene.elements["target"].resolved.x, -40);
+  });
+
+  it("element positioned at x=0 with below() works correctly", async () => {
+    const anchor = rect({ id: "a", x: 0, y: 0, w: 100, h: 100 });
+    const target = rect({ id: "t", x: 0, y: below("a"), w: 100, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    assert.equal(scene.elements["t"].resolved.x, 0);
+    assert.equal(scene.elements["t"].resolved.y, 100);
+  });
+});
+
+// =============================================================================
+// M3.2: Cross-type relative positioning
+// =============================================================================
+
+describe("M3.2: cross-type relative positioning", () => {
+  it("text positioned below rect", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const r = rect({ id: "box", x: 100, y: 50, w: 400, h: 200 });
+      const t = text("Caption", {
+        id: "caption",
+        x: 100,
+        y: below("box", { gap: 16 }),
+        w: 400,
+        h: 40,
+      });
+      const scene = await layout({ elements: [r, t] });
+
+      // below: y = 50 + 200 + 16 = 266
+      assert.equal(scene.elements["caption"].resolved.y, 266);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("rule positioned below text", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const t = text("Heading", { id: "heading", x: 100, y: 100, w: 600, h: 50 });
+      const r = rule({ id: "underline", x: 100, y: below("heading", { gap: 8 }), w: 600 });
+      const scene = await layout({ elements: [t, r] });
+
+      // below: y = 100 + 50 + 8 = 158
+      assert.equal(scene.elements["underline"].resolved.y, 158);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("image aligned right with rect", async () => {
+    const r = rect({ id: "card", x: 100, y: 100, w: 600, h: 400 });
+    const img = image("photo.jpg", {
+      id: "photo",
+      x: alignRightWith("card"),
+      y: alignTopWith("card"),
+      w: 200,
+      h: 200,
+    });
+    const scene = await layout({ elements: [r, img] });
+
+    // alignRight: x = 100 + 600 - 200 = 500
+    // alignTop: y = 100
+    assert.equal(scene.elements["photo"].resolved.x, 500);
+    assert.equal(scene.elements["photo"].resolved.y, 100);
+  });
+});
+
+// =============================================================================
+// M3.4: Provenance with try/finally cleanup
+// =============================================================================
+
+describe("M3.4: provenance for measured text with proper cleanup", () => {
+  it("measured text h provenance includes measuredAt metadata and h > 0", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const el = text("Hello world", { id: "t1", x: 0, y: 0, w: 600, font: "sans-serif", size: 32 });
+      const scene = await layout({ elements: [el] });
+      const prov = scene.elements["t1"].provenance;
+
+      assert.equal(prov.h.source, "measured");
+      assert.ok(prov.h.measuredAt, "should have measuredAt metadata");
+      assert.equal(prov.h.measuredAt.size, 32);
+      // Verify authored h was absent
+      assert.equal(scene.elements["t1"].authored.props.h, undefined);
+      // Verify resolved height is positive
+      assert.ok(scene.elements["t1"].resolved.h > 0, "measured height should be > 0");
+    } finally {
+      _resetForTests();
+    }
   });
 });
