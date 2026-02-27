@@ -883,6 +883,101 @@ export function clearMeasureCache() {
 }
 
 // =============================================================================
+// fitText — Auto-Size Text to Fit Box (M4.1)
+// =============================================================================
+
+/**
+ * Auto-size text to fit within a box using binary search.
+ *
+ * Starts with maxSize and uses binary search between minSize and maxSize
+ * to find the largest font size that makes the text fit within the box.
+ *
+ * @param {string} content - The text to fit
+ * @param {{ w: number, h: number }} box - The box to fit within
+ * @param {object} [options={}] - Fit options
+ * @param {string} [options.font="Inter"] - Font family
+ * @param {number} [options.weight=400] - Font weight
+ * @param {number} [options.lineHeight=1.3] - Line height multiplier
+ * @param {string} [options.letterSpacing="0"] - Letter spacing CSS value
+ * @param {number} [options.minSize=12] - Minimum font size
+ * @param {number} [options.maxSize=200] - Maximum font size
+ * @param {number} [options.step=1] - Minimum resolution step
+ * @returns {{ fontSize: number, metrics: object, warnings: Array }}
+ */
+export function fitText(content, box, options = {}) {
+  const font = options.font || "Inter";
+  const weight = options.weight || 400;
+  const lineHeight = options.lineHeight || 1.3;
+  const letterSpacing = options.letterSpacing || "0";
+  const minSize = options.minSize ?? 12;
+  const maxSize = options.maxSize ?? 200;
+  const step = options.step ?? 1;
+
+  const warnings = [];
+
+  // Binary search for the largest font size that fits
+  let lo = minSize;
+  let hi = maxSize;
+  let bestSize = minSize;
+  let bestMetrics = null;
+
+  // First check: does maxSize already fit?
+  const maxMetrics = measureText(content, {
+    font, weight, lineHeight, letterSpacing, size: maxSize, w: box.w,
+  });
+  if (maxMetrics.block.h <= box.h) {
+    return { fontSize: maxSize, metrics: maxMetrics, warnings };
+  }
+
+  // Binary search
+  while (hi - lo >= step) {
+    const mid = Math.floor((lo + hi) / 2);
+    // Clear cache for mid to ensure fresh measurement when testing
+    const metrics = measureText(content, {
+      font, weight, lineHeight, letterSpacing, size: mid, w: box.w,
+    });
+
+    if (metrics.block.h <= box.h) {
+      bestSize = mid;
+      bestMetrics = metrics;
+      lo = mid + step;
+    } else {
+      hi = mid - step;
+    }
+  }
+
+  // If we never found a fit, use minSize
+  if (!bestMetrics) {
+    bestSize = minSize;
+    bestMetrics = measureText(content, {
+      font, weight, lineHeight, letterSpacing, size: minSize, w: box.w,
+    });
+    if (bestMetrics.block.h > box.h) {
+      warnings.push({
+        type: "text_overflow_at_min_size",
+        fontSize: minSize,
+        boxHeight: box.h,
+        textHeight: bestMetrics.block.h,
+        message: `Text does not fit in box even at minimum size ${minSize}px (text height: ${bestMetrics.block.h}px, box height: ${box.h}px)`,
+      });
+    }
+  }
+
+  // Projection-readability warning
+  const projectionThreshold = _config?.minFontSize ?? 24;
+  if (bestSize < projectionThreshold) {
+    warnings.push({
+      type: "font_small",
+      fontSize: bestSize,
+      threshold: projectionThreshold,
+      message: `Font shrunk to ${bestSize}px — may be too small for projection (threshold: ${projectionThreshold}px)`,
+    });
+  }
+
+  return { fontSize: bestSize, metrics: bestMetrics, warnings };
+}
+
+// =============================================================================
 // Basic Renderer (M1.4)
 // =============================================================================
 
@@ -1582,6 +1677,148 @@ export async function layout(slideDefinition) {
   }
 
   // =========================================================================
+  // Phase 2.5: Overflow Policies (M4.2)
+  // =========================================================================
+  // For text elements with explicit h, check if text overflows and apply
+  // the element's overflow policy.
+
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    if (el.type !== "text") continue;
+
+    // Only check overflow for text elements with explicit h
+    const authoredH = authoredSpecs.get(id).props.h;
+    if (authoredH === undefined || authoredH === null) continue;
+
+    const bounds = resolvedBounds.get(id);
+    const overflow = el.props.overflow || "warn";
+
+    // Measure the text at its current font size
+    const contentStr = String(el.content ?? "");
+    if (!contentStr) continue;
+
+    const textMetrics = measureText(contentStr, {
+      font: el.props.font,
+      size: el.props.size,
+      weight: el.props.weight,
+      lineHeight: el.props.lineHeight,
+      letterSpacing: el.props.letterSpacing,
+      w: bounds.w,
+    });
+
+    const textOverflows = textMetrics.block.h > bounds.h;
+    if (!textOverflows) continue;
+
+    // Text overflows — apply the overflow policy
+    switch (overflow) {
+      case "visible":
+        // No action — text renders beyond the box
+        break;
+
+      case "warn":
+        warnings.push({
+          type: "text_overflow",
+          elementId: id,
+          overflow: "warn",
+          textHeight: textMetrics.block.h,
+          boxHeight: bounds.h,
+          message: `Text in "${id}" overflows its box (text: ${textMetrics.block.h}px, box: ${bounds.h}px)`,
+        });
+        break;
+
+      case "clip":
+        // Mark the element for clipping — the renderer will set overflow:hidden
+        if (!el._layoutFlags) el._layoutFlags = {};
+        el._layoutFlags.clip = true;
+        break;
+
+      case "ellipsis": {
+        // Binary search on word count to find max words that fit with "..."
+        const words = contentStr.split(/\s+/);
+        if (words.length <= 1) {
+          // Can't truncate a single word further; just add "..."
+          el.content = "...";
+          break;
+        }
+
+        let loW = 0;
+        let hiW = words.length;
+        let bestWordCount = 0;
+
+        while (loW <= hiW) {
+          const midW = Math.floor((loW + hiW) / 2);
+          if (midW === 0) {
+            loW = midW + 1;
+            continue;
+          }
+          const truncated = words.slice(0, midW).join(" ") + "...";
+          const truncMetrics = measureText(truncated, {
+            font: el.props.font,
+            size: el.props.size,
+            weight: el.props.weight,
+            lineHeight: el.props.lineHeight,
+            letterSpacing: el.props.letterSpacing,
+            w: bounds.w,
+          });
+
+          if (truncMetrics.block.h <= bounds.h) {
+            bestWordCount = midW;
+            loW = midW + 1;
+          } else {
+            hiW = midW - 1;
+          }
+        }
+
+        if (bestWordCount > 0) {
+          el.content = words.slice(0, bestWordCount).join(" ") + "...";
+        } else {
+          el.content = "...";
+        }
+        break;
+      }
+
+      case "shrink": {
+        // Call fitText to auto-size, update the element's font size
+        const fitResult = fitText(contentStr, { w: bounds.w, h: bounds.h }, {
+          font: el.props.font,
+          weight: el.props.weight,
+          lineHeight: el.props.lineHeight,
+          letterSpacing: el.props.letterSpacing,
+          minSize: el.props.fit?.minSize ?? 12,
+          maxSize: el.props.size || 32,
+          step: 1,
+        });
+        el.props.size = fitResult.fontSize;
+        // Propagate fitText warnings
+        for (const w of fitResult.warnings) {
+          warnings.push({ ...w, elementId: id });
+        }
+        break;
+      }
+
+      case "error":
+        errors.push({
+          type: "text_overflow",
+          elementId: id,
+          overflow: "error",
+          textHeight: textMetrics.block.h,
+          boxHeight: bounds.h,
+          message: `Text in "${id}" overflows its box (text: ${textMetrics.block.h}px, box: ${bounds.h}px)`,
+        });
+        break;
+
+      default:
+        warnings.push({
+          type: "unknown_overflow_policy",
+          elementId: id,
+          policy: overflow,
+          message: `Unknown overflow policy "${overflow}" on element "${id}"`,
+        });
+        break;
+    }
+  }
+
+  // =========================================================================
   // Phase 3: Apply Transforms (placeholder for M6)
   // =========================================================================
   // Transforms (alignment, distribution) will be processed here in M6.
@@ -1616,13 +1853,158 @@ export async function layout(slideDefinition) {
       resolved: { ...bounds },
       provenance,
     };
+
+    // Store layout flags for rendering
+    if (el._layoutFlags) {
+      sceneElements[id]._layoutFlags = { ...el._layoutFlags };
+    }
   }
 
   // Collision detection placeholder (M5)
   const collisions = [];
 
-  // Validation placeholders (M4 — safe zone, font size, content area)
-  // These will be implemented in M4 and M5.
+  // =========================================================================
+  // Phase 4 (cont): Presentation-Specific Validations (M4.3)
+  // =========================================================================
+
+  const cfg = _config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
+  const slideW = cfg.slide?.w ?? 1920;
+  const slideH = cfg.slide?.h ?? 1080;
+  const isStrict = cfg.strict === true;
+  const minFontSizeThreshold = cfg.minFontSize ?? 24;
+
+  // Font size check
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    if (el.type !== "text") continue;
+    const fontSize = el.props.size || 32;
+    if (fontSize < minFontSizeThreshold) {
+      warnings.push({
+        type: "font_small",
+        elementId: id,
+        fontSize,
+        threshold: minFontSizeThreshold,
+        message: `Font size ${fontSize}px on "${id}" may be too small for projection (threshold: ${minFontSizeThreshold}px)`,
+      });
+    }
+  }
+
+  // Safe zone check
+  const sr = _safeRectCache;
+  if (sr) {
+    for (const id of sortedOrder) {
+      const el = flatMap.get(id);
+      // Skip bg-layer elements (full-bleed backgrounds are expected to exceed safe zone)
+      if (el.props.layer === "bg") continue;
+      // Skip group children (they are positioned relative to the group)
+      if (groupParent.has(id)) continue;
+
+      const bounds = resolvedBounds.get(id);
+      const outsideSafe = bounds.x < sr.x ||
+        bounds.y < sr.y ||
+        bounds.x + bounds.w > sr.x + sr.w ||
+        bounds.y + bounds.h > sr.y + sr.h;
+
+      if (outsideSafe) {
+        if (isStrict) {
+          errors.push({
+            type: "outside_safe_zone",
+            elementId: id,
+            resolved: { ...bounds },
+            safeRect: { ...sr },
+            message: `Element "${id}" extends outside the safe zone`,
+          });
+        } else {
+          warnings.push({
+            type: "outside_safe_zone",
+            elementId: id,
+            resolved: { ...bounds },
+            safeRect: { ...sr },
+            message: `Element "${id}" extends outside the safe zone`,
+          });
+        }
+      }
+    }
+  }
+
+  // Slide bounds check
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    // Skip group children
+    if (groupParent.has(id)) continue;
+
+    const bounds = resolvedBounds.get(id);
+    const outsideSlide = bounds.x < 0 ||
+      bounds.y < 0 ||
+      bounds.x + bounds.w > slideW ||
+      bounds.y + bounds.h > slideH;
+
+    if (outsideSlide) {
+      if (isStrict) {
+        errors.push({
+          type: "outside_slide",
+          elementId: id,
+          resolved: { ...bounds },
+          slideRect: { x: 0, y: 0, w: slideW, h: slideH },
+          message: `Element "${id}" extends outside the slide bounds (${slideW}x${slideH})`,
+        });
+      } else {
+        warnings.push({
+          type: "outside_slide",
+          elementId: id,
+          resolved: { ...bounds },
+          slideRect: { x: 0, y: 0, w: slideW, h: slideH },
+          message: `Element "${id}" extends outside the slide bounds (${slideW}x${slideH})`,
+        });
+      }
+    }
+  }
+
+  // Content area usage check
+  if (sr) {
+    let contentMinX = Infinity, contentMinY = Infinity;
+    let contentMaxX = -Infinity, contentMaxY = -Infinity;
+    let hasContentElements = false;
+
+    for (const id of sortedOrder) {
+      const el = flatMap.get(id);
+      // Only check content-layer elements, skip group children
+      // layer defaults to "content" in applyDefaults; skip bg/overlay
+      if (el.props.layer !== "content" && el.props.layer !== undefined) continue;
+      if (groupParent.has(id)) continue;
+
+      const bounds = resolvedBounds.get(id);
+      hasContentElements = true;
+      contentMinX = Math.min(contentMinX, bounds.x);
+      contentMinY = Math.min(contentMinY, bounds.y);
+      contentMaxX = Math.max(contentMaxX, bounds.x + bounds.w);
+      contentMaxY = Math.max(contentMaxY, bounds.y + bounds.h);
+    }
+
+    if (hasContentElements) {
+      const contentW = contentMaxX - contentMinX;
+      const contentH = contentMaxY - contentMinY;
+      const contentArea = contentW * contentH;
+      const safeArea = sr.w * sr.h;
+      const usageRatio = contentArea / safeArea;
+
+      if (usageRatio < 0.40) {
+        warnings.push({
+          type: "content_clustered",
+          usageRatio,
+          contentBounds: { x: contentMinX, y: contentMinY, w: contentW, h: contentH },
+          message: `Content uses only ${(usageRatio * 100).toFixed(1)}% of the safe zone — content may be too clustered`,
+        });
+      } else if (usageRatio > 0.95) {
+        warnings.push({
+          type: "content_no_breathing_room",
+          usageRatio,
+          contentBounds: { x: contentMinX, y: contentMinY, w: contentW, h: contentH },
+          message: `Content uses ${(usageRatio * 100).toFixed(1)}% of the safe zone — no breathing room`,
+        });
+      }
+    }
+  }
 
   return {
     elements: sceneElements,
@@ -1698,9 +2080,16 @@ function renderElementFromScene(element, zIndex, sceneElements) {
   // Apply merged styling CSS
   applyStyleToDOM(div, mergedStyle);
 
+  // M4.2: Apply layout flags from overflow policies
+  const layoutFlags = sceneElements[element.id]?._layoutFlags;
+  if (layoutFlags?.clip) {
+    div.style.overflow = "hidden";
+  }
+
   // Type-specific rendering
   switch (type) {
     case "text": {
+      // Use element.content which may have been modified by ellipsis overflow policy
       const content = String(element.content ?? "");
       const parts = content.split("\n");
       parts.forEach((part, i) => {
@@ -1887,6 +2276,8 @@ const SlideKit = {
   alignLeftWith,
   alignRightWith,
   centerIn,
+  // M4: fitText
+  fitText,
 };
 
 export default SlideKit;
