@@ -2181,6 +2181,45 @@ export async function layout(slideDefinition, options = {}) {
     };
   }
 
+  // Phase 1 (cont): Panel auto-height (M7.3)
+  // For panel compounds: set the background rect height from the vstack height + 2*padding.
+  // Also set the group's height so it participates correctly in other layouts.
+  for (const [id, el] of flatMap) {
+    if (el._compound !== "panel") continue;
+    const config = el._panelConfig;
+    if (!config) continue;
+
+    const panelChildren = el.children || [];
+    // Panel children: [bgRect, childStack]
+    const bgRect = panelChildren[0];
+    const childStack = panelChildren[1];
+    if (!bgRect || !childStack) continue;
+
+    const stackSizes = resolvedSizes.get(childStack.id);
+    if (!stackSizes) continue;
+
+    const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
+
+    // Update bg rect height
+    if (resolvedSizes.has(bgRect.id)) {
+      resolvedSizes.get(bgRect.id).h = autoH;
+    }
+
+    // Update group (panel) width and height
+    if (resolvedSizes.has(id)) {
+      const groupSizes = resolvedSizes.get(id);
+      groupSizes.h = autoH;
+      if (config.panelW) groupSizes.w = config.panelW;
+    } else {
+      resolvedSizes.set(id, {
+        w: config.panelW || 0,
+        h: autoH,
+        wMeasured: false,
+        hMeasured: config.panelH === undefined || config.panelH === null,
+      });
+    }
+  }
+
   // =========================================================================
   // Phase 2: Resolve Positions via Unified Topological Sort
   // =========================================================================
@@ -2234,6 +2273,38 @@ export async function layout(slideDefinition, options = {}) {
           });
         } else {
           depSet.add(yRef);
+        }
+      }
+
+      // M7.2: Connector elements depend on their fromId and toId
+      if (el.type === "connector") {
+        const fId = el.props.fromId;
+        const tId = el.props.toId;
+        if (fId) {
+          if (!flatMap.has(fId)) {
+            errors.push({
+              type: "unknown_ref",
+              elementId: id,
+              property: "fromId",
+              ref: fId,
+              message: `Connector "${id}": fromId references unknown element "${fId}"`,
+            });
+          } else {
+            depSet.add(fId);
+          }
+        }
+        if (tId) {
+          if (!flatMap.has(tId)) {
+            errors.push({
+              type: "unknown_ref",
+              elementId: id,
+              property: "toId",
+              ref: tId,
+              message: `Connector "${id}": toId references unknown element "${tId}"`,
+            });
+          } else {
+            depSet.add(tId);
+          }
         }
       }
     }
@@ -2696,6 +2767,48 @@ export async function layout(slideDefinition, options = {}) {
   }
 
   // =========================================================================
+  // Phase 4 (cont): Resolve Connector Endpoints (M7.2)
+  // =========================================================================
+  // After all positions are resolved, compute connection points for connectors.
+
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    if (el.type !== "connector") continue;
+
+    const fromId = el.props.fromId;
+    const toId = el.props.toId;
+    const fromBounds = resolvedBounds.get(fromId);
+    const toBounds = resolvedBounds.get(toId);
+
+    if (!fromBounds || !toBounds) {
+      warnings.push({
+        type: "connector_missing_endpoint",
+        elementId: id,
+        message: `Connector "${id}": could not resolve endpoints (from: "${fromId}", to: "${toId}")`,
+      });
+      continue;
+    }
+
+    const fromAnchor = el.props.fromAnchor || "cr";
+    const toAnchor = el.props.toAnchor || "cl";
+
+    const fromPt = getAnchorPoint(fromBounds, fromAnchor);
+    const toPt = getAnchorPoint(toBounds, toAnchor);
+
+    // Store resolved connector data in the scene element
+    if (sceneElements[id]) {
+      sceneElements[id]._connectorResolved = {
+        from: fromPt,
+        to: toPt,
+        fromId,
+        toId,
+        fromAnchor,
+        toAnchor,
+      };
+    }
+  }
+
+  // =========================================================================
   // Phase 4 (cont): Collision Detection (M5.1)
   // =========================================================================
 
@@ -3063,6 +3176,27 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
       break;
     }
 
+    case "connector": {
+      // Connector elements are rendered as SVG overlays.
+      // The scene graph contains resolved endpoint coordinates.
+      const connectorData = sceneElements[element.id]?._connectorResolved;
+      if (connectorData) {
+        const svgWrapper = buildConnectorSVG(
+          connectorData.from,
+          connectorData.to,
+          { ...props, _markerId: element.id }
+        );
+        // Return the SVG wrapper directly instead of the div
+        svgWrapper.setAttribute("data-sk-id", element.id);
+        svgWrapper.style.zIndex = String(zIndex);
+        if (props.opacity !== undefined && props.opacity !== 1) {
+          svgWrapper.style.opacity = String(props.opacity);
+        }
+        return svgWrapper;
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -3171,6 +3305,439 @@ export async function render(slides, options = {}) {
 }
 
 // =============================================================================
+// Compound Primitives — bullets, connect, panel (M7)
+// =============================================================================
+
+/**
+ * Create a bullet list element.
+ *
+ * Parses items array where each item is a string or { text, children } for
+ * nested lists. Returns a vstack-based group with bullet characters and text
+ * items positioned correctly at each nesting level.
+ *
+ * @param {Array<string|{text: string, children?: Array}>} items - Bullet items
+ * @param {object} [props={}] - Positioning and styling properties
+ * @param {number} [props.x=0] - X position
+ * @param {number} [props.y=0] - Y position
+ * @param {number} [props.w] - Width for text wrapping
+ * @param {number} [props.gap=8] - Vertical gap between items
+ * @param {string} [props.bullet="•"] - Bullet character
+ * @param {string} [props.bulletChar="•"] - Alias for bullet
+ * @param {string} [props.bulletColor] - Color for bullet characters (defaults to props.color)
+ * @param {number} [props.bulletGap=16] - Gap between bullet and text
+ * @param {number} [props.indent=40] - Indent per nesting level
+ * @param {string} [props.font="Inter"] - Font family
+ * @param {number} [props.size=32] - Font size
+ * @param {number} [props.weight=400] - Font weight
+ * @param {string} [props.color="#ffffff"] - Text color
+ * @param {number} [props.lineHeight=1.3] - Line height multiplier
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function bullets(items, props = {}) {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+
+  const bulletChar = rest.bulletChar || rest.bullet || "•";
+  const bulletColor = rest.bulletColor || rest.color || "#ffffff";
+  const bulletGap = rest.bulletGap ?? 16;
+  const indent = rest.indent ?? 40;
+  const gap = rest.gap ?? 8;
+  const font = rest.font || "Inter";
+  const size = rest.size ?? 32;
+  const weight = rest.weight ?? 400;
+  const color = rest.color || "#ffffff";
+  const lineHeight = rest.lineHeight ?? 1.3;
+  const letterSpacing = rest.letterSpacing || "0";
+  const w = rest.w;
+
+  // Flatten items into a list of { text, level } entries
+  const flatItems = [];
+  function walkItems(itemList, level) {
+    for (const item of itemList) {
+      if (typeof item === "string") {
+        flatItems.push({ text: item, level });
+      } else if (item && typeof item === "object") {
+        flatItems.push({ text: item.text || "", level });
+        if (Array.isArray(item.children)) {
+          walkItems(item.children, level + 1);
+        }
+      }
+    }
+  }
+  walkItems(items, 0);
+
+  // Measure bullet character width once (same font/size for all levels)
+  const bulletMetrics = measureText(bulletChar, {
+    font, size, weight, lineHeight, letterSpacing,
+  });
+  const bulletWidth = bulletMetrics.block.w;
+
+  // Build children: for each flat item, create a group with bullet + text.
+  // Each group gets an explicit h from text measurement so vstack can
+  // compute correct spacing.
+  const children = [];
+  for (let i = 0; i < flatItems.length; i++) {
+    const fi = flatItems[i];
+    const itemIndent = fi.level * indent;
+
+    // Compute available width for the text (after bullet + gap + indent)
+    const textW = w ? w - itemIndent - bulletWidth - bulletGap : undefined;
+
+    // Measure the text to determine item height
+    const textMeasureProps = { font, size, weight, lineHeight, letterSpacing };
+    if (textW && textW > 0) textMeasureProps.w = textW;
+    const textMetrics = measureText(fi.text, textMeasureProps);
+    const itemH = Math.max(bulletMetrics.block.h, textMetrics.block.h);
+
+    const bulletEl = text(bulletChar, {
+      x: itemIndent,
+      y: 0,
+      font, size, weight, color: bulletColor, lineHeight, letterSpacing,
+    });
+
+    const textProps = {
+      x: itemIndent + bulletWidth + bulletGap,
+      y: 0,
+      font, size, weight, color, lineHeight, letterSpacing,
+    };
+    if (textW && textW > 0) {
+      textProps.w = textW;
+    }
+    const textEl = text(fi.text, textProps);
+
+    // Create group with explicit w and h so it participates in vstack sizing
+    const itemGroupProps = {
+      x: 0,
+      y: 0,
+      w: w || (itemIndent + bulletWidth + bulletGap + textMetrics.block.w),
+      h: itemH,
+    };
+    const itemGroup = group([bulletEl, textEl], itemGroupProps);
+
+    children.push(itemGroup);
+  }
+
+  // Wrap in a vstack with the specified gap
+  const stackProps = {
+    x: rest.x ?? 0,
+    y: rest.y ?? 0,
+    gap,
+  };
+  if (w) stackProps.w = w;
+
+  const result = vstack(children, { id, ...stackProps });
+
+  // Tag the element as a bullets compound so tests can identify it
+  result._compound = "bullets";
+  result._bulletItems = flatItems;
+
+  return result;
+}
+
+/**
+ * Create a connector element between two elements.
+ *
+ * Returns a special element type "connector" that gets resolved during
+ * layout Phase 4 after all element positions are finalized.
+ * The connector computes endpoints based on anchor points on the source
+ * and target elements, then renders as SVG.
+ *
+ * @param {string} fromId - ID of the source element
+ * @param {string} toId - ID of the target element
+ * @param {object} [props={}] - Connector properties
+ * @param {string} [props.type="straight"] - Line type: "straight", "curved", "elbow"
+ * @param {string} [props.arrow="end"] - Arrow heads: "none", "start", "end", "both"
+ * @param {string} [props.color="#ffffff"] - Line color
+ * @param {number} [props.thickness=2] - Line thickness
+ * @param {Array|null} [props.dash=null] - Dash array (e.g., [5, 5]) or null for solid
+ * @param {string} [props.fromAnchor="cr"] - Anchor point on source element
+ * @param {string} [props.toAnchor="cl"] - Anchor point on target element
+ * @param {string} [props.label] - Optional label text
+ * @param {object} [props.labelStyle] - Style for the label { size, color, font, weight }
+ * @returns {{ id: string, type: string, props: object }}
+ */
+export function connect(fromId, toId, props = {}) {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+
+  const resolved = {
+    connectorType: rest.type || "straight",
+    arrow: rest.arrow ?? "end",
+    color: rest.color || "#ffffff",
+    thickness: rest.thickness ?? 2,
+    dash: rest.dash || null,
+    fromAnchor: rest.fromAnchor || "cr",
+    toAnchor: rest.toAnchor || "cl",
+    label: rest.label || null,
+    labelStyle: rest.labelStyle || {},
+    fromId,
+    toId,
+    // Common props
+    x: 0,
+    y: 0,
+    layer: rest.layer || "content",
+    opacity: rest.opacity ?? 1,
+    style: rest.style || {},
+    className: rest.className || "",
+    anchor: "tl",
+  };
+
+  return { id, type: "connector", props: resolved };
+}
+
+/**
+ * Compute pixel coordinates for an anchor point on an element's bounding box.
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} bounds
+ * @param {string} anchor - Anchor point (tl, tc, tr, cl, cc, cr, bl, bc, br)
+ * @returns {{ x: number, y: number }}
+ */
+function getAnchorPoint(bounds, anchor) {
+  const row = anchor[0]; // t, c, b
+  const col = anchor[1]; // l, c, r
+
+  let px, py;
+
+  if (col === "l") px = bounds.x;
+  else if (col === "c") px = bounds.x + bounds.w / 2;
+  else px = bounds.x + bounds.w; // "r"
+
+  if (row === "t") py = bounds.y;
+  else if (row === "c") py = bounds.y + bounds.h / 2;
+  else py = bounds.y + bounds.h; // "b"
+
+  return { x: px, y: py };
+}
+
+/**
+ * Build an SVG element for a connector between two points.
+ *
+ * @param {object} from - { x, y } start point
+ * @param {object} to - { x, y } end point
+ * @param {object} connProps - Connector properties from the element
+ * @returns {HTMLElement} An absolutely positioned div containing the SVG
+ */
+function buildConnectorSVG(from, to, connProps) {
+  const padding = 20; // padding around SVG for arrow heads
+  const minX = Math.min(from.x, to.x) - padding;
+  const minY = Math.min(from.y, to.y) - padding;
+  const maxX = Math.max(from.x, to.x) + padding;
+  const maxY = Math.max(from.y, to.y) + padding;
+  const svgW = maxX - minX;
+  const svgH = maxY - minY;
+
+  // Local coordinates within the SVG
+  const lx1 = from.x - minX;
+  const ly1 = from.y - minY;
+  const lx2 = to.x - minX;
+  const ly2 = to.y - minY;
+
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", String(svgW));
+  svg.setAttribute("height", String(svgH));
+  svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+  svg.style.overflow = "visible";
+
+  const color = connProps.color || "#ffffff";
+  const thickness = connProps.thickness ?? 2;
+  const dash = connProps.dash;
+  const arrow = connProps.arrow || "end";
+  const connType = connProps.connectorType || "straight";
+
+  // Create marker definitions for arrow heads
+  const defs = document.createElementNS(ns, "defs");
+  const markerId = `arrow-${connProps._markerId || "default"}`;
+
+  if (arrow !== "none") {
+    const marker = document.createElementNS(ns, "marker");
+    marker.setAttribute("id", markerId);
+    marker.setAttribute("viewBox", "0 0 10 10");
+    marker.setAttribute("refX", "10");
+    marker.setAttribute("refY", "5");
+    marker.setAttribute("markerWidth", "8");
+    marker.setAttribute("markerHeight", "8");
+    marker.setAttribute("orient", "auto-start-reverse");
+
+    const polygon = document.createElementNS(ns, "polygon");
+    polygon.setAttribute("points", "0,0 10,5 0,10");
+    polygon.setAttribute("fill", color);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  svg.appendChild(defs);
+
+  // Draw the connector path
+  let pathEl;
+  if (connType === "straight") {
+    pathEl = document.createElementNS(ns, "line");
+    pathEl.setAttribute("x1", String(lx1));
+    pathEl.setAttribute("y1", String(ly1));
+    pathEl.setAttribute("x2", String(lx2));
+    pathEl.setAttribute("y2", String(ly2));
+  } else {
+    pathEl = document.createElementNS(ns, "path");
+    let d;
+    if (connType === "curved") {
+      // Cubic bezier with control points offset perpendicular to the line
+      const dx = lx2 - lx1;
+      const dy = ly2 - ly1;
+      const cpOffset = Math.max(Math.abs(dx), Math.abs(dy)) * 0.4;
+      const cx1 = lx1 + cpOffset;
+      const cy1 = ly1;
+      const cx2 = lx2 - cpOffset;
+      const cy2 = ly2;
+      d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
+    } else if (connType === "elbow") {
+      // Right-angle elbow: horizontal out -> vertical -> horizontal in
+      const midX = (lx1 + lx2) / 2;
+      d = `M ${lx1} ${ly1} L ${midX} ${ly1} L ${midX} ${ly2} L ${lx2} ${ly2}`;
+    }
+    pathEl.setAttribute("d", d);
+    pathEl.setAttribute("fill", "none");
+  }
+
+  pathEl.setAttribute("stroke", color);
+  pathEl.setAttribute("stroke-width", String(thickness));
+
+  if (dash) {
+    pathEl.setAttribute("stroke-dasharray", dash.join(","));
+  }
+
+  // Apply arrow markers
+  if (arrow === "end" || arrow === "both") {
+    pathEl.setAttribute("marker-end", `url(#${markerId})`);
+  }
+  if (arrow === "start" || arrow === "both") {
+    pathEl.setAttribute("marker-start", `url(#${markerId})`);
+  }
+
+  svg.appendChild(pathEl);
+
+  // Optional label at midpoint
+  if (connProps.label) {
+    const labelStyle = connProps.labelStyle || {};
+    const labelSize = labelStyle.size ?? 14;
+    const labelColor = labelStyle.color ?? "#999999";
+    const labelFont = labelStyle.font || "Inter";
+    const labelWeight = labelStyle.weight ?? 400;
+
+    // Compute midpoint
+    let midLX, midLY;
+    if (connType === "elbow") {
+      const midX = (lx1 + lx2) / 2;
+      midLX = midX;
+      midLY = (ly1 + ly2) / 2;
+    } else {
+      midLX = (lx1 + lx2) / 2;
+      midLY = (ly1 + ly2) / 2;
+    }
+
+    const textNode = document.createElementNS(ns, "text");
+    textNode.setAttribute("x", String(midLX));
+    textNode.setAttribute("y", String(midLY - 8)); // offset above line
+    textNode.setAttribute("text-anchor", "middle");
+    textNode.setAttribute("font-family", `"${labelFont}", sans-serif`);
+    textNode.setAttribute("font-size", String(labelSize));
+    textNode.setAttribute("font-weight", String(labelWeight));
+    textNode.setAttribute("fill", labelColor);
+    textNode.textContent = connProps.label;
+    svg.appendChild(textNode);
+  }
+
+  // Wrap in a positioned div
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "absolute";
+  wrapper.style.left = `${minX}px`;
+  wrapper.style.top = `${minY}px`;
+  wrapper.style.width = `${svgW}px`;
+  wrapper.style.height = `${svgH}px`;
+  wrapper.style.pointerEvents = "none";
+  wrapper.appendChild(svg);
+
+  return wrapper;
+}
+
+/**
+ * Create a panel element — a visual container with background, padding, and
+ * children laid out vertically inside.
+ *
+ * Under the hood, panel() creates a group containing a rect background +
+ * a vstack of children, with padding applied as coordinate offsets.
+ * Children with w: "fill" resolve to panel.w - 2 * padding.
+ *
+ * @param {Array} children - Array of SlideKit elements
+ * @param {object} [props={}] - Panel properties
+ * @param {number} [props.x=0] - X position
+ * @param {number} [props.y=0] - Y position
+ * @param {number} [props.w] - Width
+ * @param {number} [props.h] - Height (auto-computed from children if not specified)
+ * @param {number} [props.padding=24] - Internal padding
+ * @param {number} [props.gap=16] - Gap between children
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function panel(children, props = {}) {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+
+  const padding = rest.padding ?? 24;
+  const gap = rest.gap ?? 16;
+  const panelW = rest.w;
+  const panelH = rest.h;
+
+  // Resolve "fill" width on children: fill = panelW - 2 * padding
+  const contentW = panelW ? panelW - 2 * padding : undefined;
+  const resolvedChildren = children.map(child => {
+    if (child.props && child.props.w === "fill" && contentW) {
+      // Clone the child with resolved width
+      return { ...child, props: { ...child.props, w: contentW } };
+    }
+    return child;
+  });
+
+  // Build the vstack for the children
+  const childStack = vstack(resolvedChildren, {
+    x: padding,
+    y: padding,
+    w: contentW,
+    gap,
+  });
+
+  // Build the background rect
+  const bgProps = {
+    x: 0,
+    y: 0,
+    w: panelW || 0,
+  };
+
+  // Copy style/className to the background rect
+  if (rest.style) bgProps.style = rest.style;
+  if (rest.className) bgProps.className = rest.className;
+  if (rest.fill) bgProps.fill = rest.fill;
+  if (rest.radius !== undefined) bgProps.radius = rest.radius;
+  if (rest.border !== undefined) bgProps.border = rest.border;
+
+  const bgRect = rect(bgProps);
+
+  // Create the group container
+  const result = group([bgRect, childStack], {
+    id,
+    x: rest.x ?? 0,
+    y: rest.y ?? 0,
+    layer: rest.layer || "content",
+    opacity: rest.opacity ?? 1,
+    anchor: rest.anchor || "tl",
+  });
+
+  // Tag as a panel compound for layout pipeline integration
+  result._compound = "panel";
+  result._panelConfig = { padding, gap, panelW, panelH };
+
+  return result;
+}
+
+// =============================================================================
 // Namespace Export (for convenient SlideKit.* usage)
 // =============================================================================
 
@@ -3223,6 +3790,10 @@ const SlideKit = {
   matchHeight,
   matchSize,
   fitToRect,
+  // M7: Compound primitives
+  bullets,
+  connect,
+  panel,
 };
 
 export default SlideKit;
