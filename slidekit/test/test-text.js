@@ -319,7 +319,7 @@ describe("M2.4: Auto-height text elements", () => {
   it("text without h gets auto-measured height in rendered DOM", async () => {
     _resetForTests();
     await init();
-    await withContainer((container) => {
+    await withContainer(async (container) => {
       const slides = [{
         elements: [
           text("Auto height text", {
@@ -329,7 +329,7 @@ describe("M2.4: Auto-height text elements", () => {
           }),
         ],
       }];
-      render(slides, { container });
+      await render(slides, { container });
       const el = container.querySelector('[data-sk-id="auto-h"]');
       assert.ok(el, "element should exist");
       const height = parseInt(el.style.height, 10);
@@ -340,7 +340,7 @@ describe("M2.4: Auto-height text elements", () => {
   it("auto-height text is taller with more lines", async () => {
     _resetForTests();
     await init();
-    await withContainer((container) => {
+    await withContainer(async (container) => {
       const slides = [{
         elements: [
           text("Single line", {
@@ -353,7 +353,7 @@ describe("M2.4: Auto-height text elements", () => {
           }),
         ],
       }];
-      render(slides, { container });
+      await render(slides, { container });
       const singleEl = container.querySelector('[data-sk-id="single"]');
       const multiEl = container.querySelector('[data-sk-id="multi"]');
       const singleH = parseInt(singleEl.style.height, 10);
@@ -366,7 +366,7 @@ describe("M2.4: Auto-height text elements", () => {
   it("text with explicit h uses that height (not auto-measured)", async () => {
     _resetForTests();
     await init();
-    await withContainer((container) => {
+    await withContainer(async (container) => {
       const slides = [{
         elements: [
           text("Explicit height", {
@@ -375,7 +375,7 @@ describe("M2.4: Auto-height text elements", () => {
           }),
         ],
       }];
-      render(slides, { container });
+      await render(slides, { container });
       const el = container.querySelector('[data-sk-id="explicit-h"]');
       assert.equal(el.style.height, "200px", "should use explicit h");
     });
@@ -384,7 +384,7 @@ describe("M2.4: Auto-height text elements", () => {
   it("empty text with no h gets height 0", async () => {
     _resetForTests();
     await init();
-    await withContainer((container) => {
+    await withContainer(async (container) => {
       const slides = [{
         elements: [
           text("", {
@@ -393,7 +393,7 @@ describe("M2.4: Auto-height text elements", () => {
           }),
         ],
       }];
-      render(slides, { container });
+      await render(slides, { container });
       const el = container.querySelector('[data-sk-id="empty-auto"]');
       assert.equal(el.style.height, "0px", "empty text should get height 0");
     });

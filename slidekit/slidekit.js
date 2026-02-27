@@ -1048,7 +1048,7 @@ function applySlideBackground(section, background) {
  * @returns {{ _rel: "below", ref: string, gap: number }}
  */
 export function below(refId, opts = {}) {
-  return { _rel: "below", ref: refId, gap: opts.gap || 0 };
+  return { _rel: "below", ref: refId, gap: opts.gap ?? 0 };
 }
 
 /**
@@ -1060,7 +1060,7 @@ export function below(refId, opts = {}) {
  * @returns {{ _rel: "above", ref: string, gap: number }}
  */
 export function above(refId, opts = {}) {
-  return { _rel: "above", ref: refId, gap: opts.gap || 0 };
+  return { _rel: "above", ref: refId, gap: opts.gap ?? 0 };
 }
 
 /**
@@ -1072,7 +1072,7 @@ export function above(refId, opts = {}) {
  * @returns {{ _rel: "rightOf", ref: string, gap: number }}
  */
 export function rightOf(refId, opts = {}) {
-  return { _rel: "rightOf", ref: refId, gap: opts.gap || 0 };
+  return { _rel: "rightOf", ref: refId, gap: opts.gap ?? 0 };
 }
 
 /**
@@ -1084,7 +1084,7 @@ export function rightOf(refId, opts = {}) {
  * @returns {{ _rel: "leftOf", ref: string, gap: number }}
  */
 export function leftOf(refId, opts = {}) {
-  return { _rel: "leftOf", ref: refId, gap: opts.gap || 0 };
+  return { _rel: "leftOf", ref: refId, gap: opts.gap ?? 0 };
 }
 
 /**
@@ -1238,7 +1238,7 @@ function getRelRef(marker) {
  */
 function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
   const rel = marker._rel;
-  const gap = marker.gap || 0;
+  const gap = marker.gap ?? 0;
 
   switch (rel) {
     case "below":
@@ -1334,9 +1334,9 @@ function buildProvenance(authoredValue, prop, element, wasMeasured) {
  * Phase 4: Finalize (provenance, validation placeholders, scene graph)
  *
  * @param {object} slideDefinition - A slide definition { elements, transforms, ... }
- * @returns {object} Scene graph: { elements, transforms, warnings, errors, collisions }
+ * @returns {Promise<object>} Scene graph: { elements, transforms, warnings, errors, collisions }
  */
-export function layout(slideDefinition) {
+export async function layout(slideDefinition) {
   const errors = [];
   const warnings = [];
   const elements = slideDefinition.elements || [];
@@ -1503,9 +1503,10 @@ export function layout(slideDefinition) {
 
   // Cycle detection: if sortedOrder doesn't include all elements, there's a cycle
   if (sortedOrder.length < flatMap.size) {
+    const sortedSet = new Set(sortedOrder);
     const inCycle = [];
     for (const [id] of flatMap) {
-      if (!sortedOrder.includes(id)) {
+      if (!sortedSet.has(id)) {
         inCycle.push(id);
       }
     }
@@ -1534,40 +1535,50 @@ export function layout(slideDefinition) {
     const h = sizes.h;
 
     // Resolve x
+    const xIsRel = isRelMarker(el.props.x);
     let x;
-    if (isRelMarker(el.props.x)) {
+    if (xIsRel) {
       const marker = el.props.x;
       if (marker._rel === "centerIn") {
-        x = resolveRelMarker(marker, "x", null, w, h);
+        // centerIn uses the rect directly, no refBounds needed
+        const r = marker.rect;
+        x = r.x + r.w / 2 - w / 2;
       } else {
         const refId = marker.ref;
         const refBounds = resolvedBounds.get(refId);
         x = resolveRelMarker(marker, "x", refBounds, w, h);
       }
     } else {
-      x = el.props.x || 0;
+      x = el.props.x ?? 0;
     }
 
     // Resolve y
+    const yIsRel = isRelMarker(el.props.y);
     let y;
-    if (isRelMarker(el.props.y)) {
+    if (yIsRel) {
       const marker = el.props.y;
       if (marker._rel === "centerIn") {
-        y = resolveRelMarker(marker, "y", null, w, h);
+        // centerIn uses the rect directly, no refBounds needed
+        const r = marker.rect;
+        y = r.y + r.h / 2 - h / 2;
       } else {
         const refId = marker.ref;
         const refBounds = resolvedBounds.get(refId);
         y = resolveRelMarker(marker, "y", refBounds, w, h);
       }
     } else {
-      y = el.props.y || 0;
+      y = el.props.y ?? 0;
     }
 
-    // Apply anchor resolution to get top-left position
+    // Apply anchor resolution ONLY to authored (non-_rel) coordinates.
+    // _rel helpers already compute absolute top-left corner positions;
+    // applying resolveAnchor again would double-shift for non-tl anchors.
     const anchor = el.props.anchor || "tl";
-    const { left, top } = resolveAnchor(x, y, w, h, anchor);
+    const { left: anchoredX, top: anchoredY } = resolveAnchor(x, y, w, h, anchor);
+    const finalX = xIsRel ? x : anchoredX;
+    const finalY = yIsRel ? y : anchoredY;
 
-    resolvedBounds.set(id, { x: left, y: top, w, h });
+    resolvedBounds.set(id, { x: finalX, y: finalY, w, h });
   }
 
   // =========================================================================
@@ -1652,7 +1663,7 @@ function renderElementFromScene(element, zIndex, sceneElements) {
     w = dims.w;
     h = dims.h;
     const anchor = props.anchor || "tl";
-    const anchorResult = resolveAnchor(props.x || 0, props.y || 0, w, h, anchor);
+    const anchorResult = resolveAnchor(props.x ?? 0, props.y ?? 0, w, h, anchor);
     left = anchorResult.left;
     top = anchorResult.top;
   }
@@ -1753,9 +1764,9 @@ function renderElementFromScene(element, zIndex, sceneElements) {
  * @param {Array} slides - Array of slide definitions
  * @param {object} [options={}] - Render options
  * @param {HTMLElement} [options.container] - Target container element
- * @returns {{ sections: Array<HTMLElement>, layouts: Array<object> }}
+ * @returns {Promise<{ sections: Array<HTMLElement>, layouts: Array<object> }>}
  */
-export function render(slides, options = {}) {
+export async function render(slides, options = {}) {
   // Reset ID counter at start of render for deterministic IDs
   resetIdCounter();
 
@@ -1772,9 +1783,14 @@ export function render(slides, options = {}) {
   const sections = [];
   const layouts = [];
 
+  // Read config once outside the loop to avoid repeated deep-copy overhead
+  const cfg = getConfig();
+  const slideW = cfg?.slide?.w ?? 1920;
+  const slideH = cfg?.slide?.h ?? 1080;
+
   for (const slide of slides) {
     // Run layout solve for this slide
-    const layoutResult = layout(slide);
+    const layoutResult = await layout(slide);
     layouts.push(layoutResult);
 
     // Create the <section> for this slide
@@ -1791,9 +1807,6 @@ export function render(slides, options = {}) {
     }
 
     // Create the slidekit-layer container
-    const cfg = getConfig();
-    const slideW = cfg?.slide?.w ?? 1920;
-    const slideH = cfg?.slide?.h ?? 1080;
     const layer = document.createElement("div");
     layer.className = "slidekit-layer";
     layer.style.position = "relative";
@@ -1836,7 +1849,7 @@ export function render(slides, options = {}) {
     };
   }
 
-  return sections;
+  return { sections, layouts };
 }
 
 // =============================================================================
