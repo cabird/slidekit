@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, group,
+  text, rect, group, vstack,
   render, layout, init,
   _resetForTests,
   grid, snap,
@@ -1091,6 +1091,128 @@ describe("M8: integration — combined tier 3 features", () => {
       assert.ok(div, "element should be rendered");
       assert.ok(div.style.transform.includes("rotate(15deg)"), "should have rotation");
       assert.ok(div.style.boxShadow, "should have shadow");
+    });
+  });
+});
+
+// =============================================================================
+// M8: Additional Edge Cases (from review feedback)
+// =============================================================================
+
+describe("M8.3: resolvePercentage — edge cases", () => {
+  it("returns original string for NaN-producing percentage", () => {
+    _resetForTests();
+    // The regex only matches [0-9.]+ so "abc%" won't match — returns as-is
+    assert.equal(resolvePercentage("abc%", "x"), "abc%");
+  });
+
+  it("returns original string for double-percent", () => {
+    _resetForTests();
+    assert.equal(resolvePercentage("10%%", "x"), "10%%");
+  });
+
+  it("returns original string for safe: with invalid percent", () => {
+    _resetForTests();
+    assert.equal(resolvePercentage("safe:abc%", "x"), "safe:abc%");
+  });
+
+  it("negative percentages are not matched (pass-through)", () => {
+    _resetForTests();
+    // regex is /^([0-9.]+)%$/ which does not match "-10%"
+    assert.equal(resolvePercentage("-10%", "x"), "-10%");
+  });
+
+  it("safe: negative percentages are not matched (pass-through)", () => {
+    _resetForTests();
+    assert.equal(resolvePercentage("safe:-10%", "x"), "safe:-10%");
+  });
+});
+
+describe("M8.2: grid — additional edge cases", () => {
+  it("grid({cols: 0}) falls back to default 12 columns", () => {
+    _resetForTests();
+    // cols: 0 is falsy, so || 12 makes it 12
+    const g = grid({ cols: 0 });
+    assert.equal(g.cols, 12);
+  });
+
+  it("grid with 1 column has no gutters", () => {
+    _resetForTests();
+    const g = grid({ cols: 1 });
+    assert.equal(g.colWidth, g.totalWidth);
+  });
+});
+
+describe("M8.2: snap — additional edge cases", () => {
+  it("snaps to float grid sizes", () => {
+    _resetForTests();
+    // snap(7, 2.5): 7/2.5 = 2.8, round = 3, 3*2.5 = 7.5
+    assert.within(snap(7, 2.5), 7.5, 0.01);
+  });
+
+  it("snaps 173 to 2.5 grid", () => {
+    _resetForTests();
+    // 173/2.5 = 69.2, round = 69, 69*2.5 = 172.5
+    assert.within(snap(173, 2.5), 172.5, 0.01);
+  });
+});
+
+describe("M8.5: repeat — vstack nested re-ID", () => {
+  it("re-IDs children inside vstacks", () => {
+    _resetForTests();
+    const el = vstack([
+      rect({ id: "vs-child-a", w: 100, h: 30 }),
+      rect({ id: "vs-child-b", w: 100, h: 30 }),
+    ], { id: "vs", w: 100, h: 60, gap: 0 });
+    const result = repeat(el, { count: 2 });
+
+    assert.equal(result.children[0].id, "vs-1");
+    assert.equal(result.children[0].children[0].id, "vs-child-a-1");
+    assert.equal(result.children[0].children[1].id, "vs-child-b-1");
+
+    assert.equal(result.children[1].id, "vs-2");
+    assert.equal(result.children[1].children[0].id, "vs-child-a-2");
+    assert.equal(result.children[1].children[1].id, "vs-child-b-2");
+  });
+
+  it("all descendant IDs across copies are unique", () => {
+    _resetForTests();
+    const el = group([
+      vstack([
+        rect({ id: "inner", w: 50, h: 20 }),
+      ], { id: "stack", w: 50, h: 20, gap: 0 }),
+    ], { id: "outer", w: 100, h: 100 });
+    const result = repeat(el, { count: 3 });
+
+    // Collect all IDs recursively
+    const allIds = [];
+    function collectIds(node) {
+      if (node.id) allIds.push(node.id);
+      if (node.children) node.children.forEach(collectIds);
+    }
+    result.children.forEach(collectIds);
+
+    const uniqueIds = new Set(allIds);
+    assert.equal(uniqueIds.size, allIds.length, "all descendant IDs should be unique across copies");
+  });
+});
+
+describe("M8.1: debug overlay — config dimensions", () => {
+  it("overlay uses configured slide dimensions", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const el = rect({ id: "cfg1", x: 50, y: 50, w: 100, h: 100, fill: "#333" });
+      await render([{ elements: [el] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      assert.ok(overlay, "overlay should be created");
+
+      // Default config uses 1920x1080
+      assert.equal(overlay.style.width, "1920px", "overlay width should match slide width");
+      assert.equal(overlay.style.height, "1080px", "overlay height should match slide height");
+
+      mod.removeDebugOverlay();
     });
   });
 });
