@@ -406,6 +406,19 @@ const BLOCKED_SUGGESTIONS = {
 };
 
 /**
+ * Named shadow presets mapped to CSS box-shadow values.
+ * Defined here (before CONVENIENCE_MAP) so both the convenience prop
+ * transform and the standalone resolveShadow() can reference the same map.
+ */
+const SHADOWS = {
+  sm:   "0 1px 3px rgba(0,0,0,0.2)",
+  md:   "0 4px 12px rgba(0,0,0,0.3)",
+  lg:   "0 8px 32px rgba(0,0,0,0.4)",
+  xl:   "0 16px 48px rgba(0,0,0,0.5)",
+  glow: "0 0 40px rgba(124,92,191,0.3)",
+};
+
+/**
  * Map of convenience props to their CSS equivalents.
  * Some require value transformation (e.g., size -> fontSize with "px" suffix).
  */
@@ -420,18 +433,7 @@ const CONVENIENCE_MAP = {
   radius:         { css: "borderRadius",  transform: (v) => typeof v === "number" ? `${v}px` : v },
   border:         { css: "border",        transform: (v) => v },
   align:          { css: "textAlign",     transform: (v) => v },
-  shadow:         { css: "boxShadow",     transform: (v) => {
-    // M8.6: Shadow presets — named presets map to CSS values
-    const SHADOW_PRESETS = {
-      sm:   "0 1px 3px rgba(0,0,0,0.2)",
-      md:   "0 4px 12px rgba(0,0,0,0.3)",
-      lg:   "0 8px 32px rgba(0,0,0,0.4)",
-      xl:   "0 16px 48px rgba(0,0,0,0.5)",
-      glow: "0 0 40px rgba(124,92,191,0.3)",
-    };
-    if (SHADOW_PRESETS[v]) return SHADOW_PRESETS[v];
-    return v; // pass through CSS values
-  }},
+  shadow:         { css: "boxShadow",     transform: (v) => SHADOWS[v] ?? v },
 };
 
 /**
@@ -3871,6 +3873,13 @@ export function grid(config = {}) {
   const totalGutters = (cols - 1) * gutter;
   const colWidth = (totalWidth - totalGutters) / cols;
 
+  if (colWidth <= 0) {
+    throw new Error(
+      `grid(): computed column width is ${colWidth.toFixed(1)}px (non-positive). ` +
+      `Check cols (${cols}), gutter (${gutter}), and margins (${marginLeft}+${marginRight}).`
+    );
+  }
+
   return {
     cols,
     gutter,
@@ -3949,6 +3958,7 @@ export function resolvePercentage(value, axis) {
   const safeMatch = value.match(/^safe:\s*([0-9.]+)%$/);
   if (safeMatch) {
     const pct = parseFloat(safeMatch[1]) / 100;
+    if (Number.isNaN(pct)) return value; // guard against invalid parse
     if (axis === "x") return sr.x + pct * sr.w;
     if (axis === "y") return sr.y + pct * sr.h;
     if (axis === "w") return pct * sr.w;
@@ -3960,6 +3970,7 @@ export function resolvePercentage(value, axis) {
   const pctMatch = value.match(/^([0-9.]+)%$/);
   if (pctMatch) {
     const pct = parseFloat(pctMatch[1]) / 100;
+    if (Number.isNaN(pct)) return value; // guard against invalid parse
     if (axis === "x" || axis === "w") return pct * slideW;
     if (axis === "y" || axis === "h") return pct * slideH;
     return value;
@@ -3970,19 +3981,8 @@ export function resolvePercentage(value, axis) {
 }
 
 // =============================================================================
-// Shadow Presets (M8.6)
+// Shadow Presets (M8.6) — SHADOWS const is defined near the top of the file
 // =============================================================================
-
-/**
- * Named shadow presets mapped to CSS box-shadow values.
- */
-const SHADOWS = {
-  sm:   "0 1px 3px rgba(0,0,0,0.2)",
-  md:   "0 4px 12px rgba(0,0,0,0.3)",
-  lg:   "0 8px 32px rgba(0,0,0,0.4)",
-  xl:   "0 16px 48px rgba(0,0,0,0.5)",
-  glow: "0 0 40px rgba(124,92,191,0.3)",
-};
 
 /**
  * Resolve a shadow value: if it's a named preset key, return the CSS value.
@@ -4023,6 +4023,16 @@ export function getShadowPresets() {
  * @param {number} [config.startY=0] - Starting Y position
  * @returns {{ id: string, type: string, children: Array, props: object }} A group containing all copies
  */
+function _reIdChildren(el, suffix) {
+  if (!el.children) return;
+  for (const child of el.children) {
+    if (child.id) {
+      child.id = `${child.id}${suffix}`;
+    }
+    _reIdChildren(child, suffix);
+  }
+}
+
 export function repeat(element, config = {}) {
   const count = config.count || 1;
   const cols = config.cols ?? count; // default: single row
@@ -4043,9 +4053,11 @@ export function repeat(element, config = {}) {
     const x = startX + col * (elemW + gapX);
     const y = startY + row * (elemH + gapY);
 
-    // Deep clone the element
+    // Deep clone the element and recursively re-ID all nested children
     const copy = deepClone(element);
-    copy.id = `${baseId}-${i + 1}`;
+    const suffix = `-${i + 1}`;
+    copy.id = `${baseId}${suffix}`;
+    _reIdChildren(copy, suffix);
     copy.props.x = x;
     copy.props.y = y;
 

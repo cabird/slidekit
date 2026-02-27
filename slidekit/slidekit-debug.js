@@ -85,6 +85,10 @@ export function renderDebugOverlay(options = {}) {
     return null;
   }
 
+  // Read slide dimensions from config, fall back to 1920x1080
+  const slideW = sk._config?.slide?.w ?? 1920;
+  const slideH = sk._config?.slide?.h ?? 1080;
+
   // Create the overlay div
   const overlay = document.createElement("div");
   overlay.className = "slidekit-debug-overlay";
@@ -92,8 +96,8 @@ export function renderDebugOverlay(options = {}) {
   overlay.style.position = "absolute";
   overlay.style.left = "0";
   overlay.style.top = "0";
-  overlay.style.width = "1920px";
-  overlay.style.height = "1080px";
+  overlay.style.width = `${slideW}px`;
+  overlay.style.height = `${slideH}px`;
   overlay.style.pointerEvents = "none";
   overlay.style.zIndex = "9999";
 
