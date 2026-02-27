@@ -2807,8 +2807,14 @@ export async function layout(slideDefinition, options = {}) {
       h: connMaxY - connMinY,
     });
 
-    // Store resolved connector data in the scene element
+    // Store resolved connector data in the scene element and update resolved bounds
     if (sceneElements[id]) {
+      sceneElements[id].resolved = {
+        x: connMinX,
+        y: connMinY,
+        w: connMaxX - connMinX,
+        h: connMaxY - connMinY,
+      };
       sceneElements[id]._connectorResolved = {
         from: fromPt,
         to: toPt,
@@ -3729,9 +3735,9 @@ export function panel(children, props = {}) {
   // NOTE: "fill" resolution happens at creation time. This works correctly as long
   // as panelW is a concrete number at panel() call time. If panelW is not known
   // until layout, wrap the panel creation after layout resolves the parent's width.
-  const contentW = panelW ? Math.max(0, panelW - 2 * padding) : undefined;
+  const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : undefined;
   const resolvedChildren = children.map(child => {
-    if (child.props && child.props.w === "fill" && contentW) {
+    if (child.props && child.props.w === "fill" && contentW !== undefined) {
       // Clone the child with resolved width
       return { ...child, props: { ...child.props, w: contentW } };
     }
