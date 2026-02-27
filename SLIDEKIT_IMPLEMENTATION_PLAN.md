@@ -700,11 +700,11 @@ const SHADOWS = {
 
 **Goal:** Build example slides, write usage docs, and run an end-to-end integration test with the Presentation Maker pipeline.
 
-### 9.1 Example: Basic Slide
+### 9.1 Example: Basic Slide [DONE]
 
 `examples/basic.html` — A single-file example that loads SlideKit and Reveal.js, defines one slide with text, image, rect, and rule elements, and renders it.
 
-### 9.2 Example: Full Deck
+### 9.2 Example: Full Deck [DONE]
 
 `examples/full-deck.html` — A 5-slide deck demonstrating:
 - Title slide (background image + centered text + accent rule)
@@ -715,7 +715,7 @@ const SHADOWS = {
 
 Uses an external `theme.css` for styling to demonstrate the CSS separation.
 
-### 9.3 Example Theme
+### 9.3 Example Theme [DONE]
 
 `examples/theme.css` — A CSS file with:
 - Color variables (dark theme)
@@ -726,7 +726,7 @@ Uses an external `theme.css` for styling to demonstrate the CSS separation.
 
 Demonstrates the "CSS for styling, SlideKit for layout" philosophy.
 
-### 9.4 README
+### 9.4 README [DONE]
 
 Write `README.md` with:
 - Quick start (copy-paste to get a working slide)
@@ -736,7 +736,7 @@ Write `README.md` with:
 - Integration with Presentation Maker pipeline
 - **Theme CSS loading guide:** Document how to load external CSS for styling (via `<link>` tag, Reveal.js theme config, or the optional `SlideKit.loadCSS(url)` helper). Explain that `className: "glass-card"` on elements requires the corresponding CSS class to exist in a loaded stylesheet. Emphasize: CSS files should contain only visual styling, never layout properties.
 
-### 9.5 Integration Test
+### 9.5 Integration Test [SKIPPED — requires human intervention]
 
 Run the full Presentation Maker pipeline (Phases 0–6) using SlideKit instead of raw HTML+CSS for a test paper. Verify:
 - The agent can define slides using SlideKit primitives
@@ -744,7 +744,7 @@ Run the full Presentation Maker pipeline (Phases 0–6) using SlideKit instead o
 - The rendered slides export correctly via decktape
 - The visual QA loop is faster (fewer iterations needed)
 
-### 9.6 Export Smoke Test
+### 9.6 Export Smoke Test [DONE]
 
 Add a decktape export smoke test:
 - Render a multi-slide deck using SlideKit
