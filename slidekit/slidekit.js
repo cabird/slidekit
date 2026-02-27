@@ -905,10 +905,10 @@ export function clearMeasureCache() {
  * @returns {{ fontSize: number, metrics: object, warnings: Array }}
  */
 export function fitText(content, box, options = {}) {
-  const font = options.font || "Inter";
-  const weight = options.weight || 400;
-  const lineHeight = options.lineHeight || 1.3;
-  const letterSpacing = options.letterSpacing || "0";
+  const font = options.font ?? "Inter";
+  const weight = options.weight ?? 400;
+  const lineHeight = options.lineHeight ?? 1.3;
+  const letterSpacing = options.letterSpacing ?? "0";
   const minSize = options.minSize ?? 12;
   const maxSize = options.maxSize ?? 200;
   const step = options.step ?? 1;
@@ -932,7 +932,6 @@ export function fitText(content, box, options = {}) {
   // Binary search
   while (hi - lo >= step) {
     const mid = Math.floor((lo + hi) / 2);
-    // Clear cache for mid to ensure fresh measurement when testing
     const metrics = measureText(content, {
       font, weight, lineHeight, letterSpacing, size: mid, w: box.w,
     });
@@ -1741,16 +1740,12 @@ export async function layout(slideDefinition) {
           break;
         }
 
-        let loW = 0;
+        let loW = 1;
         let hiW = words.length;
         let bestWordCount = 0;
 
         while (loW <= hiW) {
           const midW = Math.floor((loW + hiW) / 2);
-          if (midW === 0) {
-            loW = midW + 1;
-            continue;
-          }
           const truncated = words.slice(0, midW).join(" ") + "...";
           const truncMetrics = measureText(truncated, {
             font: el.props.font,
@@ -1786,7 +1781,7 @@ export async function layout(slideDefinition) {
           letterSpacing: el.props.letterSpacing,
           minSize: el.props.fit?.minSize ?? 12,
           maxSize: el.props.size || 32,
-          step: 1,
+          step: el.props.fit?.step ?? 1,
         });
         el.props.size = fitResult.fontSize;
         // Propagate fitText warnings
@@ -1970,7 +1965,7 @@ export async function layout(slideDefinition) {
       const el = flatMap.get(id);
       // Only check content-layer elements, skip group children
       // layer defaults to "content" in applyDefaults; skip bg/overlay
-      if (el.props.layer !== "content" && el.props.layer !== undefined) continue;
+      if (el.props.layer !== "content") continue;
       if (groupParent.has(id)) continue;
 
       const bounds = resolvedBounds.get(id);
