@@ -250,7 +250,7 @@ Update the renderer to handle `h: null` (unspecified height) for text elements:
 
 **Goal:** Implement the layout solve phase — resolve relative positions, build the scene graph, return structured layout data.
 
-### 3.1 Layout Solve Pipeline
+### 3.1 Layout Solve Pipeline [DONE]
 
 Implement `SlideKit.layout(slideDefinition)` as an explicit **4-phase pipeline**:
 
@@ -307,7 +307,7 @@ Implement `SlideKit.layout(slideDefinition)` as an explicit **4-phase pipeline**
 
 This 4-phase ordering eliminates ambiguity: sizes are known before positions are computed, positions are stable before transforms adjust them, and validation runs on final positions.
 
-### 3.2 Relative Positioning Helpers
+### 3.2 Relative Positioning Helpers [DONE]
 
 Implement each helper as a function that returns a **deferred value** — a marker object that the layout solver recognizes and resolves:
 
@@ -325,7 +325,7 @@ Implement each helper as a function that returns a **deferred value** — a mark
 
 During layout solve (Phase 2), when the solver encounters a `_rel` marker on `x` or `y`, it looks up the referenced element's resolved bounds and computes the value. **Validation:** If a `_rel` marker appears on `w` or `h`, emit an error — deferred values are only valid for position properties, not dimensions.
 
-### 3.3 Update Renderer to Use Layout Solve
+### 3.3 Update Renderer to Use Layout Solve [DONE]
 
 Change `SlideKit.render()` to:
 
@@ -334,11 +334,11 @@ Change `SlideKit.render()` to:
 3. **Persist the scene model** on `window.sk` (or a configurable global) so it's accessible from the browser console after rendering. Store the full layout result including `authored` specs, `resolved` frames, `provenance`, and `transforms`. *(Phase 2 requirement: the inspection and mutation APIs operate on this persistent model.)*
 4. Return the layout result so the agent can inspect it programmatically
 
-### 3.4 `safeRect()` Helper
+### 3.4 `safeRect()` Helper [DONE]
 
 Implement as a function that returns `{ x, y, w, h }` computed from the init config's safe zone margins.
 
-### 3.5 Tests
+### 3.5 Tests [DONE]
 
 - Test layout solve resolves `below()` correctly (measures ref element, adds gap)
 - Test layout solve resolves `rightOf()`, `centerIn()`, and all other helpers
