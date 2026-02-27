@@ -361,7 +361,7 @@ Implement as a function that returns `{ x, y, w, h }` computed from the init con
 
 **Goal:** Implement auto-fit text sizing, overflow handling, and presentation-specific text validations.
 
-### 4.1 `fitText(content, box, options)`
+### 4.1 `fitText(content, box, options)` [DONE]
 
 Implementation:
 
@@ -374,7 +374,7 @@ Implementation:
 
 Return `{ fontSize, metrics, warnings }`.
 
-### 4.2 Overflow Policies in Layout Solve
+### 4.2 Overflow Policies in Layout Solve [DONE]
 
 During layout solve, for text elements with explicit `h`:
 
@@ -390,7 +390,7 @@ During layout solve, for text elements with explicit `h`:
    - `"shrink"`: call `fitText()` to auto-size, update the element's font size
    - `"error"`: add error to layout result
 
-### 4.3 Presentation-Specific Validations
+### 4.3 Presentation-Specific Validations [DONE]
 
 Add to layout solve:
 
@@ -399,7 +399,7 @@ Add to layout solve:
 - **Content outside slide:** If any element's resolved bounds extend outside (0, 0, 1920, 1080), emit warning/error
 - **Content area usage:** Compute the bounding box of all content-layer elements. If it's less than 40% of safe zone area, emit "content may be too clustered" warning. If > 95%, emit "no breathing room" warning.
 
-### 4.4 Tests
+### 4.4 Tests [DONE]
 
 - Test fitText finds correct font size for various text lengths
 - Test fitText respects minSize and maxSize bounds
