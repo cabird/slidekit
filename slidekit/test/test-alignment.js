@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, rule,
+  rect,
   layout, init, _resetForTests,
   alignLeft, alignRight, alignTop, alignBottom,
   alignCenterH, alignCenterV,
@@ -324,8 +324,9 @@ describe("M6.2: distributeH — equal-center mode", () => {
     const r2 = rect({ id: "r2", x: 100, y: 0, w: 200, h: 50 });
     const r3 = rect({ id: "r3", x: 200, y: 0, w: 50, h: 50 });
 
-    // With explicit startX=100, endX=900
-    // Spacing = (900 - 100) / 2 = 400
+    // For equal-center mode, startX and endX define the center positions of the
+    // first and last elements (not edge positions like equal-gap mode).
+    // With startX=100, endX=900: spacing = (900 - 100) / 2 = 400
     // Centers: 100, 500, 900
     const result = await layout({
       elements: [r1, r2, r3],
@@ -385,6 +386,25 @@ describe("M6.2: distributeV — equal-gap mode", () => {
     assert.equal(result.elements["r2"].resolved.y, 375);  // 0 + 100 + 275
     assert.equal(result.elements["r3"].resolved.y, 850);  // 375 + 200 + 275
   });
+
+  it("distributes using default start/end from element positions", async () => {
+    _resetForTests();
+    await init();
+    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 100 }); // top=100
+    const r2 = rect({ id: "r2", x: 0, y: 500, w: 50, h: 100 }); // bottom=600
+    const r3 = rect({ id: "r3", x: 0, y: 300, w: 50, h: 100 });
+
+    // Default range: 100 to 600 (topmost top edge to bottommost bottom edge)
+    // Total heights: 300, total gap: 200, gap between: 100
+    const result = await layout({
+      elements: [r1, r2, r3],
+      transforms: [distributeV(["r1", "r2", "r3"])],
+    });
+
+    assert.equal(result.elements["r1"].resolved.y, 100);
+    assert.equal(result.elements["r3"].resolved.y, 300); // 100 + 100 + 100
+    assert.equal(result.elements["r2"].resolved.y, 500); // 300 + 100 + 100
+  });
 });
 
 describe("M6.2: distributeV — equal-center mode", () => {
@@ -405,6 +425,31 @@ describe("M6.2: distributeV — equal-center mode", () => {
     assert.equal(result.elements["r1"].resolved.y, 50);   // 100 - 50
     assert.equal(result.elements["r2"].resolved.y, 400);  // 500 - 100
     assert.equal(result.elements["r3"].resolved.y, 875);  // 900 - 25
+  });
+
+  it("equal-center defaults to element centers for start/end", async () => {
+    _resetForTests();
+    await init();
+    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 }); // center = 200
+    const r2 = rect({ id: "r2", x: 0, y: 700, w: 50, h: 100 }); // center = 750
+    const r3 = rect({ id: "r3", x: 0, y: 400, w: 50, h: 150 });
+
+    // For equal-center mode, startY/endY default to centers of first/last sorted by y
+    // Default: startY = center of first (sorted by y) = 200
+    //          endY = center of last (sorted by y) = 750
+    // Spacing = (750 - 200) / 2 = 275
+    // Centers: 200, 475, 750
+    const result = await layout({
+      elements: [r1, r2, r3],
+      transforms: [distributeV(["r1", "r2", "r3"], { mode: "equal-center" })],
+    });
+
+    // r1 center=200 -> y = 200 - 100 = 100
+    assert.equal(result.elements["r1"].resolved.y, 100);
+    // r3 center=475 -> y = 475 - 75 = 400
+    assert.equal(result.elements["r3"].resolved.y, 400);
+    // r2 center=750 -> y = 750 - 50 = 700
+    assert.equal(result.elements["r2"].resolved.y, 700);
   });
 });
 
@@ -612,45 +657,44 @@ describe("M6.5: Transform ordering effects", () => {
     assert.equal(result.elements["r3"].resolved.x, 800); // 450 + 200 + 150
   });
 
-  it("distribute then align produces different result than align then distribute", async () => {
+  it("transform order matters for non-commutative operations on the same axis", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 300, w: 200, h: 50 });
 
-    // First: distribute then align
-    const result1 = await layout({
+    // Case A: distribute then alignLeft — final state should be aligned at x=50
+    const resultA = await layout({
       elements: [
-        rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 }),
-        rect({ id: "r2", x: 300, y: 300, w: 200, h: 50 }),
+        rect({ id: "r1", x: 100, y: 0, w: 100, h: 50 }),
+        rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 }),
       ],
       transforms: [
-        distributeH(["r1", "r2"], { startX: 0, endX: 600 }),
-        alignTop(["r1", "r2"]),
+        distributeH(["r1", "r2"], { startX: 0, endX: 800 }),
+        alignLeft(["r1", "r2"], { to: 50 }),
       ],
     });
+    // After distribute: r1 at 0, r2 at 700. After alignLeft(to:50): both at 50.
+    assert.equal(resultA.elements["r1"].resolved.x, 50);
+    assert.equal(resultA.elements["r2"].resolved.x, 50);
 
-    // Second: align then distribute
-    const result2 = await layout({
+    // Case B: alignLeft then distribute — final state should be distributed
+    const resultB = await layout({
       elements: [
-        rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 }),
-        rect({ id: "r2", x: 300, y: 300, w: 200, h: 50 }),
+        rect({ id: "r1", x: 100, y: 0, w: 100, h: 50 }),
+        rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 }),
       ],
       transforms: [
-        alignTop(["r1", "r2"]),
-        distributeH(["r1", "r2"], { startX: 0, endX: 600 }),
+        alignLeft(["r1", "r2"], { to: 50 }),
+        distributeH(["r1", "r2"], { startX: 0, endX: 800 }),
       ],
     });
+    // After alignLeft: both at 50. After distribute (range 0-800, widths 200, gap 600):
+    // r1 at 0, r2 at 700.
+    assert.equal(resultB.elements["r1"].resolved.x, 0);
+    assert.equal(resultB.elements["r2"].resolved.x, 700);
 
-    // The x positions should be the same (both distribute to 0-600)
-    // but the y positions should differ: alignTop first sets both to 100 then distributes,
-    // distribute first then alignTop sets both to min y (which is 100 in result1 since
-    // distribution doesn't change y). Actually in this case, the results are the same
-    // because the operations are independent (alignTop affects y, distributeH affects x).
-    // To truly show ordering matters, we need overlapping transforms.
-
-    // This test documents that ordering is preserved even for independent transforms
-    assert.equal(result1.elements["r1"].resolved.x, result2.elements["r1"].resolved.x);
+    // The results differ, proving that order matters
+    assert.ok(resultA.elements["r1"].resolved.x !== resultB.elements["r1"].resolved.x,
+      "ordering should produce different results for same-axis non-commutative transforms");
   });
 });
 
@@ -776,5 +820,19 @@ describe("M6: Edge cases", () => {
     });
 
     assert.equal(result.elements["r1"].resolved.x, 100);
+  });
+
+  it("alignLeft with single element and no 'to' is a no-op", async () => {
+    _resetForTests();
+    await init();
+    const r1 = rect({ id: "r1", x: 500, y: 0, w: 200, h: 50 });
+
+    const result = await layout({
+      elements: [r1],
+      transforms: [alignLeft(["r1"])],
+    });
+
+    // Single element aligns to its own left edge — no change
+    assert.equal(result.elements["r1"].resolved.x, 500);
   });
 });
