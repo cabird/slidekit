@@ -488,7 +488,7 @@ Stacks participate as **nodes in the dependency graph**, not as a separate pre-p
 
 **Goal:** Implement PowerPoint-style alignment, distribution, and size matching operations.
 
-### 6.1 Alignment Functions
+### 6.1 Alignment Functions [DONE]
 
 Each function takes an array of element IDs and an optional `{ to: number }` anchor value. They modify element positions during layout solve.
 
@@ -501,7 +501,7 @@ Implementation: alignment operations are registered as **post-solve transforms**
 - `alignCenterH(ids, {to})`: Set all elements' horizontal center to `to` (or the average center)
 - `alignCenterV(ids, {to})`: Set all elements' vertical center to `to` (or the average center)
 
-### 6.2 Distribution Functions
+### 6.2 Distribution Functions [DONE]
 
 - `distributeH(ids, {startX, endX, mode})`:
   - `"equal-gap"`: Compute total gap = (endX - startX) - sum(widths). Divide by (n-1). Place first element at startX, each subsequent at prev.right + gap.
@@ -509,19 +509,19 @@ Implementation: alignment operations are registered as **post-solve transforms**
 
 - `distributeV(ids, {startY, endY, mode})`: Same logic, vertical axis.
 
-### 6.3 Size Matching
+### 6.3 Size Matching [DONE]
 
 - `matchWidth(ids)`: Find max width among elements, set all to that width
 - `matchHeight(ids)`: Find max height, set all to that height
 - `matchSize(ids)`: Both width and height
 
-### 6.4 `fitToRect(ids, rect)`
+### 6.4 `fitToRect(ids, rect)` [DONE]
 
 1. Compute the bounding box of all specified elements
 2. Compute scale factor to fit that bounding box into `rect` (preserving aspect ratio)
 3. Apply scale and translate to all elements
 
-### 6.5 Registration with Layout Solve
+### 6.5 Registration with Layout Solve [DONE]
 
 These operations need to be registered on the slide definition so the layout solver knows to apply them:
 
@@ -540,7 +540,7 @@ The layout solver processes elements first (resolve positions), then applies tra
 
 **Phase 2 note:** The `transforms` array must be preserved in the layout result (not discarded after application). Phase 2's export needs to serialize these back. Each transform should also be stored as a first-class object with an auto-generated ID so Phase 2 can reference and modify individual transforms.
 
-### 6.6 Tests
+### 6.6 Tests [DONE]
 
 - Test each alignment function (6 functions × with/without `to` parameter)
 - Test distribution with equal-gap mode (different-width elements)
