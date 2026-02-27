@@ -1363,21 +1363,10 @@ function flattenElements(elements) {
           flatMap.set(child.id, child);
           stackParent.set(child.id, el.id);
           childIds.push(child.id);
-          // Recursively flatten if a stack child is itself a stack or group
+          // Recursively walk into nested stacks and groups using the same
+          // walk function — avoids redundant flattenElements([child]) call
           if ((child.type === "vstack" || child.type === "hstack") && child.children) {
-            // Recurse into nested stacks
-            const nested = flattenElements([child]);
-            for (const [nid, nel] of nested.flatMap) {
-              if (nid !== child.id) {
-                flatMap.set(nid, nel);
-              }
-            }
-            for (const [cid, sid] of nested.stackParent) {
-              stackParent.set(cid, sid);
-            }
-            for (const [sid, cids] of nested.stackChildren) {
-              stackChildren.set(sid, cids);
-            }
+            walk([child], null);
           } else if (child.type === "group" && child.children) {
             walk(child.children, child.id);
           }
@@ -1744,6 +1733,16 @@ export async function layout(slideDefinition, options = {}) {
     // Stack children depend on their parent stack
     if (stackParent.has(id)) {
       depSet.add(stackParent.get(id));
+      // Warn if stack children have _rel markers on x/y — these are ignored
+      // because stack layout determines children's positions.
+      if (isRelMarker(el.props.x) || isRelMarker(el.props.y)) {
+        warnings.push({
+          type: "ignored_rel_on_stack_child",
+          elementId: id,
+          stackId: stackParent.get(id),
+          message: `Element "${id}" is a child of stack "${stackParent.get(id)}", so its relative positioning markers on x/y are ignored. Use gap/align on the stack instead.`,
+        });
+      }
     } else {
       // Only process _rel markers for non-stack-children
       const xRef = getRelRef(el.props.x);
@@ -2183,6 +2182,10 @@ export async function layout(slideDefinition, options = {}) {
     // Skip stack containers (their children represent the real space)
     if (el.type === "vstack" || el.type === "hstack") continue;
 
+    // Skip zero-sized elements (they can never produce meaningful collisions)
+    const elBounds = resolvedBounds.get(id);
+    if (!elBounds || elBounds.w <= 0 || elBounds.h <= 0) continue;
+
     const layer = el.props.layer || "content";
     if (!layerElements[layer]) layerElements[layer] = [];
     layerElements[layer].push(id);
@@ -2391,17 +2394,19 @@ export async function layout(slideDefinition, options = {}) {
  * @param {object} element - SlideKit element
  * @param {number} zIndex - Computed z-index for this element
  * @param {object} sceneElements - The resolved scene graph elements map
+ * @param {number} [offsetX=0] - Offset to subtract from resolved x (for stack children)
+ * @param {number} [offsetY=0] - Offset to subtract from resolved y (for stack children)
  * @returns {HTMLElement} The rendered DOM element
  */
-function renderElementFromScene(element, zIndex, sceneElements) {
+function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, offsetY = 0) {
   const { type, props } = element;
   const resolved = sceneElements[element.id]?.resolved;
 
   // Use resolved bounds from the scene graph if available, otherwise fall back
   let left, top, w, h;
   if (resolved) {
-    left = resolved.x;
-    top = resolved.y;
+    left = resolved.x - offsetX;
+    top = resolved.y - offsetY;
     w = resolved.w;
     h = resolved.h;
   } else {
@@ -2505,24 +2510,22 @@ function renderElementFromScene(element, zIndex, sceneElements) {
       // Stack containers render their children as absolutely-positioned elements.
       // Children have absolute (slide-level) coordinates in the scene graph,
       // but since they are nested in the stack div, we need to offset them
-      // relative to the stack's position.
+      // relative to the stack's position. We pass the stack's position as
+      // offset parameters to avoid O(N*M) shallow copies of the scene map.
       div.style.overflow = "visible";
-      const stackChildren = element.children || [];
-      for (let i = 0; i < stackChildren.length; i++) {
-        const child = stackChildren[i];
+      const stackChildElems = element.children || [];
+      // Use computeZOrder for consistent z-ordering (same as groups)
+      const childZMap = computeZOrder(stackChildElems);
+      for (const child of stackChildElems) {
         const childResolved = sceneElements[child.id]?.resolved;
         if (childResolved) {
-          // Create a modified scene elements map with child positions relative to stack
-          const adjustedScene = { ...sceneElements };
-          adjustedScene[child.id] = {
-            ...sceneElements[child.id],
-            resolved: {
-              ...childResolved,
-              x: childResolved.x - left,
-              y: childResolved.y - top,
-            },
-          };
-          const childEl = renderElementFromScene(child, i + 1, adjustedScene);
+          const childZ = childZMap.get(child.id) || 0;
+          // Pass the stack's position as offsets so children render at
+          // stack-relative coordinates without copying the scene map
+          const childEl = renderElementFromScene(
+            child, childZ, sceneElements,
+            left + offsetX, top + offsetY
+          );
           div.appendChild(childEl);
         }
       }
