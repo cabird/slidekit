@@ -557,7 +557,7 @@ The layout solver processes elements first (resolve positions), then applies tra
 
 **Goal:** Implement higher-level primitives for common slide patterns.
 
-### 7.1 `bullets(items, props)`
+### 7.1 `bullets(items, props)` [DONE]
 
 Implementation:
 
@@ -571,7 +571,7 @@ Bullet character is positioned at `x`, text at `x + bulletWidth + bulletGap`.
 
 For nested items: indent = `baseIndent + level * indent`.
 
-### 7.2 `connect(fromId, toId, props)`
+### 7.2 `connect(fromId, toId, props)` [DONE]
 
 Implementation:
 
@@ -587,7 +587,7 @@ Implementation:
 
 The SVG element is absolutely positioned within the slidekit-layer to cover the bounding box of the connector.
 
-### 7.3 `panel(children, props)`
+### 7.3 `panel(children, props)` [DONE]
 
 Implementation:
 
@@ -597,7 +597,7 @@ Implementation:
 4. If panel `h` is not specified, compute from vstack height + 2 * padding
 5. Return a group containing the rect + the vstack
 
-### 7.4 Tests
+### 7.4 Tests [DONE]
 
 - Test bullets renders correct number of items with proper indentation
 - Test nested bullets indent correctly
