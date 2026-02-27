@@ -740,6 +740,7 @@ export function _resetForTests() {
   _config = null;
   _safeRectCache = null;
   _idCounter = 0;
+  _transformIdCounter = 0;
   _loadedFonts = new Set();
   _fontWarnings = [];
   _measureCache = new Map();
@@ -1299,6 +1300,454 @@ export function alignRightWith(refId) {
  */
 export function centerIn(rectParam) {
   return { _rel: "centerIn", rect: rectParam };
+}
+
+// =============================================================================
+// Alignment, Distribution & Size Matching Transforms (M6)
+// =============================================================================
+
+/**
+ * Transform ID counter — auto-generates unique IDs for transforms.
+ * Reset when the layout pipeline runs so transforms are deterministic.
+ */
+let _transformIdCounter = 0;
+
+function nextTransformId() {
+  _transformIdCounter += 1;
+  return `transform-${_transformIdCounter}`;
+}
+
+/**
+ * Align all specified elements' left edges.
+ * If `to` is provided, all left edges are set to that value.
+ * Otherwise, all are set to the minimum left edge among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignLeft(ids, options = {}) {
+  return { _transform: "alignLeft", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Align all specified elements' right edges.
+ * If `to` is provided, all right edges are set to that value.
+ * Otherwise, all are set to the maximum right edge among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignRight(ids, options = {}) {
+  return { _transform: "alignRight", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Align all specified elements' top edges.
+ * If `to` is provided, all top edges are set to that value.
+ * Otherwise, all are set to the minimum top edge among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignTop(ids, options = {}) {
+  return { _transform: "alignTop", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Align all specified elements' bottom edges.
+ * If `to` is provided, all bottom edges are set to that value.
+ * Otherwise, all are set to the maximum bottom edge among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignBottom(ids, options = {}) {
+  return { _transform: "alignBottom", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Align all specified elements' horizontal centers.
+ * If `to` is provided, all horizontal centers are set to that value.
+ * Otherwise, all are set to the average horizontal center among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignCenterH(ids, options = {}) {
+  return { _transform: "alignCenterH", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Align all specified elements' vertical centers.
+ * If `to` is provided, all vertical centers are set to that value.
+ * Otherwise, all are set to the average vertical center among them.
+ *
+ * @param {string[]} ids - Array of element IDs to align
+ * @param {object} [options={}]
+ * @param {number} [options.to] - Explicit anchor value for alignment
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function alignCenterV(ids, options = {}) {
+  return { _transform: "alignCenterV", _transformId: nextTransformId(), ids, options };
+}
+
+/**
+ * Distribute elements horizontally with equal spacing.
+ *
+ * @param {string[]} ids - Array of element IDs to distribute
+ * @param {object} [options={}]
+ * @param {number} [options.startX] - Start X position (default: leftmost element's left edge)
+ * @param {number} [options.endX] - End X position (default: rightmost element's right edge)
+ * @param {string} [options.mode="equal-gap"] - Distribution mode: "equal-gap" or "equal-center"
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function distributeH(ids, options = {}) {
+  return { _transform: "distributeH", _transformId: nextTransformId(), ids, options: { mode: "equal-gap", ...options } };
+}
+
+/**
+ * Distribute elements vertically with equal spacing.
+ *
+ * @param {string[]} ids - Array of element IDs to distribute
+ * @param {object} [options={}]
+ * @param {number} [options.startY] - Start Y position (default: topmost element's top edge)
+ * @param {number} [options.endY] - End Y position (default: bottommost element's bottom edge)
+ * @param {string} [options.mode="equal-gap"] - Distribution mode: "equal-gap" or "equal-center"
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function distributeV(ids, options = {}) {
+  return { _transform: "distributeV", _transformId: nextTransformId(), ids, options: { mode: "equal-gap", ...options } };
+}
+
+/**
+ * Match the width of all specified elements to the widest.
+ *
+ * @param {string[]} ids - Array of element IDs
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function matchWidth(ids) {
+  return { _transform: "matchWidth", _transformId: nextTransformId(), ids, options: {} };
+}
+
+/**
+ * Match the height of all specified elements to the tallest.
+ *
+ * @param {string[]} ids - Array of element IDs
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function matchHeight(ids) {
+  return { _transform: "matchHeight", _transformId: nextTransformId(), ids, options: {} };
+}
+
+/**
+ * Match both width and height of all specified elements to the largest.
+ *
+ * @param {string[]} ids - Array of element IDs
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function matchSize(ids) {
+  return { _transform: "matchSize", _transformId: nextTransformId(), ids, options: {} };
+}
+
+/**
+ * Fit a group of elements into a bounding rectangle, preserving aspect ratio.
+ *
+ * 1. Computes the bounding box of all specified elements
+ * 2. Computes a uniform scale factor to fit into `rect` (preserving aspect ratio)
+ * 3. Scales and translates all elements to fit within `rect`
+ *
+ * @param {string[]} ids - Array of element IDs
+ * @param {{ x: number, y: number, w: number, h: number }} rectParam - Target rectangle
+ * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
+ */
+export function fitToRect(ids, rectParam) {
+  return { _transform: "fitToRect", _transformId: nextTransformId(), ids, options: { rect: rectParam } };
+}
+
+/**
+ * Apply a single transform to the resolved bounds map.
+ * Modifies resolvedBounds in place.
+ * Returns an array of warning objects (empty if none).
+ *
+ * @param {object} transform - A transform marker object
+ * @param {Map<string, {x,y,w,h}>} resolvedBounds - Mutable bounds map
+ * @param {Map<string, object>} flatMap - Element map for existence checking
+ * @returns {Array} warnings
+ */
+function applyTransform(transform, resolvedBounds, flatMap) {
+  const transformWarnings = [];
+  const type = transform._transform;
+  const ids = transform.ids || [];
+  const opts = transform.options || {};
+
+  // Filter to valid IDs, warn about missing ones
+  const validIds = [];
+  for (const id of ids) {
+    if (!resolvedBounds.has(id)) {
+      transformWarnings.push({
+        type: "transform_unknown_element",
+        transform: type,
+        transformId: transform._transformId,
+        elementId: id,
+        message: `Transform "${type}": element "${id}" not found in resolved layout — skipping`,
+      });
+    } else {
+      validIds.push(id);
+    }
+  }
+
+  if (validIds.length === 0) return transformWarnings;
+
+  switch (type) {
+    case "alignLeft": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : Math.min(...validIds.map(id => resolvedBounds.get(id).x));
+      for (const id of validIds) {
+        resolvedBounds.get(id).x = target;
+      }
+      break;
+    }
+
+    case "alignRight": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : Math.max(...validIds.map(id => {
+            const b = resolvedBounds.get(id);
+            return b.x + b.w;
+          }));
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.x = target - b.w;
+      }
+      break;
+    }
+
+    case "alignTop": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : Math.min(...validIds.map(id => resolvedBounds.get(id).y));
+      for (const id of validIds) {
+        resolvedBounds.get(id).y = target;
+      }
+      break;
+    }
+
+    case "alignBottom": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : Math.max(...validIds.map(id => {
+            const b = resolvedBounds.get(id);
+            return b.y + b.h;
+          }));
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.y = target - b.h;
+      }
+      break;
+    }
+
+    case "alignCenterH": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : validIds.reduce((sum, id) => {
+            const b = resolvedBounds.get(id);
+            return sum + (b.x + b.w / 2);
+          }, 0) / validIds.length;
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.x = target - b.w / 2;
+      }
+      break;
+    }
+
+    case "alignCenterV": {
+      const target = opts.to !== undefined
+        ? opts.to
+        : validIds.reduce((sum, id) => {
+            const b = resolvedBounds.get(id);
+            return sum + (b.y + b.h / 2);
+          }, 0) / validIds.length;
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.y = target - b.h / 2;
+      }
+      break;
+    }
+
+    case "distributeH": {
+      if (validIds.length < 2) break; // Need at least 2 elements to distribute
+
+      // Sort elements by their current x position (left edge)
+      const sorted = [...validIds].sort((a, b) =>
+        resolvedBounds.get(a).x - resolvedBounds.get(b).x
+      );
+
+      const mode = opts.mode || "equal-gap";
+
+      // Determine startX and endX
+      const firstBounds = resolvedBounds.get(sorted[0]);
+      const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
+      const startX = opts.startX !== undefined ? opts.startX : firstBounds.x;
+      const endX = opts.endX !== undefined ? opts.endX : lastBounds.x + lastBounds.w;
+
+      if (mode === "equal-gap") {
+        // total gap = (endX - startX) - sum(widths), divide by (n-1)
+        const totalWidth = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).w, 0);
+        const totalGap = (endX - startX) - totalWidth;
+        const gapBetween = totalGap / (sorted.length - 1);
+
+        let curX = startX;
+        for (const id of sorted) {
+          const b = resolvedBounds.get(id);
+          b.x = curX;
+          curX += b.w + gapBetween;
+        }
+      } else if (mode === "equal-center") {
+        // center spacing = (endX - startX) / (n-1)
+        // Place each element's center at startX + i * spacing
+        const spacing = (endX - startX) / (sorted.length - 1);
+        for (let i = 0; i < sorted.length; i++) {
+          const b = resolvedBounds.get(sorted[i]);
+          b.x = startX + i * spacing - b.w / 2;
+        }
+      }
+      break;
+    }
+
+    case "distributeV": {
+      if (validIds.length < 2) break;
+
+      // Sort elements by their current y position (top edge)
+      const sorted = [...validIds].sort((a, b) =>
+        resolvedBounds.get(a).y - resolvedBounds.get(b).y
+      );
+
+      const mode = opts.mode || "equal-gap";
+
+      const firstBounds = resolvedBounds.get(sorted[0]);
+      const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
+      const startY = opts.startY !== undefined ? opts.startY : firstBounds.y;
+      const endY = opts.endY !== undefined ? opts.endY : lastBounds.y + lastBounds.h;
+
+      if (mode === "equal-gap") {
+        const totalHeight = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).h, 0);
+        const totalGap = (endY - startY) - totalHeight;
+        const gapBetween = totalGap / (sorted.length - 1);
+
+        let curY = startY;
+        for (const id of sorted) {
+          const b = resolvedBounds.get(id);
+          b.y = curY;
+          curY += b.h + gapBetween;
+        }
+      } else if (mode === "equal-center") {
+        const spacing = (endY - startY) / (sorted.length - 1);
+        for (let i = 0; i < sorted.length; i++) {
+          const b = resolvedBounds.get(sorted[i]);
+          b.y = startY + i * spacing - b.h / 2;
+        }
+      }
+      break;
+    }
+
+    case "matchWidth": {
+      const maxW = Math.max(...validIds.map(id => resolvedBounds.get(id).w));
+      for (const id of validIds) {
+        resolvedBounds.get(id).w = maxW;
+      }
+      break;
+    }
+
+    case "matchHeight": {
+      const maxH = Math.max(...validIds.map(id => resolvedBounds.get(id).h));
+      for (const id of validIds) {
+        resolvedBounds.get(id).h = maxH;
+      }
+      break;
+    }
+
+    case "matchSize": {
+      const maxW = Math.max(...validIds.map(id => resolvedBounds.get(id).w));
+      const maxH = Math.max(...validIds.map(id => resolvedBounds.get(id).h));
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.w = maxW;
+        b.h = maxH;
+      }
+      break;
+    }
+
+    case "fitToRect": {
+      const targetRect = opts.rect;
+      if (!targetRect || targetRect.w <= 0 || targetRect.h <= 0) {
+        transformWarnings.push({
+          type: "transform_invalid_rect",
+          transform: type,
+          transformId: transform._transformId,
+          message: `fitToRect: invalid target rect`,
+        });
+        break;
+      }
+
+      // 1. Compute bounding box of all specified elements
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.w);
+        maxY = Math.max(maxY, b.y + b.h);
+      }
+      const bbW = maxX - minX;
+      const bbH = maxY - minY;
+
+      if (bbW <= 0 || bbH <= 0) break;
+
+      // 2. Compute scale factor (preserve aspect ratio — use the smaller scale)
+      const scaleX = targetRect.w / bbW;
+      const scaleY = targetRect.h / bbH;
+      const scale = Math.min(scaleX, scaleY);
+
+      // 3. Compute the offset to center the scaled bounding box within the target rect
+      const scaledW = bbW * scale;
+      const scaledH = bbH * scale;
+      const offsetX = targetRect.x + (targetRect.w - scaledW) / 2;
+      const offsetY = targetRect.y + (targetRect.h - scaledH) / 2;
+
+      // 4. Apply scale and translate to all elements
+      for (const id of validIds) {
+        const b = resolvedBounds.get(id);
+        b.x = offsetX + (b.x - minX) * scale;
+        b.y = offsetY + (b.y - minY) * scale;
+        b.w = b.w * scale;
+        b.h = b.h * scale;
+      }
+      break;
+    }
+
+    default:
+      transformWarnings.push({
+        type: "unknown_transform",
+        transform: type,
+        transformId: transform._transformId,
+        message: `Unknown transform type: "${type}"`,
+      });
+      break;
+  }
+
+  return transformWarnings;
 }
 
 // =============================================================================
@@ -2120,11 +2569,53 @@ export async function layout(slideDefinition, options = {}) {
   }
 
   // =========================================================================
-  // Phase 3: Apply Transforms (placeholder for M6)
+  // Phase 3: Apply Transforms (M6)
   // =========================================================================
-  // Transforms (alignment, distribution) will be processed here in M6.
-  // For now, this phase is a no-op but the infrastructure exists.
-  // The transforms array is preserved in the scene graph for round-trip.
+  // Process each transform in order, modifying resolved positions/sizes.
+  // After applying a transform, update provenance to source: "transform".
+  // Reset the transform ID counter for deterministic IDs.
+  _transformIdCounter = 0;
+
+  // Re-assign transform IDs deterministically for this layout call
+  const resolvedTransforms = [];
+  for (const t of transforms) {
+    // If the transform already has a _transformId, preserve it;
+    // otherwise it will already have one from the factory function.
+    const transformCopy = deepClone(t);
+    if (!transformCopy._transformId) {
+      transformCopy._transformId = nextTransformId();
+    }
+    resolvedTransforms.push(transformCopy);
+  }
+
+  // Track which elements were affected by transforms (for provenance)
+  const transformAffected = new Set();
+
+  for (const t of resolvedTransforms) {
+    // Collect the set of element positions/sizes before applying
+    const beforeBounds = new Map();
+    const validIds = (t.ids || []).filter(id => resolvedBounds.has(id));
+    for (const id of validIds) {
+      const b = resolvedBounds.get(id);
+      beforeBounds.set(id, { x: b.x, y: b.y, w: b.w, h: b.h });
+    }
+
+    const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
+    for (const w of transformWarnings) {
+      warnings.push(w);
+    }
+
+    // Mark elements whose bounds changed as transform-affected
+    for (const id of validIds) {
+      const before = beforeBounds.get(id);
+      const after = resolvedBounds.get(id);
+      if (before && after &&
+          (before.x !== after.x || before.y !== after.y ||
+           before.w !== after.w || before.h !== after.h)) {
+        transformAffected.add(id);
+      }
+    }
+  }
 
   // =========================================================================
   // Phase 4: Finalize
@@ -2157,6 +2648,25 @@ export async function layout(slideDefinition, options = {}) {
         w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
         h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
       };
+    }
+
+    // M6: Override provenance for elements affected by transforms
+    if (transformAffected.has(id)) {
+      // Compare the pre-transform authored/constraint-resolved values with
+      // the post-transform resolved bounds to determine which axes changed.
+      // We re-use the provenance already built and selectively override.
+      const origX = buildProvenance(authored.props.x, "x", el, false);
+      const origY = buildProvenance(authored.props.y, "y", el, false);
+      const origW = buildProvenance(authored.props.w, "w", el, sizes.wMeasured);
+      const origH = buildProvenance(authored.props.h, "h", el, sizes.hMeasured);
+
+      // For simplicity, mark all axes as "transform" for affected elements,
+      // since we don't track per-axis changes in the transform set.
+      // The original provenance is nested for traceability.
+      provenance.x = { source: "transform", original: stackParent.has(id) ? provenance.x : origX };
+      provenance.y = { source: "transform", original: stackParent.has(id) ? provenance.y : origY };
+      provenance.w = { source: "transform", original: origW };
+      provenance.h = { source: "transform", original: origH };
     }
 
     sceneElements[id] = {
@@ -2386,7 +2896,7 @@ export async function layout(slideDefinition, options = {}) {
 
   return {
     elements: sceneElements,
-    transforms: deepClone(transforms),
+    transforms: resolvedTransforms,
     warnings,
     errors,
     collisions,
@@ -2688,6 +3198,19 @@ const SlideKit = {
   // M5: Stack primitives
   vstack,
   hstack,
+  // M6: Alignment, distribution, size matching transforms
+  alignLeft,
+  alignRight,
+  alignTop,
+  alignBottom,
+  alignCenterH,
+  alignCenterV,
+  distributeH,
+  distributeV,
+  matchWidth,
+  matchHeight,
+  matchSize,
+  fitToRect,
 };
 
 export default SlideKit;
