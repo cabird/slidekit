@@ -420,6 +420,18 @@ const CONVENIENCE_MAP = {
   radius:         { css: "borderRadius",  transform: (v) => typeof v === "number" ? `${v}px` : v },
   border:         { css: "border",        transform: (v) => v },
   align:          { css: "textAlign",     transform: (v) => v },
+  shadow:         { css: "boxShadow",     transform: (v) => {
+    // M8.6: Shadow presets — named presets map to CSS values
+    const SHADOW_PRESETS = {
+      sm:   "0 1px 3px rgba(0,0,0,0.2)",
+      md:   "0 4px 12px rgba(0,0,0,0.3)",
+      lg:   "0 8px 32px rgba(0,0,0,0.4)",
+      xl:   "0 16px 48px rgba(0,0,0,0.5)",
+      glow: "0 0 40px rgba(124,92,191,0.3)",
+    };
+    if (SHADOW_PRESETS[v]) return SHADOW_PRESETS[v];
+    return v; // pass through CSS values
+  }},
 };
 
 /**
@@ -2017,6 +2029,22 @@ export async function layout(slideDefinition, options = {}) {
     });
   }
 
+  // M8.3: Resolve percentage sugar on x, y, w, h before validation
+  for (const [id, el] of flatMap) {
+    if (typeof el.props.x === "string" && !isRelMarker(el.props.x)) {
+      el.props.x = resolvePercentage(el.props.x, "x");
+    }
+    if (typeof el.props.y === "string" && !isRelMarker(el.props.y)) {
+      el.props.y = resolvePercentage(el.props.y, "y");
+    }
+    if (typeof el.props.w === "string" && el.props.w !== "fill") {
+      el.props.w = resolvePercentage(el.props.w, "w");
+    }
+    if (typeof el.props.h === "string" && el.props.h !== "fill") {
+      el.props.h = resolvePercentage(el.props.h, "h");
+    }
+  }
+
   // Validate: _rel markers must only be on x and y, not w or h
   for (const [id, el] of flatMap) {
     if (isRelMarker(el.props.w)) {
@@ -2854,6 +2882,7 @@ export async function layout(slideDefinition, options = {}) {
   }
 
   // Check collisions within each layer: O(n^2/2)
+  // M8.4: For rotated elements, use the AABB of the rotated rectangle.
   for (const layer of Object.keys(layerElements)) {
     const ids = layerElements[layer];
     for (let i = 0; i < ids.length; i++) {
@@ -2866,9 +2895,25 @@ export async function layout(slideDefinition, options = {}) {
         const parentB = stackParent.get(idB) || groupParent.get(idB);
         if (parentA === idB || parentB === idA) continue;
 
-        const boundsA = resolvedBounds.get(idA);
-        const boundsB = resolvedBounds.get(idB);
+        let boundsA = resolvedBounds.get(idA);
+        let boundsB = resolvedBounds.get(idB);
         if (!boundsA || !boundsB) continue;
+
+        // Apply AABB expansion for rotated elements
+        const elA = flatMap.get(idA);
+        const elB = flatMap.get(idB);
+        if (elA?.props?.rotate) {
+          const aabb = rotatedAABB(boundsA.w, boundsA.h, elA.props.rotate);
+          const cx = boundsA.x + boundsA.w / 2;
+          const cy = boundsA.y + boundsA.h / 2;
+          boundsA = { x: cx - aabb.w / 2, y: cy - aabb.h / 2, w: aabb.w, h: aabb.h };
+        }
+        if (elB?.props?.rotate) {
+          const aabb = rotatedAABB(boundsB.w, boundsB.h, elB.props.rotate);
+          const cx = boundsB.x + boundsB.w / 2;
+          const cy = boundsB.y + boundsB.h / 2;
+          boundsB = { x: cx - aabb.w / 2, y: cy - aabb.h / 2, w: aabb.w, h: aabb.h };
+        }
 
         const overlapRect = computeAABBIntersection(boundsA, boundsB);
         if (overlapRect) {
@@ -3105,6 +3150,11 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
     div.style.opacity = String(props.opacity);
   }
 
+  // M8.4: Rotate — apply via CSS transform (dedicated prop, not user style)
+  if (props.rotate !== undefined && props.rotate !== 0) {
+    div.style.transform = `rotate(${props.rotate}deg)`;
+  }
+
   // Apply className
   if (props.className) {
     div.className = props.className;
@@ -3316,6 +3366,8 @@ export async function render(slides, options = {}) {
         id: s.id || `slide-${i}`,
         layout: layouts[i],
       })),
+      // M8.1: Expose config for debug overlay to read safe zone info
+      _config: _config ? JSON.parse(JSON.stringify(_config)) : null,
     };
   }
 
@@ -3786,6 +3838,260 @@ export function panel(children, props = {}) {
 }
 
 // =============================================================================
+// Grid System (M8.2)
+// =============================================================================
+
+/**
+ * Create a grid system for consistent alignment across slides.
+ *
+ * @param {object} config - Grid configuration
+ * @param {number} config.cols - Number of columns
+ * @param {number} [config.gutter=30] - Space between columns
+ * @param {object} [config.margin] - Margins { left, right }. Defaults to safe zone margins.
+ * @returns {{ col: function, spanW: function, colWidth: number, cols: number, gutter: number }}
+ */
+export function grid(config = {}) {
+  const cols = config.cols || 12;
+  const gutter = config.gutter ?? 30;
+
+  // Use provided margins or fall back to safe zone or defaults
+  let marginLeft, marginRight;
+  if (config.margin) {
+    marginLeft = config.margin.left ?? 120;
+    marginRight = config.margin.right ?? 120;
+  } else if (_safeRectCache) {
+    marginLeft = _safeRectCache.x;
+    marginRight = (_config?.slide?.w ?? 1920) - (_safeRectCache.x + _safeRectCache.w);
+  } else {
+    marginLeft = 120;
+    marginRight = 120;
+  }
+
+  const totalWidth = (_config?.slide?.w ?? 1920) - marginLeft - marginRight;
+  const totalGutters = (cols - 1) * gutter;
+  const colWidth = (totalWidth - totalGutters) / cols;
+
+  return {
+    cols,
+    gutter,
+    colWidth,
+    marginLeft,
+    marginRight,
+    totalWidth,
+
+    /**
+     * Get the x position of column n's left edge (1-indexed).
+     *
+     * @param {number} n - Column number (1-based)
+     * @returns {number} X position in pixels
+     */
+    col(n) {
+      if (n < 1 || n > cols) {
+        throw new Error(`grid.col(${n}): column must be between 1 and ${cols}`);
+      }
+      return marginLeft + (n - 1) * (colWidth + gutter);
+    },
+
+    /**
+     * Get the width spanning columns from..to (inclusive, 1-indexed).
+     * Includes gutters between the columns.
+     *
+     * @param {number} from - Start column (1-based, inclusive)
+     * @param {number} to - End column (1-based, inclusive)
+     * @returns {number} Width in pixels
+     */
+    spanW(from, to) {
+      if (from < 1 || to > cols || from > to) {
+        throw new Error(`grid.spanW(${from}, ${to}): invalid range for ${cols}-column grid`);
+      }
+      const numCols = to - from + 1;
+      return numCols * colWidth + (numCols - 1) * gutter;
+    },
+  };
+}
+
+/**
+ * Snap a value to the nearest multiple of gridSize.
+ *
+ * @param {number} value - The value to snap
+ * @param {number} gridSize - The grid size to snap to
+ * @returns {number} The snapped value
+ */
+export function snap(value, gridSize) {
+  if (gridSize <= 0) return value;
+  return Math.round(value / gridSize) * gridSize;
+}
+
+// =============================================================================
+// Percentage Sugar (M8.3)
+// =============================================================================
+
+/**
+ * Resolve a percentage string to a pixel value.
+ *
+ * - "10%" -> 0.10 * slideWidth (for x/w) or slideHeight (for y/h)
+ * - "safe:10%" -> safeRect().x + 0.10 * safeRect().w (for x/w) or y/h equivalents
+ *
+ * Always slide-relative. Never parent-relative. For parent-relative, use "fill".
+ *
+ * @param {*} value - The value to resolve (may be string percentage or number)
+ * @param {string} axis - "x", "y", "w", or "h"
+ * @returns {number|*} Resolved pixel value, or the original value if not a percentage string
+ */
+export function resolvePercentage(value, axis) {
+  if (typeof value !== "string") return value;
+
+  const slideW = _config?.slide?.w ?? 1920;
+  const slideH = _config?.slide?.h ?? 1080;
+  const sr = _safeRectCache || { x: 120, y: 90, w: 1680, h: 900 };
+
+  // Check for safe-zone-relative: "safe:N%"
+  const safeMatch = value.match(/^safe:\s*([0-9.]+)%$/);
+  if (safeMatch) {
+    const pct = parseFloat(safeMatch[1]) / 100;
+    if (axis === "x") return sr.x + pct * sr.w;
+    if (axis === "y") return sr.y + pct * sr.h;
+    if (axis === "w") return pct * sr.w;
+    if (axis === "h") return pct * sr.h;
+    return value; // unknown axis, return as-is
+  }
+
+  // Check for slide-relative: "N%"
+  const pctMatch = value.match(/^([0-9.]+)%$/);
+  if (pctMatch) {
+    const pct = parseFloat(pctMatch[1]) / 100;
+    if (axis === "x" || axis === "w") return pct * slideW;
+    if (axis === "y" || axis === "h") return pct * slideH;
+    return value;
+  }
+
+  // Not a percentage string
+  return value;
+}
+
+// =============================================================================
+// Shadow Presets (M8.6)
+// =============================================================================
+
+/**
+ * Named shadow presets mapped to CSS box-shadow values.
+ */
+const SHADOWS = {
+  sm:   "0 1px 3px rgba(0,0,0,0.2)",
+  md:   "0 4px 12px rgba(0,0,0,0.3)",
+  lg:   "0 8px 32px rgba(0,0,0,0.4)",
+  xl:   "0 16px 48px rgba(0,0,0,0.5)",
+  glow: "0 0 40px rgba(124,92,191,0.3)",
+};
+
+/**
+ * Resolve a shadow value: if it's a named preset key, return the CSS value.
+ * If it's already a CSS value (contains "px"), pass through.
+ *
+ * @param {string} value - Shadow preset name or CSS value
+ * @returns {string} CSS box-shadow value
+ */
+export function resolveShadow(value) {
+  if (!value) return "";
+  if (SHADOWS[value]) return SHADOWS[value];
+  return value; // pass through CSS values
+}
+
+/**
+ * Get the shadow presets map (for testing/introspection).
+ *
+ * @returns {object} Copy of the shadow presets
+ */
+export function getShadowPresets() {
+  return { ...SHADOWS };
+}
+
+// =============================================================================
+// Repeat / Duplicate (M8.5)
+// =============================================================================
+
+/**
+ * Create copies of an element laid out in a grid pattern.
+ *
+ * @param {object} element - A SlideKit element to duplicate
+ * @param {object} config - Repeat configuration
+ * @param {number} config.count - Number of copies to create
+ * @param {number} [config.cols] - Number of columns (default = count, single row)
+ * @param {number} [config.gapX=0] - Horizontal gap between copies
+ * @param {number} [config.gapY=0] - Vertical gap between copies
+ * @param {number} [config.startX=0] - Starting X position
+ * @param {number} [config.startY=0] - Starting Y position
+ * @returns {{ id: string, type: string, children: Array, props: object }} A group containing all copies
+ */
+export function repeat(element, config = {}) {
+  const count = config.count || 1;
+  const cols = config.cols ?? count; // default: single row
+  const gapX = config.gapX ?? 0;
+  const gapY = config.gapY ?? 0;
+  const startX = config.startX ?? 0;
+  const startY = config.startY ?? 0;
+
+  const baseId = element.id || "repeat";
+  const elemW = element.props?.w || 0;
+  const elemH = element.props?.h || 0;
+
+  const children = [];
+  for (let i = 0; i < count; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    const x = startX + col * (elemW + gapX);
+    const y = startY + row * (elemH + gapY);
+
+    // Deep clone the element
+    const copy = deepClone(element);
+    copy.id = `${baseId}-${i + 1}`;
+    copy.props.x = x;
+    copy.props.y = y;
+
+    children.push(copy);
+  }
+
+  // Compute group bounds
+  const rows = Math.ceil(count / cols);
+  const groupW = cols * elemW + (cols - 1) * gapX;
+  const groupH = rows * elemH + (rows - 1) * gapY;
+
+  return group(children, {
+    x: 0,
+    y: 0,
+    w: groupW,
+    h: groupH,
+  });
+}
+
+// =============================================================================
+// Rotate — AABB computation (M8.4)
+// =============================================================================
+
+/**
+ * Compute the Axis-Aligned Bounding Box (AABB) of a rectangle rotated by theta degrees.
+ *
+ * For a rect (w, h) rotated by theta:
+ *   AABB width  = |w * cos(theta)| + |h * sin(theta)|
+ *   AABB height = |w * sin(theta)| + |h * cos(theta)|
+ *
+ * @param {number} w - Original width
+ * @param {number} h - Original height
+ * @param {number} degrees - Rotation angle in degrees
+ * @returns {{ w: number, h: number }} AABB dimensions
+ */
+export function rotatedAABB(w, h, degrees) {
+  const rad = (degrees * Math.PI) / 180;
+  const cosA = Math.abs(Math.cos(rad));
+  const sinA = Math.abs(Math.sin(rad));
+  return {
+    w: w * cosA + h * sinA,
+    h: w * sinA + h * cosA,
+  };
+}
+
+// =============================================================================
 // Namespace Export (for convenient SlideKit.* usage)
 // =============================================================================
 
@@ -3842,6 +4148,14 @@ const SlideKit = {
   bullets,
   connect,
   panel,
+  // M8: Tier 3 features
+  grid,
+  snap,
+  repeat,
+  resolvePercentage,
+  resolveShadow,
+  getShadowPresets,
+  rotatedAABB,
 };
 
 export default SlideKit;
