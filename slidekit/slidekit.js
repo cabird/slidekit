@@ -260,6 +260,29 @@ function toCamelCase(name) {
 }
 
 /**
+ * Strip vendor prefix from a camelCase CSS property name.
+ * e.g., "WebkitTransform" -> "transform"
+ *       "msFlexDirection" -> "flexDirection"
+ *       "MozTransition" -> "transition"
+ *       "backgroundColor" -> "backgroundColor" (no change)
+ */
+function stripVendorPrefix(camelName) {
+  // Match common vendor prefixes in camelCase form
+  const prefixes = ["Webkit", "Moz", "ms", "O"];
+  for (const prefix of prefixes) {
+    if (camelName.startsWith(prefix) && camelName.length > prefix.length) {
+      const rest = camelName.slice(prefix.length);
+      // After stripping prefix, the next char should be uppercase (it was the start of the property)
+      // Lowercase it to get the standard camelCase form
+      if (rest[0] >= "A" && rest[0] <= "Z") {
+        return rest[0].toLowerCase() + rest.slice(1);
+      }
+    }
+  }
+  return camelName; // no vendor prefix found
+}
+
+/**
  * Comprehensive set of blocked CSS property names (in camelCase).
  *
  * These properties are stripped from user-provided styles because they
@@ -376,13 +399,20 @@ export function filterStyle(style = {}, elementType = "unknown", convenienceProp
   for (const [rawKey, value] of Object.entries(style)) {
     const camelKey = toCamelCase(rawKey);
 
-    if (BLOCKED_PROPERTIES.has(camelKey)) {
+    // Check blocklist: also check unprefixed version for vendor-prefixed properties.
+    // e.g., WebkitTransform -> transform, msFlexDirection -> flexDirection
+    const unprefixedKey = stripVendorPrefix(camelKey);
+    const blockedKey = BLOCKED_PROPERTIES.has(camelKey) ? camelKey
+                     : BLOCKED_PROPERTIES.has(unprefixedKey) ? unprefixedKey
+                     : null;
+
+    if (blockedKey) {
       warnings.push({
         type: "blocked_css_property",
         property: camelKey,
         originalProperty: rawKey,
         value: value,
-        suggestion: BLOCKED_SUGGESTIONS[camelKey] || "This property conflicts with SlideKit's positioning system",
+        suggestion: BLOCKED_SUGGESTIONS[blockedKey] || "This property conflicts with SlideKit's positioning system",
       });
       continue;
     }
@@ -477,12 +507,18 @@ export function safeRect() {
  */
 export function getConfig() {
   if (!_config) return null;
-  return {
-    ..._config,
-    slide: { ..._config.slide },
-    safeZone: { ..._config.safeZone },
-    fonts: _config.fonts.map(f => ({ ...f })),
-  };
+  // Deep copy to prevent external mutation of internal state
+  return JSON.parse(JSON.stringify(_config));
+}
+
+/**
+ * Reset all internal state. For testing only — allows tests to verify
+ * pre-init behavior and ensures test isolation.
+ */
+export function _resetForTests() {
+  _config = null;
+  _safeRectCache = null;
+  _idCounter = 0;
 }
 
 // =============================================================================
@@ -513,6 +549,7 @@ const SlideKit = {
   safeRect,
   getConfig,
   resetIdCounter,
+  _resetForTests,
 };
 
 export default SlideKit;

@@ -4,7 +4,7 @@ import { describe, it, assert } from './test-runner.js';
 import {
   text, image, rect, rule, group,
   resolveAnchor, filterStyle,
-  init, safeRect, getConfig, resetIdCounter,
+  init, safeRect, getConfig, resetIdCounter, _resetForTests,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -71,6 +71,13 @@ describe("M1.1: text()", () => {
     assert.equal(el.props.w, 400);
     assert.equal(el.props.h, 200);
     assert.equal(el.props.z, 5);
+  });
+
+  it("handles empty string content", () => {
+    resetIdCounter();
+    const el = text("");
+    assert.equal(el.content, "");
+    assert.equal(el.type, "text");
   });
 });
 
@@ -374,6 +381,28 @@ describe("M1.3: filterStyle() — blocked properties", () => {
     assert.equal(warnings.length, 1);
     assert.equal(warnings[0].property, "transform");
   });
+
+  it("blocks vendor-prefixed layout properties", () => {
+    const { filtered, warnings } = filterStyle({
+      "-webkit-transform": "rotate(45deg)",
+      "-webkit-flex-direction": "row",
+      "-ms-flex-wrap": "wrap",
+    });
+    assert.equal(filtered.WebkitTransform, undefined, "vendor-prefixed transform should be blocked");
+    assert.equal(filtered.WebkitFlexDirection, undefined, "vendor-prefixed flex-direction should be blocked");
+    assert.equal(filtered.msFlexWrap, undefined, "vendor-prefixed flex-wrap should be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("allows vendor-prefixed non-layout properties", () => {
+    const { filtered, warnings } = filterStyle({
+      "-webkit-backdrop-filter": "blur(10px)",
+      "-webkit-font-smoothing": "antialiased",
+    });
+    assert.equal(warnings.length, 0);
+    assert.equal(filtered.WebkitBackdropFilter, "blur(10px)");
+    assert.equal(filtered.WebkitFontSmoothing, "antialiased");
+  });
 });
 
 describe("M1.3: filterStyle() — allowed properties", () => {
@@ -541,6 +570,20 @@ describe("M1.3: filterStyle() — convenience props", () => {
   });
 });
 
+describe("M1.3: filterStyle() — empty/edge cases", () => {
+  it("returns empty filtered and no warnings for empty style", () => {
+    const { filtered, warnings } = filterStyle({});
+    assert.deepEqual(filtered, {});
+    assert.equal(warnings.length, 0);
+  });
+
+  it("handles undefined style input", () => {
+    const { filtered, warnings } = filterStyle(undefined);
+    assert.deepEqual(filtered, {});
+    assert.equal(warnings.length, 0);
+  });
+});
+
 describe("M1.3: filterStyle() — warning structure", () => {
   it("warning includes required fields", () => {
     const { warnings } = filterStyle({ display: "flex" });
@@ -564,6 +607,7 @@ describe("M1.3: filterStyle() — warning structure", () => {
 
 describe("M1.5: init()", () => {
   it("stores default config when called with no arguments", async () => {
+    _resetForTests();
     await init();
     const cfg = getConfig();
     assert.equal(cfg.slide.w, 1920);
@@ -577,6 +621,7 @@ describe("M1.5: init()", () => {
   });
 
   it("merges custom slide dimensions", async () => {
+    _resetForTests();
     await init({ slide: { w: 3840, h: 2160 } });
     const cfg = getConfig();
     assert.equal(cfg.slide.w, 3840);
@@ -584,6 +629,7 @@ describe("M1.5: init()", () => {
   });
 
   it("merges custom safe zone margins", async () => {
+    _resetForTests();
     await init({ safeZone: { left: 200, right: 200, top: 100, bottom: 100 } });
     const cfg = getConfig();
     assert.equal(cfg.safeZone.left, 200);
@@ -591,16 +637,19 @@ describe("M1.5: init()", () => {
   });
 
   it("stores strict mode", async () => {
+    _resetForTests();
     await init({ strict: true });
     assert.equal(getConfig().strict, true);
   });
 
   it("stores custom minFontSize", async () => {
+    _resetForTests();
     await init({ minFontSize: 18 });
     assert.equal(getConfig().minFontSize, 18);
   });
 
   it("stores fonts array", async () => {
+    _resetForTests();
     const fonts = [{ family: "Inter", weights: [400, 700] }];
     await init({ fonts });
     const cfg = getConfig();
@@ -609,12 +658,14 @@ describe("M1.5: init()", () => {
   });
 
   it("returns a promise", async () => {
+    _resetForTests();
     const result = init();
     assert.ok(result instanceof Promise, "init() should return a Promise");
     await result;
   });
 
   it("throws on invalid safeZone (margins larger than slide)", async () => {
+    _resetForTests();
     let threw = false;
     try {
       await init({ slide: { w: 100, h: 100 }, safeZone: { left: 60, right: 60, top: 10, bottom: 10 } });
@@ -626,7 +677,13 @@ describe("M1.5: init()", () => {
 });
 
 describe("M1.5: safeRect()", () => {
+  it("throws when called before init()", () => {
+    _resetForTests();
+    assert.throws(() => safeRect(), "safeRect should throw before init");
+  });
+
   it("computes correctly from default config", async () => {
+    _resetForTests();
     await init();
     const sr = safeRect();
     assert.equal(sr.x, 120);
@@ -636,6 +693,7 @@ describe("M1.5: safeRect()", () => {
   });
 
   it("computes correctly from custom config", async () => {
+    _resetForTests();
     await init({
       slide: { w: 1920, h: 1080 },
       safeZone: { left: 200, right: 200, top: 150, bottom: 150 },
@@ -648,6 +706,7 @@ describe("M1.5: safeRect()", () => {
   });
 
   it("returns a copy (mutation does not affect cached value)", async () => {
+    _resetForTests();
     await init();
     const sr1 = safeRect();
     sr1.x = 9999;
@@ -657,13 +716,13 @@ describe("M1.5: safeRect()", () => {
 });
 
 describe("M1.5: getConfig()", () => {
-  it("returns null before init()", async () => {
-    // Note: this test depends on running after init tests above, but init()
-    // is called in those tests. We can still test the deep copy behavior.
-    // To truly test null, we'd need a way to reset config. This is tested implicitly.
+  it("returns null before init()", () => {
+    _resetForTests();
+    assert.equal(getConfig(), null);
   });
 
   it("returns a deep copy (mutations don't affect internal state)", async () => {
+    _resetForTests();
     await init({ fonts: [{ family: "Inter", weights: [400] }] });
     const cfg = getConfig();
     cfg.slide.w = 9999;
@@ -676,5 +735,14 @@ describe("M1.5: getConfig()", () => {
     assert.equal(cfg2.safeZone.left, 120, "safeZone should not be mutated");
     assert.equal(cfg2.fonts.length, 1, "fonts array should not be mutated");
     assert.equal(cfg2.fonts[0].family, "Inter", "font objects should not be mutated");
+  });
+
+  it("deep copies font weights arrays", async () => {
+    _resetForTests();
+    await init({ fonts: [{ family: "Inter", weights: [400, 700] }] });
+    const cfg = getConfig();
+    cfg.fonts[0].weights.push(900);
+    const cfg2 = getConfig();
+    assert.equal(cfg2.fonts[0].weights.length, 2, "weights array should not be mutated");
   });
 });
