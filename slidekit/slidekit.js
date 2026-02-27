@@ -1867,62 +1867,71 @@ export async function layout(slideDefinition, options = {}) {
 
     // Stack children get their position from the stack layout algorithm,
     // not from their own x/y props. Skip them here — they are resolved
-    // when we process their parent stack.
+    // when we process their parent stack. However, if this child is
+    // itself a stack (nested stack), we still need to let it position
+    // its own children below, so we only skip the x/y resolution.
+    let finalX, finalY;
+
     if (stackParent.has(id)) {
-      // Check if the parent stack has already been resolved
-      const parentId = stackParent.get(id);
       if (resolvedBounds.has(id)) {
-        // Already positioned by parent stack processing below
+        // Already positioned by parent stack — use those coords
+        finalX = resolvedBounds.get(id).x;
+        finalY = resolvedBounds.get(id).y;
+      } else {
+        // Parent hasn't positioned us yet (shouldn't happen with topo sort).
+        // Fallback: position at (0, 0)
+        finalX = 0;
+        finalY = 0;
+        resolvedBounds.set(id, { x: 0, y: 0, w, h });
+      }
+      // If this is NOT a stack itself, we're done — skip to next element.
+      // If it IS a stack, fall through to position its own children.
+      if (el.type !== "vstack" && el.type !== "hstack") {
         continue;
       }
-      // If we get here, the parent was just processed and this child
-      // should have been positioned. Something went wrong.
-      // Fallback: position at (0, 0)
-      resolvedBounds.set(id, { x: 0, y: 0, w, h });
-      continue;
-    }
-
-    // Resolve x
-    const xIsRel = isRelMarker(el.props.x);
-    let x;
-    if (xIsRel) {
-      const marker = el.props.x;
-      if (marker._rel === "centerIn") {
-        const r = marker.rect;
-        x = r.x + r.w / 2 - w / 2;
-      } else {
-        const refId = marker.ref;
-        const refBounds = resolvedBounds.get(refId);
-        x = resolveRelMarker(marker, "x", refBounds, w, h);
-      }
     } else {
-      x = el.props.x ?? 0;
-    }
-
-    // Resolve y
-    const yIsRel = isRelMarker(el.props.y);
-    let y;
-    if (yIsRel) {
-      const marker = el.props.y;
-      if (marker._rel === "centerIn") {
-        const r = marker.rect;
-        y = r.y + r.h / 2 - h / 2;
+      // Resolve x
+      const xIsRel = isRelMarker(el.props.x);
+      let x;
+      if (xIsRel) {
+        const marker = el.props.x;
+        if (marker._rel === "centerIn") {
+          const r = marker.rect;
+          x = r.x + r.w / 2 - w / 2;
+        } else {
+          const refId = marker.ref;
+          const refBounds = resolvedBounds.get(refId);
+          x = resolveRelMarker(marker, "x", refBounds, w, h);
+        }
       } else {
-        const refId = marker.ref;
-        const refBounds = resolvedBounds.get(refId);
-        y = resolveRelMarker(marker, "y", refBounds, w, h);
+        x = el.props.x ?? 0;
       }
-    } else {
-      y = el.props.y ?? 0;
+
+      // Resolve y
+      const yIsRel = isRelMarker(el.props.y);
+      let y;
+      if (yIsRel) {
+        const marker = el.props.y;
+        if (marker._rel === "centerIn") {
+          const r = marker.rect;
+          y = r.y + r.h / 2 - h / 2;
+        } else {
+          const refId = marker.ref;
+          const refBounds = resolvedBounds.get(refId);
+          y = resolveRelMarker(marker, "y", refBounds, w, h);
+        }
+      } else {
+        y = el.props.y ?? 0;
+      }
+
+      // Apply anchor resolution ONLY to authored (non-_rel) coordinates.
+      const anchor = el.props.anchor || "tl";
+      const { left: anchoredX, top: anchoredY } = resolveAnchor(x, y, w, h, anchor);
+      finalX = xIsRel ? x : anchoredX;
+      finalY = yIsRel ? y : anchoredY;
+
+      resolvedBounds.set(id, { x: finalX, y: finalY, w, h });
     }
-
-    // Apply anchor resolution ONLY to authored (non-_rel) coordinates.
-    const anchor = el.props.anchor || "tl";
-    const { left: anchoredX, top: anchoredY } = resolveAnchor(x, y, w, h, anchor);
-    const finalX = xIsRel ? x : anchoredX;
-    const finalY = yIsRel ? y : anchoredY;
-
-    resolvedBounds.set(id, { x: finalX, y: finalY, w, h });
 
     // If this is a stack, position all children now
     if (el.type === "vstack" || el.type === "hstack") {
