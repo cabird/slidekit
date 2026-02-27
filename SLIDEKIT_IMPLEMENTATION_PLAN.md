@@ -619,7 +619,7 @@ Implementation:
 
 **Goal:** Implement debug visualization and remaining Tier 3 features.
 
-### 8.1 Debug Overlay (slidekit-debug.js)
+### 8.1 Debug Overlay (slidekit-debug.js) [DONE]
 
 Implement `SlideKit.renderDebugOverlay(options)`:
 
@@ -631,7 +631,7 @@ Implement `SlideKit.renderDebugOverlay(options)`:
 - `showCollisions`: Highlight collision areas in semi-transparent red
 - Toggle on/off without re-rendering the slide
 
-### 8.2 Grid System
+### 8.2 Grid System [DONE]
 
 Implement `SlideKit.grid(config)`:
 
@@ -644,7 +644,7 @@ Implement `SlideKit.grid(config)`:
 
 Implement `snap(value, gridSize)` → round to nearest multiple.
 
-### 8.3 Percentage Sugar
+### 8.3 Percentage Sugar [DONE]
 
 In the layout solver, detect string values on `x`, `y`, `w`, `h`:
 
@@ -655,11 +655,11 @@ Parse at layout solve time, resolve to pixel values.
 
 **Important:** `"N%"` is always relative to the slide dimensions (1920×1080), never to a parent element. For parent-relative sizing (e.g., filling a panel's content area), use `"fill"` instead. This avoids the "100% of what?" ambiguity.
 
-### 8.4 Rotate
+### 8.4 Rotate [DONE]
 
 Add `rotate` property to elements (a dedicated prop, not CSS `transform` — `transform` is blocked in user styles to prevent positioning conflicts). The library applies it as `transform: rotate(Xdeg)` in the rendered CSS. Bounding box for collision detection uses the AABB of the rotated rectangle.
 
-### 8.5 Repeat/Duplicate
+### 8.5 Repeat/Duplicate [DONE]
 
 Implement `repeat(element, config)`:
 
@@ -668,7 +668,7 @@ Implement `repeat(element, config)`:
 - Each copy gets a unique ID (`{baseId}-1`, `{baseId}-2`, ...)
 - Return a group containing all copies
 
-### 8.6 Shadow Presets
+### 8.6 Shadow Presets [DONE]
 
 Map named shadows to CSS values in the style convenience props:
 
@@ -682,7 +682,7 @@ const SHADOWS = {
 }
 ```
 
-### 8.7 Tests
+### 8.7 Tests [DONE]
 
 - Test debug overlay renders correct elements for each option
 - Test grid column positions and span widths
