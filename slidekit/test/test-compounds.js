@@ -2,12 +2,10 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, group,
+  text, rect,
   render, layout,
-  init, _resetForTests, resetIdCounter,
-  vstack, hstack,
+  init, _resetForTests,
   bullets, connect, panel,
-  measureText,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -557,6 +555,41 @@ describe("M7.2: connect — rendering", () => {
       assert.ok(path, "elbow connector should use <path> element");
       const d = path.getAttribute("d");
       assert.ok(d && d.includes("L"), "elbow path should have line segments (L command)");
+      // Elbow path: M -> L -> L -> L (3 L segments)
+      const lCount = (d.match(/L /g) || []).length;
+      assert.equal(lCount, 3, "elbow path should have 3 L segments");
+    });
+  });
+
+  it("renders arrow: 'both' with marker-start and marker-end", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const src = rect({ id: "rsb", x: 100, y: 100, w: 200, h: 100 });
+      const tgt = rect({ id: "rtb", x: 500, y: 100, w: 200, h: 100 });
+      const conn = connect("rsb", "rtb", { id: "rcb", arrow: "both" });
+
+      await render([{ elements: [src, tgt, conn] }], { container });
+
+      const svgWrapper = container.querySelector('[data-sk-id="rcb"]');
+      const line = svgWrapper.querySelector("line");
+      assert.ok(line.getAttribute("marker-end"), "arrow 'both' should have marker-end");
+      assert.ok(line.getAttribute("marker-start"), "arrow 'both' should have marker-start");
+    });
+  });
+
+  it("renders arrow: 'start' with only marker-start", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const src = rect({ id: "rss", x: 100, y: 100, w: 200, h: 100 });
+      const tgt = rect({ id: "rts", x: 500, y: 100, w: 200, h: 100 });
+      const conn = connect("rss", "rts", { id: "rcs", arrow: "start" });
+
+      await render([{ elements: [src, tgt, conn] }], { container });
+
+      const svgWrapper = container.querySelector('[data-sk-id="rcs"]');
+      const line = svgWrapper.querySelector("line");
+      assert.ok(line.getAttribute("marker-start"), "arrow 'start' should have marker-start");
+      assert.ok(!line.getAttribute("marker-end"), "arrow 'start' should not have marker-end");
     });
   });
 
@@ -808,6 +841,20 @@ describe("M7.3: panel — fill width resolution", () => {
     const stackChildren = el.children[1].children;
     assert.equal(stackChildren[0].props.w, "fill");
   });
+
+  it("resolves fill on multiple children, leaves non-fill children unchanged", () => {
+    _resetForTests();
+    const c1 = rect({ id: "mf1", w: "fill", h: 40 });
+    const c2 = rect({ id: "mf2", w: 200, h: 40 });
+    const c3 = rect({ id: "mf3", w: "fill", h: 40 });
+    const el = panel([c1, c2, c3], { id: "pf5", w: 500, padding: 20 });
+
+    const stackChildren = el.children[1].children;
+    const expectedFillW = 500 - 2 * 20; // 460
+    assert.equal(stackChildren[0].props.w, expectedFillW, "first fill child resolved");
+    assert.equal(stackChildren[1].props.w, 200, "non-fill child unchanged");
+    assert.equal(stackChildren[2].props.w, expectedFillW, "second fill child resolved");
+  });
 });
 
 // =============================================================================
@@ -848,6 +895,9 @@ describe("M7.3: panel — layout integration", () => {
 
     const panelData = scene.elements["pl3"];
     assert.equal(panelData.resolved.h, 300, "explicit h should override auto-height");
+    // bgRect should also use the explicit height
+    const bgRectId = el.children[0].id;
+    assert.equal(scene.elements[bgRectId].resolved.h, 300, "bgRect h should match explicit panel h");
   });
 
   it("bgRect height matches panel height", async () => {
