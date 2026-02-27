@@ -1595,13 +1595,13 @@ function applyTransform(transform, resolvedBounds, flatMap) {
 
       const mode = opts.mode || "equal-gap";
 
-      // Determine startX and endX
+      // Determine startX and endX — defaults depend on mode
       const firstBounds = resolvedBounds.get(sorted[0]);
       const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
-      const startX = opts.startX !== undefined ? opts.startX : firstBounds.x;
-      const endX = opts.endX !== undefined ? opts.endX : lastBounds.x + lastBounds.w;
 
       if (mode === "equal-gap") {
+        const startX = opts.startX !== undefined ? opts.startX : firstBounds.x;
+        const endX = opts.endX !== undefined ? opts.endX : lastBounds.x + lastBounds.w;
         // total gap = (endX - startX) - sum(widths), divide by (n-1)
         const totalWidth = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).w, 0);
         const totalGap = (endX - startX) - totalWidth;
@@ -1614,6 +1614,13 @@ function applyTransform(transform, resolvedBounds, flatMap) {
           curX += b.w + gapBetween;
         }
       } else if (mode === "equal-center") {
+        // For equal-center, default start/end are element centers (not edges)
+        const startX = opts.startX !== undefined
+          ? opts.startX
+          : firstBounds.x + firstBounds.w / 2;
+        const endX = opts.endX !== undefined
+          ? opts.endX
+          : lastBounds.x + lastBounds.w / 2;
         // center spacing = (endX - startX) / (n-1)
         // Place each element's center at startX + i * spacing
         const spacing = (endX - startX) / (sorted.length - 1);
@@ -1637,10 +1644,10 @@ function applyTransform(transform, resolvedBounds, flatMap) {
 
       const firstBounds = resolvedBounds.get(sorted[0]);
       const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
-      const startY = opts.startY !== undefined ? opts.startY : firstBounds.y;
-      const endY = opts.endY !== undefined ? opts.endY : lastBounds.y + lastBounds.h;
 
       if (mode === "equal-gap") {
+        const startY = opts.startY !== undefined ? opts.startY : firstBounds.y;
+        const endY = opts.endY !== undefined ? opts.endY : lastBounds.y + lastBounds.h;
         const totalHeight = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).h, 0);
         const totalGap = (endY - startY) - totalHeight;
         const gapBetween = totalGap / (sorted.length - 1);
@@ -1652,6 +1659,13 @@ function applyTransform(transform, resolvedBounds, flatMap) {
           curY += b.h + gapBetween;
         }
       } else if (mode === "equal-center") {
+        // For equal-center, default start/end are element centers (not edges)
+        const startY = opts.startY !== undefined
+          ? opts.startY
+          : firstBounds.y + firstBounds.h / 2;
+        const endY = opts.endY !== undefined
+          ? opts.endY
+          : lastBounds.y + lastBounds.h / 2;
         const spacing = (endY - startY) / (sorted.length - 1);
         for (let i = 0; i < sorted.length; i++) {
           const b = resolvedBounds.get(sorted[i]);
@@ -2588,32 +2602,26 @@ export async function layout(slideDefinition, options = {}) {
     resolvedTransforms.push(transformCopy);
   }
 
-  // Track which elements were affected by transforms (for provenance)
-  const transformAffected = new Set();
+  // Capture bounds before any transforms for per-axis provenance comparison
+  const preTransformBounds = new Map();
+  for (const [id, b] of resolvedBounds) {
+    preTransformBounds.set(id, { x: b.x, y: b.y, w: b.w, h: b.h });
+  }
 
   for (const t of resolvedTransforms) {
-    // Collect the set of element positions/sizes before applying
-    const beforeBounds = new Map();
-    const validIds = (t.ids || []).filter(id => resolvedBounds.has(id));
-    for (const id of validIds) {
-      const b = resolvedBounds.get(id);
-      beforeBounds.set(id, { x: b.x, y: b.y, w: b.w, h: b.h });
+    // Validate transform object shape
+    if (!t || typeof t._transform !== "string") {
+      warnings.push({
+        type: "invalid_transform_object",
+        transform: t,
+        message: "Invalid object in transforms array. Each transform must be created by a SlideKit transform function.",
+      });
+      continue;
     }
 
     const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
     for (const w of transformWarnings) {
       warnings.push(w);
-    }
-
-    // Mark elements whose bounds changed as transform-affected
-    for (const id of validIds) {
-      const before = beforeBounds.get(id);
-      const after = resolvedBounds.get(id);
-      if (before && after &&
-          (before.x !== after.x || before.y !== after.y ||
-           before.w !== after.w || before.h !== after.h)) {
-        transformAffected.add(id);
-      }
     }
   }
 
@@ -2650,23 +2658,22 @@ export async function layout(slideDefinition, options = {}) {
       };
     }
 
-    // M6: Override provenance for elements affected by transforms
-    if (transformAffected.has(id)) {
-      // Compare the pre-transform authored/constraint-resolved values with
-      // the post-transform resolved bounds to determine which axes changed.
-      // We re-use the provenance already built and selectively override.
-      const origX = buildProvenance(authored.props.x, "x", el, false);
-      const origY = buildProvenance(authored.props.y, "y", el, false);
-      const origW = buildProvenance(authored.props.w, "w", el, sizes.wMeasured);
-      const origH = buildProvenance(authored.props.h, "h", el, sizes.hMeasured);
-
-      // For simplicity, mark all axes as "transform" for affected elements,
-      // since we don't track per-axis changes in the transform set.
-      // The original provenance is nested for traceability.
-      provenance.x = { source: "transform", original: stackParent.has(id) ? provenance.x : origX };
-      provenance.y = { source: "transform", original: stackParent.has(id) ? provenance.y : origY };
-      provenance.w = { source: "transform", original: origW };
-      provenance.h = { source: "transform", original: origH };
+    // M6: Override provenance per-axis for elements affected by transforms.
+    // Only mark axes where the value actually changed.
+    const preBounds = preTransformBounds.get(id);
+    if (preBounds) {
+      if (bounds.x !== preBounds.x) {
+        provenance.x = { source: "transform", original: provenance.x };
+      }
+      if (bounds.y !== preBounds.y) {
+        provenance.y = { source: "transform", original: provenance.y };
+      }
+      if (bounds.w !== preBounds.w) {
+        provenance.w = { source: "transform", original: provenance.w };
+      }
+      if (bounds.h !== preBounds.h) {
+        provenance.h = { source: "transform", original: provenance.h };
+      }
     }
 
     sceneElements[id] = {
