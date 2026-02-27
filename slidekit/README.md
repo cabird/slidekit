@@ -4,7 +4,13 @@ A coordinate-based slide layout library for AI agents and humans. SlideKit gives
 
 ## Quick Start
 
-Copy this into an HTML file and open it in a browser:
+Copy this into an HTML file in your `slidekit/` directory (alongside `slidekit.js`) and serve it from a local web server. ES module imports require a server -- opening the file directly via `file://` will not work.
+
+```bash
+# Start a local server from the slidekit/ directory
+python -m http.server 8000 --directory slidekit/
+# Then open http://localhost:8000/your-file.html
+```
 
 ```html
 <!DOCTYPE html>
@@ -104,6 +110,8 @@ All elements share common positioning properties:
 | `anchor`    | string   | `"tl"`      | Which point (x,y) refers to (see Anchor System) |
 | `layer`     | string   | `"content"` | Z-layer: `"bg"`, `"content"`, `"overlay"` |
 | `opacity`   | number   | 1           | Element opacity (0-1) |
+| `z`         | number   | 0           | Z-order within layer (higher = on top) |
+| `rotate`    | number   | 0           | Rotation in degrees (applied via CSS transform) |
 | `style`     | object   | `{}`        | CSS properties for visual styling |
 | `className` | string   | `""`        | CSS class names (requires corresponding CSS) |
 
@@ -188,6 +196,44 @@ group([
 ```
 
 Children coordinates are relative to the group origin.
+
+#### `vstack(items, props)`
+
+```js
+import { vstack } from './slidekit.js';
+
+vstack([
+  text("First", { w: 400, size: 28, color: "#fff" }),
+  text("Second", { w: 400, size: 28, color: "#fff" }),
+  text("Third", { w: 400, size: 28, color: "#fff" }),
+], {
+  id: "my-vstack",
+  x: 170, y: 200,
+  gap: 16,          // Pixels between children
+  align: "left",    // "left" | "center" | "right"
+});
+```
+
+Children are laid out top-to-bottom. Each child's position is computed during layout solve based on measured heights. Children do not need explicit `x`/`y` coordinates -- the stack assigns them.
+
+#### `hstack(items, props)`
+
+```js
+import { hstack } from './slidekit.js';
+
+hstack([
+  rect({ w: 300, h: 200, fill: "#1a1a2e" }),
+  rect({ w: 300, h: 200, fill: "#2a2a5e" }),
+  rect({ w: 300, h: 200, fill: "#3a3a6e" }),
+], {
+  id: "my-hstack",
+  x: 170, y: 200,
+  gap: 24,         // Pixels between children
+  align: "top",    // "top" | "middle" | "bottom"
+});
+```
+
+Children are laid out left-to-right. The stack computes absolute positions from the stack origin and each child's measured width.
 
 ### Anchor System
 
@@ -357,8 +403,9 @@ bullets([
   size: 28, color: "#fff",
   bulletChar: "\u2022",       // or "\u2014", "\u2192", etc.
   bulletColor: "#7c5cbf",
-  indent: 40,
-  gap: 12,
+  bulletGap: 16,         // Gap between bullet character and text (default: 16)
+  indent: 40,            // Indent per nesting level
+  gap: 12,               // Vertical gap between items
 });
 ```
 
