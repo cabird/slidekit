@@ -450,11 +450,11 @@ describe("M5.4: nested stacks", () => {
     assert.equal(scene.elements["inner-vs"].resolved.x, 200);
     assert.equal(scene.elements["side"].resolved.x, 320);
 
-    // Inner children: ic1 at (200, 200), ic2 at (200, 260)
+    // Inner children: ic1 at (200, 200), ic2 at (200, 240) [200 + 30h + 10gap]
     assert.equal(scene.elements["ic1"].resolved.x, 200);
     assert.equal(scene.elements["ic1"].resolved.y, 200);
     assert.equal(scene.elements["ic2"].resolved.x, 200);
-    assert.equal(scene.elements["ic2"].resolved.y, 260);
+    assert.equal(scene.elements["ic2"].resolved.y, 240);
   });
 
   it("hstack inside vstack resolves correctly", async () => {
@@ -847,5 +847,87 @@ describe("M5: scene graph structure", () => {
     const scene = await layout({ elements: [r1] });
 
     assert.ok(Array.isArray(scene.collisions), "collisions should be an array");
+  });
+});
+
+// =============================================================================
+// Edge Cases: Empty & Single-Child Stacks
+// =============================================================================
+
+describe("M5.4: stack edge cases", () => {
+  it("vstack with single child positions it at stack origin", async () => {
+    _resetForTests();
+    await init();
+
+    const child = rect({ id: "c1", w: 100, h: 50 });
+    const stack = vstack([child], { id: "vs1", x: 300, y: 400, w: 100 });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    assert.equal(scene.elements["c1"].resolved.x, 300);
+    assert.equal(scene.elements["c1"].resolved.y, 400);
+    assert.equal(scene.elements["vs1"].resolved.h, 50);
+  });
+
+  it("hstack with single child positions it at stack origin", async () => {
+    _resetForTests();
+    await init();
+
+    const child = rect({ id: "c1", w: 100, h: 50 });
+    const stack = hstack([child], { id: "hs1", x: 300, y: 400 });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    assert.equal(scene.elements["c1"].resolved.x, 300);
+    assert.equal(scene.elements["c1"].resolved.y, 400);
+    assert.equal(scene.elements["hs1"].resolved.w, 100);
+  });
+
+  it("vstack with explicit h keeps that h", async () => {
+    _resetForTests();
+    await init();
+
+    const child = rect({ id: "c1", w: 100, h: 50 });
+    const stack = vstack([child], { id: "vs1", x: 0, y: 0, w: 100, h: 200 });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Stack h should be the explicit 200, not the child sum of 50
+    assert.equal(scene.elements["vs1"].resolved.h, 200);
+  });
+
+  it("hstack with explicit w keeps that w", async () => {
+    _resetForTests();
+    await init();
+
+    const child = rect({ id: "c1", w: 100, h: 50 });
+    const stack = hstack([child], { id: "hs1", x: 0, y: 0, h: 50, w: 500 });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Stack w should be the explicit 500, not the child sum of 100
+    assert.equal(scene.elements["hs1"].resolved.w, 500);
+  });
+
+  it("multiple collisions include correct element pairs", async () => {
+    _resetForTests();
+    await init();
+
+    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 200 }); // overlaps r1
+    const r3 = rect({ id: "r3", x: 250, y: 250, w: 100, h: 100 }); // overlaps r1 and r2
+
+    const scene = await layout({ elements: [r1, r2, r3] });
+
+    // Should have 3 collisions: r1-r2, r1-r3, r2-r3
+    assert.equal(scene.collisions.length, 3);
+
+    // Verify each pair exists
+    const pairs = scene.collisions.map(c => `${c.elementA}-${c.elementB}`);
+    assert.ok(pairs.includes("r1-r2"), "should have r1-r2 collision");
+    assert.ok(pairs.includes("r1-r3"), "should have r1-r3 collision");
+    assert.ok(pairs.includes("r2-r3"), "should have r2-r3 collision");
   });
 });
