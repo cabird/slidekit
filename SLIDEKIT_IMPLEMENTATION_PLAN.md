@@ -130,7 +130,7 @@ Implement the style pass-through system:
 - Convenience prop → CSS mapping: `color` → `color`, `font` → `fontFamily`, `size` → `fontSize` (with "px" suffix), etc.
 - Merge order: convenience props first, then `style` object (style wins on conflict)
 
-### 1.4 Basic Renderer
+### 1.4 Basic Renderer [DONE]
 
 Implement `SlideKit.render(slides, options)`:
 
@@ -166,7 +166,7 @@ Implement `SlideKit.init(config)`:
 - Compute and cache `safeRect()`
 - Return a promise that resolves when ready (for now, resolves immediately — font loading comes in M2)
 
-### 1.6 Tests
+### 1.6 Tests [DONE]
 
 - Test element creation functions return correct object shapes
 - Test auto-generated IDs are deterministic (same elements → same IDs across calls)
