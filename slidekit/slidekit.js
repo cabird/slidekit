@@ -361,7 +361,7 @@ const BLOCKED_SUGGESTIONS = {
  */
 const CONVENIENCE_MAP = {
   color:          { css: "color",         transform: (v) => v },
-  font:           { css: "fontFamily",    transform: (v) => v },
+  font:           { css: "fontFamily",    transform: (v) => `"${v}", sans-serif` },
   size:           { css: "fontSize",      transform: (v) => typeof v === "number" ? `${v}px` : v },
   weight:         { css: "fontWeight",    transform: (v) => String(v) },
   lineHeight:     { css: "lineHeight",    transform: (v) => v },
@@ -462,6 +462,11 @@ let _measureCache = new Map();
 let _fontWarnings = [];
 
 /**
+ * Set of injected Google Font <link> elements for cleanup during testing.
+ */
+let _injectedFontLinks = new Set();
+
+/**
  * Default configuration values.
  */
 const DEFAULT_CONFIG = {
@@ -514,9 +519,6 @@ export async function init(config = {}) {
   _loadedFonts = new Set();
   _fontWarnings = [];
   _measureCache = new Map();
-
-  // Create or re-create the measurement container
-  _ensureMeasureContainer();
 
   // M2.1: Font Preloading
   if (_config.fonts.length > 0) {
@@ -634,6 +636,7 @@ function _injectGoogleFontLink(fontDef) {
   link.rel = "stylesheet";
   link.href = href;
   document.head.appendChild(link);
+  _injectedFontLinks.add(link);
 }
 
 /**
@@ -695,6 +698,11 @@ export function _resetForTests() {
     _measureContainer.parentNode.removeChild(_measureContainer);
   }
   _measureContainer = null;
+  // Remove injected Google Font link elements
+  for (const link of _injectedFontLinks) {
+    if (link.parentNode) link.parentNode.removeChild(link);
+  }
+  _injectedFontLinks = new Set();
 }
 
 // =============================================================================
@@ -710,6 +718,12 @@ export function _resetForTests() {
  */
 function _ensureMeasureContainer() {
   if (_measureContainer && _measureContainer.parentNode) return;
+
+  if (typeof document === "undefined" || !document.body) {
+    throw new Error(
+      "SlideKit.measureText requires a DOM with document.body available."
+    );
+  }
 
   _measureContainer = document.createElement("div");
   _measureContainer.style.position = "absolute";
@@ -771,15 +785,17 @@ export function measureText(content, props = {}) {
   const constrainW = props.w ?? null;
 
   // Check if the required font is loaded (warn if not, but don't block)
+  const warnings = [];
   const fontKey = `${font}:${weight}`;
   if (_loadedFonts.size > 0 && !_loadedFonts.has(fontKey)) {
     // Only warn if fonts were configured — if no fonts were configured,
     // we're using system fonts and can't validate.
     if (_config && _config.fonts.length > 0) {
-      console.warn(
-        `SlideKit.measureText: Font "${fontKey}" is not loaded. ` +
-        `Measurement may be inaccurate. Call init() with fonts config first.`
-      );
+      warnings.push({
+        type: "font_not_loaded",
+        font: fontKey,
+        message: `Font "${fontKey}" is not loaded. Measurement may be inaccurate.`,
+      });
     }
   }
 
@@ -833,7 +849,9 @@ export function measureText(content, props = {}) {
 
   // Compute line count from scrollHeight / computed lineHeight
   const computedLineHeight = size * lineHeight;
-  const lineCount = Math.max(1, Math.round(measuredHeight / computedLineHeight));
+  const lineCount = computedLineHeight > 0
+    ? Math.max(1, Math.ceil(measuredHeight / computedLineHeight))
+    : 1;
 
   // Clean up
   _measureContainer.removeChild(measureDiv);
@@ -843,6 +861,11 @@ export function measureText(content, props = {}) {
     lineCount,
     fontSize: size,
   };
+
+  // Include warnings if any were generated
+  if (warnings.length > 0) {
+    result.warnings = warnings;
+  }
 
   // Cache the result
   _measureCache.set(cacheKey, result);
@@ -944,20 +967,24 @@ function getEffectiveDimensions(element) {
 
   // M2.4: Auto-height for text elements
   if (type === "text" && (props.h === undefined || props.h === null)) {
-    const w = props.w || 0;
-    if (w > 0 && element.content) {
-      const metrics = measureText(element.content, {
-        font: props.font,
-        size: props.size,
-        weight: props.weight,
-        lineHeight: props.lineHeight,
-        letterSpacing: props.letterSpacing,
-        w: w,
-      });
-      return { w, h: metrics.block.h, _autoHeight: true };
+    const contentStr = String(element.content ?? "");
+    // If truly no content, return zero height
+    if (!contentStr) {
+      return { w: props.w || 0, h: 0, _autoHeight: true };
     }
-    // If no width or no content, can't auto-measure — fall through to default
-    return { w, h: 0, _autoHeight: true };
+    // Build measurement props — omit w if not provided or zero (unconstrained measurement)
+    const measureProps = {
+      font: props.font,
+      size: props.size,
+      weight: props.weight,
+      lineHeight: props.lineHeight,
+      letterSpacing: props.letterSpacing,
+    };
+    if (props.w && props.w > 0) {
+      measureProps.w = props.w;
+    }
+    const metrics = measureText(contentStr, measureProps);
+    return { w: metrics.block.w, h: metrics.block.h, _autoHeight: true };
   }
 
   return { w: props.w || 0, h: props.h || 0, _autoHeight: false };
