@@ -2593,6 +2593,11 @@ export async function layout(slideDefinition, options = {}) {
   // Re-assign transform IDs deterministically for this layout call
   const resolvedTransforms = [];
   for (const t of transforms) {
+    // Pass through null/invalid entries as-is — they'll be caught by validation below
+    if (!t || typeof t !== "object") {
+      resolvedTransforms.push(t);
+      continue;
+    }
     // If the transform already has a _transformId, preserve it;
     // otherwise it will already have one from the factory function.
     const transformCopy = deepClone(t);

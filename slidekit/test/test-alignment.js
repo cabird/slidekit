@@ -732,11 +732,14 @@ describe("M6: Transform provenance", () => {
       transforms: [matchWidth(["r1", "r2"])],
     });
 
-    // matchWidth changes w only, not x/y/h
-    assert.equal(result.elements["r1"].provenance.w.source, "transform");
-    assert.equal(result.elements["r1"].provenance.x.source, "authored");
-    assert.equal(result.elements["r1"].provenance.y.source, "authored");
-    assert.equal(result.elements["r1"].provenance.h.source, "authored");
+    // matchWidth sets both to max w=200. r2 changes from 100 to 200.
+    // r2's w provenance should be "transform", other axes stay "authored"
+    assert.equal(result.elements["r2"].provenance.w.source, "transform");
+    assert.equal(result.elements["r2"].provenance.x.source, "authored");
+    assert.equal(result.elements["r2"].provenance.y.source, "authored");
+    assert.equal(result.elements["r2"].provenance.h.source, "authored");
+    // r1 already had w=200 (the max), so it doesn't change — stays "authored"
+    assert.equal(result.elements["r1"].provenance.w.source, "authored");
   });
 });
 

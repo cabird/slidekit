@@ -168,7 +168,12 @@ describe("M3.1: layout() — basic scene graph shape", () => {
   it("preserves transforms array in scene graph", async () => {
     const transforms = [{ type: "align", axis: "y", ids: ["a", "b"] }];
     const scene = await layout({ elements: [], transforms });
-    assert.deepEqual(scene.transforms, transforms);
+    // M6 adds _transformId to each transform (deep-cloned), so check original fields are preserved
+    assert.equal(scene.transforms.length, 1);
+    assert.equal(scene.transforms[0].type, "align");
+    assert.equal(scene.transforms[0].axis, "y");
+    assert.deepEqual(scene.transforms[0].ids, ["a", "b"]);
+    assert.ok(scene.transforms[0]._transformId, "should have an auto-generated _transformId");
   });
 });
 
