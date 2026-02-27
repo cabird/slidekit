@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideKit Basic Example</title>
+
+  <!-- Reveal.js CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+
+  <style>
+    /* Minimal styling — demonstrates that CSS handles visual properties only */
+    .slidekit-layer {
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- SlideKit renders slides here -->
+    </div>
+  </div>
+
+  <!-- Reveal.js -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <!-- SlideKit -->
+  <script type="module">
+    import {
+      init, render, safeRect,
+      text, image, rect, rule, group,
+      below, rightOf, centerIn,
+    } from '../slidekit.js';
+
+    // Initialize SlideKit
+    await init({
+      slide: { w: 1920, h: 1080 },
+      safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
+      minFontSize: 24,
+    });
+
+    // Define a single slide with text, image placeholder, rect, and rule
+    const slides = [
+      {
+        id: "basic-slide",
+        background: "#0c0c14",
+        elements: [
+          // Background decorative rectangle (gradient panel)
+          rect({
+            id: "bg-panel",
+            x: 0, y: 0, w: 1920, h: 1080,
+            layer: "bg",
+            style: {
+              background: "radial-gradient(ellipse at 30% 40%, rgba(124,92,191,0.15) 0%, transparent 60%)",
+            },
+          }),
+
+          // Title text — centered on slide using anchor: "cc"
+          text("Welcome to SlideKit", {
+            id: "title",
+            x: 960, y: 320, w: 1200,
+            anchor: "tc",
+            size: 72, weight: 700, color: "#ffffff",
+            align: "center",
+            style: {
+              textShadow: "0 2px 20px rgba(0,0,0,0.5)",
+            },
+          }),
+
+          // Accent rule below the title
+          rule({
+            id: "accent-rule",
+            x: 960 - 60, y: below("title", { gap: 24 }), w: 120,
+            color: "#7c5cbf", thickness: 3,
+          }),
+
+          // Subtitle text — positioned below the rule
+          text("A coordinate-based slide layout library\nfor AI agents and humans alike", {
+            id: "subtitle",
+            x: 960, w: 900,
+            y: below("accent-rule", { gap: 24 }),
+            anchor: "tc",
+            size: 32, weight: 400, color: "rgba(255,255,255,0.7)",
+            align: "center",
+            lineHeight: 1.4,
+          }),
+
+          // Image placeholder — a solid-color rect simulating an image
+          rect({
+            id: "image-placeholder",
+            x: 170, y: 650, w: 400, h: 280,
+            style: {
+              background: "linear-gradient(135deg, #1a1a3e 0%, #2a2a5e 100%)",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            },
+          }),
+
+          // Label inside the image placeholder
+          text("Image Placeholder\n400 x 280", {
+            id: "placeholder-label",
+            x: 370, y: 790,
+            anchor: "cc",
+            w: 360,
+            size: 20, weight: 400, color: "rgba(255,255,255,0.4)",
+            align: "center",
+          }),
+
+          // Info card to the right of the image placeholder
+          rect({
+            id: "info-card",
+            x: rightOf("image-placeholder", { gap: 40 }),
+            y: 650, w: 500, h: 280,
+            style: {
+              background: "rgba(255,255,255,0.04)",
+              borderRadius: "12px",
+              border: "1px solid rgba(255,255,255,0.08)",
+              backdropFilter: "blur(8px)",
+            },
+          }),
+
+          // Info card content
+          text("Absolute Positioning", {
+            id: "card-title",
+            x: rightOf("image-placeholder", { gap: 64 }),
+            y: 680, w: 440,
+            size: 28, weight: 600, color: "#ffffff",
+          }),
+
+          // Decorative rule inside card
+          rule({
+            id: "card-rule",
+            x: rightOf("image-placeholder", { gap: 64 }),
+            y: below("card-title", { gap: 12 }),
+            w: 60,
+            color: "#7c5cbf", thickness: 2,
+          }),
+
+          // Card description
+          text("Every element is placed at exact pixel coordinates. No flexbox, no grid, no surprises. CSS handles only visual styling.", {
+            id: "card-desc",
+            x: rightOf("image-placeholder", { gap: 64 }),
+            y: below("card-rule", { gap: 12 }),
+            w: 440,
+            size: 20, weight: 400, color: "rgba(255,255,255,0.6)",
+            lineHeight: 1.5,
+          }),
+        ],
+      },
+    ];
+
+    // Render slides into the Reveal.js container
+    const result = await render(slides);
+
+    // Initialize Reveal.js
+    Reveal.initialize({
+      hash: true,
+      slideNumber: true,
+      transition: 'fade',
+      width: 1920,
+      height: 1080,
+      center: false,
+    });
+
+    // Log the layout result for inspection
+    console.log("SlideKit layout result:", result.layouts[0]);
+    console.log("Scene model available at window.sk");
+  </script>
+</body>
+</html>

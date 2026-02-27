@@ -1,0 +1,198 @@
+/*
+ * SlideKit Example Theme — Dark Mode
+ *
+ * This CSS file contains ONLY visual styling properties.
+ * No layout properties (position, display, flex, grid, width, height, margin).
+ * SlideKit handles all layout via coordinates — CSS handles colors, gradients,
+ * shadows, typography, and visual effects.
+ *
+ * Usage: <link rel="stylesheet" href="theme.css">
+ * Then reference classes via className: "glass-card" on SlideKit elements.
+ */
+
+/* ==========================================================================
+   CSS Custom Properties (Design Tokens)
+   ========================================================================== */
+
+:root {
+  /* Primary palette */
+  --sk-bg-primary: #0c0c14;
+  --sk-bg-secondary: #12122a;
+  --sk-bg-surface: rgba(255, 255, 255, 0.04);
+
+  /* Accent colors */
+  --sk-accent: #7c5cbf;
+  --sk-accent-light: #9d7ee0;
+  --sk-accent-glow: rgba(124, 92, 191, 0.3);
+
+  /* Text colors */
+  --sk-text-primary: #ffffff;
+  --sk-text-secondary: rgba(255, 255, 255, 0.7);
+  --sk-text-muted: rgba(255, 255, 255, 0.4);
+
+  /* Semantic colors */
+  --sk-success: #34a853;
+  --sk-warning: #fbbc04;
+  --sk-error: #ea4335;
+  --sk-info: #4285f4;
+
+  /* Shadows */
+  --sk-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --sk-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --sk-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --sk-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --sk-shadow-glow: 0 0 40px var(--sk-accent-glow);
+
+  /* Border */
+  --sk-border-subtle: 1px solid rgba(255, 255, 255, 0.08);
+  --sk-border-medium: 1px solid rgba(255, 255, 255, 0.15);
+
+  /* Radius */
+  --sk-radius-sm: 8px;
+  --sk-radius-md: 12px;
+  --sk-radius-lg: 16px;
+  --sk-radius-xl: 24px;
+}
+
+/* ==========================================================================
+   Glass Card Styles
+   ========================================================================== */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: var(--sk-border-medium);
+  border-radius: var(--sk-radius-md);
+  box-shadow: var(--sk-shadow-md);
+}
+
+.glass-card-dark {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: var(--sk-border-subtle);
+  border-radius: var(--sk-radius-md);
+  box-shadow: var(--sk-shadow-lg);
+}
+
+.glass-card-accent {
+  background: linear-gradient(135deg, rgba(124, 92, 191, 0.15) 0%, rgba(124, 92, 191, 0.05) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(124, 92, 191, 0.25);
+  border-radius: var(--sk-radius-md);
+  box-shadow: var(--sk-shadow-glow);
+}
+
+/* ==========================================================================
+   Typography Classes
+   ========================================================================== */
+
+.text-glow {
+  text-shadow: 0 0 20px var(--sk-accent-glow);
+}
+
+.text-shadow-soft {
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+.text-shadow-hard {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.text-uppercase {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.text-mono {
+  font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+}
+
+/* ==========================================================================
+   Gradient Backgrounds
+   ========================================================================== */
+
+.gradient-cosmic {
+  background: radial-gradient(ellipse at 30% 40%, rgba(124, 92, 191, 0.2) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(66, 133, 244, 0.1) 0%, transparent 50%);
+}
+
+.gradient-sunset {
+  background: linear-gradient(135deg, #1a1a3e 0%, #2d1b4e 50%, #1a1a3e 100%);
+}
+
+.gradient-ocean {
+  background: linear-gradient(180deg, #0c0c14 0%, #0a1628 50%, #0c1420 100%);
+}
+
+.gradient-accent-strip {
+  background: linear-gradient(90deg, var(--sk-accent) 0%, var(--sk-accent-light) 100%);
+}
+
+/* ==========================================================================
+   Decorative Styles
+   ========================================================================== */
+
+.accent-border-left {
+  border-left: 3px solid var(--sk-accent);
+}
+
+.accent-border-bottom {
+  border-bottom: 2px solid var(--sk-accent);
+}
+
+.glow-accent {
+  box-shadow: var(--sk-shadow-glow);
+}
+
+.glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--sk-accent-glow); }
+  50% { box-shadow: 0 0 40px var(--sk-accent-glow); }
+}
+
+.fade-in {
+  animation: fade-in 0.6s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================================================
+   Status / Tag Styles
+   ========================================================================== */
+
+.tag-success {
+  background: rgba(52, 168, 83, 0.15);
+  border: 1px solid rgba(52, 168, 83, 0.3);
+  border-radius: 6px;
+  color: var(--sk-success);
+}
+
+.tag-warning {
+  background: rgba(251, 188, 4, 0.15);
+  border: 1px solid rgba(251, 188, 4, 0.3);
+  border-radius: 6px;
+  color: var(--sk-warning);
+}
+
+.tag-error {
+  background: rgba(234, 67, 53, 0.15);
+  border: 1px solid rgba(234, 67, 53, 0.3);
+  border-radius: 6px;
+  color: var(--sk-error);
+}
+
+.tag-info {
+  background: rgba(66, 133, 244, 0.15);
+  border: 1px solid rgba(66, 133, 244, 0.3);
+  border-radius: 6px;
+  color: var(--sk-info);
+}

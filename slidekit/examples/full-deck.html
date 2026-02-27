@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideKit Full Deck Example</title>
+
+  <!-- Reveal.js CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+
+  <!-- Theme CSS — visual styling only, no layout properties -->
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- SlideKit renders slides here -->
+    </div>
+  </div>
+
+  <!-- Reveal.js -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <!-- SlideKit -->
+  <script type="module">
+    import {
+      init, render, safeRect,
+      text, image, rect, rule, group,
+      below, rightOf, leftOf, centerIn, alignTopWith,
+      vstack, hstack,
+      panel, bullets, connect,
+      alignTop, distributeH,
+    } from '../slidekit.js';
+
+    // Initialize SlideKit
+    await init({
+      slide: { w: 1920, h: 1080 },
+      safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
+      minFontSize: 24,
+    });
+
+    const safe = safeRect();
+
+    // =========================================================================
+    // Slide 1: Title Slide
+    // Background gradient + centered text + accent rule
+    // =========================================================================
+
+    const slide1 = {
+      id: "title",
+      background: "#0c0c14",
+      elements: [
+        // Radial gradient background decoration
+        rect({
+          id: "s1-bg-glow",
+          x: 0, y: 0, w: 1920, h: 1080,
+          layer: "bg",
+          className: "gradient-cosmic",
+        }),
+
+        // Main title — centered on slide
+        text("The Future of\nSlide Layout", {
+          id: "s1-title",
+          x: 960, y: 360, w: 1200,
+          anchor: "tc",
+          size: 80, weight: 700, color: "#ffffff",
+          align: "center",
+          lineHeight: 1.1,
+          className: "text-shadow-soft",
+        }),
+
+        // Accent rule below title
+        rule({
+          id: "s1-rule",
+          x: 960 - 40, y: below("s1-title", { gap: 32 }),
+          w: 80,
+          color: "#7c5cbf", thickness: 3,
+        }),
+
+        // Subtitle
+        text("Coordinate-Based Design for AI Agents", {
+          id: "s1-subtitle",
+          x: 960, w: 800,
+          y: below("s1-rule", { gap: 24 }),
+          anchor: "tc",
+          size: 32, weight: 400, color: "rgba(255,255,255,0.6)",
+          align: "center",
+          className: "text-uppercase",
+        }),
+
+        // Footer info
+        text("SlideKit Demo  |  2026", {
+          id: "s1-footer",
+          x: 960, y: 980, w: 600,
+          anchor: "bc",
+          size: 18, weight: 400, color: "rgba(255,255,255,0.3)",
+          align: "center",
+        }),
+      ],
+      notes: "Welcome to this demo of SlideKit. This title slide uses centered text with anchors and relative positioning.",
+    };
+
+    // =========================================================================
+    // Slide 2: Content Slide
+    // Heading + 3-column hstack of panels
+    // =========================================================================
+
+    const slide2 = {
+      id: "three-pillars",
+      background: "#0c0c14",
+      elements: [
+        rect({
+          id: "s2-bg",
+          x: 0, y: 0, w: 1920, h: 1080,
+          layer: "bg",
+          className: "gradient-ocean",
+        }),
+
+        // Section heading
+        text("Three Core Principles", {
+          id: "s2-heading",
+          x: safe.x, y: safe.y, w: safe.w,
+          size: 52, weight: 700, color: "#ffffff",
+        }),
+
+        // Accent rule
+        rule({
+          id: "s2-rule",
+          x: safe.x, y: below("s2-heading", { gap: 16 }),
+          w: 80,
+          color: "#7c5cbf", thickness: 3,
+        }),
+
+        // Three panels in an hstack
+        hstack([
+          panel([
+            text("Deterministic", { w: "fill", size: 28, weight: 600, color: "#ffffff" }),
+            rule({ w: "fill", color: "rgba(255,255,255,0.15)", thickness: 1 }),
+            text("Every element is placed at exact pixel coordinates. No emergent layout behaviors, no reflow surprises.", {
+              w: "fill", size: 20, color: "rgba(255,255,255,0.65)", lineHeight: 1.5,
+            }),
+          ], {
+            id: "s2-card1",
+            w: 480, padding: 28, gap: 14,
+            className: "glass-card",
+          }),
+
+          panel([
+            text("Measurable", { w: "fill", size: 28, weight: 600, color: "#ffffff" }),
+            rule({ w: "fill", color: "rgba(255,255,255,0.15)", thickness: 1 }),
+            text("Text is measured before placement. Auto-fit sizing eliminates the guessing loop for font sizes.", {
+              w: "fill", size: 20, color: "rgba(255,255,255,0.65)", lineHeight: 1.5,
+            }),
+          ], {
+            id: "s2-card2",
+            w: 480, padding: 28, gap: 14,
+            className: "glass-card",
+          }),
+
+          panel([
+            text("Validated", { w: "fill", size: 28, weight: 600, color: "#ffffff" }),
+            rule({ w: "fill", color: "rgba(255,255,255,0.15)", thickness: 1 }),
+            text("The library detects overlaps, out-of-bounds elements, and font size issues before rendering.", {
+              w: "fill", size: 20, color: "rgba(255,255,255,0.65)", lineHeight: 1.5,
+            }),
+          ], {
+            id: "s2-card3",
+            w: 480, padding: 28, gap: 14,
+            className: "glass-card",
+          }),
+        ], {
+          id: "s2-cards",
+          x: safe.x, y: below("s2-rule", { gap: 48 }),
+          gap: 30,
+          align: "top",
+        }),
+      ],
+      notes: "Three core principles of SlideKit: deterministic, measurable, validated.",
+    };
+
+    // =========================================================================
+    // Slide 3: Diagram Slide
+    // Boxes + connectors showing the pipeline
+    // =========================================================================
+
+    const slide3 = {
+      id: "pipeline",
+      background: "#0c0c14",
+      elements: [
+        rect({
+          id: "s3-bg",
+          x: 0, y: 0, w: 1920, h: 1080,
+          layer: "bg",
+          className: "gradient-sunset",
+        }),
+
+        // Heading
+        text("The SlideKit Pipeline", {
+          id: "s3-heading",
+          x: safe.x, y: safe.y, w: safe.w,
+          size: 52, weight: 700, color: "#ffffff",
+        }),
+
+        rule({
+          id: "s3-rule",
+          x: safe.x, y: below("s3-heading", { gap: 16 }),
+          w: 80,
+          color: "#7c5cbf", thickness: 3,
+        }),
+
+        // Pipeline boxes
+        rect({
+          id: "s3-box-spec",
+          x: 200, y: 420, w: 340, h: 200,
+          className: "glass-card-accent",
+        }),
+        text("Specification", {
+          id: "s3-label-spec",
+          x: 370, y: 480, w: 280, anchor: "tc",
+          size: 28, weight: 600, color: "#ffffff", align: "center",
+        }),
+        text("Agent writes element\ndefinitions with coordinates", {
+          id: "s3-desc-spec",
+          x: 370, y: below("s3-label-spec", { gap: 8 }), w: 280, anchor: "tc",
+          size: 18, color: "rgba(255,255,255,0.6)", align: "center", lineHeight: 1.4,
+        }),
+
+        rect({
+          id: "s3-box-solve",
+          x: 750, y: 420, w: 340, h: 200,
+          className: "glass-card-accent",
+        }),
+        text("Layout Solve", {
+          id: "s3-label-solve",
+          x: 920, y: 480, w: 280, anchor: "tc",
+          size: 28, weight: 600, color: "#ffffff", align: "center",
+        }),
+        text("Library resolves positions,\nmeasures text, validates", {
+          id: "s3-desc-solve",
+          x: 920, y: below("s3-label-solve", { gap: 8 }), w: 280, anchor: "tc",
+          size: 18, color: "rgba(255,255,255,0.6)", align: "center", lineHeight: 1.4,
+        }),
+
+        rect({
+          id: "s3-box-render",
+          x: 1300, y: 420, w: 340, h: 200,
+          className: "glass-card-accent",
+        }),
+        text("Render", {
+          id: "s3-label-render",
+          x: 1470, y: 480, w: 280, anchor: "tc",
+          size: 28, weight: 600, color: "#ffffff", align: "center",
+        }),
+        text("Produces absolutely-positioned\nDIVs in Reveal.js", {
+          id: "s3-desc-render",
+          x: 1470, y: below("s3-label-render", { gap: 8 }), w: 280, anchor: "tc",
+          size: 18, color: "rgba(255,255,255,0.6)", align: "center", lineHeight: 1.4,
+        }),
+
+        // Connectors between boxes
+        connect("s3-box-spec", "s3-box-solve", {
+          id: "s3-conn-1",
+          type: "straight",
+          arrow: "end",
+          color: "#7c5cbf",
+          thickness: 2,
+          fromAnchor: "cr",
+          toAnchor: "cl",
+          label: "layout()",
+          labelStyle: { size: 16, color: "rgba(255,255,255,0.5)" },
+        }),
+
+        connect("s3-box-solve", "s3-box-render", {
+          id: "s3-conn-2",
+          type: "straight",
+          arrow: "end",
+          color: "#7c5cbf",
+          thickness: 2,
+          fromAnchor: "cr",
+          toAnchor: "cl",
+          label: "render()",
+          labelStyle: { size: 16, color: "rgba(255,255,255,0.5)" },
+        }),
+
+        // Feedback loop arrow text
+        text("Structured warnings & errors flow back to the agent", {
+          id: "s3-feedback",
+          x: 960, y: 720, w: 800, anchor: "tc",
+          size: 22, weight: 400, color: "rgba(255,255,255,0.5)",
+          align: "center",
+          style: { fontStyle: "italic" },
+        }),
+      ],
+      notes: "The three-phase pipeline: specification, layout solve, and render. The key innovation is structured feedback between phases.",
+    };
+
+    // =========================================================================
+    // Slide 4: Bullet List Slide
+    // bullets primitive with nested items
+    // =========================================================================
+
+    const slide4 = {
+      id: "features",
+      background: "#0c0c14",
+      elements: [
+        rect({
+          id: "s4-bg",
+          x: 0, y: 0, w: 1920, h: 1080,
+          layer: "bg",
+          className: "gradient-ocean",
+        }),
+
+        // Heading
+        text("Key Features", {
+          id: "s4-heading",
+          x: safe.x, y: safe.y, w: safe.w,
+          size: 52, weight: 700, color: "#ffffff",
+        }),
+
+        rule({
+          id: "s4-rule",
+          x: safe.x, y: below("s4-heading", { gap: 16 }),
+          w: 80,
+          color: "#7c5cbf", thickness: 3,
+        }),
+
+        // Bullet list using the bullets() compound primitive
+        bullets([
+          "Absolute positioning with 9-point anchor system",
+          "DOM-based text measurement before placement",
+          { text: "Auto-fit text sizing (fitText)", children: [
+            "Binary search between min and max font size",
+            "Projection-readability warnings below 24px",
+          ]},
+          "Relative positioning helpers (below, rightOf, centerIn...)",
+          { text: "Layout validation and collision detection", children: [
+            "Safe zone enforcement",
+            "Overlap detection with structured warnings",
+          ]},
+          "Stack primitives (vstack, hstack) that resolve to coordinates",
+        ], {
+          id: "s4-bullets",
+          x: safe.x, y: below("s4-rule", { gap: 40 }),
+          w: 1400,
+          size: 28,
+          color: "rgba(255,255,255,0.85)",
+          bulletColor: "#7c5cbf",
+          bulletChar: "\u2022",
+          indent: 40,
+          gap: 12,
+          lineHeight: 1.4,
+        }),
+      ],
+      notes: "A comprehensive list of SlideKit features using the bullets() compound primitive.",
+    };
+
+    // =========================================================================
+    // Slide 5: Closing Slide
+    // Large centered text + rule + small footer
+    // =========================================================================
+
+    const slide5 = {
+      id: "closing",
+      background: "#0c0c14",
+      elements: [
+        rect({
+          id: "s5-bg",
+          x: 0, y: 0, w: 1920, h: 1080,
+          layer: "bg",
+          className: "gradient-cosmic",
+        }),
+
+        // Large centered closing text
+        text("Slides Are Canvases,\nNot Documents", {
+          id: "s5-title",
+          x: 960, y: 400, w: 1400,
+          anchor: "tc",
+          size: 72, weight: 700, color: "#ffffff",
+          align: "center",
+          lineHeight: 1.15,
+          className: "text-shadow-soft",
+        }),
+
+        // Accent rule
+        rule({
+          id: "s5-rule",
+          x: 960 - 40, y: below("s5-title", { gap: 32 }),
+          w: 80,
+          color: "#7c5cbf", thickness: 3,
+        }),
+
+        // Closing description
+        text("CSS for styling. Coordinates for layout.\nDeterministic, measurable, validated.", {
+          id: "s5-desc",
+          x: 960, w: 900,
+          y: below("s5-rule", { gap: 24 }),
+          anchor: "tc",
+          size: 28, weight: 400, color: "rgba(255,255,255,0.6)",
+          align: "center",
+          lineHeight: 1.5,
+        }),
+
+        // Footer
+        text("github.com/slidekit  |  Built for AI agents and humans", {
+          id: "s5-footer",
+          x: 960, y: 1000, w: 800,
+          anchor: "bc",
+          size: 18, weight: 400, color: "rgba(255,255,255,0.25)",
+          align: "center",
+        }),
+      ],
+      notes: "Thank you. SlideKit is open source and ready for use in AI-driven presentation pipelines.",
+    };
+
+    // =========================================================================
+    // Render all slides
+    // =========================================================================
+
+    const allSlides = [slide1, slide2, slide3, slide4, slide5];
+    const result = await render(allSlides);
+
+    // Initialize Reveal.js
+    Reveal.initialize({
+      hash: true,
+      slideNumber: true,
+      transition: 'fade',
+      width: 1920,
+      height: 1080,
+      center: false,
+    });
+
+    // Log layout results
+    console.log("SlideKit rendered", result.layouts.length, "slides");
+    for (let i = 0; i < result.layouts.length; i++) {
+      const layout = result.layouts[i];
+      if (layout.warnings.length > 0) {
+        console.warn(`Slide ${i} warnings:`, layout.warnings);
+      }
+      if (layout.errors.length > 0) {
+        console.error(`Slide ${i} errors:`, layout.errors);
+      }
+    }
+    console.log("Scene model available at window.sk");
+  </script>
+</body>
+</html>
