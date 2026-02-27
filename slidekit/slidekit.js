@@ -2795,6 +2795,18 @@ export async function layout(slideDefinition, options = {}) {
     const fromPt = getAnchorPoint(fromBounds, fromAnchor);
     const toPt = getAnchorPoint(toBounds, toAnchor);
 
+    // Compute the bounding box for the connector line so resolvedBounds is meaningful
+    const connMinX = Math.min(fromPt.x, toPt.x);
+    const connMinY = Math.min(fromPt.y, toPt.y);
+    const connMaxX = Math.max(fromPt.x, toPt.x);
+    const connMaxY = Math.max(fromPt.y, toPt.y);
+    resolvedBounds.set(id, {
+      x: connMinX,
+      y: connMinY,
+      w: connMaxX - connMinX,
+      h: connMaxY - connMinY,
+    });
+
     // Store resolved connector data in the scene element
     if (sceneElements[id]) {
       sceneElements[id]._connectorResolved = {
@@ -3334,6 +3346,10 @@ export async function render(slides, options = {}) {
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function bullets(items, props = {}) {
+  // NOTE: bullets() measures text at creation time (not layout time) so that item
+  // heights are known for vstack sizing. This requires that fonts referenced in
+  // props are already loaded when bullets() is called. Call init() and wait for
+  // document.fonts.ready before creating bullet elements if using custom fonts.
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
 
@@ -3381,7 +3397,9 @@ export function bullets(items, props = {}) {
     const itemIndent = fi.level * indent;
 
     // Compute available width for the text (after bullet + gap + indent)
-    const textW = w ? w - itemIndent - bulletWidth - bulletGap : undefined;
+    // Clamp to 0 to prevent negative widths when indentation exceeds available space
+    const rawTextW = w ? w - itemIndent - bulletWidth - bulletGap : undefined;
+    const textW = rawTextW !== undefined ? Math.max(0, rawTextW) : undefined;
 
     // Measure the text to determine item height
     const textMeasureProps = { font, size, weight, lineHeight, letterSpacing };
@@ -3518,7 +3536,10 @@ function getAnchorPoint(bounds, anchor) {
  * @returns {HTMLElement} An absolutely positioned div containing the SVG
  */
 function buildConnectorSVG(from, to, connProps) {
-  const padding = 20; // padding around SVG for arrow heads
+  // Dynamic padding: enough room for arrowhead markers + stroke width
+  const thickness = connProps.thickness ?? 2;
+  const markerSize = 8; // matches marker markerWidth/markerHeight
+  const padding = Math.max(20, markerSize + thickness * 2);
   const minX = Math.min(from.x, to.x) - padding;
   const minY = Math.min(from.y, to.y) - padding;
   const maxX = Math.max(from.x, to.x) + padding;
@@ -3540,14 +3561,17 @@ function buildConnectorSVG(from, to, connProps) {
   svg.style.overflow = "visible";
 
   const color = connProps.color || "#ffffff";
-  const thickness = connProps.thickness ?? 2;
+  // thickness already declared above for padding calculation
   const dash = connProps.dash;
   const arrow = connProps.arrow || "end";
   const connType = connProps.connectorType || "straight";
 
   // Create marker definitions for arrow heads
+  // Use a unique marker ID per connector to prevent cross-connector collisions
+  // (each SVG has its own defs, but IDs are document-global in some browsers)
   const defs = document.createElementNS(ns, "defs");
-  const markerId = `arrow-${connProps._markerId || "default"}`;
+  const uniqueSuffix = connProps._markerId || Math.random().toString(36).slice(2, 10);
+  const markerId = `sk-arrow-${uniqueSuffix}`;
 
   if (arrow !== "none") {
     const marker = document.createElementNS(ns, "marker");
@@ -3580,14 +3604,28 @@ function buildConnectorSVG(from, to, connProps) {
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      // Cubic bezier with control points offset perpendicular to the line
+      // Cubic bezier with control points that produce a natural curve.
+      // The control points extend along the dominant axis of travel,
+      // which works for both horizontal and vertical connections.
       const dx = lx2 - lx1;
       const dy = ly2 - ly1;
-      const cpOffset = Math.max(Math.abs(dx), Math.abs(dy)) * 0.4;
-      const cx1 = lx1 + cpOffset;
-      const cy1 = ly1;
-      const cx2 = lx2 - cpOffset;
-      const cy2 = ly2;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const cpOffset = Math.max(absDx, absDy) * 0.4;
+      let cx1, cy1, cx2, cy2;
+      if (absDx >= absDy) {
+        // Predominantly horizontal: extend control points horizontally
+        cx1 = lx1 + cpOffset;
+        cy1 = ly1;
+        cx2 = lx2 - cpOffset;
+        cy2 = ly2;
+      } else {
+        // Predominantly vertical: extend control points vertically
+        cx1 = lx1;
+        cy1 = ly1 + (dy > 0 ? cpOffset : -cpOffset);
+        cx2 = lx2;
+        cy2 = ly2 - (dy > 0 ? cpOffset : -cpOffset);
+      }
       d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
     } else if (connType === "elbow") {
       // Right-angle elbow: horizontal out -> vertical -> horizontal in
@@ -3687,7 +3725,11 @@ export function panel(children, props = {}) {
   const panelH = rest.h;
 
   // Resolve "fill" width on children: fill = panelW - 2 * padding
-  const contentW = panelW ? panelW - 2 * padding : undefined;
+  // Clamp to 0 to prevent negative widths when panel is narrower than 2*padding
+  // NOTE: "fill" resolution happens at creation time. This works correctly as long
+  // as panelW is a concrete number at panel() call time. If panelW is not known
+  // until layout, wrap the panel creation after layout resolves the parent's width.
+  const contentW = panelW ? Math.max(0, panelW - 2 * padding) : undefined;
   const resolvedChildren = children.map(child => {
     if (child.props && child.props.w === "fill" && contentW) {
       // Clone the child with resolved width
