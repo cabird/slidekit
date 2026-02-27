@@ -847,10 +847,12 @@ export function measureText(content, props = {}) {
   const measuredHeight = measureDiv.scrollHeight;
   const measuredWidth = constrainW !== null ? constrainW : measureDiv.offsetWidth;
 
-  // Compute line count from scrollHeight / computed lineHeight
+  // Compute line count from scrollHeight / computed lineHeight.
+  // Subtract a small epsilon before ceiling to avoid rounding up due to
+  // sub-pixel browser rounding (e.g., 93.6 -> 94 scrollHeight).
   const computedLineHeight = size * lineHeight;
   const lineCount = computedLineHeight > 0
-    ? Math.max(1, Math.ceil(measuredHeight / computedLineHeight))
+    ? Math.max(1, Math.ceil(measuredHeight / computedLineHeight - 0.05))
     : 1;
 
   // Clean up

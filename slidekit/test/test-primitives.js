@@ -505,7 +505,7 @@ describe("M1.3: filterStyle() — convenience props", () => {
 
   it("maps font convenience prop to fontFamily", () => {
     const { filtered } = filterStyle({}, "text", { font: "Space Grotesk" });
-    assert.equal(filtered.fontFamily, "Space Grotesk");
+    assert.equal(filtered.fontFamily, '"Space Grotesk", sans-serif');
   });
 
   it("maps size convenience prop to fontSize with px suffix", () => {

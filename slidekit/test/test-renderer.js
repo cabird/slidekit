@@ -887,7 +887,8 @@ describe("M1.4: CSS filtering in rendering", () => {
       assert.equal(el.style.color, "rgb(255, 0, 0)");
       assert.equal(el.style.fontSize, "48px");
       assert.equal(el.style.fontWeight, "700");
-      assert.equal(el.style.fontFamily, "Georgia");
+      // Browser normalizes single-word font families by dropping quotes
+      assert.equal(el.style.fontFamily, "Georgia, sans-serif");
     });
   });
 
