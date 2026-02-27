@@ -522,15 +522,340 @@ export function _resetForTests() {
 }
 
 // =============================================================================
+// Basic Renderer (M1.4)
+// =============================================================================
+
+/**
+ * Layer ordering for z-index computation.
+ * Elements in earlier layers render behind elements in later layers.
+ */
+const LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
+
+/**
+ * Compute z-index values for a flat array of elements.
+ *
+ * Sort by: layer (bg < content < overlay), then declaration order within layer,
+ * then explicit `z` if present. Returns a Map of element id -> z-index.
+ *
+ * @param {Array} elements - Flat array of SlideKit elements
+ * @returns {Map<string, number>} Map of element id to z-index value
+ */
+function computeZOrder(elements) {
+  // Build an array of { element, originalIndex } for stable sort
+  const indexed = elements.map((el, i) => ({ el, idx: i }));
+
+  // Sort: layer first, then declaration order, then explicit z
+  indexed.sort((a, b) => {
+    const layerA = LAYER_ORDER[a.el.props.layer] ?? LAYER_ORDER.content;
+    const layerB = LAYER_ORDER[b.el.props.layer] ?? LAYER_ORDER.content;
+    if (layerA !== layerB) return layerA - layerB;
+
+    // Within same layer: explicit z takes priority, then declaration order
+    const zA = a.el.props.z;
+    const zB = b.el.props.z;
+    const hasZA = zA !== undefined && zA !== null;
+    const hasZB = zB !== undefined && zB !== null;
+
+    if (hasZA && hasZB) return zA - zB;
+    if (hasZA && !hasZB) return 1; // explicit z goes after default
+    if (!hasZA && hasZB) return -1;
+
+    // Neither has explicit z — use declaration order
+    return a.idx - b.idx;
+  });
+
+  const zMap = new Map();
+  indexed.forEach((item, sortedIdx) => {
+    zMap.set(item.el.id, sortedIdx + 1);
+  });
+  return zMap;
+}
+
+/**
+ * Extract convenience props from an element's props for use with filterStyle().
+ * Only includes keys that exist in the CONVENIENCE_MAP.
+ *
+ * @param {object} props - Element props
+ * @returns {object} Convenience props subset
+ */
+function extractConvenienceProps(props) {
+  const result = {};
+  for (const key of Object.keys(CONVENIENCE_MAP)) {
+    if (props[key] !== undefined) {
+      result[key] = props[key];
+    }
+  }
+  return result;
+}
+
+/**
+ * Compute the effective width and height for an element, including
+ * type-specific logic for rules.
+ *
+ * @param {object} element - SlideKit element
+ * @returns {{ w: number, h: number }}
+ */
+function getEffectiveDimensions(element) {
+  const { props, type } = element;
+  if (type === "rule") {
+    const dir = props.direction || "horizontal";
+    const thickness = props.thickness || 2;
+    if (dir === "horizontal") {
+      return { w: props.w || 0, h: thickness };
+    } else {
+      return { w: thickness, h: props.h || 0 };
+    }
+  }
+  return { w: props.w || 0, h: props.h || 0 };
+}
+
+/**
+ * Apply merged style object to a DOM element's inline style.
+ *
+ * @param {HTMLElement} domEl - The DOM element to style
+ * @param {object} styleObj - CSS properties in camelCase form
+ */
+function applyStyleToDOM(domEl, styleObj) {
+  for (const [key, value] of Object.entries(styleObj)) {
+    if (key.startsWith("--")) {
+      // CSS custom properties need setProperty
+      domEl.style.setProperty(key, value);
+    } else {
+      domEl.style[key] = value;
+    }
+  }
+}
+
+/**
+ * Render a single SlideKit element into a DOM node.
+ *
+ * @param {object} element - SlideKit element (text, image, rect, rule, or group)
+ * @param {number} zIndex - Computed z-index for this element
+ * @param {number} offsetX - X offset from parent group (0 for top-level)
+ * @param {number} offsetY - Y offset from parent group (0 for top-level)
+ * @returns {HTMLElement} The rendered DOM element
+ */
+function renderElement(element, zIndex, offsetX = 0, offsetY = 0) {
+  const { type, props } = element;
+  const { w, h } = getEffectiveDimensions(element);
+
+  // Compute position from anchor
+  const anchor = props.anchor || "tl";
+  const effectiveX = (props.x || 0) + offsetX;
+  const effectiveY = (props.y || 0) + offsetY;
+  const { left, top } = resolveAnchor(effectiveX, effectiveY, w, h, anchor);
+
+  // Build the merged CSS from convenience props + user style
+  const convenienceProps = extractConvenienceProps(props);
+  const { filtered: mergedStyle } = filterStyle(props.style || {}, type, convenienceProps);
+
+  // Create the element div
+  const div = document.createElement("div");
+  div.setAttribute("data-sk-id", element.id);
+
+  // Base layout CSS (library-controlled)
+  div.style.position = "absolute";
+  div.style.left = `${left}px`;
+  div.style.top = `${top}px`;
+  div.style.width = `${w}px`;
+  div.style.height = `${h}px`;
+  div.style.boxSizing = "border-box";
+  div.style.zIndex = String(zIndex);
+
+  // Opacity
+  if (props.opacity !== undefined && props.opacity !== 1) {
+    div.style.opacity = String(props.opacity);
+  }
+
+  // Apply className
+  if (props.className) {
+    div.className = props.className;
+  }
+
+  // Apply merged styling CSS
+  applyStyleToDOM(div, mergedStyle);
+
+  // Type-specific rendering
+  switch (type) {
+    case "text": {
+      // Convert \n to <br> in content
+      const content = element.content || "";
+      div.innerHTML = content.replace(/\n/g, "<br>");
+      break;
+    }
+
+    case "image": {
+      const img = document.createElement("img");
+      img.src = element.src || "";
+      img.style.width = "100%";
+      img.style.height = "100%";
+      img.style.objectFit = props.fit || "cover";
+      if (props.position) {
+        img.style.objectPosition = props.position;
+      }
+      img.style.display = "block";
+      div.appendChild(img);
+      break;
+    }
+
+    case "rect": {
+      // Rect is just a styled div — styling already applied via mergedStyle
+      // No additional content needed
+      break;
+    }
+
+    case "rule": {
+      // Rule is a div with background-color for the line
+      // The dimensions are already set (w/h computed by getEffectiveDimensions)
+      // Set background-color from the rule's color prop
+      div.style.backgroundColor = props.color || "#ffffff";
+      break;
+    }
+
+    case "group": {
+      // Group is a container div with children rendered recursively
+      // Children's positions are relative to the group's position
+      const children = element.children || [];
+
+      // Compute z-order for children within the group
+      const childZMap = computeZOrder(children);
+
+      for (const child of children) {
+        const childZ = childZMap.get(child.id) || 0;
+        // Children are offset by the group's resolved position,
+        // but since the group div is already positioned, children
+        // are positioned relative to the group div (offsetX=0, offsetY=0
+        // within the group's local coordinate space).
+        // Actually, the group div is the container, so children's x/y
+        // are relative to the group origin. We render children inside
+        // the group div, so we don't add any offset — children use
+        // their own x/y as offsets from the group's top-left.
+        const childEl = renderElement(child, childZ, 0, 0);
+        div.appendChild(childEl);
+      }
+
+      // Group needs position:relative for children absolute positioning
+      // Actually, children are position:absolute relative to the group div,
+      // which is already position:absolute. So children will be positioned
+      // relative to the group div. This works correctly.
+      break;
+    }
+
+    default:
+      // Unknown element type — render as empty div with data-sk-id
+      break;
+  }
+
+  return div;
+}
+
+/**
+ * Set slide background on a <section> element using Reveal.js data-background-* attributes.
+ *
+ * @param {HTMLElement} section - The <section> element
+ * @param {string} background - Background value (color, gradient, or image path/URL)
+ */
+function applySlideBackground(section, background) {
+  if (!background) return;
+
+  const trimmed = background.trim();
+
+  if (trimmed.startsWith("#") || trimmed.startsWith("rgb")) {
+    section.setAttribute("data-background-color", trimmed);
+  } else if (trimmed.startsWith("linear-gradient") || trimmed.startsWith("radial-gradient")) {
+    section.setAttribute("data-background-gradient", trimmed);
+  } else {
+    // Treat as image URL/path
+    section.setAttribute("data-background-image", trimmed);
+  }
+}
+
+/**
+ * Render an array of slide definitions into DOM elements.
+ *
+ * Creates <section> elements (Reveal.js slides) with <div class="slidekit-layer">
+ * containers holding absolutely-positioned element divs.
+ *
+ * Does NOT initialize Reveal.js — the caller handles that.
+ *
+ * @param {Array} slides - Array of slide definitions, each with { id, elements, background, notes, transforms }
+ * @param {object} [options={}] - Render options
+ * @param {HTMLElement} [options.container] - Target container element (default: document.querySelector('.reveal .slides'))
+ * @returns {Array<HTMLElement>} Array of created <section> elements
+ */
+export function render(slides, options = {}) {
+  // Reset ID counter at start of render for deterministic IDs
+  resetIdCounter();
+
+  const container = options.container ||
+    document.querySelector(".reveal .slides");
+
+  if (!container) {
+    throw new Error(
+      "render() requires a container element. Provide options.container or " +
+      "ensure a .reveal .slides element exists in the DOM."
+    );
+  }
+
+  const sections = [];
+
+  for (const slide of slides) {
+    // Create the <section> for this slide
+    const section = document.createElement("section");
+
+    // Set slide ID if provided
+    if (slide.id) {
+      section.id = slide.id;
+    }
+
+    // Apply slide background
+    if (slide.background) {
+      applySlideBackground(section, slide.background);
+    }
+
+    // Create the slidekit-layer container
+    const layer = document.createElement("div");
+    layer.className = "slidekit-layer";
+    layer.style.position = "relative";
+    layer.style.width = "1920px";
+    layer.style.height = "1080px";
+
+    // Render elements
+    const elements = slide.elements || [];
+
+    // Compute z-order for all elements in the slide
+    const zMap = computeZOrder(elements);
+
+    for (const element of elements) {
+      const zIndex = zMap.get(element.id) || 0;
+      const domEl = renderElement(element, zIndex);
+      layer.appendChild(domEl);
+    }
+
+    section.appendChild(layer);
+
+    // Speaker notes
+    if (slide.notes) {
+      const aside = document.createElement("aside");
+      aside.className = "notes";
+      aside.textContent = slide.notes;
+      section.appendChild(aside);
+    }
+
+    // Append section to container
+    container.appendChild(section);
+    sections.push(section);
+  }
+
+  return sections;
+}
+
+// =============================================================================
 // Stubs for Future Milestones
 // =============================================================================
 
-// layout() — M1.4 / M3: Layout solve pipeline
+// layout() — M3: Layout solve pipeline
 // Placeholder that will be implemented in Milestone 3.
-// For now, not exported — will be added when ready.
-
-// render() — M1.4 / M3: Render to DOM
-// Placeholder that will be implemented in Milestone 1.4.
 // For now, not exported — will be added when ready.
 
 // =============================================================================
@@ -545,6 +870,7 @@ const SlideKit = {
   group,
   resolveAnchor,
   filterStyle,
+  render,
   init,
   safeRect,
   getConfig,
