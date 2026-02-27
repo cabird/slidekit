@@ -1009,20 +1009,653 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
+// Old renderElement function removed — replaced by renderElementFromScene in M3.3 section below.
+
 /**
- * Render a single SlideKit element into a DOM node.
+ * Set slide background on a <section> element using Reveal.js data-background-* attributes.
  *
- * @param {object} element - SlideKit element (text, image, rect, rule, or group)
+ * @param {HTMLElement} section - The <section> element
+ * @param {string} background - Background value (color, gradient, or image path/URL)
+ */
+function applySlideBackground(section, background) {
+  if (!background) return;
+
+  const trimmed = background.trim();
+
+  if (trimmed.startsWith("#") || /^(rgb|hsl)a?\(/.test(trimmed)) {
+    section.setAttribute("data-background-color", trimmed);
+  } else if (trimmed.startsWith("linear-gradient") || trimmed.startsWith("radial-gradient")) {
+    section.setAttribute("data-background-gradient", trimmed);
+  } else {
+    // Treat as image URL/path
+    section.setAttribute("data-background-image", trimmed);
+  }
+}
+
+// Old render function removed — replaced by layout-solve-aware render in M3.3 section below.
+
+// =============================================================================
+// Relative Positioning Helpers (M3.2)
+// =============================================================================
+
+/**
+ * Position Y below a referenced element with an optional gap.
+ * Returns a deferred value marker resolved during layout solve.
+ *
+ * @param {string} refId - ID of the element to position relative to
+ * @param {object} [opts={}] - Options
+ * @param {number} [opts.gap=0] - Gap in pixels below the reference element's bottom edge
+ * @returns {{ _rel: "below", ref: string, gap: number }}
+ */
+export function below(refId, opts = {}) {
+  return { _rel: "below", ref: refId, gap: opts.gap || 0 };
+}
+
+/**
+ * Position Y above a referenced element with an optional gap.
+ *
+ * @param {string} refId - ID of the element to position relative to
+ * @param {object} [opts={}] - Options
+ * @param {number} [opts.gap=0] - Gap in pixels above the reference element's top edge
+ * @returns {{ _rel: "above", ref: string, gap: number }}
+ */
+export function above(refId, opts = {}) {
+  return { _rel: "above", ref: refId, gap: opts.gap || 0 };
+}
+
+/**
+ * Position X to the right of a referenced element with an optional gap.
+ *
+ * @param {string} refId - ID of the element to position relative to
+ * @param {object} [opts={}] - Options
+ * @param {number} [opts.gap=0] - Gap in pixels to the right of the reference element's right edge
+ * @returns {{ _rel: "rightOf", ref: string, gap: number }}
+ */
+export function rightOf(refId, opts = {}) {
+  return { _rel: "rightOf", ref: refId, gap: opts.gap || 0 };
+}
+
+/**
+ * Position X to the left of a referenced element with an optional gap.
+ *
+ * @param {string} refId - ID of the element to position relative to
+ * @param {object} [opts={}] - Options
+ * @param {number} [opts.gap=0] - Gap in pixels to the left of the reference element's left edge
+ * @returns {{ _rel: "leftOf", ref: string, gap: number }}
+ */
+export function leftOf(refId, opts = {}) {
+  return { _rel: "leftOf", ref: refId, gap: opts.gap || 0 };
+}
+
+/**
+ * Center vertically with a referenced element (align vertical midpoints).
+ *
+ * @param {string} refId - ID of the element to center with
+ * @returns {{ _rel: "centerV", ref: string }}
+ */
+export function centerVWith(refId) {
+  return { _rel: "centerV", ref: refId };
+}
+
+/**
+ * Center horizontally with a referenced element (align horizontal midpoints).
+ *
+ * @param {string} refId - ID of the element to center with
+ * @returns {{ _rel: "centerH", ref: string }}
+ */
+export function centerHWith(refId) {
+  return { _rel: "centerH", ref: refId };
+}
+
+/**
+ * Align top edge with a referenced element.
+ *
+ * @param {string} refId - ID of the element to align with
+ * @returns {{ _rel: "alignTop", ref: string }}
+ */
+export function alignTopWith(refId) {
+  return { _rel: "alignTop", ref: refId };
+}
+
+/**
+ * Align bottom edge with a referenced element (y = ref.bottom - own height).
+ *
+ * @param {string} refId - ID of the element to align with
+ * @returns {{ _rel: "alignBottom", ref: string }}
+ */
+export function alignBottomWith(refId) {
+  return { _rel: "alignBottom", ref: refId };
+}
+
+/**
+ * Align left edge with a referenced element.
+ *
+ * @param {string} refId - ID of the element to align with
+ * @returns {{ _rel: "alignLeft", ref: string }}
+ */
+export function alignLeftWith(refId) {
+  return { _rel: "alignLeft", ref: refId };
+}
+
+/**
+ * Align right edge with a referenced element (x = ref.right - own width).
+ *
+ * @param {string} refId - ID of the element to align with
+ * @returns {{ _rel: "alignRight", ref: string }}
+ */
+export function alignRightWith(refId) {
+  return { _rel: "alignRight", ref: refId };
+}
+
+/**
+ * Center within a rectangle (e.g., safeRect()).
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} rectParam - Rectangle to center within
+ * @returns {{ _rel: "centerIn", rect: object }}
+ */
+export function centerIn(rectParam) {
+  return { _rel: "centerIn", rect: rectParam };
+}
+
+// =============================================================================
+// Layout Solve Pipeline (M3.1)
+// =============================================================================
+
+/**
+ * Check if a value is a deferred _rel marker.
+ *
+ * @param {*} value
+ * @returns {boolean}
+ */
+function isRelMarker(value) {
+  return value !== null && typeof value === "object" && typeof value._rel === "string";
+}
+
+/**
+ * Deep clone an object (for preserving authored specs).
+ * Uses structuredClone if available, otherwise JSON round-trip.
+ *
+ * @param {*} obj
+ * @returns {*}
+ */
+function deepClone(obj) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(obj);
+  }
+  return JSON.parse(JSON.stringify(obj));
+}
+
+/**
+ * Flatten all elements from a slide definition into a flat map by ID.
+ * Recursively traverses groups to extract children.
+ * Returns { flatMap: Map<id, element>, groupParent: Map<childId, groupId> }
+ *
+ * @param {Array} elements - Slide elements array
+ * @returns {{ flatMap: Map<string, object>, groupParent: Map<string, string> }}
+ */
+function flattenElements(elements) {
+  const flatMap = new Map();
+  const groupParent = new Map();
+
+  function walk(els, parentGroupId) {
+    for (const el of els) {
+      flatMap.set(el.id, el);
+      if (parentGroupId) {
+        groupParent.set(el.id, parentGroupId);
+      }
+      if (el.type === "group" && el.children) {
+        walk(el.children, el.id);
+      }
+    }
+  }
+
+  walk(elements, null);
+  return { flatMap, groupParent };
+}
+
+/**
+ * Extract the ref ID from a _rel marker (for dependency graph building).
+ *
+ * @param {object} marker - A _rel marker object
+ * @returns {string|null} The referenced element ID, or null if none
+ */
+function getRelRef(marker) {
+  if (!isRelMarker(marker)) return null;
+  // centerIn references a rect, not an element
+  if (marker._rel === "centerIn") return null;
+  return marker.ref || null;
+}
+
+/**
+ * Resolve a single _rel marker to an absolute coordinate value.
+ *
+ * @param {object} marker - The _rel marker
+ * @param {string} axis - "x" or "y"
+ * @param {object} refBounds - The referenced element's resolved bounds { x, y, w, h }
+ * @param {number} ownW - The current element's width
+ * @param {number} ownH - The current element's height
+ * @returns {number} The resolved absolute coordinate
+ */
+function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
+  const rel = marker._rel;
+  const gap = marker.gap || 0;
+
+  switch (rel) {
+    case "below":
+      // Y = ref's bottom edge + gap
+      return refBounds.y + refBounds.h + gap;
+
+    case "above":
+      // Y = ref's top edge - own height - gap
+      return refBounds.y - ownH - gap;
+
+    case "rightOf":
+      // X = ref's right edge + gap
+      return refBounds.x + refBounds.w + gap;
+
+    case "leftOf":
+      // X = ref's left edge - own width - gap
+      return refBounds.x - ownW - gap;
+
+    case "centerV":
+      // Center vertically with ref: align midpoints
+      return refBounds.y + refBounds.h / 2 - ownH / 2;
+
+    case "centerH":
+      // Center horizontally with ref: align midpoints
+      return refBounds.x + refBounds.w / 2 - ownW / 2;
+
+    case "alignTop":
+      // Y = ref's top edge
+      return refBounds.y;
+
+    case "alignBottom":
+      // Y = ref's bottom edge - own height
+      return refBounds.y + refBounds.h - ownH;
+
+    case "alignLeft":
+      // X = ref's left edge
+      return refBounds.x;
+
+    case "alignRight":
+      // X = ref's right edge - own width
+      return refBounds.x + refBounds.w - ownW;
+
+    case "centerIn": {
+      // Center within a rectangle
+      const r = marker.rect;
+      if (axis === "x") {
+        return r.x + r.w / 2 - ownW / 2;
+      } else {
+        return r.y + r.h / 2 - ownH / 2;
+      }
+    }
+
+    default:
+      throw new Error(`Unknown _rel type: "${rel}"`);
+  }
+}
+
+/**
+ * Determine provenance source for a resolved value.
+ *
+ * @param {*} authoredValue - The original authored value for this property
+ * @param {string} prop - Property name (x, y, w, h)
+ * @param {object} element - The element
+ * @param {boolean} wasMeasured - Whether this dimension was measured
+ * @returns {object} Provenance metadata
+ */
+function buildProvenance(authoredValue, prop, element, wasMeasured) {
+  if (isRelMarker(authoredValue)) {
+    const prov = { source: "constraint", type: authoredValue._rel };
+    if (authoredValue.ref) prov.ref = authoredValue.ref;
+    if (authoredValue.gap !== undefined) prov.gap = authoredValue.gap;
+    if (authoredValue.rect) prov.rect = authoredValue.rect;
+    return prov;
+  }
+  if (wasMeasured && (prop === "w" || prop === "h")) {
+    return {
+      source: "measured",
+      measuredAt: {
+        font: element.props?.font || "Inter",
+        size: element.props?.size || 32,
+      },
+    };
+  }
+  return { source: "authored", value: authoredValue };
+}
+
+/**
+ * Layout solve pipeline — 4-phase resolution.
+ *
+ * Phase 1: Resolve intrinsic sizes (measure text, compute dimensions)
+ * Phase 2: Resolve positions via unified topological sort
+ * Phase 3: Apply transforms (placeholder for M6)
+ * Phase 4: Finalize (provenance, validation placeholders, scene graph)
+ *
+ * @param {object} slideDefinition - A slide definition { elements, transforms, ... }
+ * @returns {object} Scene graph: { elements, transforms, warnings, errors, collisions }
+ */
+export function layout(slideDefinition) {
+  const errors = [];
+  const warnings = [];
+  const elements = slideDefinition.elements || [];
+  const transforms = slideDefinition.transforms || [];
+
+  // Flatten elements to a map for easy lookup
+  const { flatMap, groupParent } = flattenElements(elements);
+
+  // =========================================================================
+  // Phase 1: Resolve Intrinsic Sizes
+  // =========================================================================
+
+  // Store authored specs (deep clone before any modification)
+  const authoredSpecs = new Map();
+  for (const [id, el] of flatMap) {
+    authoredSpecs.set(id, {
+      type: el.type,
+      content: el.content,
+      src: el.src,
+      props: deepClone(el.props),
+      children: el.children ? el.children.map(c => c.id) : undefined,
+    });
+  }
+
+  // Validate: _rel markers must only be on x and y, not w or h
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.w)) {
+      errors.push({
+        type: "invalid_rel_on_dimension",
+        elementId: id,
+        property: "w",
+        message: `Element "${id}": _rel marker on "w" is invalid. Deferred values are only valid on x and y.`,
+      });
+    }
+    if (isRelMarker(el.props.h)) {
+      errors.push({
+        type: "invalid_rel_on_dimension",
+        elementId: id,
+        property: "h",
+        message: `Element "${id}": _rel marker on "h" is invalid. Deferred values are only valid on x and y.`,
+      });
+    }
+  }
+
+  // If there are errors from validation, return early
+  if (errors.length > 0) {
+    return {
+      elements: {},
+      transforms: deepClone(transforms),
+      warnings,
+      errors,
+      collisions: [],
+    };
+  }
+
+  // Resolve intrinsic sizes for all elements
+  // Map of id -> { w, h, wMeasured, hMeasured }
+  const resolvedSizes = new Map();
+
+  for (const [id, el] of flatMap) {
+    const dims = getEffectiveDimensions(el);
+    resolvedSizes.set(id, {
+      w: dims.w,
+      h: dims.h,
+      wMeasured: el.type === "text" && (el.props.w === undefined || el.props.w === null),
+      hMeasured: dims._autoHeight,
+    });
+  }
+
+  // =========================================================================
+  // Phase 2: Resolve Positions via Unified Topological Sort
+  // =========================================================================
+
+  // Build dependency graph
+  // For each element, find what elements it depends on (via _rel markers on x and y)
+  const deps = new Map(); // id -> Set<refId>
+  for (const [id, el] of flatMap) {
+    const depSet = new Set();
+    const xRef = getRelRef(el.props.x);
+    const yRef = getRelRef(el.props.y);
+    if (xRef) {
+      if (!flatMap.has(xRef)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "x",
+          ref: xRef,
+          message: `Element "${id}": x references unknown element "${xRef}"`,
+        });
+      } else {
+        depSet.add(xRef);
+      }
+    }
+    if (yRef) {
+      if (!flatMap.has(yRef)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "y",
+          ref: yRef,
+          message: `Element "${id}": y references unknown element "${yRef}"`,
+        });
+      } else {
+        depSet.add(yRef);
+      }
+    }
+    deps.set(id, depSet);
+  }
+
+  if (errors.length > 0) {
+    return {
+      elements: {},
+      transforms: deepClone(transforms),
+      warnings,
+      errors,
+      collisions: [],
+    };
+  }
+
+  // Kahn's algorithm (BFS-based topological sort)
+  // Compute in-degree for each node
+  const inDegree = new Map();
+  for (const [id] of flatMap) {
+    inDegree.set(id, 0);
+  }
+  for (const [id, depSet] of deps) {
+    // id depends on each ref in depSet, so the edge is ref -> id
+    // in-degree of id increases for each dependency
+    inDegree.set(id, depSet.size);
+  }
+
+  // Queue starts with nodes that have in-degree 0
+  const queue = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) {
+      queue.push(id);
+    }
+  }
+
+  // Build reverse adjacency: for each node, who depends on it
+  const reverseDeps = new Map();
+  for (const [id] of flatMap) {
+    reverseDeps.set(id, []);
+  }
+  for (const [id, depSet] of deps) {
+    for (const ref of depSet) {
+      reverseDeps.get(ref).push(id);
+    }
+  }
+
+  const sortedOrder = [];
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    sortedOrder.push(nodeId);
+    // For each node that depends on this one, decrement its in-degree
+    for (const dependent of reverseDeps.get(nodeId)) {
+      const newDeg = inDegree.get(dependent) - 1;
+      inDegree.set(dependent, newDeg);
+      if (newDeg === 0) {
+        queue.push(dependent);
+      }
+    }
+  }
+
+  // Cycle detection: if sortedOrder doesn't include all elements, there's a cycle
+  if (sortedOrder.length < flatMap.size) {
+    const inCycle = [];
+    for (const [id] of flatMap) {
+      if (!sortedOrder.includes(id)) {
+        inCycle.push(id);
+      }
+    }
+    errors.push({
+      type: "dependency_cycle",
+      elementIds: inCycle,
+      message: `Circular dependency detected among elements: ${inCycle.join(", ")}`,
+    });
+    return {
+      elements: {},
+      transforms: deepClone(transforms),
+      warnings,
+      errors,
+      collisions: [],
+    };
+  }
+
+  // Resolve positions in topological order
+  // resolvedBounds: id -> { x, y, w, h } (top-left corner + dimensions)
+  const resolvedBounds = new Map();
+
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    const sizes = resolvedSizes.get(id);
+    const w = sizes.w;
+    const h = sizes.h;
+
+    // Resolve x
+    let x;
+    if (isRelMarker(el.props.x)) {
+      const marker = el.props.x;
+      if (marker._rel === "centerIn") {
+        x = resolveRelMarker(marker, "x", null, w, h);
+      } else {
+        const refId = marker.ref;
+        const refBounds = resolvedBounds.get(refId);
+        x = resolveRelMarker(marker, "x", refBounds, w, h);
+      }
+    } else {
+      x = el.props.x || 0;
+    }
+
+    // Resolve y
+    let y;
+    if (isRelMarker(el.props.y)) {
+      const marker = el.props.y;
+      if (marker._rel === "centerIn") {
+        y = resolveRelMarker(marker, "y", null, w, h);
+      } else {
+        const refId = marker.ref;
+        const refBounds = resolvedBounds.get(refId);
+        y = resolveRelMarker(marker, "y", refBounds, w, h);
+      }
+    } else {
+      y = el.props.y || 0;
+    }
+
+    // Apply anchor resolution to get top-left position
+    const anchor = el.props.anchor || "tl";
+    const { left, top } = resolveAnchor(x, y, w, h, anchor);
+
+    resolvedBounds.set(id, { x: left, y: top, w, h });
+  }
+
+  // =========================================================================
+  // Phase 3: Apply Transforms (placeholder for M6)
+  // =========================================================================
+  // Transforms (alignment, distribution) will be processed here in M6.
+  // For now, this phase is a no-op but the infrastructure exists.
+  // The transforms array is preserved in the scene graph for round-trip.
+
+  // =========================================================================
+  // Phase 4: Finalize
+  // =========================================================================
+
+  // Build provenance metadata and scene graph
+  const sceneElements = {};
+
+  for (const id of sortedOrder) {
+    const el = flatMap.get(id);
+    const authored = authoredSpecs.get(id);
+    const bounds = resolvedBounds.get(id);
+    const sizes = resolvedSizes.get(id);
+
+    // Build provenance for each dimension
+    const provenance = {
+      x: buildProvenance(authored.props.x, "x", el, false),
+      y: buildProvenance(authored.props.y, "y", el, false),
+      w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
+      h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
+    };
+
+    sceneElements[id] = {
+      id,
+      type: el.type,
+      authored: authored,
+      resolved: { ...bounds },
+      provenance,
+    };
+  }
+
+  // Collision detection placeholder (M5)
+  const collisions = [];
+
+  // Validation placeholders (M4 — safe zone, font size, content area)
+  // These will be implemented in M4 and M5.
+
+  return {
+    elements: sceneElements,
+    transforms: deepClone(transforms),
+    warnings,
+    errors,
+    collisions,
+  };
+}
+
+// =============================================================================
+// Updated Renderer — Uses Layout Solve (M3.3)
+// =============================================================================
+
+/**
+ * Render a single SlideKit element using resolved bounds from the scene graph.
+ *
+ * @param {object} element - SlideKit element
  * @param {number} zIndex - Computed z-index for this element
+ * @param {object} sceneElements - The resolved scene graph elements map
  * @returns {HTMLElement} The rendered DOM element
  */
-function renderElement(element, zIndex) {
+function renderElementFromScene(element, zIndex, sceneElements) {
   const { type, props } = element;
-  const { w, h } = getEffectiveDimensions(element);
+  const resolved = sceneElements[element.id]?.resolved;
 
-  // Compute position from anchor
-  const anchor = props.anchor || "tl";
-  const { left, top } = resolveAnchor(props.x || 0, props.y || 0, w, h, anchor);
+  // Use resolved bounds from the scene graph if available, otherwise fall back
+  let left, top, w, h;
+  if (resolved) {
+    left = resolved.x;
+    top = resolved.y;
+    w = resolved.w;
+    h = resolved.h;
+  } else {
+    // Fallback for elements not in scene graph (e.g., group children
+    // that might be handled differently)
+    const dims = getEffectiveDimensions(element);
+    w = dims.w;
+    h = dims.h;
+    const anchor = props.anchor || "tl";
+    const anchorResult = resolveAnchor(props.x || 0, props.y || 0, w, h, anchor);
+    left = anchorResult.left;
+    top = anchorResult.top;
+  }
 
   // Build the merged CSS from convenience props + user style
   const convenienceProps = extractConvenienceProps(props);
@@ -1057,7 +1690,6 @@ function renderElement(element, zIndex) {
   // Type-specific rendering
   switch (type) {
     case "text": {
-      // Convert \n to <br> using DOM nodes (avoids innerHTML XSS risk)
       const content = String(element.content ?? "");
       const parts = content.split("\n");
       parts.forEach((part, i) => {
@@ -1083,39 +1715,26 @@ function renderElement(element, zIndex) {
 
     case "rect": {
       // Rect is just a styled div — styling already applied via mergedStyle
-      // No additional content needed
       break;
     }
 
     case "rule": {
-      // Rule is a div with background-color for the line
-      // The dimensions are already set (w/h computed by getEffectiveDimensions)
-      // Set background-color from the rule's color prop
       div.style.backgroundColor = props.color || "#ffffff";
       break;
     }
 
     case "group": {
-      // Group is a container div with children rendered recursively
-      // Children's positions are relative to the group's position
       const children = element.children || [];
-
-      // Compute z-order for children within the group
       const childZMap = computeZOrder(children);
-
       for (const child of children) {
         const childZ = childZMap.get(child.id) || 0;
-        // Children's x/y are relative to the group origin. Since the group
-        // div is position:absolute, children (also position:absolute) are
-        // positioned relative to the group div's top-left corner.
-        const childEl = renderElement(child, childZ);
+        const childEl = renderElementFromScene(child, childZ, sceneElements);
         div.appendChild(childEl);
       }
       break;
     }
 
     default:
-      // Unknown element type — render as empty div with data-sk-id
       break;
   }
 
@@ -1123,38 +1742,18 @@ function renderElement(element, zIndex) {
 }
 
 /**
- * Set slide background on a <section> element using Reveal.js data-background-* attributes.
- *
- * @param {HTMLElement} section - The <section> element
- * @param {string} background - Background value (color, gradient, or image path/URL)
- */
-function applySlideBackground(section, background) {
-  if (!background) return;
-
-  const trimmed = background.trim();
-
-  if (trimmed.startsWith("#") || /^(rgb|hsl)a?\(/.test(trimmed)) {
-    section.setAttribute("data-background-color", trimmed);
-  } else if (trimmed.startsWith("linear-gradient") || trimmed.startsWith("radial-gradient")) {
-    section.setAttribute("data-background-gradient", trimmed);
-  } else {
-    // Treat as image URL/path
-    section.setAttribute("data-background-image", trimmed);
-  }
-}
-
-/**
  * Render an array of slide definitions into DOM elements.
  *
- * Creates <section> elements (Reveal.js slides) with <div class="slidekit-layer">
- * containers holding absolutely-positioned element divs.
+ * Now uses the layout solve pipeline (M3.3):
+ * 1. Calls layout() to get the resolved scene graph
+ * 2. Uses resolved positions from the scene graph when creating DOM elements
+ * 3. Persists the scene model on window.sk
+ * 4. Returns the layout result
  *
- * Does NOT initialize Reveal.js — the caller handles that.
- *
- * @param {Array} slides - Array of slide definitions, each with { id, elements, background, notes, transforms }
+ * @param {Array} slides - Array of slide definitions
  * @param {object} [options={}] - Render options
- * @param {HTMLElement} [options.container] - Target container element (default: document.querySelector('.reveal .slides'))
- * @returns {Array<HTMLElement>} Array of created <section> elements
+ * @param {HTMLElement} [options.container] - Target container element
+ * @returns {{ sections: Array<HTMLElement>, layouts: Array<object> }}
  */
 export function render(slides, options = {}) {
   // Reset ID counter at start of render for deterministic IDs
@@ -1171,8 +1770,13 @@ export function render(slides, options = {}) {
   }
 
   const sections = [];
+  const layouts = [];
 
   for (const slide of slides) {
+    // Run layout solve for this slide
+    const layoutResult = layout(slide);
+    layouts.push(layoutResult);
+
     // Create the <section> for this slide
     const section = document.createElement("section");
 
@@ -1196,15 +1800,13 @@ export function render(slides, options = {}) {
     layer.style.width = `${slideW}px`;
     layer.style.height = `${slideH}px`;
 
-    // Render elements
+    // Render elements using resolved positions from scene graph
     const elements = slide.elements || [];
-
-    // Compute z-order for all elements in the slide
     const zMap = computeZOrder(elements);
 
     for (const element of elements) {
       const zIndex = zMap.get(element.id) || 0;
-      const domEl = renderElement(element, zIndex);
+      const domEl = renderElementFromScene(element, zIndex, layoutResult.elements);
       layer.appendChild(domEl);
     }
 
@@ -1223,16 +1825,19 @@ export function render(slides, options = {}) {
     sections.push(section);
   }
 
+  // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
+  if (typeof window !== "undefined") {
+    window.sk = {
+      layouts,
+      slides: slides.map((s, i) => ({
+        id: s.id || `slide-${i}`,
+        layout: layouts[i],
+      })),
+    };
+  }
+
   return sections;
 }
-
-// =============================================================================
-// Stubs for Future Milestones
-// =============================================================================
-
-// layout() — M3: Layout solve pipeline
-// Placeholder that will be implemented in Milestone 3.
-// For now, not exported — will be added when ready.
 
 // =============================================================================
 // Namespace Export (for convenient SlideKit.* usage)
@@ -1256,6 +1861,19 @@ const SlideKit = {
   isFontLoaded,
   getFontWarnings,
   _resetForTests,
+  // M3: Layout solve and relative positioning
+  layout,
+  below,
+  above,
+  rightOf,
+  leftOf,
+  centerVWith,
+  centerHWith,
+  alignTopWith,
+  alignBottomWith,
+  alignLeftWith,
+  alignRightWith,
+  centerIn,
 };
 
 export default SlideKit;
