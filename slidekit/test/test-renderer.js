@@ -380,7 +380,12 @@ describe("M1.4: image element rendering", () => {
       }];
       render(slides, { container });
       const img = container.querySelector('[data-sk-id="img"] img');
-      assert.equal(img.style.objectPosition, "top left");
+      // Browsers may normalize "top left" to "left top"
+      const pos = img.style.objectPosition;
+      assert.ok(
+        pos === "top left" || pos === "left top",
+        `object-position should be "top left" or "left top", got "${pos}"`
+      );
     });
   });
 
