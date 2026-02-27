@@ -534,8 +534,9 @@ const LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
 /**
  * Compute z-index values for a flat array of elements.
  *
- * Sort by: layer (bg < content < overlay), then declaration order within layer,
- * then explicit `z` if present. Returns a Map of element id -> z-index.
+ * Sort by: layer (bg < content < overlay), then by explicit `z` value
+ * (missing z treated as 0), then by declaration order as tiebreaker.
+ * Returns a Map of element id -> z-index.
  *
  * @param {Array} elements - Flat array of SlideKit elements
  * @returns {Map<string, number>} Map of element id to z-index value
@@ -544,23 +545,18 @@ function computeZOrder(elements) {
   // Build an array of { element, originalIndex } for stable sort
   const indexed = elements.map((el, i) => ({ el, idx: i }));
 
-  // Sort: layer first, then declaration order, then explicit z
+  // Sort: layer first, then explicit z (missing = 0), then declaration order
   indexed.sort((a, b) => {
     const layerA = LAYER_ORDER[a.el.props.layer] ?? LAYER_ORDER.content;
     const layerB = LAYER_ORDER[b.el.props.layer] ?? LAYER_ORDER.content;
     if (layerA !== layerB) return layerA - layerB;
 
-    // Within same layer: explicit z takes priority, then declaration order
-    const zA = a.el.props.z;
-    const zB = b.el.props.z;
-    const hasZA = zA !== undefined && zA !== null;
-    const hasZB = zB !== undefined && zB !== null;
+    // Within same layer: sort by z value (missing z treated as 0)
+    const zA = a.el.props.z ?? 0;
+    const zB = b.el.props.z ?? 0;
+    if (zA !== zB) return zA - zB;
 
-    if (hasZA && hasZB) return zA - zB;
-    if (hasZA && !hasZB) return 1; // explicit z goes after default
-    if (!hasZA && hasZB) return -1;
-
-    // Neither has explicit z — use declaration order
+    // Same z (or both default) — use declaration order as tiebreaker
     return a.idx - b.idx;
   });
 
@@ -631,19 +627,15 @@ function applyStyleToDOM(domEl, styleObj) {
  *
  * @param {object} element - SlideKit element (text, image, rect, rule, or group)
  * @param {number} zIndex - Computed z-index for this element
- * @param {number} offsetX - X offset from parent group (0 for top-level)
- * @param {number} offsetY - Y offset from parent group (0 for top-level)
  * @returns {HTMLElement} The rendered DOM element
  */
-function renderElement(element, zIndex, offsetX = 0, offsetY = 0) {
+function renderElement(element, zIndex) {
   const { type, props } = element;
   const { w, h } = getEffectiveDimensions(element);
 
   // Compute position from anchor
   const anchor = props.anchor || "tl";
-  const effectiveX = (props.x || 0) + offsetX;
-  const effectiveY = (props.y || 0) + offsetY;
-  const { left, top } = resolveAnchor(effectiveX, effectiveY, w, h, anchor);
+  const { left, top } = resolveAnchor(props.x || 0, props.y || 0, w, h, anchor);
 
   // Build the merged CSS from convenience props + user style
   const convenienceProps = extractConvenienceProps(props);
@@ -678,9 +670,13 @@ function renderElement(element, zIndex, offsetX = 0, offsetY = 0) {
   // Type-specific rendering
   switch (type) {
     case "text": {
-      // Convert \n to <br> in content
-      const content = element.content || "";
-      div.innerHTML = content.replace(/\n/g, "<br>");
+      // Convert \n to <br> using DOM nodes (avoids innerHTML XSS risk)
+      const content = String(element.content ?? "");
+      const parts = content.split("\n");
+      parts.forEach((part, i) => {
+        if (i > 0) div.appendChild(document.createElement("br"));
+        div.appendChild(document.createTextNode(part));
+      });
       break;
     }
 
@@ -722,22 +718,12 @@ function renderElement(element, zIndex, offsetX = 0, offsetY = 0) {
 
       for (const child of children) {
         const childZ = childZMap.get(child.id) || 0;
-        // Children are offset by the group's resolved position,
-        // but since the group div is already positioned, children
-        // are positioned relative to the group div (offsetX=0, offsetY=0
-        // within the group's local coordinate space).
-        // Actually, the group div is the container, so children's x/y
-        // are relative to the group origin. We render children inside
-        // the group div, so we don't add any offset — children use
-        // their own x/y as offsets from the group's top-left.
-        const childEl = renderElement(child, childZ, 0, 0);
+        // Children's x/y are relative to the group origin. Since the group
+        // div is position:absolute, children (also position:absolute) are
+        // positioned relative to the group div's top-left corner.
+        const childEl = renderElement(child, childZ);
         div.appendChild(childEl);
       }
-
-      // Group needs position:relative for children absolute positioning
-      // Actually, children are position:absolute relative to the group div,
-      // which is already position:absolute. So children will be positioned
-      // relative to the group div. This works correctly.
       break;
     }
 
@@ -760,7 +746,7 @@ function applySlideBackground(section, background) {
 
   const trimmed = background.trim();
 
-  if (trimmed.startsWith("#") || trimmed.startsWith("rgb")) {
+  if (trimmed.startsWith("#") || /^(rgb|hsl)a?\(/.test(trimmed)) {
     section.setAttribute("data-background-color", trimmed);
   } else if (trimmed.startsWith("linear-gradient") || trimmed.startsWith("radial-gradient")) {
     section.setAttribute("data-background-gradient", trimmed);
@@ -814,11 +800,14 @@ export function render(slides, options = {}) {
     }
 
     // Create the slidekit-layer container
+    const cfg = getConfig();
+    const slideW = cfg?.slide?.w ?? 1920;
+    const slideH = cfg?.slide?.h ?? 1080;
     const layer = document.createElement("div");
     layer.className = "slidekit-layer";
     layer.style.position = "relative";
-    layer.style.width = "1920px";
-    layer.style.height = "1080px";
+    layer.style.width = `${slideW}px`;
+    layer.style.height = `${slideH}px`;
 
     // Render elements
     const elements = slide.elements || [];
