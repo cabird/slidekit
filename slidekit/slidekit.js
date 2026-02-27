@@ -29,6 +29,8 @@ function nextId() {
 
 /**
  * Default values for common element properties.
+ * Note: style is null here; applyDefaults creates a fresh {} for each element
+ * to avoid shared-reference mutation bugs.
  */
 const COMMON_DEFAULTS = {
   x: 0,
@@ -36,21 +38,30 @@ const COMMON_DEFAULTS = {
   anchor: "tl",
   layer: "content",
   opacity: 1,
-  style: {},
+  style: null,  // sentinel — applyDefaults creates fresh {} per element
   className: "",
 };
 
 /**
  * Apply default values to props — only fills in keys not already present.
+ * The `id` key is excluded from the result (it lives on the element, not in props).
+ * The `style` default is always a fresh {} to prevent cross-element mutation.
  */
 function applyDefaults(props, extraDefaults = {}) {
   const merged = { ...COMMON_DEFAULTS, ...extraDefaults };
   const result = {};
   for (const key of Object.keys(merged)) {
-    result[key] = props[key] !== undefined ? props[key] : merged[key];
+    if (key === "id") continue; // id is stored at the element level, not in props
+    if (key === "style") {
+      // Always produce a fresh object to avoid shared-reference bugs
+      result[key] = props[key] !== undefined ? props[key] : {};
+    } else {
+      result[key] = props[key] !== undefined ? props[key] : merged[key];
+    }
   }
-  // Copy all remaining user props that are not in defaults
+  // Copy all remaining user props that are not in defaults (skip id)
   for (const key of Object.keys(props)) {
+    if (key === "id") continue;
     if (result[key] === undefined) {
       result[key] = props[key];
     }
@@ -66,8 +77,9 @@ function applyDefaults(props, extraDefaults = {}) {
  * @returns {{ id: string, type: string, content: string, props: object }}
  */
 export function text(content, props = {}) {
-  const id = props.id || nextId();
-  const resolved = applyDefaults(props, {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
     font: "Inter",
     size: 32,
     weight: 400,
@@ -90,8 +102,9 @@ export function text(content, props = {}) {
  * @returns {{ id: string, type: string, src: string, props: object }}
  */
 export function image(src, props = {}) {
-  const id = props.id || nextId();
-  const resolved = applyDefaults(props, {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
     fit: "cover",
     position: "center",
   });
@@ -105,8 +118,9 @@ export function image(src, props = {}) {
  * @returns {{ id: string, type: string, props: object }}
  */
 export function rect(props = {}) {
-  const id = props.id || nextId();
-  const resolved = applyDefaults(props, {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
     fill: "transparent",
     radius: 0,
     border: "none",
@@ -122,8 +136,9 @@ export function rect(props = {}) {
  * @returns {{ id: string, type: string, props: object }}
  */
 export function rule(props = {}) {
-  const id = props.id || nextId();
-  const resolved = applyDefaults(props, {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
     direction: "horizontal",
     thickness: 2,
     color: "#ffffff",
@@ -139,8 +154,9 @@ export function rule(props = {}) {
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function group(children, props = {}) {
-  const id = props.id || nextId();
-  const resolved = applyDefaults(props, {
+  const { id: customId, ...rest } = props;
+  const id = customId || nextId();
+  const resolved = applyDefaults(rest, {
     scale: 1,
     clip: false,
   });
@@ -172,7 +188,15 @@ export function group(children, props = {}) {
  * @param {string} anchor - Anchor point string (tl, tc, tr, cl, cc, cr, bl, bc, br)
  * @returns {{ left: number, top: number }}
  */
+const VALID_ANCHORS = new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
+
 export function resolveAnchor(x, y, w, h, anchor) {
+  if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
+    throw new Error(
+      `Invalid anchor "${anchor}". Must be one of: ${Array.from(VALID_ANCHORS).join(", ")}`
+    );
+  }
+
   // Horizontal offset based on anchor column
   let left;
   const col = anchor[1]; // second character: l, c, r
@@ -211,11 +235,28 @@ export function resolveAnchor(x, y, w, h, anchor) {
  * e.g., "background-color" -> "backgroundColor"
  *       "fontSize" -> "fontSize" (already camelCase, no change)
  *       "-webkit-transform" -> "WebkitTransform"
+ *       "-ms-transform" -> "msTransform"
+ *       "--custom-prop" -> "--custom-prop" (preserved as-is)
  */
 function toCamelCase(name) {
+  // Preserve CSS custom properties (variables) as-is
+  if (name.startsWith("--")) return name;
   // If already camelCase or single word, return as-is
   if (!name.includes("-")) return name;
-  return name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+
+  // Handle vendor prefixes: -ms- uses lowercase, others use uppercase first letter
+  let normalized = name;
+  if (normalized.startsWith("-ms-")) {
+    normalized = "ms-" + normalized.slice(4);
+  } else if (normalized.startsWith("-webkit-")) {
+    normalized = "Webkit-" + normalized.slice(8);
+  } else if (normalized.startsWith("-moz-")) {
+    normalized = "Moz-" + normalized.slice(5);
+  } else if (normalized.startsWith("-o-")) {
+    normalized = "O-" + normalized.slice(3);
+  }
+
+  return normalized.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 /**
@@ -296,14 +337,16 @@ const BLOCKED_SUGGESTIONS = {
  * Some require value transformation (e.g., size -> fontSize with "px" suffix).
  */
 const CONVENIENCE_MAP = {
-  color:   { css: "color",        transform: (v) => v },
-  font:    { css: "fontFamily",   transform: (v) => v },
-  size:    { css: "fontSize",     transform: (v) => typeof v === "number" ? `${v}px` : v },
-  weight:  { css: "fontWeight",   transform: (v) => String(v) },
-  fill:    { css: "background",   transform: (v) => v },
-  radius:  { css: "borderRadius", transform: (v) => typeof v === "number" ? `${v}px` : v },
-  border:  { css: "border",       transform: (v) => v },
-  align:   { css: "textAlign",    transform: (v) => v },
+  color:          { css: "color",         transform: (v) => v },
+  font:           { css: "fontFamily",    transform: (v) => v },
+  size:           { css: "fontSize",      transform: (v) => typeof v === "number" ? `${v}px` : v },
+  weight:         { css: "fontWeight",    transform: (v) => String(v) },
+  lineHeight:     { css: "lineHeight",    transform: (v) => v },
+  letterSpacing:  { css: "letterSpacing", transform: (v) => v },
+  fill:           { css: "background",    transform: (v) => v },
+  radius:         { css: "borderRadius",  transform: (v) => typeof v === "number" ? `${v}px` : v },
+  border:         { css: "border",        transform: (v) => v },
+  align:          { css: "textAlign",     transform: (v) => v },
 };
 
 /**
@@ -395,11 +438,19 @@ export async function init(config = {}) {
   // Compute and cache the safe rectangle
   const sz = _config.safeZone;
   const sl = _config.slide;
+  const safeW = sl.w - sz.left - sz.right;
+  const safeH = sl.h - sz.top - sz.bottom;
+  if (safeW <= 0 || safeH <= 0) {
+    throw new Error(
+      `Invalid safeZone configuration: computed safe rect is ${safeW}x${safeH}. ` +
+      `Check slide dimensions (${sl.w}x${sl.h}) and safeZone margins.`
+    );
+  }
   _safeRectCache = {
     x: sz.left,
     y: sz.top,
-    w: sl.w - sz.left - sz.right,
-    h: sl.h - sz.top - sz.bottom,
+    w: safeW,
+    h: safeH,
   };
 
   // Font loading will be implemented in M2.
@@ -425,7 +476,13 @@ export function safeRect() {
  * @returns {object|null}
  */
 export function getConfig() {
-  return _config ? { ..._config, slide: { ..._config.slide }, safeZone: { ..._config.safeZone } } : null;
+  if (!_config) return null;
+  return {
+    ..._config,
+    slide: { ..._config.slide },
+    safeZone: { ..._config.safeZone },
+    fonts: _config.fonts.map(f => ({ ...f })),
+  };
 }
 
 // =============================================================================
