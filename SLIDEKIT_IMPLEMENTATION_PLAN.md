@@ -83,7 +83,7 @@ slidekit/
 
 **Goal:** Establish the core data model and render absolutely-positioned divs into a Reveal.js slide. No measurement, no layout solve, no validation — just "put div at (x, y) with width w and height h."
 
-### 1.1 Core Element Model
+### 1.1 Core Element Model [DONE]
 
 Define the element creation functions. Each returns a plain object (no classes):
 
@@ -101,7 +101,7 @@ Auto-generated IDs use a counter scoped to each `layout()`/`render()` call (`sk-
 
 Default values for all common properties (anchor defaults to `"tl"`, layer defaults to `"content"`, etc.).
 
-### 1.2 Anchor Resolution
+### 1.2 Anchor Resolution [DONE]
 
 Implement `resolveAnchor(x, y, w, h, anchor)` → `{ left, top }`.
 
@@ -112,7 +112,7 @@ Given the user-specified (x, y) and the element's (w, h), compute the CSS `left`
 - `"br"`: left = x - w, top = y - h
 - All 9 combinations.
 
-### 1.3 CSS Property Filtering
+### 1.3 CSS Property Filtering [DONE]
 
 Implement the style pass-through system:
 
@@ -155,7 +155,7 @@ Implement `SlideKit.render(slides, options)`:
 - Append all `<section>` elements to the target `.reveal .slides` container
 - Initialize Reveal.js with provided config
 
-### 1.5 Init Function
+### 1.5 Init Function [DONE]
 
 Implement `SlideKit.init(config)`:
 
