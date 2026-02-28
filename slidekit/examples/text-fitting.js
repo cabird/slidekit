@@ -113,7 +113,7 @@ export async function run() {
         id: 'wide-info',
         x: rightOf('wide-box', { gap: 24 }),
         y: below('wide-label', { gap: 16 }),
-        w: 300,
+        w: 130,
       }),
 
       // Right column: measure() with image element

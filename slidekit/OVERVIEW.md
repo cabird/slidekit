@@ -24,9 +24,9 @@ Every slide is a 1920x1080 pixel canvas. The origin is the top-left corner. You 
 
 SlideKit owns **layout** — position, size, and spatial relationships between elements. You own **content and styling** — arbitrary HTML and CSS for whatever you want to display. SlideKit handles WHERE things go; you handle WHAT things look like.
 
-A small set of CSS properties are blocked from the style pass-through — only those that would conflict with SlideKit's coordinate system (`display`, `position`, `margin`, `flex`, `grid`, `transform`, `overflow`, sizing properties, containment, etc.). Font properties, padding, line-height, and all other text/visual properties are allowed because `measure()` renders the actual HTML you provide, so measurement and rendering always use exactly the same CSS. There is no divergence between what the layout engine measures and what the browser displays.
+A small set of CSS properties are blocked from the style pass-through — only those that would conflict with SlideKit's coordinate system (`display`, `position`, `margin`, `transform`, `overflow`, sizing properties, containment, etc.). Everything else (colors, gradients, shadows, borders, fonts, animations, transitions) passes through untouched. See [API.md](API.md) for the full blocked-properties list.
 
-Everything else (colors, gradients, shadows, borders, fonts, animations, transitions) passes through untouched. See [API.md](API.md) for the full blocked-properties list.
+SlideKit also injects a **baseline stylesheet** inside every `el()` container that neutralises inherited styles from the host framework (Reveal.js). This ensures `measure()` and `render()` always agree — the baseline is applied identically in both contexts. The defaults (e.g., `text-align: left`, `margin: 0`, `line-height: 1.2`) are predictable and documented. Override any baseline property with inline styles in your HTML content. See [API.md § Baseline CSS](API.md) for the full list.
 
 ### Three-Phase Pipeline
 

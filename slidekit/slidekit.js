@@ -384,6 +384,94 @@ export function filterStyle(style = {}, elementType = "unknown") {
 }
 
 // =============================================================================
+// Baseline CSS — shared between measure() and render()
+// =============================================================================
+
+/**
+ * SlideKit baseline CSS applied inside every el() container.
+ *
+ * This stylesheet establishes a predictable, deterministic styling context that:
+ *  1. Neutralizes inherited styles from host frameworks (Reveal.js, etc.)
+ *  2. Ensures measure() and render() produce identical results
+ *  3. Provides sensible defaults for presentation content
+ *
+ * User inline styles always override the baseline (stylesheet < inline specificity).
+ *
+ * The selector prefix is parameterised so the same rules apply in both the
+ * measurement container ([data-sk-measure]) and the render container
+ * ([data-sk-type="el"]).
+ */
+function _baselineCSS(prefix) {
+  return `
+/* Root boundary — neutralise inherited host-framework styles */
+${prefix} {
+  text-align: left;
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: normal;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-transform: none;
+  text-decoration: none;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+  box-sizing: border-box;
+}
+${prefix} *, ${prefix} *::before, ${prefix} *::after {
+  box-sizing: inherit;
+}
+/* Direct children — margin/padding reset */
+${prefix} > * {
+  margin: 0;
+  padding: 0;
+  text-align: inherit;
+  line-height: inherit;
+}
+/* Block elements — kill framework margins even when nested */
+${prefix} p,
+${prefix} h1, ${prefix} h2, ${prefix} h3,
+${prefix} h4, ${prefix} h5, ${prefix} h6 {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  text-transform: none;
+}
+${prefix} ul, ${prefix} ol {
+  margin: 0;
+  padding: 0;
+  list-style-position: outside;
+}
+${prefix} li {
+  margin: 0;
+  padding: 0;
+}
+/* Media — prevent framework responsive rules from changing measured size */
+${prefix} img, ${prefix} svg, ${prefix} video, ${prefix} canvas {
+  max-width: none;
+  max-height: none;
+}
+${prefix} img, ${prefix} svg {
+  vertical-align: baseline;
+}
+/* Pre/code — frameworks often restyle these heavily */
+${prefix} pre, ${prefix} code {
+  margin: 0;
+  padding: 0;
+  font-size: 1em;
+  line-height: 1.2;
+  white-space: pre;
+}
+/* Tables */
+${prefix} table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+`;
+}
+
+// =============================================================================
 // Init Function & Configuration (M1.5)
 // =============================================================================
 
@@ -696,10 +784,10 @@ function _ensureMeasureContainer() {
   // No max dimensions — let content determine size
   _measureContainer.setAttribute("data-sk-role", "measure-container");
 
-  // CSS reset for el() measurement — matches render-time reset
-  const resetStyle = document.createElement("style");
-  resetStyle.textContent = "[data-sk-measure] > * { margin: 0; }";
-  _measureContainer.appendChild(resetStyle);
+  // Baseline CSS for measurement — identical to render-time baseline
+  const baselineStyle = document.createElement("style");
+  baselineStyle.textContent = _baselineCSS("[data-sk-measure]");
+  _measureContainer.appendChild(baselineStyle);
 
   document.body.appendChild(_measureContainer);
 }
@@ -2891,12 +2979,12 @@ export async function render(slides, options = {}) {
   const sections = [];
   const layouts = [];
 
-  // Inject CSS reset for el() elements once per render
-  if (!container.querySelector("style[data-sk-reset]")) {
-    const resetStyle = document.createElement("style");
-    resetStyle.setAttribute("data-sk-reset", "");
-    resetStyle.textContent = "[data-sk-type=\"el\"] > * { margin: 0; }";
-    container.appendChild(resetStyle);
+  // Inject baseline CSS for el() elements once per render
+  if (!container.querySelector("style[data-sk-baseline]")) {
+    const baselineStyle = document.createElement("style");
+    baselineStyle.setAttribute("data-sk-baseline", "");
+    baselineStyle.textContent = _baselineCSS('[data-sk-type="el"]');
+    container.appendChild(baselineStyle);
   }
 
   // Read config once outside the loop to avoid repeated deep-copy overhead

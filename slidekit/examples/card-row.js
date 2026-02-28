@@ -37,13 +37,13 @@ export async function run() {
       hstack([
         panel([
           el('<p style="font:600 28px Inter;color:#ffffff">Declarative</p>', { w: 'fill' }),
-          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('', { w: 'fill', h: 2, style: { background: 'rgba(255,255,255,0.2)' } }),
           el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Define what you want, not how to get there. Coordinates are explicit and deterministic.</p>', {
             w: 'fill',
           }),
         ], {
           id: 'card-1',
-          w: 480, padding: 28, gap: 14,
+          w: 480, padding: 28, gap: 28,
           style: {
             background: 'rgba(255,255,255,0.06)',
             backdropFilter: 'blur(12px)',
@@ -55,13 +55,13 @@ export async function run() {
 
         panel([
           el('<p style="font:600 28px Inter;color:#ffffff">Measurable</p>', { w: 'fill' }),
-          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('', { w: 'fill', h: 2, style: { background: 'rgba(255,255,255,0.2)' } }),
           el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Text is measured before placement. Auto-fitting eliminates guesswork for font sizing.</p>', {
             w: 'fill',
           }),
         ], {
           id: 'card-2',
-          w: 480, padding: 28, gap: 14,
+          w: 480, padding: 28, gap: 28,
           style: {
             background: 'rgba(255,255,255,0.06)',
             backdropFilter: 'blur(12px)',
@@ -73,13 +73,13 @@ export async function run() {
 
         panel([
           el('<p style="font:600 28px Inter;color:#ffffff">Validated</p>', { w: 'fill' }),
-          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('', { w: 'fill', h: 2, style: { background: 'rgba(255,255,255,0.2)' } }),
           el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Overlap detection, safe zone checks, and font size validation happen automatically.</p>', {
             w: 'fill',
           }),
         ], {
           id: 'card-3',
-          w: 480, padding: 28, gap: 14,
+          w: 480, padding: 28, gap: 28,
           style: {
             background: 'rgba(255,255,255,0.06)',
             backdropFilter: 'blur(12px)',

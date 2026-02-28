@@ -478,6 +478,46 @@ Vendor-prefixed variants of all blocked properties are also blocked.
 - Line clamping (`-webkit-line-clamp`, `lineClamp`)
 - Colors, gradients, shadows, borders, animations, transitions, filters, etc.
 
+### Baseline CSS
+
+SlideKit injects a baseline stylesheet inside every `el()` container. This stylesheet:
+
+1. **Neutralises host framework styles** — Reveal.js (and similar frameworks) apply opinionated CSS to `<p>`, headings, lists, and images. The baseline blocks these from affecting `el()` content.
+2. **Ensures measurement/render parity** — The identical baseline is applied in both `measure()` and `render()`, eliminating "split brain" where text measures one size but renders another.
+3. **Provides predictable defaults** — LLM authors and humans can reason about styling without hidden inherited rules.
+
+**Baseline defaults applied inside el():**
+
+| Property | Value | Why |
+|---|---|---|
+| `text-align` | `left` | Prevents framework `text-align: center` inheritance |
+| `line-height` | `1.2` | Stable across browsers; presentation-friendly |
+| `font-weight` | `400` | Prevents theme heading-weight inheritance |
+| `font-style` | `normal` | Clean default |
+| `letter-spacing` | `normal` | Prevents theme adjustments |
+| `text-transform` | `none` | Prevents theme uppercasing |
+| `text-decoration` | `none` | Clean default |
+| `white-space` | `normal` | Standard wrapping |
+| `box-sizing` | `border-box` | Predictable sizing |
+| `margin` on all elements | `0` | Prevents framework margins shifting content |
+| `padding` on all elements | `0` | Clean default |
+| `font: inherit` on headings | (inherits from root) | Prevents theme heading font-size/weight overrides |
+| `max-width/max-height` on media | `none` | Prevents responsive image shrinking |
+
+**Overriding the baseline:** Use inline styles in your HTML content. Inline styles always win over the baseline stylesheet:
+
+```js
+// Baseline sets text-align: left, but this overrides it to center:
+el('<p style="text-align:center;font:700 52px Inter;color:#fff">Centered Title</p>', {
+  id: 'title', x: 960, y: 400, w: 800, anchor: 'tc',
+});
+
+// Baseline sets margin: 0, but nested paragraphs can override:
+el('<div><p style="margin-bottom:16px">First paragraph</p><p>Second paragraph</p></div>', {
+  id: 'content', x: 120, y: 300, w: 600,
+});
+```
+
 ### `className`
 
 Apply CSS classes to elements. Classes can handle any visual styling.
