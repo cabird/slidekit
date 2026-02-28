@@ -8,9 +8,9 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, rule, group,
+  el, group,
   vstack, hstack,
-  panel, bullets, connect,
+  panel, connect,
   below, rightOf,
   render, layout, init, _resetForTests, safeRect,
   alignTop, distributeH,
@@ -98,13 +98,13 @@ describe("M9.6: Multi-slide integration smoke test", () => {
         const elIds = Object.keys(lay.elements);
         assert.ok(elIds.length > 0, `slide ${i}: should have resolved elements`);
 
-        for (const id of elIds) {
-          const el = lay.elements[id];
-          assert.ok(el.resolved, `slide ${i}, element "${id}": should have resolved bounds`);
-          assert.ok(typeof el.resolved.x === "number", `slide ${i}, "${id}": resolved.x should be number`);
-          assert.ok(typeof el.resolved.y === "number", `slide ${i}, "${id}": resolved.y should be number`);
-          assert.ok(typeof el.resolved.w === "number", `slide ${i}, "${id}": resolved.w should be number`);
-          assert.ok(typeof el.resolved.h === "number", `slide ${i}, "${id}": resolved.h should be number`);
+        for (const eid of elIds) {
+          const elem = lay.elements[eid];
+          assert.ok(elem.resolved, `slide ${i}, element "${eid}": should have resolved bounds`);
+          assert.ok(typeof elem.resolved.x === "number", `slide ${i}, "${eid}": resolved.x should be number`);
+          assert.ok(typeof elem.resolved.y === "number", `slide ${i}, "${eid}": resolved.y should be number`);
+          assert.ok(typeof elem.resolved.w === "number", `slide ${i}, "${eid}": resolved.w should be number`);
+          assert.ok(typeof elem.resolved.h === "number", `slide ${i}, "${eid}": resolved.h should be number`);
         }
       }
     });
@@ -119,9 +119,9 @@ describe("M9.6: Multi-slide integration smoke test", () => {
       const slides = [{
         id: "pos-check",
         elements: [
-          rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 }),
-          text("Hello", { id: "t1", x: 500, y: 300, w: 400, size: 32 }),
-          rule({ id: "ru1", x: 100, y: 500, w: 200, color: "#fff", thickness: 3 }),
+          el("", { id: "r1", x: 100, y: 200, w: 300, h: 150 }),
+          el('<p style="font-size:32px;color:#fff">Hello</p>', { id: "t1", x: 500, y: 300, w: 400 }),
+          el("", { id: "ru1", x: 100, y: 500, w: 200, h: 3, style: { background: "#fff" } }),
         ],
       }];
 
@@ -163,12 +163,14 @@ describe("M9.6: Multi-slide integration smoke test", () => {
       const slides = [{
         id: "rel-check",
         elements: [
-          text("Title", { id: "rel-title", x: 100, y: 100, w: 400, size: 48, weight: 700 }),
-          text("Subtitle", {
-            id: "rel-sub", x: 100, w: 400, size: 28,
+          el('<p style="font-size:48px;font-weight:700;color:#fff">Title</p>', {
+            id: "rel-title", x: 100, y: 100, w: 400,
+          }),
+          el('<p style="font-size:28px;color:#fff">Subtitle</p>', {
+            id: "rel-sub", x: 100, w: 400,
             y: below("rel-title", { gap: 20 }),
           }),
-          rect({
+          el("", {
             id: "rel-box",
             x: rightOf("rel-title", { gap: 30 }),
             y: 100, w: 200, h: 100,
@@ -220,7 +222,7 @@ describe("M9.6: Multi-slide integration smoke test", () => {
         id: "notes-test",
         notes: "These are speaker notes.",
         elements: [
-          text("Slide", { x: 100, y: 100, w: 400, size: 32 }),
+          el('<p style="font-size:32px;color:#fff">Slide</p>', { x: 100, y: 100, w: 400 }),
         ],
       }];
 
@@ -241,7 +243,7 @@ describe("M9.6: Multi-slide integration smoke test", () => {
         id: "bg-test",
         background: "#1a1a2e",
         elements: [
-          text("BG Test", { x: 100, y: 100, w: 400, size: 32 }),
+          el('<p style="font-size:32px;color:#fff">BG Test</p>', { x: 100, y: 100, w: 400 }),
         ],
       }];
 
@@ -262,26 +264,22 @@ describe("M9.6: Multi-slide integration smoke test", () => {
     await init();
 
     await withContainer(async (container) => {
-      // A slide with panel and bullets
+      // A slide with panel and a list built from el()
       const slides = [{
         id: "compound-test",
         elements: [
           panel([
-            text("Panel Title", { w: "fill", size: 24, weight: 600, color: "#fff" }),
-            text("Panel body text.", { w: "fill", size: 18, color: "#ccc" }),
+            el('<p style="font-size:24px;font-weight:600;color:#fff">Panel Title</p>', { w: "fill" }),
+            el('<p style="font-size:18px;color:#ccc">Panel body text.</p>', { w: "fill" }),
           ], {
             id: "test-panel",
             x: 100, y: 100, w: 400,
             padding: 24, gap: 12,
           }),
-          bullets([
-            "First item",
-            "Second item",
-            { text: "Third with children", children: ["Sub A", "Sub B"] },
-          ], {
-            id: "test-bullets",
+          el('<ul style="font-size:24px;color:#fff"><li>First item</li><li>Second item</li><li>Third with children<ul><li>Sub A</li><li>Sub B</li></ul></li></ul>', {
+            id: "test-list",
             x: 100, y: below("test-panel", { gap: 30 }),
-            w: 600, size: 24, color: "#fff",
+            w: 600,
           }),
         ],
       }];
@@ -292,8 +290,8 @@ describe("M9.6: Multi-slide integration smoke test", () => {
       // Panel should have resolved elements
       assert.ok(lay.elements["test-panel"], "panel should be in scene graph");
 
-      // Bullets should have resolved elements
-      assert.ok(lay.elements["test-bullets"], "bullets should be in scene graph");
+      // List should have resolved elements
+      assert.ok(lay.elements["test-list"], "list should be in scene graph");
 
       // No errors
       assert.equal(lay.errors.length, 0, "should have no layout errors");
@@ -308,8 +306,8 @@ describe("M9.6: Multi-slide integration smoke test", () => {
       const slides = [{
         id: "conn-test",
         elements: [
-          rect({ id: "box-a", x: 100, y: 300, w: 200, h: 100 }),
-          rect({ id: "box-b", x: 500, y: 300, w: 200, h: 100 }),
+          el("", { id: "box-a", x: 100, y: 300, w: 200, h: 100 }),
+          el("", { id: "box-b", x: 500, y: 300, w: 200, h: 100 }),
           connect("box-a", "box-b", {
             id: "conn-ab",
             type: "straight",
@@ -342,7 +340,7 @@ describe("M9.6: Multi-slide integration smoke test", () => {
 
     await withContainer(async (container) => {
       const slides = [{
-        elements: [text("Test", { x: 100, y: 100, w: 400, size: 32 })],
+        elements: [el('<p style="font-size:32px;color:#fff">Test</p>', { x: 100, y: 100, w: 400 })],
       }];
       await render(slides, { container });
 
@@ -366,21 +364,21 @@ function buildTestDeck() {
       id: "s-title",
       background: "#0c0c14",
       elements: [
-        rect({ id: "s1-bg", x: 0, y: 0, w: 1920, h: 1080, layer: "bg",
+        el("", { id: "s1-bg", x: 0, y: 0, w: 1920, h: 1080, layer: "bg",
           style: { background: "radial-gradient(ellipse at 30% 40%, rgba(124,92,191,0.15), transparent)" },
         }),
-        text("Test Deck Title", {
+        el('<p style="font-size:72px;font-weight:700;color:#fff;text-align:center">Test Deck Title</p>', {
           id: "s1-title", x: 960, y: 400, w: 1200,
-          anchor: "tc", size: 72, weight: 700, color: "#fff", align: "center",
+          anchor: "tc",
         }),
-        rule({
-          id: "s1-rule", x: 900, y: below("s1-title", { gap: 24 }), w: 120,
-          color: "#7c5cbf", thickness: 3,
+        el("", {
+          id: "s1-rule", x: 900, y: below("s1-title", { gap: 24 }), w: 120, h: 3,
+          style: { background: "#7c5cbf" },
         }),
-        text("A subtitle for testing", {
+        el('<p style="font-size:28px;color:rgba(255,255,255,0.6);text-align:center">A subtitle for testing</p>', {
           id: "s1-sub", x: 960, w: 800,
           y: below("s1-rule", { gap: 20 }),
-          anchor: "tc", size: 28, color: "rgba(255,255,255,0.6)", align: "center",
+          anchor: "tc",
         }),
       ],
       notes: "Title slide speaker notes.",
@@ -390,17 +388,17 @@ function buildTestDeck() {
     {
       id: "s-content",
       elements: [
-        text("Content Slide", {
-          id: "s2-heading", x: 120, y: 90, w: 1680, size: 48, weight: 700, color: "#fff",
+        el('<p style="font-size:48px;font-weight:700;color:#fff">Content Slide</p>', {
+          id: "s2-heading", x: 120, y: 90, w: 1680,
         }),
         hstack([
           panel([
-            text("Card A", { w: "fill", size: 24, weight: 600, color: "#fff" }),
-            text("Description.", { w: "fill", size: 18, color: "#ccc" }),
+            el('<p style="font-size:24px;font-weight:600;color:#fff">Card A</p>', { w: "fill" }),
+            el('<p style="font-size:18px;color:#ccc">Description.</p>', { w: "fill" }),
           ], { id: "s2-card-a", w: 480, padding: 24, gap: 12 }),
           panel([
-            text("Card B", { w: "fill", size: 24, weight: 600, color: "#fff" }),
-            text("Description.", { w: "fill", size: 18, color: "#ccc" }),
+            el('<p style="font-size:24px;font-weight:600;color:#fff">Card B</p>', { w: "fill" }),
+            el('<p style="font-size:18px;color:#ccc">Description.</p>', { w: "fill" }),
           ], { id: "s2-card-b", w: 480, padding: 24, gap: 12 }),
         ], {
           id: "s2-cards", x: 120, y: below("s2-heading", { gap: 40 }), gap: 30,
@@ -412,28 +410,28 @@ function buildTestDeck() {
     {
       id: "s-diagram",
       elements: [
-        text("Diagram", { id: "s3-heading", x: 120, y: 90, w: 800, size: 48, weight: 700, color: "#fff" }),
-        rect({ id: "s3-box1", x: 200, y: 350, w: 250, h: 150 }),
-        rect({ id: "s3-box2", x: 600, y: 350, w: 250, h: 150 }),
+        el('<p style="font-size:48px;font-weight:700;color:#fff">Diagram</p>', {
+          id: "s3-heading", x: 120, y: 90, w: 800,
+        }),
+        el("", { id: "s3-box1", x: 200, y: 350, w: 250, h: 150 }),
+        el("", { id: "s3-box2", x: 600, y: 350, w: 250, h: 150 }),
         connect("s3-box1", "s3-box2", {
           id: "s3-conn", type: "straight", arrow: "end", color: "#7c5cbf",
         }),
       ],
     },
 
-    // Slide 4: Bullet list
+    // Slide 4: Feature list
     {
-      id: "s-bullets",
+      id: "s-features",
       elements: [
-        text("Features", { id: "s4-heading", x: 120, y: 90, w: 800, size: 48, weight: 700, color: "#fff" }),
-        bullets([
-          "First feature",
-          "Second feature",
-          { text: "Third feature", children: ["Detail A", "Detail B"] },
-        ], {
-          id: "s4-bullets",
+        el('<p style="font-size:48px;font-weight:700;color:#fff">Features</p>', {
+          id: "s4-heading", x: 120, y: 90, w: 800,
+        }),
+        el('<ul style="font-size:28px;color:#fff"><li>First feature</li><li>Second feature</li><li>Third feature<ul><li>Detail A</li><li>Detail B</li></ul></li></ul>', {
+          id: "s4-list",
           x: 120, y: below("s4-heading", { gap: 30 }),
-          w: 1000, size: 28, color: "#fff",
+          w: 1000,
         }),
       ],
     },
@@ -442,17 +440,17 @@ function buildTestDeck() {
     {
       id: "s-closing",
       elements: [
-        text("Thank You", {
+        el('<p style="font-size:72px;font-weight:700;color:#fff;text-align:center">Thank You</p>', {
           id: "s5-title", x: 960, y: 450, w: 1200,
-          anchor: "tc", size: 72, weight: 700, color: "#fff", align: "center",
+          anchor: "tc",
         }),
-        rule({
-          id: "s5-rule", x: 900, y: below("s5-title", { gap: 24 }), w: 120,
-          color: "#7c5cbf", thickness: 3,
+        el("", {
+          id: "s5-rule", x: 900, y: below("s5-title", { gap: 24 }), w: 120, h: 3,
+          style: { background: "#7c5cbf" },
         }),
-        text("The End", {
+        el('<p style="font-size:18px;color:rgba(255,255,255,0.3);text-align:center">The End</p>', {
           id: "s5-footer", x: 960, y: 950, w: 400,
-          anchor: "bc", size: 18, color: "rgba(255,255,255,0.3)", align: "center",
+          anchor: "bc",
         }),
       ],
     },

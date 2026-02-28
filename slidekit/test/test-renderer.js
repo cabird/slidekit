@@ -1,8 +1,9 @@
 // SlideKit Tests — M1.4 (Basic Renderer) + M1.6 (Remaining Tests)
+// Updated for v2 API: all element factories replaced by el(html, props)
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, image, rect, rule, group,
+  el, group,
   render, resolveAnchor, filterStyle,
   init, getConfig, resetIdCounter, _resetForTests,
 } from '../slidekit.js';
@@ -89,8 +90,8 @@ describe("M1.4: render() — basic DOM structure", () => {
       resetIdCounter();
       const slides = [{
         elements: [
-          text("Hello", { id: "t1", x: 100, y: 200, w: 400, h: 50 }),
-          rect({ id: "r1", x: 0, y: 0, w: 100, h: 100 }),
+          el('<p>Hello</p>', { id: "t1", x: 100, y: 200, w: 400, h: 50 }),
+          el('', { id: "r1", x: 0, y: 0, w: 100, h: 100 }),
         ],
       }];
       const { sections } = await render(slides, { container });
@@ -139,9 +140,9 @@ describe("M1.4: data-sk-id attributes", () => {
       resetIdCounter();
       const slides = [{
         elements: [
-          text("A", { id: "text-1", x: 0, y: 0, w: 200, h: 40 }),
-          rect({ id: "rect-1", x: 0, y: 50, w: 200, h: 100 }),
-          image("test.jpg", { id: "img-1", x: 0, y: 160, w: 200, h: 100 }),
+          el('<p>A</p>', { id: "text-1", x: 0, y: 0, w: 200, h: 40 }),
+          el('', { id: "rect-1", x: 0, y: 50, w: 200, h: 100 }),
+          el('<img src="test.jpg" style="width:100%;height:100%;object-fit:cover">', { id: "img-1", x: 0, y: 160, w: 200, h: 100 }),
         ],
       }];
       await render(slides, { container });
@@ -156,13 +157,13 @@ describe("M1.4: data-sk-id attributes", () => {
       resetIdCounter();
       const slides = [{
         elements: [
-          text("A", { x: 0, y: 0, w: 200, h: 40 }),
+          el('<p>A</p>', { x: 0, y: 0, w: 200, h: 40 }),
         ],
       }];
       await render(slides, { container });
       // After resetIdCounter in render(), the first element gets sk-1
-      const el = container.querySelector('[data-sk-id="sk-1"]');
-      assert.ok(el, "auto-generated ID should be set as data-sk-id");
+      const found = container.querySelector('[data-sk-id="sk-1"]');
+      assert.ok(found, "auto-generated ID should be set as data-sk-id");
     });
   });
 
@@ -172,7 +173,7 @@ describe("M1.4: data-sk-id attributes", () => {
       const slides = [{
         elements: [
           group([
-            text("Child", { id: "child-text", x: 0, y: 0, w: 100, h: 30 }),
+            el('<p>Child</p>', { id: "child-text", x: 0, y: 0, w: 100, h: 30 }),
           ], { id: "grp", x: 50, y: 50, w: 400, h: 300 }),
         ],
       }];
@@ -192,13 +193,13 @@ describe("M1.4: element positions", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 100, y: 200, w: 300, h: 150, anchor: "tl" }),
+          el('', { id: "r", x: 100, y: 200, w: 300, h: 150, anchor: "tl" }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.left, "100px");
-      assert.equal(el.style.top, "200px");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.left, "100px");
+      assert.equal(found.style.top, "200px");
     });
   });
 
@@ -206,14 +207,14 @@ describe("M1.4: element positions", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 960, y: 540, w: 400, h: 200, anchor: "cc" }),
+          el('', { id: "r", x: 960, y: 540, w: 400, h: 200, anchor: "cc" }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
+      const found = container.querySelector('[data-sk-id="r"]');
       // cc: left = 960 - 200 = 760, top = 540 - 100 = 440
-      assert.equal(el.style.left, "760px");
-      assert.equal(el.style.top, "440px");
+      assert.equal(found.style.left, "760px");
+      assert.equal(found.style.top, "440px");
     });
   });
 
@@ -221,14 +222,14 @@ describe("M1.4: element positions", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 500, y: 400, w: 200, h: 100, anchor: "br" }),
+          el('', { id: "r", x: 500, y: 400, w: 200, h: 100, anchor: "br" }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
+      const found = container.querySelector('[data-sk-id="r"]');
       // br: left = 500 - 200 = 300, top = 400 - 100 = 300
-      assert.equal(el.style.left, "300px");
-      assert.equal(el.style.top, "300px");
+      assert.equal(found.style.left, "300px");
+      assert.equal(found.style.top, "300px");
     });
   });
 });
@@ -242,13 +243,13 @@ describe("M1.4: element dimensions", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 400, h: 300 }),
+          el('', { id: "r", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.width, "400px");
-      assert.equal(el.style.height, "300px");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.width, "400px");
+      assert.equal(found.style.height, "300px");
     });
   });
 
@@ -256,13 +257,13 @@ describe("M1.4: element dimensions", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.position, "absolute");
-      assert.equal(el.style.boxSizing, "border-box");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.position, "absolute");
+      assert.equal(found.style.boxSizing, "border-box");
     });
   });
 });
@@ -276,12 +277,12 @@ describe("M1.4: text element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          text("Hello World", { id: "t", x: 0, y: 0, w: 400, h: 50 }),
+          el('<p>Hello World</p>', { id: "t", x: 0, y: 0, w: 400, h: 50 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      assert.equal(el.textContent, "Hello World");
+      const found = container.querySelector('[data-sk-id="t"]');
+      assert.equal(found.textContent, "Hello World");
     });
   });
 
@@ -289,14 +290,14 @@ describe("M1.4: text element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          text("Line 1\nLine 2\nLine 3", { id: "t", x: 0, y: 0, w: 400, h: 100 }),
+          el('Line 1<br>Line 2<br>Line 3', { id: "t", x: 0, y: 0, w: 400, h: 100 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      const brs = el.querySelectorAll("br");
+      const found = container.querySelector('[data-sk-id="t"]');
+      const brs = found.querySelectorAll("br");
       assert.equal(brs.length, 2, "should have 2 <br> elements");
-      assert.equal(el.textContent, "Line 1Line 2Line 3");
+      assert.equal(found.textContent, "Line 1Line 2Line 3");
     });
   });
 
@@ -304,27 +305,29 @@ describe("M1.4: text element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          text("", { id: "t", x: 0, y: 0, w: 200, h: 30 }),
+          el('', { id: "t", x: 0, y: 0, w: 200, h: 30 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      assert.equal(el.textContent, "");
+      const found = container.querySelector('[data-sk-id="t"]');
+      assert.equal(found.textContent, "");
     });
   });
 
-  it("does not execute script tags in text content (XSS protection)", async () => {
+  it("el() renders raw HTML via innerHTML (no XSS escaping by design)", async () => {
     await withContainer(async (container) => {
+      // v2: el() uses innerHTML, so HTML is rendered as-is.
+      // Script tags inserted via innerHTML do not execute per the HTML spec,
+      // but the content is treated as HTML, not escaped text.
       const slides = [{
         elements: [
-          text('<script>window.__xss_test=true</script>', { id: "t", x: 0, y: 0, w: 400, h: 50 }),
+          el('<b>Bold</b> and <em>italic</em>', { id: "t", x: 0, y: 0, w: 400, h: 50 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      // Content should be treated as text, not HTML
-      assert.ok(el.textContent.includes("<script>"), "script tag should be visible as text");
-      assert.equal(window.__xss_test, undefined, "script should not have executed");
+      const found = container.querySelector('[data-sk-id="t"]');
+      assert.ok(found.querySelector("b"), "HTML tags should be rendered as DOM elements");
+      assert.equal(found.textContent, "Bold and italic");
     });
   });
 });
@@ -338,12 +341,12 @@ describe("M1.4: image element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          image("test.jpg", { id: "img", x: 0, y: 0, w: 400, h: 300 }),
+          el('<img src="test.jpg" style="width:100%;height:100%;object-fit:cover">', { id: "img", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="img"]');
-      const img = el.querySelector("img");
+      const found = container.querySelector('[data-sk-id="img"]');
+      const img = found.querySelector("img");
       assert.ok(img, "should have an <img> child");
       assert.ok(img.src.endsWith("test.jpg"), "img src should contain test.jpg");
     });
@@ -353,7 +356,7 @@ describe("M1.4: image element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          image("test.jpg", { id: "img", x: 0, y: 0, w: 400, h: 300 }),
+          el('<img src="test.jpg" style="width:100%;height:100%;object-fit:cover">', { id: "img", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
@@ -366,7 +369,7 @@ describe("M1.4: image element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          image("test.jpg", { id: "img", x: 0, y: 0, w: 400, h: 300, fit: "contain" }),
+          el('<img src="test.jpg" style="width:100%;height:100%;object-fit:contain">', { id: "img", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
@@ -379,7 +382,7 @@ describe("M1.4: image element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          image("test.jpg", { id: "img", x: 0, y: 0, w: 400, h: 300, position: "top left" }),
+          el('<img src="test.jpg" style="width:100%;height:100%;object-fit:cover;object-position:top left">', { id: "img", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
@@ -397,7 +400,7 @@ describe("M1.4: image element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          image("test.jpg", { id: "img", x: 0, y: 0, w: 400, h: 300 }),
+          el('<img src="test.jpg" style="width:100%;height:100%;display:block;object-fit:cover">', { id: "img", x: 0, y: 0, w: 400, h: 300 }),
         ],
       }];
       await render(slides, { container });
@@ -418,14 +421,14 @@ describe("M1.4: rect element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 100, y: 200, w: 300, h: 150, fill: "#1a1a2e" }),
+          el('', { id: "r", x: 100, y: 200, w: 300, h: 150, style: { background: "#1a1a2e" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.ok(el, "rect element should exist");
-      // fill maps to background via convenience props; browser may store as hex or rgb
-      const bg = el.style.background;
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.ok(found, "rect element should exist");
+      // background is applied via the style prop; browser may store as hex or rgb
+      const bg = found.style.background;
       assert.ok(
         bg === "#1a1a2e" || bg.includes("26, 26, 46") || bg === "rgb(26, 26, 46)",
         `rect background should reflect fill value, got: "${bg}"`
@@ -437,12 +440,12 @@ describe("M1.4: rect element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100, radius: 16 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100, style: { borderRadius: "16px" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.borderRadius, "16px");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.borderRadius, "16px");
     });
   });
 });
@@ -456,13 +459,13 @@ describe("M1.4: rule element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rule({ id: "hr", x: 170, y: 300, w: 120, thickness: 3 }),
+          el('', { id: "hr", x: 170, y: 300, w: 120, h: 3, style: { background: "#ffffff" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="hr"]');
-      assert.equal(el.style.width, "120px");
-      assert.equal(el.style.height, "3px");
+      const found = container.querySelector('[data-sk-id="hr"]');
+      assert.equal(found.style.width, "120px");
+      assert.equal(found.style.height, "3px");
     });
   });
 
@@ -470,13 +473,13 @@ describe("M1.4: rule element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rule({ id: "vr", x: 100, y: 100, h: 200, direction: "vertical", thickness: 4 }),
+          el('', { id: "vr", x: 100, y: 100, w: 4, h: 200, style: { background: "#ffffff" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="vr"]');
-      assert.equal(el.style.width, "4px");
-      assert.equal(el.style.height, "200px");
+      const found = container.querySelector('[data-sk-id="vr"]');
+      assert.equal(found.style.width, "4px");
+      assert.equal(found.style.height, "200px");
     });
   });
 
@@ -484,15 +487,16 @@ describe("M1.4: rule element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rule({ id: "r", x: 0, y: 0, w: 100, color: "#7c5cbf", thickness: 2 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 2, style: { background: "#7c5cbf" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      // backgroundColor should be the rule's color
+      const found = container.querySelector('[data-sk-id="r"]');
+      // background should be the rule's color
+      const bg = found.style.background;
       assert.ok(
-        el.style.backgroundColor === "rgb(124, 92, 191)" || el.style.backgroundColor === "#7c5cbf",
-        "rule backgroundColor should match color prop"
+        bg === "rgb(124, 92, 191)" || bg === "#7c5cbf",
+        "rule background should match color prop"
       );
     });
   });
@@ -501,12 +505,12 @@ describe("M1.4: rule element rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rule({ id: "r", x: 0, y: 0, w: 100 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 2, style: { background: "#ffffff" } }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.height, "2px");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.height, "2px");
     });
   });
 });
@@ -521,8 +525,8 @@ describe("M1.4: group element rendering", () => {
       const slides = [{
         elements: [
           group([
-            rect({ id: "c1", x: 0, y: 0, w: 100, h: 50 }),
-            text("Hi", { id: "c2", x: 0, y: 60, w: 100, h: 30 }),
+            el('', { id: "c1", x: 0, y: 0, w: 100, h: 50 }),
+            el('<p>Hi</p>', { id: "c2", x: 0, y: 60, w: 100, h: 30 }),
           ], { id: "g", x: 200, y: 100, w: 400, h: 300 }),
         ],
       }];
@@ -539,7 +543,7 @@ describe("M1.4: group element rendering", () => {
       const slides = [{
         elements: [
           group([
-            rect({ id: "c1", x: 10, y: 20, w: 50, h: 50 }),
+            el('', { id: "c1", x: 10, y: 20, w: 50, h: 50 }),
           ], { id: "g", x: 200, y: 100, w: 400, h: 300 }),
         ],
       }];
@@ -562,7 +566,7 @@ describe("M1.4: group element rendering", () => {
         elements: [
           group([
             group([
-              rect({ id: "inner-rect", x: 0, y: 0, w: 50, h: 50 }),
+              el('', { id: "inner-rect", x: 0, y: 0, w: 50, h: 50 }),
             ], { id: "inner-group", x: 10, y: 10, w: 100, h: 100 }),
           ], { id: "outer-group", x: 50, y: 50, w: 200, h: 200 }),
         ],
@@ -587,8 +591,8 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "content-el", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
-          rect({ id: "bg-el", x: 0, y: 0, w: 100, h: 100, layer: "bg" }),
+          el('', { id: "content-el", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
+          el('', { id: "bg-el", x: 0, y: 0, w: 100, h: 100, layer: "bg" }),
         ],
       }];
       await render(slides, { container });
@@ -604,8 +608,8 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "content-el", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
-          rect({ id: "overlay-el", x: 0, y: 0, w: 100, h: 100, layer: "overlay" }),
+          el('', { id: "content-el", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
+          el('', { id: "overlay-el", x: 0, y: 0, w: 100, h: 100, layer: "overlay" }),
         ],
       }];
       await render(slides, { container });
@@ -621,9 +625,9 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "first", x: 0, y: 0, w: 100, h: 100 }),
-          rect({ id: "second", x: 0, y: 0, w: 100, h: 100 }),
-          rect({ id: "third", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "first", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "second", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "third", x: 0, y: 0, w: 100, h: 100 }),
         ],
       }];
       await render(slides, { container });
@@ -639,8 +643,8 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "first", x: 0, y: 0, w: 100, h: 100, z: 10 }),
-          rect({ id: "second", x: 0, y: 0, w: 100, h: 100, z: 5 }),
+          el('', { id: "first", x: 0, y: 0, w: 100, h: 100, z: 10 }),
+          el('', { id: "second", x: 0, y: 0, w: 100, h: 100, z: 5 }),
         ],
       }];
       await render(slides, { container });
@@ -654,8 +658,8 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "default-el", x: 0, y: 0, w: 100, h: 100 }),
-          rect({ id: "behind-el", x: 0, y: 0, w: 100, h: 100, z: -1 }),
+          el('', { id: "default-el", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "behind-el", x: 0, y: 0, w: 100, h: 100, z: -1 }),
         ],
       }];
       await render(slides, { container });
@@ -669,9 +673,9 @@ describe("M1.4: z-ordering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "overlay", x: 0, y: 0, w: 100, h: 100, layer: "overlay" }),
-          rect({ id: "bg", x: 0, y: 0, w: 100, h: 100, layer: "bg" }),
-          rect({ id: "content", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
+          el('', { id: "overlay", x: 0, y: 0, w: 100, h: 100, layer: "overlay" }),
+          el('', { id: "bg", x: 0, y: 0, w: 100, h: 100, layer: "bg" }),
+          el('', { id: "content", x: 0, y: 0, w: 100, h: 100, layer: "content" }),
         ],
       }];
       await render(slides, { container });
@@ -824,13 +828,13 @@ describe("M1.4: className", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100, className: "glass-card accent" }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100, className: "glass-card accent" }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.ok(el.classList.contains("glass-card"), "should have glass-card class");
-      assert.ok(el.classList.contains("accent"), "should have accent class");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.ok(found.classList.contains("glass-card"), "should have glass-card class");
+      assert.ok(found.classList.contains("accent"), "should have accent class");
     });
   });
 
@@ -838,12 +842,12 @@ describe("M1.4: className", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.className, "");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.className, "");
     });
   });
 });
@@ -857,7 +861,7 @@ describe("M1.4: CSS filtering in rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({
+          el('', {
             id: "r", x: 0, y: 0, w: 100, h: 100,
             style: {
               display: "flex",
@@ -868,49 +872,52 @@ describe("M1.4: CSS filtering in rendering", () => {
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
+      const found = container.querySelector('[data-sk-id="r"]');
       // boxShadow should be applied
-      assert.ok(el.style.boxShadow.includes("rgba"), "boxShadow should be applied");
+      assert.ok(found.style.boxShadow.includes("rgba"), "boxShadow should be applied");
       // display should NOT be "flex" (blocked), it should be whatever the default is or empty
-      assert.ok(el.style.display !== "flex", "display:flex should be blocked");
+      assert.ok(found.style.display !== "flex", "display:flex should be blocked");
     });
   });
 
-  it("convenience props are applied to rendered elements", async () => {
+  it("style properties are applied to rendered elements", async () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          text("Hello", {
+          el('<p>Hello</p>', {
             id: "t", x: 0, y: 0, w: 200, h: 50,
-            color: "#ff0000", size: 48, weight: 700, font: "Georgia",
+            style: {
+              color: "#ff0000",
+              fontSize: "48px",
+              fontWeight: "700",
+              fontFamily: "Georgia, sans-serif",
+            },
           }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      assert.equal(el.style.color, "rgb(255, 0, 0)");
-      assert.equal(el.style.fontSize, "48px");
-      assert.equal(el.style.fontWeight, "700");
+      const found = container.querySelector('[data-sk-id="t"]');
+      assert.equal(found.style.color, "rgb(255, 0, 0)");
+      assert.equal(found.style.fontSize, "48px");
+      assert.equal(found.style.fontWeight, "700");
       // Browser normalizes single-word font families by dropping quotes
-      assert.equal(el.style.fontFamily, "Georgia, sans-serif");
+      assert.equal(found.style.fontFamily, "Georgia, sans-serif");
     });
   });
 
-  it("style object overrides convenience props on rendered element", async () => {
+  it("style object properties are applied to rendered element", async () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          text("Hello", {
+          el('<p>Hello</p>', {
             id: "t", x: 0, y: 0, w: 200, h: 50,
-            color: "blue",
             style: { color: "red" },
           }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="t"]');
-      // style.color should be "red" because style overrides convenience
-      assert.equal(el.style.color, "red");
+      const found = container.querySelector('[data-sk-id="t"]');
+      assert.equal(found.style.color, "red");
     });
   });
 
@@ -918,21 +925,21 @@ describe("M1.4: CSS filtering in rendering", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({
+          el('', {
             id: "r", x: 0, y: 0, w: 100, h: 100,
             style: { "--sk-accent": "#7c5cbf", "--glow-size": "20px" },
           }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
+      const found = container.querySelector('[data-sk-id="r"]');
       assert.equal(
-        el.style.getPropertyValue("--sk-accent"),
+        found.style.getPropertyValue("--sk-accent"),
         "#7c5cbf",
         "CSS custom property --sk-accent should be set"
       );
       assert.equal(
-        el.style.getPropertyValue("--glow-size"),
+        found.style.getPropertyValue("--glow-size"),
         "20px",
         "CSS custom property --glow-size should be set"
       );
@@ -949,12 +956,12 @@ describe("M1.4: opacity", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100, opacity: 0.5 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100, opacity: 0.5 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.opacity, "0.5");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.opacity, "0.5");
     });
   });
 
@@ -962,12 +969,12 @@ describe("M1.4: opacity", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r", x: 0, y: 0, w: 100, h: 100 }),
+          el('', { id: "r", x: 0, y: 0, w: 100, h: 100 }),
         ],
       }];
       await render(slides, { container });
-      const el = container.querySelector('[data-sk-id="r"]');
-      assert.equal(el.style.opacity, "");
+      const found = container.querySelector('[data-sk-id="r"]');
+      assert.equal(found.style.opacity, "");
     });
   });
 });
@@ -982,20 +989,20 @@ describe("M1.4: ID determinism in render()", () => {
       // First render
       const slides = [{
         elements: [
-          text("A", { x: 0, y: 0, w: 100, h: 30 }),
-          rect({ x: 0, y: 0, w: 50, h: 50 }),
+          el('<p>A</p>', { x: 0, y: 0, w: 100, h: 30 }),
+          el('', { x: 0, y: 0, w: 50, h: 50 }),
         ],
       }];
       await render(slides, { container });
       const ids1 = Array.from(container.querySelectorAll("[data-sk-id]")).map(
-        el => el.getAttribute("data-sk-id")
+        found => found.getAttribute("data-sk-id")
       );
 
       // Clear and render again
       container.innerHTML = "";
       await render(slides, { container });
       const ids2 = Array.from(container.querySelectorAll("[data-sk-id]")).map(
-        el => el.getAttribute("data-sk-id")
+        found => found.getAttribute("data-sk-id")
       );
 
       assert.deepEqual(ids1, ids2, "IDs should be deterministic across render calls");
@@ -1014,15 +1021,15 @@ describe("M1.4: multiple slides", () => {
         {
           id: "slide-1",
           background: "#000",
-          elements: [text("Slide 1", { id: "s1-text", x: 0, y: 0, w: 200, h: 50 })],
+          elements: [el('<p>Slide 1</p>', { id: "s1-text", x: 0, y: 0, w: 200, h: 50 })],
           notes: "First slide notes",
         },
         {
           id: "slide-2",
           background: "linear-gradient(135deg, #1a1a2e, #16213e)",
           elements: [
-            rect({ id: "s2-bg", x: 0, y: 0, w: 1920, h: 1080, layer: "bg" }),
-            text("Slide 2", { id: "s2-text", x: 100, y: 100, w: 200, h: 50 }),
+            el('', { id: "s2-bg", x: 0, y: 0, w: 1920, h: 1080, layer: "bg" }),
+            el('<p>Slide 2</p>', { id: "s2-text", x: 100, y: 100, w: 200, h: 50 }),
           ],
         },
       ];

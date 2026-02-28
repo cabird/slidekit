@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, group, vstack,
+  el, group, vstack,
   render, layout, init,
   _resetForTests,
   grid, snap,
@@ -90,7 +90,7 @@ describe("M8.2: grid — basic configuration", () => {
   it("uses safe zone margins when init has been called", async () => {
     _resetForTests();
     await withContainer(async (container) => {
-      await render([{ elements: [rect({ id: "gg1", x: 0, y: 0, w: 100, h: 100 })] }], { container });
+      await render([{ elements: [el('', { id: "gg1", x: 0, y: 0, w: 100, h: 100 })] }], { container });
       const g = grid();
       // After init via render, should use safe zone margins
       assert.ok(g.marginLeft >= 0, "marginLeft should be non-negative");
@@ -370,60 +370,60 @@ describe("M8.3: resolvePercentage — safe-zone-relative", () => {
 describe("M8.3: percentage sugar — layout integration", () => {
   it("layout resolves percentage x position", async () => {
     _resetForTests();
-    const el = rect({ id: "pct-x", x: "50%", y: 100, w: 200, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "pct-x", x: "50%", y: 100, w: 200, h: 100 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["pct-x"].resolved.x, 960);
   });
 
   it("layout resolves percentage y position", async () => {
     _resetForTests();
-    const el = rect({ id: "pct-y", x: 100, y: "25%", w: 200, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "pct-y", x: 100, y: "25%", w: 200, h: 100 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["pct-y"].resolved.y, 270); // 25% of 1080
   });
 
   it("layout resolves percentage width", async () => {
     _resetForTests();
-    const el = rect({ id: "pct-w", x: 0, y: 0, w: "50%", h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "pct-w", x: 0, y: 0, w: "50%", h: 100 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["pct-w"].resolved.w, 960);
   });
 
   it("layout resolves percentage height", async () => {
     _resetForTests();
-    const el = rect({ id: "pct-h", x: 0, y: 0, w: 200, h: "50%"  });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "pct-h", x: 0, y: 0, w: 200, h: "50%"  });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["pct-h"].resolved.h, 540);
   });
 
   it("layout resolves safe-zone percentage position", async () => {
     _resetForTests();
-    const el = rect({ id: "safe-x", x: "safe:0%", y: "safe:0%", w: 200, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "safe-x", x: "safe:0%", y: "safe:0%", w: 200, h: 100 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["safe-x"].resolved.x, 120);
     assert.equal(scene.elements["safe-x"].resolved.y, 90);
   });
 
   it("layout resolves safe-zone percentage width", async () => {
     _resetForTests();
-    const el = rect({ id: "safe-w", x: 120, y: 90, w: "safe:100%", h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "safe-w", x: 120, y: 90, w: "safe:100%", h: 100 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["safe-w"].resolved.w, 1680);
   });
 
   it("does not resolve 'fill' as a percentage", async () => {
     _resetForTests();
-    const el = rect({ id: "fill-w", x: 0, y: 0, w: "fill", h: 100 });
+    const e = el('', { id: "fill-w", x: 0, y: 0, w: "fill", h: 100 });
     // fill is handled by stacks, not by percentage resolution
     // Just make sure it doesn't crash
-    const scene = await layout({ elements: [el] });
+    const scene = await layout({ elements: [e] });
     assert.ok(scene, "layout should not crash with fill width");
   });
 
   it("no errors for valid percentage positions", async () => {
     _resetForTests();
-    const el = rect({ id: "pct-ok", x: "50%", y: "50%", w: "25%", h: "25%" });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "pct-ok", x: "50%", y: "50%", w: "25%", h: "25%" });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.errors.length, 0, "should have no layout errors");
   });
 });
@@ -500,8 +500,8 @@ describe("M8.4: rotatedAABB — AABB computation", () => {
 describe("M8.4: rotate — layout integration", () => {
   it("layout resolves element with rotate prop", async () => {
     _resetForTests();
-    const el = rect({ id: "rot1", x: 100, y: 100, w: 200, h: 100, rotate: 45 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "rot1", x: 100, y: 100, w: 200, h: 100, rotate: 45 });
+    const scene = await layout({ elements: [e] });
     assert.ok(scene.elements["rot1"], "rotated element should be in scene");
     assert.equal(scene.elements["rot1"].resolved.w, 200, "resolved w should be the authored w");
     assert.equal(scene.elements["rot1"].resolved.h, 100, "resolved h should be the authored h");
@@ -509,8 +509,8 @@ describe("M8.4: rotate — layout integration", () => {
 
   it("rotate does not affect authored dimensions in scene model", async () => {
     _resetForTests();
-    const el = rect({ id: "rot2", x: 100, y: 100, w: 200, h: 100, rotate: 90 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "rot2", x: 100, y: 100, w: 200, h: 100, rotate: 90 });
+    const scene = await layout({ elements: [e] });
     // The resolved bounds should still be the authored dimensions
     assert.equal(scene.elements["rot2"].resolved.w, 200);
     assert.equal(scene.elements["rot2"].resolved.h, 100);
@@ -518,8 +518,8 @@ describe("M8.4: rotate — layout integration", () => {
 
   it("no errors for valid element with rotate", async () => {
     _resetForTests();
-    const el = rect({ id: "rot3", x: 500, y: 400, w: 300, h: 200, rotate: 30 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "rot3", x: 500, y: 400, w: 300, h: 200, rotate: 30 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.errors.length, 0);
   });
 });
@@ -532,8 +532,8 @@ describe("M8.4: rotate — rendering", () => {
   it("renders element with rotate as CSS transform", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "rr1", x: 100, y: 100, w: 200, h: 100, rotate: 45, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "rr1", x: 100, y: 100, w: 200, h: 100, rotate: 45, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="rr1"]');
       assert.ok(div, "rotated element should be rendered");
@@ -545,8 +545,8 @@ describe("M8.4: rotate — rendering", () => {
   it("does not add transform when rotate is 0", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "rr2", x: 100, y: 100, w: 200, h: 100, rotate: 0, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "rr2", x: 100, y: 100, w: 200, h: 100, rotate: 0, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="rr2"]');
       assert.ok(div, "element should be rendered");
@@ -558,8 +558,8 @@ describe("M8.4: rotate — rendering", () => {
   it("does not add transform when rotate is undefined", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "rr3", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "rr3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="rr3"]');
       assert.ok(div, "element should be rendered");
@@ -576,16 +576,16 @@ describe("M8.4: rotate — rendering", () => {
 describe("M8.5: repeat — basic configuration", () => {
   it("returns a group containing count copies", () => {
     _resetForTests();
-    const el = rect({ id: "r1", w: 100, h: 50 });
-    const result = repeat(el, { count: 3 });
+    const e = el('', { id: "r1", w: 100, h: 50 });
+    const result = repeat(e, { count: 3 });
     assert.equal(result.type, "group");
     assert.equal(result.children.length, 3);
   });
 
   it("each copy has unique ID with suffix", () => {
     _resetForTests();
-    const el = rect({ id: "card", w: 100, h: 50 });
-    const result = repeat(el, { count: 3 });
+    const e = el('', { id: "card", w: 100, h: 50 });
+    const result = repeat(e, { count: 3 });
     assert.equal(result.children[0].id, "card-1");
     assert.equal(result.children[1].id, "card-2");
     assert.equal(result.children[2].id, "card-3");
@@ -593,8 +593,8 @@ describe("M8.5: repeat — basic configuration", () => {
 
   it("positions copies in a single row by default", () => {
     _resetForTests();
-    const el = rect({ id: "item", w: 100, h: 50 });
-    const result = repeat(el, { count: 3, gapX: 10 });
+    const e = el('', { id: "item", w: 100, h: 50 });
+    const result = repeat(e, { count: 3, gapX: 10 });
     assert.equal(result.children[0].props.x, 0);
     assert.equal(result.children[1].props.x, 110); // 100 + 10
     assert.equal(result.children[2].props.x, 220); // 200 + 20
@@ -606,8 +606,8 @@ describe("M8.5: repeat — basic configuration", () => {
 
   it("arranges copies in a grid with cols", () => {
     _resetForTests();
-    const el = rect({ id: "box", w: 100, h: 80 });
-    const result = repeat(el, { count: 4, cols: 2, gapX: 10, gapY: 20 });
+    const e = el('', { id: "box", w: 100, h: 80 });
+    const result = repeat(e, { count: 4, cols: 2, gapX: 10, gapY: 20 });
     // Row 0: (0, 0), (110, 0)
     // Row 1: (0, 100), (110, 100)
     assert.equal(result.children[0].props.x, 0);
@@ -622,16 +622,16 @@ describe("M8.5: repeat — basic configuration", () => {
 
   it("applies startX and startY offsets", () => {
     _resetForTests();
-    const el = rect({ id: "off", w: 50, h: 50 });
-    const result = repeat(el, { count: 2, startX: 100, startY: 200 });
+    const e = el('', { id: "off", w: 50, h: 50 });
+    const result = repeat(e, { count: 2, startX: 100, startY: 200 });
     assert.equal(result.children[0].props.x, 100);
     assert.equal(result.children[0].props.y, 200);
   });
 
   it("computes correct group bounds", () => {
     _resetForTests();
-    const el = rect({ id: "gb", w: 100, h: 50 });
-    const result = repeat(el, { count: 6, cols: 3, gapX: 10, gapY: 20 });
+    const e = el('', { id: "gb", w: 100, h: 50 });
+    const result = repeat(e, { count: 6, cols: 3, gapX: 10, gapY: 20 });
     // groupW = 3*100 + 2*10 = 320
     // groupH = 2*50 + 1*20 = 120
     assert.equal(result.props.w, 320);
@@ -640,18 +640,18 @@ describe("M8.5: repeat — basic configuration", () => {
 
   it("default count is 1 when not specified", () => {
     _resetForTests();
-    const el = rect({ id: "one", w: 100, h: 100 });
-    const result = repeat(el, {});
+    const e = el('', { id: "one", w: 100, h: 100 });
+    const result = repeat(e, {});
     assert.equal(result.children.length, 1);
   });
 
   it("each copy is independent (deep clone)", () => {
     _resetForTests();
-    const el = rect({ id: "dc", w: 100, h: 100, fill: "#f00" });
-    const result = repeat(el, { count: 2 });
+    const e = el('', { id: "dc", w: 100, h: 100, style: { background: "#f00" } });
+    const result = repeat(e, { count: 2 });
     // Modify first copy's props; second should be unaffected
-    result.children[0].props.fill = "#00f";
-    assert.equal(result.children[1].props.fill, "#f00");
+    result.children[0].props.style.background = "#00f";
+    assert.equal(result.children[1].props.style.background, "#f00");
   });
 });
 
@@ -662,11 +662,11 @@ describe("M8.5: repeat — basic configuration", () => {
 describe("M8.5: repeat — nested children re-ID", () => {
   it("re-IDs children of groups", () => {
     _resetForTests();
-    const el = group([
-      rect({ id: "inner-a", w: 50, h: 50 }),
-      rect({ id: "inner-b", w: 50, h: 50 }),
+    const e = group([
+      el('', { id: "inner-a", w: 50, h: 50 }),
+      el('', { id: "inner-b", w: 50, h: 50 }),
     ], { id: "grp", w: 200, h: 100 });
-    const result = repeat(el, { count: 2 });
+    const result = repeat(e, { count: 2 });
 
     // First copy: grp-1, inner-a-1, inner-b-1
     assert.equal(result.children[0].id, "grp-1");
@@ -681,12 +681,12 @@ describe("M8.5: repeat — nested children re-ID", () => {
 
   it("re-IDs deeply nested children", () => {
     _resetForTests();
-    const el = group([
+    const e = group([
       group([
-        rect({ id: "deep", w: 20, h: 20 }),
+        el('', { id: "deep", w: 20, h: 20 }),
       ], { id: "mid", w: 50, h: 50 }),
     ], { id: "outer", w: 100, h: 100 });
-    const result = repeat(el, { count: 2 });
+    const result = repeat(e, { count: 2 });
 
     // First copy
     assert.equal(result.children[0].id, "outer-1");
@@ -707,8 +707,8 @@ describe("M8.5: repeat — nested children re-ID", () => {
 describe("M8.5: repeat — layout integration", () => {
   it("layout resolves repeated elements", async () => {
     _resetForTests();
-    const el = rect({ id: "rl", w: 100, h: 50 });
-    const result = repeat(el, { count: 3, gapX: 10, startX: 100, startY: 200 });
+    const e = el('', { id: "rl", w: 100, h: 50 });
+    const result = repeat(e, { count: 3, gapX: 10, startX: 100, startY: 200 });
     result.props.x = 0;
     result.props.y = 0;
 
@@ -720,8 +720,8 @@ describe("M8.5: repeat — layout integration", () => {
 
   it("no errors for valid repeat", async () => {
     _resetForTests();
-    const el = rect({ id: "rle", w: 80, h: 40 });
-    const result = repeat(el, { count: 4, cols: 2, gapX: 10, gapY: 10 });
+    const e = el('', { id: "rle", w: 80, h: 40 });
+    const result = repeat(e, { count: 4, cols: 2, gapX: 10, gapY: 10 });
     result.props.x = 100;
     result.props.y = 100;
 
@@ -806,15 +806,15 @@ describe("M8.6: shadow presets — getShadowPresets", () => {
 });
 
 // =============================================================================
-// M8.6: Shadow — Convenience Prop in filterStyle
+// M8.6: Shadow — Rendering via style.boxShadow
 // =============================================================================
 
-describe("M8.6: shadow — convenience prop in rendering", () => {
-  it("shadow convenience prop maps to boxShadow in CSS", async () => {
+describe("M8.6: shadow — rendering via style.boxShadow", () => {
+  it("boxShadow style maps to boxShadow in CSS", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "sh1", x: 100, y: 100, w: 200, h: 100, shadow: "md", fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "sh1", x: 100, y: 100, w: 200, h: 100, style: { boxShadow: resolveShadow("md"), background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="sh1"]');
       assert.ok(div, "shadow element should be rendered");
@@ -823,12 +823,12 @@ describe("M8.6: shadow — convenience prop in rendering", () => {
     });
   });
 
-  it("shadow passthrough CSS value is applied directly", async () => {
+  it("custom boxShadow CSS value is applied directly", async () => {
     await withContainer(async (container) => {
       _resetForTests();
       const customShadow = "5px 5px 15px red";
-      const el = rect({ id: "sh2", x: 100, y: 100, w: 200, h: 100, shadow: customShadow, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "sh2", x: 100, y: 100, w: 200, h: 100, style: { boxShadow: customShadow, background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="sh2"]');
       assert.ok(div, "element should be rendered");
@@ -845,8 +845,8 @@ describe("M8.4: rotate — collision AABB expansion", () => {
   it("rotated elements expand collision bounds", async () => {
     _resetForTests();
     // Two elements side by side that only overlap when one is rotated
-    // rect at (200, 200) w=200, h=100, rotate=45 -> AABB expands
-    // rect at (380, 200) w=100, h=100 (no rotate)
+    // el at (200, 200) w=200, h=100, rotate=45 -> AABB expands
+    // el at (380, 200) w=100, h=100 (no rotate)
     // Without rotation, no collision (gap of 180px between them? Let's arrange more carefully)
     // Actually, AABB for 200x100@45deg: w=h=212.13
     // Center of first: (300, 250). AABB: x=300-106=194, y=250-106=144, w=212, h=212
@@ -854,10 +854,10 @@ describe("M8.4: rotate — collision AABB expansion", () => {
     // AABB first: x=194..406, y=144..356
     // Second: x=380..480, y=200..300
     // Overlap: x=380..406, y=200..300 -> should detect collision
-    const el1 = rect({ id: "col-r1", x: 200, y: 200, w: 200, h: 100, rotate: 45 });
-    const el2 = rect({ id: "col-r2", x: 380, y: 200, w: 100, h: 100 });
+    const e1 = el('', { id: "col-r1", x: 200, y: 200, w: 200, h: 100, rotate: 45 });
+    const e2 = el('', { id: "col-r2", x: 380, y: 200, w: 100, h: 100 });
 
-    const scene = await layout({ elements: [el1, el2] });
+    const scene = await layout({ elements: [e1, e2] });
 
     // Should have collision due to AABB expansion
     assert.ok(scene.collisions.length > 0, "rotated element should create collision via AABB expansion");
@@ -865,10 +865,10 @@ describe("M8.4: rotate — collision AABB expansion", () => {
 
   it("non-rotated elements that do not overlap have no collisions", async () => {
     _resetForTests();
-    const el1 = rect({ id: "nc1", x: 0, y: 0, w: 100, h: 100 });
-    const el2 = rect({ id: "nc2", x: 200, y: 0, w: 100, h: 100 });
+    const e1 = el('', { id: "nc1", x: 0, y: 0, w: 100, h: 100 });
+    const e2 = el('', { id: "nc2", x: 200, y: 0, w: 100, h: 100 });
 
-    const scene = await layout({ elements: [el1, el2] });
+    const scene = await layout({ elements: [e1, e2] });
     assert.equal(scene.collisions.length, 0, "no collisions for non-overlapping elements");
   });
 });
@@ -916,8 +916,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("renders debug overlay after render() has been called", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg1", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       const overlay = mod.renderDebugOverlay();
@@ -943,8 +943,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("toggle turns overlay on then off", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg2", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
 
@@ -963,8 +963,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("overlay contains safe zone element by default", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg3", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       const overlay = mod.renderDebugOverlay();
@@ -980,8 +980,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("overlay contains element boxes", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg4", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg4", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       const overlay = mod.renderDebugOverlay();
@@ -996,8 +996,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("overlay can be rendered with only specific features", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg5", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg5", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       const overlay = mod.renderDebugOverlay({
@@ -1024,8 +1024,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
   it("removeDebugOverlay cleans up the DOM", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "dbg6", x: 100, y: 100, w: 200, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "dbg6", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       mod.renderDebugOverlay();
@@ -1047,8 +1047,8 @@ describe("M8.1: debug overlay — render and toggle", () => {
 describe("M8: integration — combined tier 3 features", () => {
   it("layout handles percentage positions with rotate", async () => {
     _resetForTests();
-    const el = rect({ id: "int1", x: "50%", y: "50%", w: 200, h: 100, rotate: 30 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "int1", x: "50%", y: "50%", w: 200, h: 100, rotate: 30 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["int1"].resolved.x, 960);
     assert.equal(scene.elements["int1"].resolved.y, 540);
     assert.equal(scene.errors.length, 0);
@@ -1056,8 +1056,8 @@ describe("M8: integration — combined tier 3 features", () => {
 
   it("repeat with shadow on each copy", async () => {
     _resetForTests();
-    const el = rect({ id: "rs", w: 100, h: 80, shadow: "md", fill: "#333" });
-    const result = repeat(el, { count: 3, gapX: 20 });
+    const e = el('', { id: "rs", w: 100, h: 80, style: { boxShadow: resolveShadow("md"), background: "#333" } });
+    const result = repeat(e, { count: 3, gapX: 20 });
     result.props.x = 100;
     result.props.y = 100;
 
@@ -1071,8 +1071,8 @@ describe("M8: integration — combined tier 3 features", () => {
   it("grid positions work with percentage widths", async () => {
     _resetForTests();
     const g = grid({ cols: 4 });
-    const el = rect({ id: "gp1", x: g.col(1), y: 100, w: "safe:25%", h: 200 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "gp1", x: g.col(1), y: 100, w: "safe:25%", h: 200 });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["gp1"].resolved.x, g.col(1));
     assert.equal(scene.elements["gp1"].resolved.w, 420); // 25% of 1680
     assert.equal(scene.errors.length, 0);
@@ -1081,11 +1081,11 @@ describe("M8: integration — combined tier 3 features", () => {
   it("render handles shadow + rotate together", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({
+      const e = el('', {
         id: "combo1", x: 500, y: 400, w: 300, h: 200,
-        rotate: 15, shadow: "lg", fill: "#444",
+        rotate: 15, style: { boxShadow: resolveShadow("lg"), background: "#444" },
       });
-      await render([{ elements: [el] }], { container });
+      await render([{ elements: [e] }], { container });
 
       const div = container.querySelector('[data-sk-id="combo1"]');
       assert.ok(div, "element should be rendered");
@@ -1160,11 +1160,11 @@ describe("M8.2: snap — additional edge cases", () => {
 describe("M8.5: repeat — vstack nested re-ID", () => {
   it("re-IDs children inside vstacks", () => {
     _resetForTests();
-    const el = vstack([
-      rect({ id: "vs-child-a", w: 100, h: 30 }),
-      rect({ id: "vs-child-b", w: 100, h: 30 }),
+    const e = vstack([
+      el('', { id: "vs-child-a", w: 100, h: 30 }),
+      el('', { id: "vs-child-b", w: 100, h: 30 }),
     ], { id: "vs", w: 100, h: 60, gap: 0 });
-    const result = repeat(el, { count: 2 });
+    const result = repeat(e, { count: 2 });
 
     assert.equal(result.children[0].id, "vs-1");
     assert.equal(result.children[0].children[0].id, "vs-child-a-1");
@@ -1177,12 +1177,12 @@ describe("M8.5: repeat — vstack nested re-ID", () => {
 
   it("all descendant IDs across copies are unique", () => {
     _resetForTests();
-    const el = group([
+    const e = group([
       vstack([
-        rect({ id: "inner", w: 50, h: 20 }),
+        el('', { id: "inner", w: 50, h: 20 }),
       ], { id: "stack", w: 50, h: 20, gap: 0 }),
     ], { id: "outer", w: 100, h: 100 });
-    const result = repeat(el, { count: 3 });
+    const result = repeat(e, { count: 3 });
 
     // Collect all IDs recursively
     const allIds = [];
@@ -1201,8 +1201,8 @@ describe("M8.1: debug overlay — config dimensions", () => {
   it("overlay uses configured slide dimensions", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const el = rect({ id: "cfg1", x: 50, y: 50, w: 100, h: 100, fill: "#333" });
-      await render([{ elements: [el] }], { container });
+      const e = el('', { id: "cfg1", x: 50, y: 50, w: 100, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
 
       const mod = await import('../slidekit-debug.js');
       const overlay = mod.renderDebugOverlay();

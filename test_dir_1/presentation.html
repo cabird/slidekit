@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Where It Matters — ICSE 2026</title>
+
+  <!-- Reveal.js CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+
+  <style>
+    body { margin: 0; background: #000; }
+    .slidekit-layer { font-family: 'Inter', system-ui, sans-serif; }
+    /* Override Reveal.js default text styling that could interfere */
+    .reveal .slides section { text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- SlideKit renders slides here -->
+    </div>
+  </div>
+
+  <!-- Reveal.js -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <script type="module">
+    import { run } from './slides.js';
+
+    try {
+      await run();
+
+      Reveal.initialize({
+        width: 1920,
+        height: 1080,
+        center: false,
+        hash: true,
+        slideNumber: false,
+        transition: 'none',
+        controls: false,
+        progress: false,
+      });
+
+      console.log('Presentation loaded. Scene model at window.sk');
+    } catch (err) {
+      console.error('Failed to load presentation:', err);
+      document.querySelector('.slides').innerHTML = `
+        <section>
+          <div style="color: #ea4335; font-size: 32px; padding: 100px; text-align: center;">
+            <p>Failed to load presentation</p>
+            <pre style="font-size: 18px; text-align: left; max-width: 1200px; margin: 40px auto; color: #ff9999;">${err.stack || err.message}</pre>
+          </div>
+        </section>
+      `;
+    }
+  </script>
+</body>
+</html>

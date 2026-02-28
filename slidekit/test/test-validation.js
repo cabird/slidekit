@@ -1,10 +1,10 @@
-// SlideKit Tests — M4.4: fitText, Overflow Policies, Presentation Validations
+// SlideKit Tests — Overflow, Presentation Validations
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, rect, group,
+  el, group,
   render, layout, init, safeRect,
-  measureText, fitText, clearMeasureCache,
+  clearMeasureCache,
   resetIdCounter, _resetForTests,
 } from '../slidekit.js';
 
@@ -23,105 +23,22 @@ async function withContainer(fn) {
 }
 
 // =============================================================================
-// M4.1: fitText — Auto-Size Text to Fit Box
+// Overflow: visible (default)
 // =============================================================================
 
-describe("M4.1: fitText() — finds correct font size", () => {
-  it("returns maxSize when text easily fits in a large box", async () => {
-    _resetForTests();
-    await init();
-    const result = fitText("Hi", { w: 800, h: 600 }, { minSize: 12, maxSize: 80 });
-    assert.equal(result.fontSize, 80, "should return maxSize when text fits");
-    assert.ok(result.metrics, "should return metrics");
-    assert.ok(result.metrics.block.h <= 600, "text height should fit in box");
-    assert.equal(result.warnings.length, 0, "should have no warnings");
+describe("overflow: visible (default)", () => {
+  it("el() default overflow is visible", () => {
+    resetIdCounter();
+    const e = el('<p>Hello</p>', { x: 100, y: 100, w: 200 });
+    assert.equal(e.props.overflow, "visible");
   });
 
-  it("finds a smaller font size for long text in a small box", async () => {
-    _resetForTests();
-    await init();
-    const longText = "This is a fairly long piece of text that should require a smaller font size to fit within the constraining box dimensions provided";
-    const result = fitText(longText, { w: 300, h: 100 }, { minSize: 8, maxSize: 72 });
-    assert.ok(result.fontSize >= 8, "fontSize should be >= minSize");
-    assert.ok(result.fontSize <= 72, "fontSize should be <= maxSize");
-    assert.ok(result.metrics.block.h <= 100, "text should fit in box height");
-  });
-
-  it("binary search converges to optimal size", async () => {
-    _resetForTests();
-    await init();
-    const result = fitText("Test text here", { w: 200, h: 50 }, { minSize: 8, maxSize: 72, step: 1 });
-    assert.ok(result.fontSize >= 8, "fontSize >= minSize");
-    // Verify the found size actually fits
-    const m = measureText("Test text here", {
-      font: "Inter", size: result.fontSize, w: 200, weight: 400, lineHeight: 1.3, letterSpacing: "0",
-    });
-    assert.ok(m.block.h <= 50, "text at returned fontSize should fit");
-  });
-});
-
-describe("M4.1: fitText() — respects minSize and maxSize", () => {
-  it("never returns a fontSize below minSize", async () => {
-    _resetForTests();
-    await init();
-    // Very long text in a tiny box
-    const hugeText = "Word ".repeat(500);
-    const result = fitText(hugeText, { w: 100, h: 30 }, { minSize: 16, maxSize: 72 });
-    assert.equal(result.fontSize, 16, "should clamp to minSize");
-  });
-
-  it("never returns a fontSize above maxSize", async () => {
-    _resetForTests();
-    await init();
-    const result = fitText("Hi", { w: 1000, h: 1000 }, { minSize: 10, maxSize: 50 });
-    assert.equal(result.fontSize, 50, "should clamp to maxSize");
-  });
-
-  it("emits overflow warning when text doesn't fit at minSize", async () => {
-    _resetForTests();
-    await init();
-    const hugeText = "Word ".repeat(500);
-    const result = fitText(hugeText, { w: 100, h: 30 }, { minSize: 16, maxSize: 72 });
-    const overflow = result.warnings.find(w => w.type === "text_overflow_at_min_size");
-    assert.ok(overflow, "should have text_overflow_at_min_size warning");
-    assert.equal(overflow.fontSize, 16, "warning should report minSize");
-  });
-});
-
-describe("M4.1: fitText() — projection threshold warning", () => {
-  it("emits font_small warning when below projection threshold", async () => {
-    _resetForTests();
-    await init({ minFontSize: 24 });
-    // Use a very long text in a tiny box to guarantee fontSize < 24
-    const longText = "Word ".repeat(200);
-    const result = fitText(longText, { w: 150, h: 30 }, { minSize: 8, maxSize: 72 });
-    // Verify the font was actually shrunk below threshold
-    assert.ok(result.fontSize < 24, "fontSize should be below threshold for this test to be valid");
-    const warning = result.warnings.find(w => w.type === "font_small");
-    assert.ok(warning, "should have font_small warning");
-    assert.equal(warning.threshold, 24, "threshold should match config");
-  });
-
-  it("does not emit font_small warning when fontSize >= threshold", async () => {
-    _resetForTests();
-    await init({ minFontSize: 10 });
-    const result = fitText("Hi", { w: 800, h: 600 }, { minSize: 12, maxSize: 80 });
-    const warning = result.warnings.find(w => w.type === "font_small");
-    assert.ok(!warning, "should not have font_small warning when size is large");
-  });
-});
-
-// =============================================================================
-// M4.2: Overflow Policies in Layout Solve
-// =============================================================================
-
-describe("M4.2: overflow policy — visible", () => {
-  it("visible policy allows text to overflow without warnings", async () => {
+  it("visible overflow produces no overflow warnings", async () => {
     _resetForTests();
     await init();
     const elements = [
-      text("Very long text that will overflow its box", {
-        id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
+      el('<p style="font-size:32px">Very long text that will overflow its box</p>', {
+        id: "t1", x: 100, y: 100, w: 200, h: 20,
         overflow: "visible",
       }),
     ];
@@ -133,52 +50,22 @@ describe("M4.2: overflow policy — visible", () => {
   });
 });
 
-describe("M4.2: overflow policy — warn", () => {
-  it("warn policy emits a text_overflow warning", async () => {
-    _resetForTests();
-    await init();
-    const elements = [
-      text("Very long text that will definitely overflow its box because it is so long", {
-        id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
-        overflow: "warn",
-      }),
-    ];
-    const result = await layout({ elements });
-    const overflowWarnings = result.warnings.filter(
-      w => w.type === "text_overflow" && w.elementId === "t1"
-    );
-    assert.ok(overflowWarnings.length > 0, "warn policy should produce text_overflow warning");
-    assert.equal(overflowWarnings[0].overflow, "warn");
-  });
-});
+// =============================================================================
+// Overflow: clip
+// =============================================================================
 
-describe("M4.2: overflow policy — clip", () => {
-  it("clip policy sets _layoutFlags.clip on the element", async () => {
-    _resetForTests();
-    await init();
-    const elements = [
-      text("Very long text that will definitely overflow its small box", {
-        id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
-        overflow: "clip",
-      }),
-    ];
-    const result = await layout({ elements });
-    assert.ok(result.elements["t1"]._layoutFlags, "should have _layoutFlags");
-    assert.equal(result.elements["t1"]._layoutFlags.clip, true, "clip flag should be true");
-  });
-
-  it("clip policy causes renderer to set overflow:hidden", async () => {
+describe("overflow: clip", () => {
+  it("clip causes renderer to set overflow:hidden", async () => {
     _resetForTests();
     await init();
     await withContainer(async (container) => {
       const elements = [
-        text("Very long text that will definitely overflow its small box", {
-          id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
+        el('<p style="font-size:32px">Very long text that will overflow its small box</p>', {
+          id: "t1", x: 100, y: 100, w: 200, h: 20,
           overflow: "clip",
         }),
       ];
       await render([{ elements }], { container });
-      // render() calls layout() internally and applies _layoutFlags to DOM
       const section = container.querySelector("section");
       const textDiv = section.querySelector('[data-sk-id="t1"]');
       if (textDiv) {
@@ -188,181 +75,16 @@ describe("M4.2: overflow policy — clip", () => {
   });
 });
 
-describe("M4.2: overflow policy — ellipsis", () => {
-  it("ellipsis policy truncates text with '...'", async () => {
-    _resetForTests();
-    await init();
-    const longText = "This is a very long piece of text that should be truncated with an ellipsis because it does not fit in the box";
-    const el = text(longText, {
-      id: "t1", x: 100, y: 100, w: 300, h: 30, size: 32,
-      overflow: "ellipsis",
-    });
-    const elements = [el];
-    await layout({ elements });
-    // After layout, el.content should be truncated
-    assert.ok(el.content.endsWith("..."), "content should end with '...'");
-    assert.ok(el.content.length < longText.length, "content should be shorter than original");
-  });
-
-  it("ellipsis with single word sets content to '...'", async () => {
-    _resetForTests();
-    await init();
-    const el = text("Supercalifragilisticexpialidocious", {
-      id: "t1", x: 100, y: 100, w: 50, h: 20, size: 32,
-      overflow: "ellipsis",
-    });
-    const elements = [el];
-    await layout({ elements });
-    assert.equal(el.content, "...", "single word overflow should become '...'");
-  });
-
-  it("ellipsis truncated text fits within box height", async () => {
-    _resetForTests();
-    await init();
-    const longText = "Word one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen";
-    const el = text(longText, {
-      id: "t1", x: 100, y: 100, w: 300, h: 50, size: 24,
-      overflow: "ellipsis",
-    });
-    const elements = [el];
-    await layout({ elements });
-    // Measure the truncated content
-    if (el.content !== "...") {
-      const m = measureText(el.content, { font: "Inter", size: 24, w: 300, weight: 400, lineHeight: 1.3, letterSpacing: "0" });
-      assert.ok(m.block.h <= 50, "truncated text should fit in box");
-    }
-  });
-});
-
-describe("M4.2: overflow policy — shrink", () => {
-  it("shrink policy reduces font size to fit", async () => {
-    _resetForTests();
-    await init();
-    const el = text("This text is too big for its box at the original size", {
-      id: "t1", x: 100, y: 100, w: 200, h: 40, size: 48,
-      overflow: "shrink",
-    });
-    const elements = [el];
-    await layout({ elements });
-    // After shrink, the font size should be reduced
-    assert.ok(el.props.size < 48, "font size should be reduced");
-    assert.ok(el.props.size >= 12, "font size should be >= default minSize");
-  });
-
-  it("shrink policy respects fit.minSize", async () => {
-    _resetForTests();
-    await init();
-    const hugeText = "Word ".repeat(200);
-    const el = text(hugeText, {
-      id: "t1", x: 100, y: 100, w: 200, h: 30, size: 48,
-      overflow: "shrink", fit: { minSize: 20 },
-    });
-    const elements = [el];
-    await layout({ elements });
-    assert.ok(el.props.size >= 20, "font size should respect fit.minSize");
-  });
-});
-
-describe("M4.2: overflow policy — error", () => {
-  it("error policy adds an error to layout result", async () => {
-    _resetForTests();
-    await init();
-    const elements = [
-      text("Very long text that overflows its box", {
-        id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
-        overflow: "error",
-      }),
-    ];
-    const result = await layout({ elements });
-    const overflowErrors = result.errors.filter(
-      e => e.type === "text_overflow" && e.elementId === "t1"
-    );
-    assert.ok(overflowErrors.length > 0, "error policy should produce text_overflow error");
-    assert.equal(overflowErrors[0].overflow, "error");
-  });
-});
-
-describe("M4.2: overflow — no overflow when text fits", () => {
-  it("no overflow warnings/errors when text fits in box", async () => {
-    _resetForTests();
-    await init();
-    const elements = [
-      text("Hi", {
-        id: "t1", x: 100, y: 100, w: 800, h: 200, size: 32,
-        overflow: "warn",
-      }),
-    ];
-    const result = await layout({ elements });
-    const overflowWarnings = result.warnings.filter(
-      w => w.type === "text_overflow" && w.elementId === "t1"
-    );
-    assert.equal(overflowWarnings.length, 0, "text that fits should produce no overflow warnings");
-  });
-
-  it("no overflow check for text without explicit h", async () => {
-    _resetForTests();
-    await init();
-    // Text without explicit h uses auto-height, so overflow is not checked
-    const elements = [
-      text("Very long text that would overflow if h were set", {
-        id: "t1", x: 100, y: 100, w: 200, size: 32,
-        overflow: "error",
-      }),
-    ];
-    const result = await layout({ elements });
-    const overflowErrors = result.errors.filter(
-      e => e.type === "text_overflow" && e.elementId === "t1"
-    );
-    assert.equal(overflowErrors.length, 0, "no overflow check without explicit h");
-  });
-});
-
 // =============================================================================
-// M4.3: Presentation-Specific Validations
+// Safe zone validation
 // =============================================================================
 
-describe("M4.3: font size validation", () => {
-  it("warns when text font size is below minFontSize threshold", async () => {
-    _resetForTests();
-    await init({ minFontSize: 24 });
-    const elements = [
-      text("Small text", {
-        id: "t1", x: 100, y: 100, w: 400, size: 16,
-      }),
-    ];
-    const result = await layout({ elements });
-    const fontWarnings = result.warnings.filter(
-      w => w.type === "font_small" && w.elementId === "t1"
-    );
-    assert.ok(fontWarnings.length > 0, "should warn about small font");
-    assert.equal(fontWarnings[0].fontSize, 16);
-    assert.equal(fontWarnings[0].threshold, 24);
-  });
-
-  it("does not warn when font size is at or above threshold", async () => {
-    _resetForTests();
-    await init({ minFontSize: 24 });
-    const elements = [
-      text("Normal text", {
-        id: "t1", x: 100, y: 100, w: 400, size: 32,
-      }),
-    ];
-    const result = await layout({ elements });
-    const fontWarnings = result.warnings.filter(
-      w => w.type === "font_small" && w.elementId === "t1"
-    );
-    assert.equal(fontWarnings.length, 0, "no warning when font size is adequate");
-  });
-});
-
-describe("M4.3: safe zone validation", () => {
+describe("safe zone validation", () => {
   it("warns when element extends outside safe zone", async () => {
     _resetForTests();
     await init();
-    // Default safe zone is roughly {x:120, y:90, w:1680, h:900}
-    // Place element at x:0 to extend outside left edge of safe zone
     const elements = [
-      rect({ id: "r1", x: 0, y: 100, w: 100, h: 100 }),
+      el('', { id: "r1", x: 0, y: 100, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const safeWarnings = result.warnings.filter(
@@ -376,7 +98,7 @@ describe("M4.3: safe zone validation", () => {
     await init();
     const sr = safeRect();
     const elements = [
-      rect({ id: "r1", x: sr.x + 10, y: sr.y + 10, w: 100, h: 100 }),
+      el('', { id: "r1", x: sr.x + 10, y: sr.y + 10, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const safeWarnings = result.warnings.filter(
@@ -388,9 +110,8 @@ describe("M4.3: safe zone validation", () => {
   it("skips bg-layer elements for safe zone check", async () => {
     _resetForTests();
     await init();
-    // bg-layer elements are full-bleed and expected to exceed safe zone
     const elements = [
-      rect({ id: "bg1", x: 0, y: 0, w: 1920, h: 1080, layer: "bg" }),
+      el('', { id: "bg1", x: 0, y: 0, w: 1920, h: 1080, layer: "bg" }),
     ];
     const result = await layout({ elements });
     const safeWarnings = result.warnings.filter(
@@ -400,12 +121,16 @@ describe("M4.3: safe zone validation", () => {
   });
 });
 
-describe("M4.3: slide bounds validation", () => {
+// =============================================================================
+// Slide bounds validation
+// =============================================================================
+
+describe("slide bounds validation", () => {
   it("warns when element extends outside slide bounds", async () => {
     _resetForTests();
     await init();
     const elements = [
-      rect({ id: "r1", x: -50, y: 100, w: 100, h: 100 }),
+      el('', { id: "r1", x: -50, y: 100, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const slideWarnings = result.warnings.filter(
@@ -418,7 +143,7 @@ describe("M4.3: slide bounds validation", () => {
     _resetForTests();
     await init();
     const elements = [
-      rect({ id: "r1", x: 1850, y: 100, w: 200, h: 100 }),
+      el('', { id: "r1", x: 1850, y: 100, w: 200, h: 100 }),
     ];
     const result = await layout({ elements });
     const slideWarnings = result.warnings.filter(
@@ -431,7 +156,7 @@ describe("M4.3: slide bounds validation", () => {
     _resetForTests();
     await init();
     const elements = [
-      rect({ id: "r1", x: 100, y: 100, w: 200, h: 200 }),
+      el('', { id: "r1", x: 100, y: 100, w: 200, h: 200 }),
     ];
     const result = await layout({ elements });
     const slideWarnings = result.warnings.filter(
@@ -441,14 +166,17 @@ describe("M4.3: slide bounds validation", () => {
   });
 });
 
-describe("M4.3: content area usage", () => {
+// =============================================================================
+// Content area usage
+// =============================================================================
+
+describe("content area usage", () => {
   it("warns when content uses less than 40% of safe zone (clustered)", async () => {
     _resetForTests();
     await init();
     const sr = safeRect();
-    // Place a small element in the corner — tiny content area
     const elements = [
-      rect({ id: "r1", x: sr.x + 10, y: sr.y + 10, w: 50, h: 50 }),
+      el('', { id: "r1", x: sr.x + 10, y: sr.y + 10, w: 50, h: 50 }),
     ];
     const result = await layout({ elements });
     const clustered = result.warnings.filter(w => w.type === "content_clustered");
@@ -460,9 +188,8 @@ describe("M4.3: content area usage", () => {
     _resetForTests();
     await init();
     const sr = safeRect();
-    // Place elements that span nearly the entire safe zone
     const elements = [
-      rect({ id: "r1", x: sr.x, y: sr.y, w: sr.w, h: sr.h }),
+      el('', { id: "r1", x: sr.x, y: sr.y, w: sr.w, h: sr.h }),
     ];
     const result = await layout({ elements });
     const noRoom = result.warnings.filter(w => w.type === "content_no_breathing_room");
@@ -474,13 +201,12 @@ describe("M4.3: content area usage", () => {
     _resetForTests();
     await init();
     const sr = safeRect();
-    // Place element covering ~64% area (0.8 * 0.8 = 0.64), centered in safe zone
     const midW = sr.w * 0.8;
     const midH = sr.h * 0.8;
     const offsetX = (sr.w - midW) / 2;
     const offsetY = (sr.h - midH) / 2;
     const elements = [
-      rect({ id: "r1", x: sr.x + offsetX, y: sr.y + offsetY, w: midW, h: midH }),
+      el('', { id: "r1", x: sr.x + offsetX, y: sr.y + offsetY, w: midW, h: midH }),
     ];
     const result = await layout({ elements });
     const usage = result.warnings.filter(
@@ -490,19 +216,22 @@ describe("M4.3: content area usage", () => {
   });
 });
 
-describe("M4.3: strict mode — errors instead of warnings", () => {
+// =============================================================================
+// Strict mode
+// =============================================================================
+
+describe("strict mode — errors instead of warnings", () => {
   it("strict mode produces error for safe zone violation", async () => {
     _resetForTests();
     await init({ strict: true });
     const elements = [
-      rect({ id: "r1", x: 0, y: 100, w: 100, h: 100 }),
+      el('', { id: "r1", x: 0, y: 100, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const safeErrors = result.errors.filter(
       e => e.type === "outside_safe_zone" && e.elementId === "r1"
     );
     assert.ok(safeErrors.length > 0, "strict mode should produce error for safe zone violation");
-    // Should NOT be a warning
     const safeWarnings = result.warnings.filter(
       w => w.type === "outside_safe_zone" && w.elementId === "r1"
     );
@@ -513,7 +242,7 @@ describe("M4.3: strict mode — errors instead of warnings", () => {
     _resetForTests();
     await init({ strict: true });
     const elements = [
-      rect({ id: "r1", x: -50, y: 100, w: 100, h: 100 }),
+      el('', { id: "r1", x: -50, y: 100, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const slideErrors = result.errors.filter(
@@ -526,7 +255,7 @@ describe("M4.3: strict mode — errors instead of warnings", () => {
     _resetForTests();
     await init({ strict: false });
     const elements = [
-      rect({ id: "r1", x: -50, y: 100, w: 100, h: 100 }),
+      el('', { id: "r1", x: -50, y: 100, w: 100, h: 100 }),
     ];
     const result = await layout({ elements });
     const slideWarnings = result.warnings.filter(
@@ -537,23 +266,5 @@ describe("M4.3: strict mode — errors instead of warnings", () => {
       e => e.type === "outside_slide" && e.elementId === "r1"
     );
     assert.equal(slideErrors.length, 0, "non-strict should not produce errors");
-  });
-});
-
-describe("M4.2: default overflow policy", () => {
-  it("default overflow policy is 'warn'", async () => {
-    _resetForTests();
-    await init();
-    // No explicit overflow prop set
-    const elements = [
-      text("Very long text that should overflow its tiny box at size 32 px", {
-        id: "t1", x: 100, y: 100, w: 200, h: 20, size: 32,
-      }),
-    ];
-    const result = await layout({ elements });
-    const overflowWarnings = result.warnings.filter(
-      w => w.type === "text_overflow" && w.elementId === "t1"
-    );
-    assert.ok(overflowWarnings.length > 0, "default should be warn policy");
   });
 });

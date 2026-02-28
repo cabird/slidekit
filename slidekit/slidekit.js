@@ -70,80 +70,19 @@ function applyDefaults(props, extraDefaults = {}) {
 }
 
 /**
- * Create a text element.
+ * Create a positioned HTML element on the canvas.
  *
- * @param {string} content - The text to display
- * @param {object} props - Positioning and styling properties
+ * @param {string} html - HTML string rendered via innerHTML
+ * @param {object} props - Layout props: x, y, w, h, id, anchor, layer, rotate, opacity, style, className, overflow
  * @returns {{ id: string, type: string, content: string, props: object }}
  */
-export function text(content, props = {}) {
+export function el(html, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
   const resolved = applyDefaults(rest, {
-    font: "Inter",
-    size: 32,
-    weight: 400,
-    color: "#ffffff",
-    lineHeight: 1.3,
-    letterSpacing: "0",
-    align: "left",
-    overflow: "warn",
-    fit: null,
-    maxLines: null,
+    overflow: "visible",
   });
-  return { id, type: "text", content, props: resolved };
-}
-
-/**
- * Create an image element.
- *
- * @param {string} src - Image path or URL
- * @param {object} props - Positioning and styling properties
- * @returns {{ id: string, type: string, src: string, props: object }}
- */
-export function image(src, props = {}) {
-  const { id: customId, ...rest } = props;
-  const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
-    fit: "cover",
-    position: "center",
-  });
-  return { id, type: "image", src, props: resolved };
-}
-
-/**
- * Create a rectangle element.
- *
- * @param {object} props - Positioning and styling properties
- * @returns {{ id: string, type: string, props: object }}
- */
-export function rect(props = {}) {
-  const { id: customId, ...rest } = props;
-  const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
-    fill: "transparent",
-    radius: 0,
-    border: "none",
-    padding: 0,
-  });
-  return { id, type: "rect", props: resolved };
-}
-
-/**
- * Create a rule (horizontal/vertical line) element.
- *
- * @param {object} props - Positioning and styling properties
- * @returns {{ id: string, type: string, props: object }}
- */
-export function rule(props = {}) {
-  const { id: customId, ...rest } = props;
-  const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
-    direction: "horizontal",
-    thickness: 2,
-    color: "#ffffff",
-  });
-  return { id, type: "rule", props: resolved };
+  return { id, type: "el", content: html, props: resolved };
 }
 
 /**
@@ -333,167 +272,68 @@ function stripVendorPrefix(camelName) {
 }
 
 /**
- * Comprehensive set of blocked CSS property names (in camelCase).
+ * Blocked CSS property names (in camelCase) for container div styles.
  *
- * These properties are stripped from user-provided styles because they
- * conflict with SlideKit's absolute positioning system.
+ * These properties would break the container div's absolute positioning
+ * or sizing if applied. All other CSS (fonts, padding, colors, etc.)
+ * is allowed because measurement renders full HTML including all styles.
  */
 const BLOCKED_PROPERTIES = new Set([
-  // Layout position
+  // Layout position — library owns absolute positioning
   "position",
   "top", "left", "right", "bottom",
   "inset", "insetBlock", "insetBlockStart", "insetBlockEnd",
   "insetInline", "insetInlineStart", "insetInlineEnd",
 
-  // Sizing
+  // Sizing — library owns via w/h props
   "width", "height",
   "minWidth", "maxWidth", "minHeight", "maxHeight",
   "blockSize", "inlineSize",
   "minBlockSize", "maxBlockSize", "minInlineSize", "maxInlineSize",
 
-  // Display / Flex
+  // Display — library needs block
   "display",
-  "flexDirection", "flexWrap", "flexFlow",
-  "flexGrow", "flexShrink", "flexBasis", "flex",
-  "alignItems", "alignContent", "alignSelf",
-  "justifyContent", "justifyItems", "justifySelf",
-  "order",
-  "gap", "rowGap", "columnGap",
 
-  // Grid
-  "grid",
-  "gridTemplate", "gridTemplateColumns", "gridTemplateRows", "gridTemplateAreas",
-  "gridColumn", "gridColumnStart", "gridColumnEnd",
-  "gridRow", "gridRowStart", "gridRowEnd",
-  "gridArea",
-  "gridAutoFlow", "gridAutoColumns", "gridAutoRows",
-
-  // Float / clear
-  "float", "clear",
-
-  // Overflow (library manages)
+  // Overflow — library manages via overflow prop
   "overflow", "overflowX", "overflowY",
   "overflowBlock", "overflowInline",
 
-  // Margin
+  // Margin — breaks absolute positioning
   "margin", "marginTop", "marginRight", "marginBottom", "marginLeft",
   "marginBlock", "marginBlockStart", "marginBlockEnd",
   "marginInline", "marginInlineStart", "marginInlineEnd",
 
-  // Transform (blocked entirely — use rotate prop)
-  "transform",
+  // Transform — library owns via rotate prop
+  "transform", "translate", "rotate", "scale",
 
-  // Font properties (affect text measurement — use convenience props)
-  "font",
-  "fontFamily", "fontSize", "fontWeight",
-  "fontStyle", "fontVariant", "fontStretch", "fontSizeAdjust",
-
-  // Line height & spacing (affect text measurement — use convenience props)
-  "lineHeight", "letterSpacing", "wordSpacing",
-
-  // Text layout (affect measurement or library-managed)
-  "textTransform", "textIndent", "textOverflow",
-
-  // Word/line breaking (library controls these for measurement)
-  "whiteSpace", "wordBreak", "overflowWrap", "wordWrap",
-  "hyphens", "lineBreak",
-
-  // Padding (library sets padding:0 for measurement)
-  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
-  "paddingBlock", "paddingBlockStart", "paddingBlockEnd",
-  "paddingInline", "paddingInlineStart", "paddingInlineEnd",
-
-  // Box sizing (library controls)
-  "boxSizing",
-
-  // Writing mode (changes layout orientation entirely)
-  "writingMode", "direction", "textOrientation",
-
-  // Multi-column (changes content flow)
-  "columns", "columnCount", "columnWidth",
-
-  // Line clamping (library manages truncation via overflow prop)
-  "WebkitLineClamp", "lineClamp",
+  // Containment — can suppress layout/paint
+  "contain", "contentVisibility",
 ]);
 
 /**
- * Suggestion messages for common blocked properties.
+ * Suggestion messages for blocked properties.
  */
 const BLOCKED_SUGGESTIONS = {
-  // Position / sizing
-  display: "Use vstack() or hstack() for layout",
-  position: "SlideKit uses absolute positioning; element placement is handled by x/y/anchor",
-  top: "Use SlideKit's y property instead",
-  left: "Use SlideKit's x property instead",
-  right: "Use SlideKit's x and w properties instead",
-  bottom: "Use SlideKit's y and h properties instead",
-  width: "Use SlideKit's w property instead",
-  height: "Use SlideKit's h property instead",
-  margin: "Margins are not used in absolute layout; use x/y for spacing",
-  flex: "Use vstack() or hstack() for layout",
-  flexDirection: "Use vstack() or hstack() for layout",
-  grid: "Use SlideKit's coordinate system for layout",
-  float: "Use SlideKit's x/y positioning instead",
-  overflow: "Use SlideKit's overflow property on text elements",
-  transform: "Use the rotate prop for rotation; transform is blocked because the library owns element positioning",
-
-  // Font properties — must use convenience props so measureText() sees the same values
-  font: "Use the individual convenience props instead: font (family), size, weight, lineHeight",
-  fontFamily: "Use the `font` convenience prop instead (e.g., font: 'Inter'). This ensures measureText() uses the same font.",
-  fontSize: "Use the `size` convenience prop instead (e.g., size: 24). This ensures measureText() uses the same size.",
-  fontWeight: "Use the `weight` convenience prop instead (e.g., weight: 700). This ensures measureText() uses the same weight.",
-  fontStyle: "Use the `fontStyle` convenience prop instead (e.g., fontStyle: 'italic'). This ensures measureText() uses the same style.",
-  fontVariant: "Use the `fontVariant` convenience prop instead (e.g., fontVariant: 'small-caps'). This ensures measureText() uses the same variant.",
-  fontStretch: "fontStretch is blocked because it changes glyph widths, affecting text measurement.",
-  fontSizeAdjust: "fontSizeAdjust is blocked because it changes effective font size, affecting text measurement.",
-
-  // Line height & spacing — must use convenience props
-  lineHeight: "Use the `lineHeight` convenience prop instead (e.g., lineHeight: 1.5). This ensures measureText() uses the same line height.",
-  letterSpacing: "Use the `letterSpacing` convenience prop instead (e.g., letterSpacing: '0.05em'). This ensures measureText() uses the same spacing.",
-  wordSpacing: "Use the `wordSpacing` convenience prop instead (e.g., wordSpacing: '0.1em'). This ensures measureText() uses the same spacing.",
-
-  // Text layout
-  textTransform: "Use the `textTransform` convenience prop instead (e.g., textTransform: 'uppercase'). This ensures measureText() measures the transformed text.",
-  textIndent: "textIndent is blocked because it affects first-line measurement. Use padding or x offset instead.",
-  textOverflow: "Use SlideKit's overflow property on text elements (e.g., overflow: 'ellipsis')",
-
-  // Word/line breaking — library controls these
-  whiteSpace: "whiteSpace is controlled by the library for measurement consistency. It cannot be overridden.",
-  wordBreak: "wordBreak is controlled by the library for measurement consistency. It cannot be overridden.",
-  overflowWrap: "overflowWrap is controlled by the library for measurement consistency. It cannot be overridden.",
-  wordWrap: "wordWrap is controlled by the library for measurement consistency. Use overflowWrap instead (also blocked).",
-  hyphens: "hyphens is blocked because it affects line breaking and text measurement.",
-  lineBreak: "lineBreak is blocked because it affects line breaking and text measurement.",
-
-  // Padding — library sets padding:0 for measurement
-  padding: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x/y offsets or a containing rect() for visual padding.",
-  paddingTop: "padding is blocked because the library sets padding:0 for consistent text measurement. Use y offset or a containing rect() for visual padding.",
-  paddingRight: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x/w or a containing rect() for visual padding.",
-  paddingBottom: "padding is blocked because the library sets padding:0 for consistent text measurement. Use y/h or a containing rect() for visual padding.",
-  paddingLeft: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x offset or a containing rect() for visual padding.",
-
-  // Box sizing
-  boxSizing: "boxSizing is controlled by the library (border-box). It cannot be overridden.",
-
-  // Writing mode
-  writingMode: "writingMode is blocked because it changes layout orientation, which the library cannot account for in measurement.",
-  direction: "direction is blocked because it changes layout direction, which the library cannot account for in measurement.",
-  textOrientation: "textOrientation is blocked because it changes glyph orientation in vertical writing modes.",
-
-  // Multi-column
-  columns: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
-  columnCount: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
-  columnWidth: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
-
-  // Line clamping
-  WebkitLineClamp: "Line clamping is blocked. Use SlideKit's overflow property for text truncation.",
-  lineClamp: "Line clamping is blocked. Use SlideKit's overflow property for text truncation.",
+  position: "SlideKit uses absolute positioning; use x/y/anchor props",
+  top: "Use the y prop instead",
+  left: "Use the x prop instead",
+  right: "Use x and w props instead",
+  bottom: "Use y and h props instead",
+  width: "Use the w prop instead",
+  height: "Use the h prop instead",
+  display: "The container display mode is managed by SlideKit",
+  margin: "Margins break absolute positioning; use x/y for spacing",
+  overflow: "Use SlideKit's overflow prop (e.g., overflow: 'clip')",
+  transform: "Use the rotate prop for rotation; transform is blocked because the library owns positioning",
+  translate: "Use x/y props for positioning",
+  rotate: "Use the rotate prop instead (e.g., rotate: 45)",
+  scale: "Scaling is not supported; use w/h to control size",
+  contain: "contain can suppress layout/paint and conflict with measurement",
+  contentVisibility: "contentVisibility can suppress rendering and conflict with measurement",
 };
 
 /**
  * Named shadow presets mapped to CSS box-shadow values.
- * Defined here (before CONVENIENCE_MAP) so both the convenience prop
- * transform and the standalone resolveShadow() can reference the same map.
  */
 const SHADOWS = {
   sm:   "0 1px 3px rgba(0,0,0,0.2)",
@@ -504,56 +344,22 @@ const SHADOWS = {
 };
 
 /**
- * Map of convenience props to their CSS equivalents.
- * Some require value transformation (e.g., size -> fontSize with "px" suffix).
- */
-const CONVENIENCE_MAP = {
-  color:          { css: "color",          transform: (v) => v },
-  font:           { css: "fontFamily",     transform: (v) => `"${v}", sans-serif` },
-  size:           { css: "fontSize",       transform: (v) => typeof v === "number" ? `${v}px` : v },
-  weight:         { css: "fontWeight",     transform: (v) => String(v) },
-  fontStyle:      { css: "fontStyle",      transform: (v) => v },
-  fontVariant:    { css: "fontVariant",    transform: (v) => v },
-  textTransform:  { css: "textTransform",  transform: (v) => v },
-  lineHeight:     { css: "lineHeight",     transform: (v) => v },
-  letterSpacing:  { css: "letterSpacing",  transform: (v) => v },
-  wordSpacing:    { css: "wordSpacing",    transform: (v) => v },
-  fill:           { css: "background",     transform: (v) => v },
-  radius:         { css: "borderRadius",   transform: (v) => typeof v === "number" ? `${v}px` : v },
-  border:         { css: "border",         transform: (v) => v },
-  align:          { css: "textAlign",      transform: (v) => v },
-  shadow:         { css: "boxShadow",      transform: (v) => SHADOWS[v] ?? v },
-};
-
-/**
- * Filter a style object, removing blocked layout properties.
+ * Filter a container style object, removing blocked layout properties.
  *
- * Also merges convenience props from the element's props into the style,
- * with style winning on conflict (style is applied after convenience props).
+ * Normalizes keys to camelCase and checks against the blocklist.
  *
  * @param {object} style - The user-provided style object (may use kebab-case or camelCase)
- * @param {string} elementType - The element type (for future element-specific exceptions)
- * @param {object} [convenienceProps={}] - Convenience props from the element (color, font, size, etc.)
+ * @param {string} elementType - The element type (for context in warnings)
  * @returns {{ filtered: object, warnings: Array }}
  */
-export function filterStyle(style = {}, elementType = "unknown", convenienceProps = {}) {
+export function filterStyle(style = {}, elementType = "unknown") {
   const warnings = [];
   const filtered = {};
 
-  // Step 1: Apply convenience props first
-  for (const [propName, mapping] of Object.entries(CONVENIENCE_MAP)) {
-    if (convenienceProps[propName] !== undefined) {
-      filtered[mapping.css] = mapping.transform(convenienceProps[propName]);
-    }
-  }
-
-  // Step 2: Apply user style, overwriting convenience props on conflict.
-  // Normalize keys to camelCase and check against blocklist.
   for (const [rawKey, value] of Object.entries(style)) {
     const camelKey = toCamelCase(rawKey);
 
     // Check blocklist: also check unprefixed version for vendor-prefixed properties.
-    // e.g., WebkitTransform -> transform, msFlexDirection -> flexDirection
     const unprefixedKey = stripVendorPrefix(camelKey);
     const blockedKey = BLOCKED_PROPERTIES.has(camelKey) ? camelKey
                      : BLOCKED_PROPERTIES.has(unprefixedKey) ? unprefixedKey
@@ -603,7 +409,7 @@ let _loadedFonts = new Set();
 let _measureContainer = null;
 
 /**
- * Cache for measureText results.
+ * Cache for measurement results.
  * Key: stringified tuple of (content, font, size, weight, lineHeight, letterSpacing, w)
  * Value: measurement result object
  */
@@ -860,7 +666,7 @@ export function _resetForTests() {
 }
 
 // =============================================================================
-// Measurement Container & measureText (M2.2, M2.3)
+// Measurement Container (M2.2, M2.3)
 // =============================================================================
 
 /**
@@ -875,7 +681,7 @@ function _ensureMeasureContainer() {
 
   if (typeof document === "undefined" || !document.body) {
     throw new Error(
-      "SlideKit.measureText requires a DOM with document.body available."
+      "SlideKit.measure requires a DOM with document.body available."
     );
   }
 
@@ -890,257 +696,97 @@ function _ensureMeasureContainer() {
   // No max dimensions — let content determine size
   _measureContainer.setAttribute("data-sk-role", "measure-container");
 
+  // CSS reset for el() measurement — matches render-time reset
+  const resetStyle = document.createElement("style");
+  resetStyle.textContent = "[data-sk-measure] > * { margin: 0; }";
+  _measureContainer.appendChild(resetStyle);
+
   document.body.appendChild(_measureContainer);
 }
 
 /**
- * Build a cache key for measureText results.
- *
- * @param {string} content - Text content
- * @param {object} props - Measurement properties
- * @returns {string} Cache key
- */
-function _measureCacheKey(content, props) {
-  return JSON.stringify([
-    content,
-    props.font || "Inter",
-    props.size || 32,
-    props.weight || 400,
-    props.lineHeight || 1.3,
-    props.letterSpacing || "0",
-    props.w ?? null,
-  ]);
-}
-
-/**
- * Measure how text will render without placing it on the slide.
- *
- * Uses a hidden off-screen <div> with identical CSS to the rendering target.
- * Results are cached by (content, font, size, weight, lineHeight, letterSpacing, w).
- *
- * Implementation: <div> + scrollHeight (NOT <span> + getClientRects()).
- *
- * @param {string} content - The text to measure (supports \n for line breaks)
- * @param {object} props - Measurement properties
- * @param {string} [props.font="Inter"] - Font family
- * @param {number} [props.size=32] - Font size in pixels
- * @param {number} [props.weight=400] - Font weight
- * @param {number} [props.lineHeight=1.3] - Line height multiplier
- * @param {string} [props.letterSpacing="0"] - Letter spacing CSS value
- * @param {number} [props.w] - Constraining width (if provided, limits wrapping)
- * @returns {{ block: { w: number, h: number }, lineCount: number, fontSize: number }}
- */
-export function measureText(content, props = {}) {
-  const font = props.font || "Inter";
-  const size = props.size || 32;
-  const weight = props.weight || 400;
-  const fontStyle = props.fontStyle || "normal";
-  const fontVariant = props.fontVariant || "normal";
-  const textTransform = props.textTransform || "none";
-  const lineHeight = props.lineHeight || 1.3;
-  const letterSpacing = props.letterSpacing || "0";
-  const wordSpacing = props.wordSpacing || "normal";
-  const constrainW = props.w ?? null;
-
-  // Check if the required font is loaded (warn if not, but don't block)
-  const warnings = [];
-  const fontKey = `${font}:${weight}`;
-  if (_loadedFonts.size > 0 && !_loadedFonts.has(fontKey)) {
-    // Only warn if fonts were configured — if no fonts were configured,
-    // we're using system fonts and can't validate.
-    if (_config && _config.fonts.length > 0) {
-      warnings.push({
-        type: "font_not_loaded",
-        font: fontKey,
-        message: `Font "${fontKey}" is not loaded. Measurement may be inaccurate.`,
-      });
-    }
-  }
-
-  // Check cache
-  const cacheKey = _measureCacheKey(content, props);
-  if (_measureCache.has(cacheKey)) {
-    return _measureCache.get(cacheKey);
-  }
-
-  // Ensure measurement container exists
-  _ensureMeasureContainer();
-
-  // Create the measurement div
-  const measureDiv = document.createElement("div");
-
-  // Apply CSS properties matching the rendering target
-  measureDiv.style.fontFamily = `"${font}", sans-serif`;
-  measureDiv.style.fontSize = `${size}px`;
-  measureDiv.style.fontWeight = String(weight);
-  measureDiv.style.fontStyle = fontStyle;
-  measureDiv.style.fontVariant = fontVariant;
-  measureDiv.style.textTransform = textTransform;
-  measureDiv.style.lineHeight = String(lineHeight);
-  measureDiv.style.letterSpacing = letterSpacing;
-  measureDiv.style.wordSpacing = wordSpacing;
-  measureDiv.style.whiteSpace = "pre-wrap";
-  measureDiv.style.wordBreak = "break-word";
-  measureDiv.style.boxSizing = "border-box";
-  measureDiv.style.padding = "0";
-  measureDiv.style.margin = "0";
-  measureDiv.style.border = "none";
-
-  // If width is constrained, set it
-  if (constrainW !== null) {
-    measureDiv.style.width = `${constrainW}px`;
-  } else {
-    // Unconstrained — let it be as wide as it needs
-    measureDiv.style.display = "inline-block";
-    measureDiv.style.whiteSpace = "pre";
-  }
-
-  // Set content using textContent + br nodes (same approach as renderer for safety)
-  const textContent = String(content ?? "");
-  const parts = textContent.split("\n");
-  parts.forEach((part, i) => {
-    if (i > 0) measureDiv.appendChild(document.createElement("br"));
-    measureDiv.appendChild(document.createTextNode(part));
-  });
-
-  // Append to measurement container, read dimensions, then remove
-  _measureContainer.appendChild(measureDiv);
-
-  const measuredHeight = measureDiv.scrollHeight;
-  const measuredWidth = constrainW !== null ? constrainW : measureDiv.offsetWidth;
-
-  // Compute line count from scrollHeight / computed lineHeight.
-  // Subtract a small epsilon before ceiling to avoid rounding up due to
-  // sub-pixel browser rounding (e.g., 93.6 -> 94 scrollHeight).
-  const computedLineHeight = size * lineHeight;
-  const lineCount = computedLineHeight > 0
-    ? Math.max(1, Math.ceil(measuredHeight / computedLineHeight - 0.05))
-    : 1;
-
-  // Clean up
-  _measureContainer.removeChild(measureDiv);
-
-  const result = {
-    block: { w: measuredWidth, h: measuredHeight },
-    lineCount,
-    fontSize: size,
-  };
-
-  // Include warnings if any were generated
-  if (warnings.length > 0) {
-    result.warnings = warnings;
-  }
-
-  // Cache the result
-  _measureCache.set(cacheKey, result);
-
-  return result;
-}
-
-/**
- * Clear the measureText cache. Useful when fonts are loaded or for testing.
+ * Clear the measurement cache. Useful when fonts are loaded or for testing.
  */
 export function clearMeasureCache() {
   _measureCache.clear();
 }
 
 // =============================================================================
-// fitText — Auto-Size Text to Fit Box (M4.1)
+// measure() — HTML Content Measurement
 // =============================================================================
 
 /**
- * Auto-size text to fit within a box using binary search.
- *
- * Starts with maxSize and uses binary search between minSize and maxSize
- * to find the largest font size that makes the text fit within the box.
- *
- * @param {string} content - The text to fit
- * @param {{ w: number, h: number }} box - The box to fit within
- * @param {object} [options={}] - Fit options
- * @param {string} [options.font="Inter"] - Font family
- * @param {number} [options.weight=400] - Font weight
- * @param {number} [options.lineHeight=1.3] - Line height multiplier
- * @param {string} [options.letterSpacing="0"] - Letter spacing CSS value
- * @param {number} [options.minSize=12] - Minimum font size
- * @param {number} [options.maxSize=200] - Maximum font size
- * @param {number} [options.step=1] - Minimum resolution step
- * @returns {{ fontSize: number, metrics: object, warnings: Array }}
+ * Build a cache key for measure() results.
+ * Uses sorted style keys for deterministic output.
  */
-export function fitText(content, box, options = {}) {
-  const font = options.font ?? "Inter";
-  const weight = options.weight ?? 400;
-  const fontStyle = options.fontStyle ?? "normal";
-  const fontVariant = options.fontVariant ?? "normal";
-  const textTransform = options.textTransform ?? "none";
-  const lineHeight = options.lineHeight ?? 1.3;
-  const letterSpacing = options.letterSpacing ?? "0";
-  const wordSpacing = options.wordSpacing ?? "normal";
-  const minSize = options.minSize ?? 12;
-  const maxSize = options.maxSize ?? 200;
-  const step = options.step ?? 1;
+function _elMeasureCacheKey(html, props) {
+  const styleKey = props.style
+    ? JSON.stringify(props.style, Object.keys(props.style).sort())
+    : null;
+  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || ""]);
+}
 
-  const warnings = [];
-  const fontProps = { font, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing };
-
-  // Binary search for the largest font size that fits
-  let lo = minSize;
-  let hi = maxSize;
-  let bestSize = minSize;
-  let bestMetrics = null;
-
-  // First check: does maxSize already fit?
-  const maxMetrics = measureText(content, {
-    ...fontProps, size: maxSize, w: box.w,
-  });
-  if (maxMetrics.block.h <= box.h) {
-    return { fontSize: maxSize, metrics: maxMetrics, warnings };
+/**
+ * Measure how HTML content will render when placed on the canvas.
+ *
+ * Renders the HTML in an off-screen measurement div with the same container
+ * constraints and styling that render will apply, waits for any images to load,
+ * then reads offsetWidth / scrollHeight.
+ *
+ * @param {string} html - HTML content string
+ * @param {object} props - Container properties (w, style, className)
+ * @returns {Promise<{ w: number, h: number }>}
+ */
+export async function measure(html, props = {}) {
+  // Check cache first
+  const cacheKey = _elMeasureCacheKey(html, props);
+  if (_measureCache.has(cacheKey)) {
+    return _measureCache.get(cacheKey);
   }
 
-  // Binary search
-  while (hi - lo >= step) {
-    const mid = Math.floor((lo + hi) / 2);
-    const metrics = measureText(content, {
-      ...fontProps, size: mid, w: box.w,
-    });
+  _ensureMeasureContainer();
 
-    if (metrics.block.h <= box.h) {
-      bestSize = mid;
-      bestMetrics = metrics;
-      lo = mid + step;
-    } else {
-      hi = mid - step;
-    }
+  const div = document.createElement("div");
+  div.style.boxSizing = "border-box";
+  if (props.w != null) div.style.width = `${props.w}px`;
+
+  // Container styling (same as render will apply)
+  if (props.className) div.className = props.className;
+  if (props.style) {
+    const { filtered } = filterStyle(props.style, "el");
+    applyStyleToDOM(div, filtered);
   }
 
-  // If we never found a fit, use minSize
-  if (!bestMetrics) {
-    bestSize = minSize;
-    bestMetrics = measureText(content, {
-      ...fontProps, size: minSize, w: box.w,
-    });
-    if (bestMetrics.block.h > box.h) {
-      warnings.push({
-        type: "text_overflow_at_min_size",
-        fontSize: minSize,
-        boxHeight: box.h,
-        textHeight: bestMetrics.block.h,
-        message: `Text does not fit in box even at minimum size ${minSize}px (text height: ${bestMetrics.block.h}px, box height: ${box.h}px)`,
+  // Content — data-sk-measure triggers CSS reset (margin:0 on children)
+  div.setAttribute("data-sk-measure", "");
+  div.innerHTML = html;
+
+  // Append to DOM (required for images to start loading and layout to compute)
+  _measureContainer.appendChild(div);
+
+  // Wait for all images to load (with timeout to prevent hanging)
+  const imgs = div.querySelectorAll("img");
+  if (imgs.length > 0) {
+    const IMAGE_TIMEOUT_MS = 3000;
+    await Promise.all([...imgs].map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        const timer = setTimeout(resolve, IMAGE_TIMEOUT_MS);
+        const done = () => { clearTimeout(timer); resolve(); };
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
       });
-    }
+    }));
   }
 
-  // Projection-readability warning
-  const projectionThreshold = _config?.minFontSize ?? 24;
-  if (bestSize < projectionThreshold) {
-    warnings.push({
-      type: "font_small",
-      fontSize: bestSize,
-      threshold: projectionThreshold,
-      message: `Font shrunk to ${bestSize}px — may be too small for projection (threshold: ${projectionThreshold}px)`,
-    });
-  }
+  // Read dimensions
+  const result = { w: div.offsetWidth, h: div.scrollHeight };
+  _measureContainer.removeChild(div);
 
-  return { fontSize: bestSize, metrics: bestMetrics, warnings };
+  // Cache result
+  _measureCache.set(cacheKey, result);
+
+  return result;
 }
 
 // =============================================================================
@@ -1190,68 +836,25 @@ function computeZOrder(elements) {
 }
 
 /**
- * Extract convenience props from an element's props for use with filterStyle().
- * Only includes keys that exist in the CONVENIENCE_MAP.
+ * Compute the effective width and height for an element.
  *
- * @param {object} props - Element props
- * @returns {object} Convenience props subset
- */
-function extractConvenienceProps(props) {
-  const result = {};
-  for (const key of Object.keys(CONVENIENCE_MAP)) {
-    if (props[key] !== undefined) {
-      result[key] = props[key];
-    }
-  }
-  return result;
-}
-
-/**
- * Compute the effective width and height for an element, including
- * type-specific logic for rules and auto-height for text elements (M2.4).
- *
- * For text elements without an explicit `h`, calls measureText() to
- * determine the height based on the text content and styling properties.
+ * For el() elements without an explicit `h`, calls measure() to
+ * determine the height from rendered HTML content.
  *
  * @param {object} element - SlideKit element
- * @returns {{ w: number, h: number, _autoHeight: boolean }}
+ * @returns {Promise<{ w: number, h: number, _autoHeight: boolean }>}
  */
-function getEffectiveDimensions(element) {
+async function getEffectiveDimensions(element) {
   const { props, type } = element;
-  if (type === "rule") {
-    const dir = props.direction || "horizontal";
-    const thickness = props.thickness || 2;
-    if (dir === "horizontal") {
-      return { w: props.w || 0, h: thickness, _autoHeight: false };
-    } else {
-      return { w: thickness, h: props.h || 0, _autoHeight: false };
-    }
-  }
 
-  // M2.4: Auto-height for text elements
-  if (type === "text" && (props.h === undefined || props.h === null)) {
-    const contentStr = String(element.content ?? "");
-    // If truly no content, return zero height
-    if (!contentStr) {
+  // Auto-height for el() elements
+  if (type === "el" && (props.h === undefined || props.h === null)) {
+    const html = element.content || "";
+    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
       return { w: props.w || 0, h: 0, _autoHeight: true };
     }
-    // Build measurement props — omit w if not provided or zero (unconstrained measurement)
-    const measureProps = {
-      font: props.font,
-      size: props.size,
-      weight: props.weight,
-      fontStyle: props.fontStyle,
-      fontVariant: props.fontVariant,
-      textTransform: props.textTransform,
-      lineHeight: props.lineHeight,
-      letterSpacing: props.letterSpacing,
-      wordSpacing: props.wordSpacing,
-    };
-    if (props.w && props.w > 0) {
-      measureProps.w = props.w;
-    }
-    const metrics = measureText(contentStr, measureProps);
-    return { w: metrics.block.w, h: metrics.block.h, _autoHeight: true };
+    const metrics = await measure(html, props);
+    return { w: props.w || metrics.w, h: metrics.h, _autoHeight: true };
   }
 
   return { w: props.w || 0, h: props.h || 0, _autoHeight: false };
@@ -2067,8 +1670,8 @@ function buildProvenance(authoredValue, prop, element, wasMeasured) {
     return {
       source: "measured",
       measuredAt: {
-        font: element.props?.font || "Inter",
-        size: element.props?.size || 32,
+        w: element.props?.w ?? null,
+        className: element.props?.className || "",
       },
     };
   }
@@ -2190,11 +1793,11 @@ export async function layout(slideDefinition, options = {}) {
 
   for (const [id, el] of flatMap) {
     if (el.type === "vstack" || el.type === "hstack") continue; // handled below
-    const dims = getEffectiveDimensions(el);
+    const dims = await getEffectiveDimensions(el);
     resolvedSizes.set(id, {
       w: dims.w,
       h: dims.h,
-      wMeasured: el.type === "text" && (el.props.w === undefined || el.props.w === null),
+      wMeasured: el.type === "el" && (el.props.w === undefined || el.props.w === null),
       hMeasured: dims._autoHeight,
     });
   }
@@ -2229,24 +1832,13 @@ export async function layout(slideDefinition, options = {}) {
           if ((child.props.w === undefined || child.props.w === null) && stackW > 0) {
             // Update child's resolved size width to use stack width
             const childSize = resolvedSizes.get(cid);
-            if (child.type === "text") {
-              // Re-measure text with the stack width constraint
-              const contentStr = String(child.content ?? "");
-              if (contentStr) {
-                const metrics = measureText(contentStr, {
-                  font: child.props.font,
-                  size: child.props.size,
-                  weight: child.props.weight,
-                  fontStyle: child.props.fontStyle,
-                  fontVariant: child.props.fontVariant,
-                  textTransform: child.props.textTransform,
-                  lineHeight: child.props.lineHeight,
-                  letterSpacing: child.props.letterSpacing,
-                  wordSpacing: child.props.wordSpacing,
-                  w: stackW,
-                });
+            if (child.type === "el") {
+              // Re-measure el() with the stack width constraint
+              const html = child.content || "";
+              if (html || (child.props.style && Object.keys(child.props.style).length > 0)) {
+                const metrics = await measure(html, { ...child.props, w: stackW });
                 childSize.w = stackW;
-                childSize.h = metrics.block.h;
+                childSize.h = metrics.h;
                 childSize.hMeasured = true;
               } else {
                 childSize.w = stackW;
@@ -2656,150 +2248,53 @@ export async function layout(slideDefinition, options = {}) {
   }
 
   // =========================================================================
-  // Phase 2.5: Overflow Policies (M4.2)
+  // Phase 2.5: Overflow Policies
   // =========================================================================
-  // For text elements with explicit h, check if text overflows and apply
-  // the element's overflow policy.
-
+  // For el() elements with explicit h, check if content overflows.
   for (const id of sortedOrder) {
     const el = flatMap.get(id);
-    if (el.type !== "text") continue;
+    if (el.type !== "el") continue;
 
-    // Only check overflow for text elements with explicit h
     const authoredH = authoredSpecs.get(id).props.h;
     if (authoredH === undefined || authoredH === null) continue;
 
     const bounds = resolvedBounds.get(id);
-    const overflow = el.props.overflow || "warn";
+    const overflow = el.props.overflow || "visible";
+    if (overflow === "visible") continue;
 
-    // Measure the text at its current font size
-    const contentStr = String(el.content ?? "");
-    if (!contentStr) continue;
+    // Measure content to check for overflow
+    const html = el.content || "";
+    if (!html) continue;
 
-    const textMetrics = measureText(contentStr, {
-      font: el.props.font,
-      size: el.props.size,
-      weight: el.props.weight,
-      fontStyle: el.props.fontStyle,
-      fontVariant: el.props.fontVariant,
-      textTransform: el.props.textTransform,
-      lineHeight: el.props.lineHeight,
-      letterSpacing: el.props.letterSpacing,
-      wordSpacing: el.props.wordSpacing,
-      w: bounds.w,
-    });
+    const metrics = await measure(html, { ...el.props, w: bounds.w });
+    const overflows = metrics.h > bounds.h;
+    if (!overflows) continue;
 
-    const textOverflows = textMetrics.block.h > bounds.h;
-    if (!textOverflows) continue;
-
-    // Text overflows — apply the overflow policy
     switch (overflow) {
-      case "visible":
-        // No action — text renders beyond the box
-        break;
-
       case "warn":
         warnings.push({
-          type: "text_overflow",
+          type: "content_overflow",
           elementId: id,
           overflow: "warn",
-          textHeight: textMetrics.block.h,
+          contentHeight: metrics.h,
           boxHeight: bounds.h,
-          message: `Text in "${id}" overflows its box (text: ${textMetrics.block.h}px, box: ${bounds.h}px)`,
+          message: `Content in "${id}" overflows its box (content: ${metrics.h}px, box: ${bounds.h}px)`,
         });
         break;
 
       case "clip":
-        // Mark the element for clipping — the renderer will set overflow:hidden
         if (!el._layoutFlags) el._layoutFlags = {};
         el._layoutFlags.clip = true;
         break;
 
-      case "ellipsis": {
-        // Binary search on word count to find max words that fit with "..."
-        const words = contentStr.split(/\s+/);
-        if (words.length <= 1) {
-          // Can't truncate a single word further; just add "..."
-          el.content = "...";
-          break;
-        }
-
-        let loW = 1;
-        let hiW = words.length;
-        let bestWordCount = 0;
-
-        while (loW <= hiW) {
-          const midW = Math.floor((loW + hiW) / 2);
-          const truncated = words.slice(0, midW).join(" ") + "...";
-          const truncMetrics = measureText(truncated, {
-            font: el.props.font,
-            size: el.props.size,
-            weight: el.props.weight,
-            fontStyle: el.props.fontStyle,
-            fontVariant: el.props.fontVariant,
-            textTransform: el.props.textTransform,
-            lineHeight: el.props.lineHeight,
-            letterSpacing: el.props.letterSpacing,
-            wordSpacing: el.props.wordSpacing,
-            w: bounds.w,
-          });
-
-          if (truncMetrics.block.h <= bounds.h) {
-            bestWordCount = midW;
-            loW = midW + 1;
-          } else {
-            hiW = midW - 1;
-          }
-        }
-
-        if (bestWordCount > 0) {
-          el.content = words.slice(0, bestWordCount).join(" ") + "...";
-        } else {
-          el.content = "...";
-        }
-        break;
-      }
-
-      case "shrink": {
-        // Call fitText to auto-size, update the element's font size
-        const fitResult = fitText(contentStr, { w: bounds.w, h: bounds.h }, {
-          font: el.props.font,
-          weight: el.props.weight,
-          fontStyle: el.props.fontStyle,
-          fontVariant: el.props.fontVariant,
-          textTransform: el.props.textTransform,
-          lineHeight: el.props.lineHeight,
-          letterSpacing: el.props.letterSpacing,
-          wordSpacing: el.props.wordSpacing,
-          minSize: el.props.fit?.minSize ?? 12,
-          maxSize: el.props.size || 32,
-          step: el.props.fit?.step ?? 1,
-        });
-        el.props.size = fitResult.fontSize;
-        // Propagate fitText warnings
-        for (const w of fitResult.warnings) {
-          warnings.push({ ...w, elementId: id });
-        }
-        break;
-      }
-
       case "error":
         errors.push({
-          type: "text_overflow",
+          type: "content_overflow",
           elementId: id,
           overflow: "error",
-          textHeight: textMetrics.block.h,
+          contentHeight: metrics.h,
           boxHeight: bounds.h,
-          message: `Text in "${id}" overflows its box (text: ${textMetrics.block.h}px, box: ${bounds.h}px)`,
-        });
-        break;
-
-      default:
-        warnings.push({
-          type: "unknown_overflow_policy",
-          elementId: id,
-          policy: overflow,
-          message: `Unknown overflow policy "${overflow}" on element "${id}"`,
+          message: `Content in "${id}" overflows its box (content: ${metrics.h}px, box: ${bounds.h}px)`,
         });
         break;
     }
@@ -3065,22 +2560,6 @@ export async function layout(slideDefinition, options = {}) {
   const isStrict = cfg.strict === true;
   const minFontSizeThreshold = cfg.minFontSize ?? 24;
 
-  // Font size check
-  for (const id of sortedOrder) {
-    const el = flatMap.get(id);
-    if (el.type !== "text") continue;
-    const fontSize = el.props.size || 32;
-    if (fontSize < minFontSizeThreshold) {
-      warnings.push({
-        type: "font_small",
-        elementId: id,
-        fontSize,
-        threshold: minFontSizeThreshold,
-        message: `Font size ${fontSize}px on "${id}" may be too small for projection (threshold: ${minFontSizeThreshold}px)`,
-      });
-    }
-  }
-
   // Safe zone check
   const sr = _safeRectCache;
   if (sr) {
@@ -3241,11 +2720,12 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
     w = resolved.w;
     h = resolved.h;
   } else {
-    // Fallback for elements not in scene graph (e.g., group children
-    // that might be handled differently)
-    const dims = getEffectiveDimensions(element);
-    w = dims.w;
-    h = dims.h;
+    // Fallback for elements not in scene graph — use props directly.
+    // getEffectiveDimensions is async (for el() measurement) but render
+    // is synchronous, so we use raw props here. Elements should always
+    // be resolved by layout() before reaching render.
+    w = props.w || 0;
+    h = props.h || 0;
     const anchor = props.anchor || "tl";
     const anchorResult = resolveAnchor(props.x ?? 0, props.y ?? 0, w, h, anchor);
     left = anchorResult.left;
@@ -3253,8 +2733,7 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
   }
 
   // Build the merged CSS from convenience props + user style
-  const convenienceProps = extractConvenienceProps(props);
-  const { filtered: mergedStyle, warnings: styleWarnings } = filterStyle(props.style || {}, type, convenienceProps);
+  const { filtered: mergedStyle, warnings: styleWarnings } = filterStyle(props.style || {}, type);
 
   // Surface blocked-property warnings via console and scene graph
   if (styleWarnings.length > 0) {
@@ -3307,48 +2786,10 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
 
   // Type-specific rendering
   switch (type) {
-    case "text": {
-      // Match white-space mode to what measureText() used:
-      // - No explicit w: measurement used white-space:pre (no wrapping)
-      // - With explicit w: measurement used white-space:pre-wrap + word-break:break-word
-      if (props.w !== undefined) {
-        div.style.whiteSpace = "pre-wrap";
-        div.style.wordBreak = "break-word";
-      } else {
-        div.style.whiteSpace = "pre";
-      }
-
-      // Use element.content which may have been modified by ellipsis overflow policy
-      const content = String(element.content ?? "");
-      const parts = content.split("\n");
-      parts.forEach((part, i) => {
-        if (i > 0) div.appendChild(document.createElement("br"));
-        div.appendChild(document.createTextNode(part));
-      });
-      break;
-    }
-
-    case "image": {
-      const img = document.createElement("img");
-      img.src = element.src || "";
-      img.style.width = "100%";
-      img.style.height = "100%";
-      img.style.objectFit = props.fit || "cover";
-      if (props.position) {
-        img.style.objectPosition = props.position;
-      }
-      img.style.display = "block";
-      div.appendChild(img);
-      break;
-    }
-
-    case "rect": {
-      // Rect is just a styled div — styling already applied via mergedStyle
-      break;
-    }
-
-    case "rule": {
-      div.style.backgroundColor = props.color || "#ffffff";
+    case "el": {
+      // v2: Render arbitrary HTML content via innerHTML
+      div.setAttribute("data-sk-type", "el");
+      div.innerHTML = element.content || "";
       break;
     }
 
@@ -3449,6 +2890,14 @@ export async function render(slides, options = {}) {
   const sections = [];
   const layouts = [];
 
+  // Inject CSS reset for el() elements once per render
+  if (!container.querySelector("style[data-sk-reset]")) {
+    const resetStyle = document.createElement("style");
+    resetStyle.setAttribute("data-sk-reset", "");
+    resetStyle.textContent = "[data-sk-type=\"el\"] > * { margin: 0; }";
+    container.appendChild(resetStyle);
+  }
+
   // Read config once outside the loop to avoid repeated deep-copy overhead
   const cfg = getConfig();
   const slideW = cfg?.slide?.w ?? 1920;
@@ -3521,144 +2970,8 @@ export async function render(slides, options = {}) {
 }
 
 // =============================================================================
-// Compound Primitives — bullets, connect, panel (M7)
+// Compound Primitives — connect, panel (M7)
 // =============================================================================
-
-/**
- * Create a bullet list element.
- *
- * Parses items array where each item is a string or { text, children } for
- * nested lists. Returns a vstack-based group with bullet characters and text
- * items positioned correctly at each nesting level.
- *
- * @param {Array<string|{text: string, children?: Array}>} items - Bullet items
- * @param {object} [props={}] - Positioning and styling properties
- * @param {number} [props.x=0] - X position
- * @param {number} [props.y=0] - Y position
- * @param {number} [props.w] - Width for text wrapping
- * @param {number} [props.gap=8] - Vertical gap between items
- * @param {string} [props.bullet="•"] - Bullet character
- * @param {string} [props.bulletChar="•"] - Alias for bullet
- * @param {string} [props.bulletColor] - Color for bullet characters (defaults to props.color)
- * @param {number} [props.bulletGap=16] - Gap between bullet and text
- * @param {number} [props.indent=40] - Indent per nesting level
- * @param {string} [props.font="Inter"] - Font family
- * @param {number} [props.size=32] - Font size
- * @param {number} [props.weight=400] - Font weight
- * @param {string} [props.color="#ffffff"] - Text color
- * @param {number} [props.lineHeight=1.3] - Line height multiplier
- * @returns {{ id: string, type: string, children: Array, props: object }}
- */
-export function bullets(items, props = {}) {
-  // NOTE: bullets() measures text at creation time (not layout time) so that item
-  // heights are known for vstack sizing. This requires that fonts referenced in
-  // props are already loaded when bullets() is called. Call init() and wait for
-  // document.fonts.ready before creating bullet elements if using custom fonts.
-  const { id: customId, ...rest } = props;
-  const id = customId || nextId();
-
-  const bulletChar = rest.bulletChar || rest.bullet || "•";
-  const bulletColor = rest.bulletColor || rest.color || "#ffffff";
-  const bulletGap = rest.bulletGap ?? 16;
-  const indent = rest.indent ?? 40;
-  const gap = rest.gap ?? 8;
-  const font = rest.font || "Inter";
-  const size = rest.size ?? 32;
-  const weight = rest.weight ?? 400;
-  const color = rest.color || "#ffffff";
-  const fontStyle = rest.fontStyle || "normal";
-  const fontVariant = rest.fontVariant || "normal";
-  const textTransform = rest.textTransform || "none";
-  const lineHeight = rest.lineHeight ?? 1.3;
-  const letterSpacing = rest.letterSpacing || "0";
-  const wordSpacing = rest.wordSpacing || "normal";
-  const w = rest.w;
-
-  // Flatten items into a list of { text, level } entries
-  const flatItems = [];
-  function walkItems(itemList, level) {
-    for (const item of itemList) {
-      if (typeof item === "string") {
-        flatItems.push({ text: item, level });
-      } else if (item && typeof item === "object") {
-        flatItems.push({ text: item.text || "", level });
-        if (Array.isArray(item.children)) {
-          walkItems(item.children, level + 1);
-        }
-      }
-    }
-  }
-  walkItems(items, 0);
-
-  // Measure bullet character width once (same font/size for all levels)
-  const bulletMetrics = measureText(bulletChar, {
-    font, size, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing,
-  });
-  const bulletWidth = bulletMetrics.block.w;
-
-  // Build children: for each flat item, create a group with bullet + text.
-  // Each group gets an explicit h from text measurement so vstack can
-  // compute correct spacing.
-  const children = [];
-  for (let i = 0; i < flatItems.length; i++) {
-    const fi = flatItems[i];
-    const itemIndent = fi.level * indent;
-
-    // Compute available width for the text (after bullet + gap + indent)
-    // Clamp to 0 to prevent negative widths when indentation exceeds available space
-    const rawTextW = w ? w - itemIndent - bulletWidth - bulletGap : undefined;
-    const textW = rawTextW !== undefined ? Math.max(0, rawTextW) : undefined;
-
-    // Measure the text to determine item height
-    const textMeasureProps = { font, size, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing };
-    if (textW && textW > 0) textMeasureProps.w = textW;
-    const textMetrics = measureText(fi.text, textMeasureProps);
-    const itemH = Math.max(bulletMetrics.block.h, textMetrics.block.h);
-
-    const bulletEl = text(bulletChar, {
-      x: itemIndent,
-      y: 0,
-      font, size, weight, fontStyle, fontVariant, textTransform, color: bulletColor, lineHeight, letterSpacing, wordSpacing,
-    });
-
-    const textProps = {
-      x: itemIndent + bulletWidth + bulletGap,
-      y: 0,
-      font, size, weight, fontStyle, fontVariant, textTransform, color, lineHeight, letterSpacing, wordSpacing,
-    };
-    if (textW && textW > 0) {
-      textProps.w = textW;
-    }
-    const textEl = text(fi.text, textProps);
-
-    // Create group with explicit w and h so it participates in vstack sizing
-    const itemGroupProps = {
-      x: 0,
-      y: 0,
-      w: w || (itemIndent + bulletWidth + bulletGap + textMetrics.block.w),
-      h: itemH,
-    };
-    const itemGroup = group([bulletEl, textEl], itemGroupProps);
-
-    children.push(itemGroup);
-  }
-
-  // Wrap in a vstack with the specified gap
-  const stackProps = {
-    x: rest.x ?? 0,
-    y: rest.y ?? 0,
-    gap,
-  };
-  if (w) stackProps.w = w;
-
-  const result = vstack(children, { id, ...stackProps });
-
-  // Tag the element as a bullets compound so tests can identify it
-  result._compound = "bullets";
-  result._bulletItems = flatItems;
-
-  return result;
-}
 
 /**
  * Create a connector element between two elements.
@@ -3954,21 +3267,19 @@ export function panel(children, props = {}) {
     gap,
   });
 
-  // Build the background rect
-  const bgProps = {
+  // Build the background element
+  const bgStyle = { ...(rest.style || {}) };
+  if (rest.fill) bgStyle.background = rest.fill;
+  if (rest.radius !== undefined) bgStyle.borderRadius = typeof rest.radius === "number" ? `${rest.radius}px` : rest.radius;
+  if (rest.border !== undefined) bgStyle.border = rest.border;
+
+  const bgRect = el("", {
     x: 0,
     y: 0,
     w: panelW || 0,
-  };
-
-  // Copy style/className to the background rect
-  if (rest.style) bgProps.style = rest.style;
-  if (rest.className) bgProps.className = rest.className;
-  if (rest.fill) bgProps.fill = rest.fill;
-  if (rest.radius !== undefined) bgProps.radius = rest.radius;
-  if (rest.border !== undefined) bgProps.border = rest.border;
-
-  const bgRect = rect(bgProps);
+    style: bgStyle,
+    className: rest.className || "",
+  });
 
   // Create the group container
   const result = group([bgRect, childStack], {
@@ -4256,10 +3567,7 @@ export function rotatedAABB(w, h, degrees) {
 // =============================================================================
 
 const SlideKit = {
-  text,
-  image,
-  rect,
-  rule,
+  el,
   group,
   resolveAnchor,
   filterStyle,
@@ -4268,12 +3576,12 @@ const SlideKit = {
   safeRect,
   getConfig,
   resetIdCounter,
-  measureText,
+  measure,
   clearMeasureCache,
   isFontLoaded,
   getFontWarnings,
   _resetForTests,
-  // M3: Layout solve and relative positioning
+  // Layout solve and relative positioning
   layout,
   below,
   above,
@@ -4286,12 +3594,10 @@ const SlideKit = {
   alignLeftWith,
   alignRightWith,
   centerIn,
-  // M4: fitText
-  fitText,
-  // M5: Stack primitives
+  // Stack primitives
   vstack,
   hstack,
-  // M6: Alignment, distribution, size matching transforms
+  // Alignment, distribution, size matching transforms
   alignLeft,
   alignRight,
   alignTop,
@@ -4304,11 +3610,10 @@ const SlideKit = {
   matchHeight,
   matchSize,
   fitToRect,
-  // M7: Compound primitives
-  bullets,
+  // Compound primitives
   connect,
   panel,
-  // M8: Tier 3 features
+  // Utilities
   grid,
   snap,
   repeat,

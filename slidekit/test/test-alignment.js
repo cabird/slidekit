@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  rect,
+  el,
   layout, init, _resetForTests,
   alignLeft, alignRight, alignTop, alignBottom,
   alignCenterH, alignCenterV,
@@ -67,9 +67,9 @@ describe("M6.1: alignLeft — layout integration", () => {
   it("alignLeft without 'to' aligns to the minimum left edge", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 200, h: 50 });
-    const r3 = rect({ id: "r3", x: 200, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 200, h: 50 });
+    const r3 = el('', { id: "r3", x: 200, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -84,8 +84,8 @@ describe("M6.1: alignLeft — layout integration", () => {
   it("alignLeft with 'to' aligns all to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -101,9 +101,9 @@ describe("M6.1: alignRight — layout integration", () => {
   it("alignRight without 'to' aligns to the maximum right edge", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 }); // right = 300
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 200, h: 50 }); // right = 500
-    const r3 = rect({ id: "r3", x: 50, y: 0, w: 100, h: 50 });   // right = 150
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 }); // right = 300
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 200, h: 50 }); // right = 500
+    const r3 = el('', { id: "r3", x: 50, y: 0, w: 100, h: 50 });   // right = 150
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -119,8 +119,8 @@ describe("M6.1: alignRight — layout integration", () => {
   it("alignRight with 'to' aligns all right edges to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 150, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 150, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -136,9 +136,9 @@ describe("M6.1: alignTop — layout integration", () => {
   it("alignTop without 'to' aligns to the minimum top edge", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 });
-    const r2 = rect({ id: "r2", x: 0, y: 300, w: 50, h: 200 });
-    const r3 = rect({ id: "r3", x: 0, y: 50, w: 50, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 });
+    const r2 = el('', { id: "r2", x: 0, y: 300, w: 50, h: 200 });
+    const r3 = el('', { id: "r3", x: 0, y: 50, w: 50, h: 100 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -153,8 +153,8 @@ describe("M6.1: alignTop — layout integration", () => {
   it("alignTop with 'to' aligns to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 });
-    const r2 = rect({ id: "r2", x: 0, y: 300, w: 50, h: 200 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 });
+    const r2 = el('', { id: "r2", x: 0, y: 300, w: 50, h: 200 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -170,9 +170,9 @@ describe("M6.1: alignBottom — layout integration", () => {
   it("alignBottom without 'to' aligns to the maximum bottom edge", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 }); // bottom = 300
-    const r2 = rect({ id: "r2", x: 0, y: 300, w: 50, h: 300 }); // bottom = 600
-    const r3 = rect({ id: "r3", x: 0, y: 50, w: 50, h: 100 });   // bottom = 150
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 }); // bottom = 300
+    const r2 = el('', { id: "r2", x: 0, y: 300, w: 50, h: 300 }); // bottom = 600
+    const r3 = el('', { id: "r3", x: 0, y: 50, w: 50, h: 100 });   // bottom = 150
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -188,8 +188,8 @@ describe("M6.1: alignBottom — layout integration", () => {
   it("alignBottom with 'to' aligns all bottom edges to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 });
-    const r2 = rect({ id: "r2", x: 0, y: 300, w: 50, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 });
+    const r2 = el('', { id: "r2", x: 0, y: 300, w: 50, h: 100 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -205,9 +205,9 @@ describe("M6.1: alignCenterH — layout integration", () => {
   it("alignCenterH without 'to' aligns to average horizontal center", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 }); // center = 200
-    const r2 = rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 }); // center = 450
-    const r3 = rect({ id: "r3", x: 250, y: 0, w: 300, h: 50 }); // center = 400
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 }); // center = 200
+    const r2 = el('', { id: "r2", x: 400, y: 0, w: 100, h: 50 }); // center = 450
+    const r3 = el('', { id: "r3", x: 250, y: 0, w: 300, h: 50 }); // center = 400
 
     // Average center = (200 + 450 + 400) / 3 = 350
     const result = await layout({
@@ -223,8 +223,8 @@ describe("M6.1: alignCenterH — layout integration", () => {
   it("alignCenterH with 'to' aligns all centers to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 400, y: 0, w: 100, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -240,8 +240,8 @@ describe("M6.1: alignCenterV — layout integration", () => {
   it("alignCenterV without 'to' aligns to average vertical center", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 }); // center = 200
-    const r2 = rect({ id: "r2", x: 0, y: 400, w: 50, h: 100 }); // center = 450
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 }); // center = 200
+    const r2 = el('', { id: "r2", x: 0, y: 400, w: 50, h: 100 }); // center = 450
     // Average center = (200 + 450) / 2 = 325
 
     const result = await layout({
@@ -256,8 +256,8 @@ describe("M6.1: alignCenterV — layout integration", () => {
   it("alignCenterV with 'to' aligns all centers to specified value", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 });
-    const r2 = rect({ id: "r2", x: 0, y: 400, w: 50, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 });
+    const r2 = el('', { id: "r2", x: 0, y: 400, w: 50, h: 100 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -278,9 +278,9 @@ describe("M6.2: distributeH — equal-gap mode", () => {
     _resetForTests();
     await init();
     // Three elements with widths 100, 200, 150
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 100, h: 50 });
-    const r2 = rect({ id: "r2", x: 100, y: 0, w: 200, h: 50 });
-    const r3 = rect({ id: "r3", x: 300, y: 0, w: 150, h: 50 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 100, h: 50 });
+    const r2 = el('', { id: "r2", x: 100, y: 0, w: 200, h: 50 });
+    const r3 = el('', { id: "r3", x: 300, y: 0, w: 150, h: 50 });
 
     // Total range: 0 to 1000
     // Total widths: 100 + 200 + 150 = 450
@@ -299,9 +299,9 @@ describe("M6.2: distributeH — equal-gap mode", () => {
   it("distributes using default start/end from element positions", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 100, h: 50 }); // left=100
-    const r2 = rect({ id: "r2", x: 500, y: 0, w: 100, h: 50 }); // right=600
-    const r3 = rect({ id: "r3", x: 300, y: 0, w: 100, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 100, h: 50 }); // left=100
+    const r2 = el('', { id: "r2", x: 500, y: 0, w: 100, h: 50 }); // right=600
+    const r3 = el('', { id: "r3", x: 300, y: 0, w: 100, h: 50 });
 
     // Default range: 100 to 600 (leftmost left edge to rightmost right edge)
     // Total widths: 300, total gap: 200, gap between: 100
@@ -320,9 +320,9 @@ describe("M6.2: distributeH — equal-center mode", () => {
   it("distributes element centers equally", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 100, h: 50 });
-    const r2 = rect({ id: "r2", x: 100, y: 0, w: 200, h: 50 });
-    const r3 = rect({ id: "r3", x: 200, y: 0, w: 50, h: 50 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 100, h: 50 });
+    const r2 = el('', { id: "r2", x: 100, y: 0, w: 200, h: 50 });
+    const r3 = el('', { id: "r3", x: 200, y: 0, w: 50, h: 50 });
 
     // For equal-center mode, startX and endX define the center positions of the
     // first and last elements (not edge positions like equal-gap mode).
@@ -344,9 +344,9 @@ describe("M6.2: distributeH — equal-center mode", () => {
   it("equal-center defaults to element centers for start/end", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 }); // center = 200
-    const r2 = rect({ id: "r2", x: 700, y: 0, w: 100, h: 50 }); // center = 750
-    const r3 = rect({ id: "r3", x: 400, y: 0, w: 150, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 }); // center = 200
+    const r2 = el('', { id: "r2", x: 700, y: 0, w: 100, h: 50 }); // center = 750
+    const r3 = el('', { id: "r3", x: 400, y: 0, w: 150, h: 50 });
 
     // Default: startX = center of first (sorted by x) = 200
     //          endX = center of last (sorted by x) = 750
@@ -370,9 +370,9 @@ describe("M6.2: distributeV — equal-gap mode", () => {
   it("distributes elements vertically with equal gaps", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 50, h: 100 });
-    const r2 = rect({ id: "r2", x: 0, y: 100, w: 50, h: 200 });
-    const r3 = rect({ id: "r3", x: 0, y: 300, w: 50, h: 150 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 50, h: 100 });
+    const r2 = el('', { id: "r2", x: 0, y: 100, w: 50, h: 200 });
+    const r3 = el('', { id: "r3", x: 0, y: 300, w: 50, h: 150 });
 
     // Range: 0 to 1000
     // Total heights: 100 + 200 + 150 = 450
@@ -390,9 +390,9 @@ describe("M6.2: distributeV — equal-gap mode", () => {
   it("distributes using default start/end from element positions", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 100 }); // top=100
-    const r2 = rect({ id: "r2", x: 0, y: 500, w: 50, h: 100 }); // bottom=600
-    const r3 = rect({ id: "r3", x: 0, y: 300, w: 50, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 100 }); // top=100
+    const r2 = el('', { id: "r2", x: 0, y: 500, w: 50, h: 100 }); // bottom=600
+    const r3 = el('', { id: "r3", x: 0, y: 300, w: 50, h: 100 });
 
     // Default range: 100 to 600 (topmost top edge to bottommost bottom edge)
     // Total heights: 300, total gap: 200, gap between: 100
@@ -411,9 +411,9 @@ describe("M6.2: distributeV — equal-center mode", () => {
   it("distributes element centers equally vertically", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 50, h: 100 });
-    const r2 = rect({ id: "r2", x: 0, y: 100, w: 50, h: 200 });
-    const r3 = rect({ id: "r3", x: 0, y: 200, w: 50, h: 50 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 50, h: 100 });
+    const r2 = el('', { id: "r2", x: 0, y: 100, w: 50, h: 200 });
+    const r3 = el('', { id: "r3", x: 0, y: 200, w: 50, h: 50 });
 
     // With explicit startY=100, endY=900
     // Spacing = 400, centers: 100, 500, 900
@@ -430,9 +430,9 @@ describe("M6.2: distributeV — equal-center mode", () => {
   it("equal-center defaults to element centers for start/end", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 100, w: 50, h: 200 }); // center = 200
-    const r2 = rect({ id: "r2", x: 0, y: 700, w: 50, h: 100 }); // center = 750
-    const r3 = rect({ id: "r3", x: 0, y: 400, w: 50, h: 150 });
+    const r1 = el('', { id: "r1", x: 0, y: 100, w: 50, h: 200 }); // center = 200
+    const r2 = el('', { id: "r2", x: 0, y: 700, w: 50, h: 100 }); // center = 750
+    const r3 = el('', { id: "r3", x: 0, y: 400, w: 50, h: 150 });
 
     // For equal-center mode, startY/endY default to centers of first/last sorted by y
     // Default: startY = center of first (sorted by y) = 200
@@ -461,9 +461,9 @@ describe("M6.3: matchWidth", () => {
   it("sets all elements to the width of the widest", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 100, h: 50 });
-    const r2 = rect({ id: "r2", x: 0, y: 100, w: 300, h: 50 });
-    const r3 = rect({ id: "r3", x: 0, y: 200, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 100, h: 50 });
+    const r2 = el('', { id: "r2", x: 0, y: 100, w: 300, h: 50 });
+    const r3 = el('', { id: "r3", x: 0, y: 200, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -480,9 +480,9 @@ describe("M6.3: matchHeight", () => {
   it("sets all elements to the height of the tallest", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 50, h: 100 });
-    const r2 = rect({ id: "r2", x: 100, y: 0, w: 50, h: 400 });
-    const r3 = rect({ id: "r3", x: 200, y: 0, w: 50, h: 250 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 50, h: 100 });
+    const r2 = el('', { id: "r2", x: 100, y: 0, w: 50, h: 400 });
+    const r3 = el('', { id: "r3", x: 200, y: 0, w: 50, h: 250 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -499,9 +499,9 @@ describe("M6.3: matchSize", () => {
   it("matches both width and height to the largest", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 100, h: 200 });
-    const r2 = rect({ id: "r2", x: 200, y: 0, w: 300, h: 100 });
-    const r3 = rect({ id: "r3", x: 400, y: 0, w: 200, h: 300 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 100, h: 200 });
+    const r2 = el('', { id: "r2", x: 200, y: 0, w: 300, h: 100 });
+    const r3 = el('', { id: "r3", x: 400, y: 0, w: 200, h: 300 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -526,8 +526,8 @@ describe("M6.4: fitToRect", () => {
     _resetForTests();
     await init();
     // Elements form a 200x200 bounding box at (0,0)
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 100, h: 100 });
-    const r2 = rect({ id: "r2", x: 100, y: 100, w: 100, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 100, h: 100 });
+    const r2 = el('', { id: "r2", x: 100, y: 100, w: 100, h: 100 });
 
     // Target: 400x400 at (100, 100) — scale factor = 2
     const result = await layout({
@@ -553,7 +553,7 @@ describe("M6.4: fitToRect", () => {
     _resetForTests();
     await init();
     // Elements form a 200x100 bounding box
-    const r1 = rect({ id: "r1", x: 0, y: 0, w: 200, h: 100 });
+    const r1 = el('', { id: "r1", x: 0, y: 0, w: 200, h: 100 });
 
     // Target: 800x200 — scaleX=4, scaleY=2, use min=2
     const result = await layout({
@@ -573,7 +573,7 @@ describe("M6.4: fitToRect", () => {
     _resetForTests();
     await init();
     // Single element 100x100 at (50, 50)
-    const r1 = rect({ id: "r1", x: 50, y: 50, w: 100, h: 100 });
+    const r1 = el('', { id: "r1", x: 50, y: 50, w: 100, h: 100 });
 
     // Target: 400x600 — scale=4 (400/100), but 600/100=6, min=4
     const result = await layout({
@@ -597,8 +597,8 @@ describe("M6.5: Transforms preserved in scene graph", () => {
   it("transforms array is preserved in layout result", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -613,8 +613,8 @@ describe("M6.5: Transforms preserved in scene graph", () => {
   it("multiple transforms are preserved in order", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 100, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -634,9 +634,9 @@ describe("M6.5: Transform ordering effects", () => {
   it("align then distribute produces correct result", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 80 });
-    const r3 = rect({ id: "r3", x: 500, y: 150, w: 200, h: 60 });
+    const r1 = el('', { id: "r1", x: 100, y: 100, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 200, h: 80 });
+    const r3 = el('', { id: "r3", x: 500, y: 150, w: 200, h: 60 });
 
     const result = await layout({
       elements: [r1, r2, r3],
@@ -664,8 +664,8 @@ describe("M6.5: Transform ordering effects", () => {
     // Case A: distribute then alignLeft — final state should be aligned at x=50
     const resultA = await layout({
       elements: [
-        rect({ id: "r1", x: 100, y: 0, w: 100, h: 50 }),
-        rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 }),
+        el('', { id: "r1", x: 100, y: 0, w: 100, h: 50 }),
+        el('', { id: "r2", x: 400, y: 0, w: 100, h: 50 }),
       ],
       transforms: [
         distributeH(["r1", "r2"], { startX: 0, endX: 800 }),
@@ -679,8 +679,8 @@ describe("M6.5: Transform ordering effects", () => {
     // Case B: alignLeft then distribute — final state should be distributed
     const resultB = await layout({
       elements: [
-        rect({ id: "r1", x: 100, y: 0, w: 100, h: 50 }),
-        rect({ id: "r2", x: 400, y: 0, w: 100, h: 50 }),
+        el('', { id: "r1", x: 100, y: 0, w: 100, h: 50 }),
+        el('', { id: "r2", x: 400, y: 0, w: 100, h: 50 }),
       ],
       transforms: [
         alignLeft(["r1", "r2"], { to: 50 }),
@@ -706,8 +706,8 @@ describe("M6: Transform provenance", () => {
   it("transformed elements have provenance source 'transform' on affected axes", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 100, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 100, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -724,8 +724,8 @@ describe("M6: Transform provenance", () => {
   it("untouched axes keep original provenance", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
-    const r2 = rect({ id: "r2", x: 300, y: 0, w: 100, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r2 = el('', { id: "r2", x: 300, y: 0, w: 100, h: 50 });
 
     const result = await layout({
       elements: [r1, r2],
@@ -751,7 +751,7 @@ describe("M6: Edge cases", () => {
   it("missing element IDs in transforms produce warnings, not errors", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],
@@ -767,7 +767,7 @@ describe("M6: Edge cases", () => {
   it("transform with no valid IDs is a no-op", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],
@@ -784,7 +784,7 @@ describe("M6: Edge cases", () => {
   it("invalid transform objects in transforms array produce warnings", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],
@@ -801,7 +801,7 @@ describe("M6: Edge cases", () => {
   it("distribution with fewer than 2 elements is a no-op", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 100, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 100, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],
@@ -815,7 +815,7 @@ describe("M6: Edge cases", () => {
   it("alignLeft with single element still works", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 500, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 500, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],
@@ -828,7 +828,7 @@ describe("M6: Edge cases", () => {
   it("alignLeft with single element and no 'to' is a no-op", async () => {
     _resetForTests();
     await init();
-    const r1 = rect({ id: "r1", x: 500, y: 0, w: 200, h: 50 });
+    const r1 = el('', { id: "r1", x: 500, y: 0, w: 200, h: 50 });
 
     const result = await layout({
       elements: [r1],

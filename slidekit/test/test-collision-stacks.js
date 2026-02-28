@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, image, rect, rule, group,
+  el, group,
   render, layout,
   init, safeRect, _resetForTests,
   below, above, rightOf, leftOf,
@@ -34,8 +34,8 @@ async function withContainer(fn) {
 describe("M5.2: vstack — element shape & defaults", () => {
   it("vstack() returns the correct element shape", () => {
     _resetForTests();
-    const child1 = rect({ id: "c1", w: 100, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 });
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 });
     const stack = vstack([child1, child2], { id: "vs1" });
 
     assert.equal(stack.type, "vstack");
@@ -47,7 +47,7 @@ describe("M5.2: vstack — element shape & defaults", () => {
 
   it("vstack() accepts custom gap and align", () => {
     _resetForTests();
-    const stack = vstack([rect({ w: 100, h: 50 })], { id: "vs2", gap: 20, align: "center" });
+    const stack = vstack([el('', { w: 100, h: 50 })], { id: "vs2", gap: 20, align: "center" });
 
     assert.equal(stack.props.gap, 20);
     assert.equal(stack.props.align, "center");
@@ -55,7 +55,7 @@ describe("M5.2: vstack — element shape & defaults", () => {
 
   it("vstack() generates auto ID when none provided", () => {
     _resetForTests();
-    const stack = vstack([rect({ w: 10, h: 10 })]);
+    const stack = vstack([el('', { w: 10, h: 10 })]);
     assert.ok(stack.id.startsWith("sk-"), "auto ID should start with sk-");
   });
 });
@@ -67,8 +67,8 @@ describe("M5.2: vstack — element shape & defaults", () => {
 describe("M5.3: hstack — element shape & defaults", () => {
   it("hstack() returns the correct element shape", () => {
     _resetForTests();
-    const child1 = rect({ id: "c1", w: 100, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 });
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 });
     const stack = hstack([child1, child2], { id: "hs1" });
 
     assert.equal(stack.type, "hstack");
@@ -80,7 +80,7 @@ describe("M5.3: hstack — element shape & defaults", () => {
 
   it("hstack() accepts custom gap and align", () => {
     _resetForTests();
-    const stack = hstack([rect({ w: 100, h: 50 })], { id: "hs2", gap: 15, align: "middle" });
+    const stack = hstack([el('', { w: 100, h: 50 })], { id: "hs2", gap: 15, align: "middle" });
 
     assert.equal(stack.props.gap, 15);
     assert.equal(stack.props.align, "middle");
@@ -88,7 +88,7 @@ describe("M5.3: hstack — element shape & defaults", () => {
 
   it("hstack() generates auto ID when none provided", () => {
     _resetForTests();
-    const stack = hstack([rect({ w: 10, h: 10 })]);
+    const stack = hstack([el('', { w: 10, h: 10 })]);
     assert.ok(stack.id.startsWith("sk-"), "auto ID should start with sk-");
   });
 });
@@ -102,9 +102,9 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 80 });
-    const child2 = rect({ id: "c2", w: 200, h: 60 });
-    const child3 = rect({ id: "c3", w: 200, h: 40 });
+    const child1 = el('', { id: "c1", w: 200, h: 80 });
+    const child2 = el('', { id: "c2", w: 200, h: 60 });
+    const child3 = el('', { id: "c3", w: 200, h: 40 });
     const stack = vstack([child1, child2, child3], { id: "vs1", x: 100, y: 100, w: 200 });
 
     const scene = await layout({ elements: [stack] });
@@ -127,8 +127,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 80 });
-    const child2 = rect({ id: "c2", w: 200, h: 60 });
+    const child1 = el('', { id: "c1", w: 200, h: 80 });
+    const child2 = el('', { id: "c2", w: 200, h: 60 });
     const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 200, gap: 20 });
 
     const scene = await layout({ elements: [stack] });
@@ -143,8 +143,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 }); // narrower
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 }); // narrower
     const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 200 });
 
     const scene = await layout({ elements: [stack] });
@@ -158,8 +158,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 }); // narrower
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 }); // narrower
     const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 200, align: "center" });
 
     const scene = await layout({ elements: [stack] });
@@ -174,8 +174,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 }); // narrower
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 }); // narrower
     const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 200, align: "right" });
 
     const scene = await layout({ elements: [stack] });
@@ -189,8 +189,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 80 });
-    const child2 = rect({ id: "c2", w: 200, h: 60 });
+    const child1 = el('', { id: "c1", w: 200, h: 80 });
+    const child2 = el('', { id: "c2", w: 200, h: 60 });
     const stack = vstack([child1, child2], { id: "vs1", x: 0, y: 0, w: 200, gap: 10 });
 
     const scene = await layout({ elements: [stack] });
@@ -203,8 +203,8 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
-    const child2 = rect({ id: "c2", w: 300, h: 50 }); // wider
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 300, h: 50 }); // wider
     const stack = vstack([child1, child2], { id: "vs1", x: 0, y: 0 });
 
     const scene = await layout({ elements: [stack] });
@@ -217,9 +217,9 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    // A text element without explicit w should inherit the stack's w
-    const child1 = text("Hello World", { id: "c1", h: 50 });
-    const child2 = rect({ id: "c2", w: 300, h: 50 });
+    // An el without explicit w should inherit the stack's w
+    const child1 = el('<p>Hello World</p>', { id: "c1", h: 50 });
+    const child2 = el('', { id: "c2", w: 300, h: 50 });
     const stack = vstack([child1, child2], { id: "vs1", x: 0, y: 0, w: 400 });
 
     const scene = await layout({ elements: [stack] });
@@ -233,8 +233,8 @@ describe("M5.4: vstack — layout integration", () => {
     await init();
 
     // Text without explicit h gets auto-measured
-    const child1 = text("Line one", { id: "c1", size: 32 });
-    const child2 = text("Line two", { id: "c2", size: 32 });
+    const child1 = el('<p>Line one</p>', { id: "c1" });
+    const child2 = el('<p>Line two</p>', { id: "c2" });
     const stack = vstack([child1, child2], { id: "vs1", x: 200, y: 200, w: 400, gap: 10 });
 
     const scene = await layout({ elements: [stack] });
@@ -254,7 +254,7 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
     const stack = vstack([child1], { id: "vs1", x: 100, y: 100, w: 200 });
 
     const scene = await layout({ elements: [stack] });
@@ -270,9 +270,9 @@ describe("M5.4: vstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const heading = rect({ id: "heading", x: 200, y: 100, w: 400, h: 60 });
-    const child1 = rect({ id: "c1", w: 400, h: 50 });
-    const child2 = rect({ id: "c2", w: 400, h: 50 });
+    const heading = el('', { id: "heading", x: 200, y: 100, w: 400, h: 60 });
+    const child1 = el('', { id: "c1", w: 400, h: 50 });
+    const child2 = el('', { id: "c2", w: 400, h: 50 });
     const stack = vstack([child1, child2], {
       id: "vs1", x: 200, y: below("heading", { gap: 20 }), w: 400
     });
@@ -296,9 +296,9 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 120, h: 80 });
-    const child3 = rect({ id: "c3", w: 80, h: 80 });
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
+    const child3 = el('', { id: "c3", w: 80, h: 80 });
     const stack = hstack([child1, child2, child3], { id: "hs1", x: 100, y: 100 });
 
     const scene = await layout({ elements: [stack] });
@@ -318,8 +318,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 120, h: 80 });
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
     const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, gap: 30 });
 
     const scene = await layout({ elements: [stack] });
@@ -334,8 +334,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 100, h: 40 }); // shorter
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 100, h: 40 }); // shorter
     const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100 });
 
     const scene = await layout({ elements: [stack] });
@@ -349,8 +349,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 100, h: 40 }); // shorter
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 100, h: 40 }); // shorter
     const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, align: "middle" });
 
     const scene = await layout({ elements: [stack] });
@@ -365,8 +365,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 100, h: 40 }); // shorter
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 100, h: 40 }); // shorter
     const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, align: "bottom" });
 
     const scene = await layout({ elements: [stack] });
@@ -381,8 +381,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 120, h: 80 });
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
     const stack = hstack([child1, child2], { id: "hs1", x: 0, y: 0, gap: 10 });
 
     const scene = await layout({ elements: [stack] });
@@ -395,8 +395,8 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 80 });
-    const child2 = rect({ id: "c2", w: 100, h: 120 }); // taller
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 100, h: 120 }); // taller
     const stack = hstack([child1, child2], { id: "hs1", x: 0, y: 0 });
 
     const scene = await layout({ elements: [stack] });
@@ -409,7 +409,7 @@ describe("M5.4: hstack — layout integration", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 50 });
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
     const stack = hstack([child1], { id: "hs1", x: 100, y: 100 });
 
     const scene = await layout({ elements: [stack] });
@@ -431,11 +431,11 @@ describe("M5.4: nested stacks", () => {
     _resetForTests();
     await init();
 
-    const innerChild1 = rect({ id: "ic1", w: 100, h: 30 });
-    const innerChild2 = rect({ id: "ic2", w: 100, h: 30 });
+    const innerChild1 = el('', { id: "ic1", w: 100, h: 30 });
+    const innerChild2 = el('', { id: "ic2", w: 100, h: 30 });
     const innerStack = vstack([innerChild1, innerChild2], { id: "inner-vs", w: 100, gap: 10 });
 
-    const sideChild = rect({ id: "side", w: 80, h: 70 });
+    const sideChild = el('', { id: "side", w: 80, h: 70 });
     const outerStack = hstack([innerStack, sideChild], { id: "outer-hs", x: 200, y: 200, gap: 20 });
 
     const scene = await layout({ elements: [outerStack] });
@@ -461,11 +461,11 @@ describe("M5.4: nested stacks", () => {
     _resetForTests();
     await init();
 
-    const innerChild1 = rect({ id: "ic1", w: 60, h: 40 });
-    const innerChild2 = rect({ id: "ic2", w: 80, h: 40 });
+    const innerChild1 = el('', { id: "ic1", w: 60, h: 40 });
+    const innerChild2 = el('', { id: "ic2", w: 80, h: 40 });
     const innerStack = hstack([innerChild1, innerChild2], { id: "inner-hs", gap: 10 });
 
-    const topChild = rect({ id: "top", w: 150, h: 50 });
+    const topChild = el('', { id: "top", w: 150, h: 50 });
     const outerStack = vstack([topChild, innerStack], { id: "outer-vs", x: 100, y: 100, w: 150, gap: 10 });
 
     const scene = await layout({ elements: [outerStack] });
@@ -496,12 +496,12 @@ describe("M5.4: elements can reference stack children", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "sc1", w: 200, h: 60 });
-    const child2 = rect({ id: "sc2", w: 200, h: 40 });
+    const child1 = el('', { id: "sc1", w: 200, h: 60 });
+    const child2 = el('', { id: "sc2", w: 200, h: 40 });
     const stack = vstack([child1, child2], { id: "vs1", x: 200, y: 100, w: 200 });
 
     // Element positioned below the last stack child
-    const label = rect({ id: "label", x: 200, y: below("sc2", { gap: 10 }), w: 200, h: 30 });
+    const label = el('', { id: "label", x: 200, y: below("sc2", { gap: 10 }), w: 200, h: 30 });
 
     const scene = await layout({ elements: [stack, label] });
     assert.equal(scene.errors.length, 0);
@@ -514,10 +514,10 @@ describe("M5.4: elements can reference stack children", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "sc1", w: 100, h: 50 });
+    const child1 = el('', { id: "sc1", w: 100, h: 50 });
     const stack = hstack([child1], { id: "hs1", x: 100, y: 100 });
 
-    const label = rect({ id: "label", x: rightOf("hs1", { gap: 20 }), y: 100, w: 50, h: 50 });
+    const label = el('', { id: "label", x: rightOf("hs1", { gap: 20 }), y: 100, w: 50, h: 50 });
 
     const scene = await layout({ elements: [stack, label] });
     assert.equal(scene.errors.length, 0);
@@ -536,9 +536,9 @@ describe("M5.4: _rel warning on stack children", () => {
     _resetForTests();
     await init();
 
-    const heading = rect({ id: "heading", x: 100, y: 50, w: 200, h: 40 });
+    const heading = el('', { id: "heading", x: 100, y: 50, w: 200, h: 40 });
     // Stack child with a _rel marker on y — this is ignored by the stack layout
-    const child1 = rect({ id: "c1", w: 200, h: 50, y: below("heading") });
+    const child1 = el('', { id: "c1", w: 200, h: 50, y: below("heading") });
     const stack = vstack([child1], { id: "vs1", x: 100, y: 100, w: 200 });
 
     const scene = await layout({ elements: [heading, stack] });
@@ -560,8 +560,8 @@ describe("M5.1: collision detection — overlapping elements", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 300, y: 300, w: 200, h: 200 }); // overlaps r1
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 300, y: 300, w: 200, h: 200 }); // overlaps r1
 
     const scene = await layout({ elements: [r1, r2] });
     assert.equal(scene.errors.length, 0);
@@ -582,8 +582,8 @@ describe("M5.1: collision detection — overlapping elements", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 100, h: 100 });
-    const r2 = rect({ id: "r2", x: 400, y: 200, w: 100, h: 100 }); // no overlap
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 100, h: 100 });
+    const r2 = el('', { id: "r2", x: 400, y: 200, w: 100, h: 100 }); // no overlap
 
     const scene = await layout({ elements: [r1, r2] });
     assert.equal(scene.collisions.length, 0);
@@ -593,8 +593,8 @@ describe("M5.1: collision detection — overlapping elements", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 100, h: 100 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 100, h: 100 }); // touching, not overlapping
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 100, h: 100 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 100, h: 100 }); // touching, not overlapping
 
     const scene = await layout({ elements: [r1, r2] });
     assert.equal(scene.collisions.length, 0);
@@ -604,9 +604,9 @@ describe("M5.1: collision detection — overlapping elements", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 200 }); // overlaps r1
-    const r3 = rect({ id: "r3", x: 250, y: 250, w: 100, h: 100 }); // overlaps r1 and r2
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 200, h: 200 }); // overlaps r1
+    const r3 = el('', { id: "r3", x: 250, y: 250, w: 100, h: 100 }); // overlaps r1 and r2
 
     const scene = await layout({ elements: [r1, r2, r3] });
 
@@ -620,8 +620,8 @@ describe("M5.1: collision detection — cross-layer behavior", () => {
     _resetForTests();
     await init();
 
-    const bg = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "bg" });
-    const content = rect({ id: "r2", x: 200, y: 200, w: 200, h: 200, layer: "content" });
+    const bg = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "bg" });
+    const content = el('', { id: "r2", x: 200, y: 200, w: 200, h: 200, layer: "content" });
 
     const scene = await layout({ elements: [bg, content] });
 
@@ -633,8 +633,8 @@ describe("M5.1: collision detection — cross-layer behavior", () => {
     _resetForTests();
     await init();
 
-    const bg1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "bg" });
-    const bg2 = rect({ id: "r2", x: 300, y: 300, w: 200, h: 200, layer: "bg" });
+    const bg1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "bg" });
+    const bg2 = el('', { id: "r2", x: 300, y: 300, w: 200, h: 200, layer: "bg" });
 
     const scene = await layout({ elements: [bg1, bg2] });
     assert.equal(scene.collisions.length, 1);
@@ -644,8 +644,8 @@ describe("M5.1: collision detection — cross-layer behavior", () => {
     _resetForTests();
     await init();
 
-    const ov1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "overlay" });
-    const ov2 = rect({ id: "r2", x: 300, y: 300, w: 200, h: 200, layer: "overlay" });
+    const ov1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200, layer: "overlay" });
+    const ov2 = el('', { id: "r2", x: 300, y: 300, w: 200, h: 200, layer: "overlay" });
 
     const scene = await layout({ elements: [ov1, ov2] });
     assert.equal(scene.collisions.length, 1);
@@ -658,8 +658,8 @@ describe("M5.1: collision detection — threshold", () => {
     await init();
 
     // Overlap area = 10 * 200 = 2000 (only 10px horizontal overlap)
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 390, y: 200, w: 200, h: 200 }); // 10px overlap
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 390, y: 200, w: 200, h: 200 }); // 10px overlap
 
     // With default threshold (0) — collision detected
     const scene1 = await layout({ elements: [r1, r2] });
@@ -669,8 +669,8 @@ describe("M5.1: collision detection — threshold", () => {
     await init();
 
     // Same elements but with threshold higher than overlap area
-    const r1b = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2b = rect({ id: "r2", x: 390, y: 200, w: 200, h: 200 });
+    const r1b = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2b = el('', { id: "r2", x: 390, y: 200, w: 200, h: 200 });
     const scene2 = await layout({ elements: [r1b, r2b] }, { collisionThreshold: 5000 });
     assert.equal(scene2.collisions.length, 0);
   });
@@ -680,8 +680,8 @@ describe("M5.1: collision detection — threshold", () => {
     await init();
 
     // Large overlap: 100 * 100 = 10000
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 300, y: 300, w: 200, h: 200 });
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 300, y: 300, w: 200, h: 200 });
 
     const scene = await layout({ elements: [r1, r2] }, { collisionThreshold: 5000 });
     assert.equal(scene.collisions.length, 1);
@@ -694,11 +694,11 @@ describe("M5.1: collision detection — stack children", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "sc1", w: 200, h: 100 });
+    const child1 = el('', { id: "sc1", w: 200, h: 100 });
     const stack = vstack([child1], { id: "vs1", x: 200, y: 200, w: 200 });
 
     // External element that overlaps the stack child
-    const overlapper = rect({ id: "ext", x: 300, y: 250, w: 200, h: 100 });
+    const overlapper = el('', { id: "ext", x: 300, y: 250, w: 200, h: 100 });
 
     const scene = await layout({ elements: [stack, overlapper] });
 
@@ -712,8 +712,8 @@ describe("M5.1: collision detection — stack children", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "sc1", w: 200, h: 100 });
-    const child2 = rect({ id: "sc2", w: 200, h: 100 });
+    const child1 = el('', { id: "sc1", w: 200, h: 100 });
+    const child2 = el('', { id: "sc2", w: 200, h: 100 });
     const stack = vstack([child1, child2], { id: "vs1", x: 200, y: 200, w: 200 });
 
     const scene = await layout({ elements: [stack] });
@@ -727,8 +727,8 @@ describe("M5.1: collision detection — stack children", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 200, y: 200, w: 0, h: 0 }); // zero-size
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 200, y: 200, w: 0, h: 0 }); // zero-size
 
     const scene = await layout({ elements: [r1, r2] });
     assert.equal(scene.collisions.length, 0);
@@ -744,8 +744,8 @@ describe("M5.4: stack rendering", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50, fill: "#ff0000" });
-    const child2 = rect({ id: "c2", w: 200, h: 50, fill: "#00ff00" });
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 50 });
     const stack = vstack([child1, child2], { id: "vs1", x: 300, y: 300, w: 200, gap: 10 });
 
     await withContainer(async (container) => {
@@ -771,8 +771,8 @@ describe("M5.4: stack rendering", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 50, fill: "#ff0000" });
-    const child2 = rect({ id: "c2", w: 100, h: 50, fill: "#00ff00" });
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 });
     const stack = hstack([child1, child2], { id: "hs1", x: 300, y: 300, gap: 10 });
 
     await withContainer(async (container) => {
@@ -793,8 +793,8 @@ describe("M5.4: stack rendering", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 200, h: 50 });
-    const child2 = rect({ id: "c2", w: 200, h: 50 });
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 50 });
     const stack = vstack([child1, child2], { id: "vs1", x: 300, y: 400, w: 200, gap: 10 });
 
     await withContainer(async (container) => {
@@ -824,8 +824,8 @@ describe("M5: scene graph structure", () => {
     _resetForTests();
     await init();
 
-    const child1 = rect({ id: "c1", w: 100, h: 50 });
-    const child2 = rect({ id: "c2", w: 100, h: 50 });
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 100, h: 50 });
     const stack = vstack([child1, child2], { id: "vs1", x: 200, y: 200, w: 100 });
 
     const scene = await layout({ elements: [stack] });
@@ -836,14 +836,14 @@ describe("M5: scene graph structure", () => {
 
     // Stack type is preserved
     assert.equal(scene.elements["vs1"].type, "vstack");
-    assert.equal(scene.elements["c1"].type, "rect");
+    assert.equal(scene.elements["c1"].type, "el");
   });
 
   it("collisions array is always present in scene graph", async () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 100, h: 100 });
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 100, h: 100 });
     const scene = await layout({ elements: [r1] });
 
     assert.ok(Array.isArray(scene.collisions), "collisions should be an array");
@@ -859,7 +859,7 @@ describe("M5.4: stack edge cases", () => {
     _resetForTests();
     await init();
 
-    const child = rect({ id: "c1", w: 100, h: 50 });
+    const child = el('', { id: "c1", w: 100, h: 50 });
     const stack = vstack([child], { id: "vs1", x: 300, y: 400, w: 100 });
 
     const scene = await layout({ elements: [stack] });
@@ -874,7 +874,7 @@ describe("M5.4: stack edge cases", () => {
     _resetForTests();
     await init();
 
-    const child = rect({ id: "c1", w: 100, h: 50 });
+    const child = el('', { id: "c1", w: 100, h: 50 });
     const stack = hstack([child], { id: "hs1", x: 300, y: 400 });
 
     const scene = await layout({ elements: [stack] });
@@ -889,7 +889,7 @@ describe("M5.4: stack edge cases", () => {
     _resetForTests();
     await init();
 
-    const child = rect({ id: "c1", w: 100, h: 50 });
+    const child = el('', { id: "c1", w: 100, h: 50 });
     const stack = vstack([child], { id: "vs1", x: 0, y: 0, w: 100, h: 200 });
 
     const scene = await layout({ elements: [stack] });
@@ -902,7 +902,7 @@ describe("M5.4: stack edge cases", () => {
     _resetForTests();
     await init();
 
-    const child = rect({ id: "c1", w: 100, h: 50 });
+    const child = el('', { id: "c1", w: 100, h: 50 });
     const stack = hstack([child], { id: "hs1", x: 0, y: 0, h: 50, w: 500 });
 
     const scene = await layout({ elements: [stack] });
@@ -915,9 +915,9 @@ describe("M5.4: stack edge cases", () => {
     _resetForTests();
     await init();
 
-    const r1 = rect({ id: "r1", x: 200, y: 200, w: 200, h: 200 });
-    const r2 = rect({ id: "r2", x: 300, y: 200, w: 200, h: 200 }); // overlaps r1
-    const r3 = rect({ id: "r3", x: 250, y: 250, w: 100, h: 100 }); // overlaps r1 and r2
+    const r1 = el('', { id: "r1", x: 200, y: 200, w: 200, h: 200 });
+    const r2 = el('', { id: "r2", x: 300, y: 200, w: 200, h: 200 }); // overlaps r1
+    const r3 = el('', { id: "r3", x: 250, y: 250, w: 100, h: 100 }); // overlaps r1 and r2
 
     const scene = await layout({ elements: [r1, r2, r3] });
 
