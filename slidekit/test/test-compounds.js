@@ -1,11 +1,11 @@
-// SlideKit Tests — M7 (Compound Primitives: connect, panel)
+// SlideKit Tests — M7 (Compound Primitives: connect, panel, figure, cardGrid)
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  el,
+  el, hstack, vstack,
   render, layout,
   init, _resetForTests,
-  connect, panel,
+  connect, panel, figure, cardGrid,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -691,6 +691,71 @@ describe("M7.3: panel — layout integration", () => {
 });
 
 // =============================================================================
+// P2.4: panel — overflow warnings
+// =============================================================================
+
+describe("P2.4: panel — overflow warnings", () => {
+  it("emits panel_overflow warning when content exceeds explicit h", async () => {
+    _resetForTests();
+    // Two children: 80 + 60 = 140, gap 16 -> vstack h = 156, + 2*24 padding = 204
+    // Explicit h = 150, so overflow = 204 - 150 = 54
+    const child1 = el('', { id: "pov1", w: 200, h: 80 });
+    const child2 = el('', { id: "pov2", w: 200, h: 60 });
+    const p = panel([child1, child2], { id: "pov_panel", w: 400, h: 150, padding: 24, gap: 16 });
+
+    const scene = await layout({ elements: [p] });
+
+    const overflowWarns = scene.warnings.filter(w => w.type === "panel_overflow");
+    assert.equal(overflowWarns.length, 1, "should emit exactly one panel_overflow warning");
+    const w = overflowWarns[0];
+    assert.equal(w.elementId, "pov_panel");
+    assert.equal(w.contentHeight, 204);
+    assert.equal(w.authoredHeight, 150);
+    assert.equal(w.overflow, 54);
+  });
+
+  it("no warning when content fits within explicit h", async () => {
+    _resetForTests();
+    // Child h=50, + 2*24 padding = 98. Explicit h = 200, so no overflow.
+    const child = el('', { id: "pfit1", w: 200, h: 50 });
+    const p = panel([child], { id: "pfit_panel", w: 400, h: 200, padding: 24 });
+
+    const scene = await layout({ elements: [p] });
+
+    const overflowWarns = scene.warnings.filter(w => w.type === "panel_overflow");
+    assert.equal(overflowWarns.length, 0, "should not emit panel_overflow when content fits");
+  });
+
+  it("no warning when panel has no explicit h (auto-sizing)", async () => {
+    _resetForTests();
+    // No explicit h — panel auto-sizes to content, never overflows
+    const child1 = el('', { id: "pauto1", w: 200, h: 80 });
+    const child2 = el('', { id: "pauto2", w: 200, h: 60 });
+    const p = panel([child1, child2], { id: "pauto_panel", w: 400, padding: 24, gap: 16 });
+
+    const scene = await layout({ elements: [p] });
+
+    const overflowWarns = scene.warnings.filter(w => w.type === "panel_overflow");
+    assert.equal(overflowWarns.length, 0, "auto-sizing panel should never emit overflow warning");
+  });
+
+  it("warning message includes actionable suggestion", async () => {
+    _resetForTests();
+    const child = el('', { id: "pmsg1", w: 200, h: 100 });
+    const p = panel([child], { id: "pmsg_panel", w: 400, h: 50, padding: 24 });
+
+    const scene = await layout({ elements: [p] });
+
+    const overflowWarns = scene.warnings.filter(w => w.type === "panel_overflow");
+    assert.equal(overflowWarns.length, 1);
+    assert.ok(
+      overflowWarns[0].message.includes("Remove explicit h"),
+      "warning message should suggest removing explicit h"
+    );
+  });
+});
+
+// =============================================================================
 // M7.3: panel() — Rendering
 // =============================================================================
 
@@ -759,5 +824,464 @@ describe("M7: integration — mixed compounds on a slide", () => {
       assert.ok(container.querySelector('[data-sk-id="rconn"]'), "connector rendered");
       assert.ok(container.querySelector('[data-sk-id="rpnl"]'), "panel rendered");
     });
+  });
+});
+
+// =============================================================================
+// P2.3: figure() — Element Shape & Defaults
+// =============================================================================
+
+describe("P2.3: figure — element shape & defaults", () => {
+  it("returns a group with correct children (bgRect, img) — no caption", () => {
+    _resetForTests();
+    const f = figure({ id: "fig1", src: "photo.png", w: 400, h: 300 });
+    assert.equal(f.type, "group");
+    assert.equal(f.id, "fig1");
+    assert.equal(f.children.length, 2);
+    assert.equal(f.children[0].type, "el"); // bgRect
+    assert.equal(f.children[1].type, "el"); // img
+  });
+
+  it("with caption: group has 3 children", () => {
+    _resetForTests();
+    const f = figure({ id: "fig2", src: "photo.png", w: 400, h: 300, caption: "<p>A caption</p>" });
+    assert.equal(f.children.length, 3);
+    assert.equal(f.children[2].type, "el"); // caption
+  });
+
+  it("without caption: group has 2 children", () => {
+    _resetForTests();
+    const f = figure({ id: "fig3", src: "photo.png", w: 400, h: 300 });
+    assert.equal(f.children.length, 2);
+  });
+
+  it("background rect has fill and radius applied", () => {
+    _resetForTests();
+    const f = figure({
+      id: "fig4", src: "photo.png", w: 400, h: 300,
+      containerFill: "#1a1a2e", containerRadius: 12,
+    });
+    const bgRect = f.children[0];
+    assert.equal(bgRect.props.style.background, "#1a1a2e");
+    assert.equal(bgRect.props.style.borderRadius, "12px");
+    assert.equal(bgRect.props.w, 400);
+    assert.equal(bgRect.props.h, 300);
+  });
+
+  it("image element is inset by containerPadding", () => {
+    _resetForTests();
+    const f = figure({ id: "fig5", src: "photo.png", w: 400, h: 300, containerPadding: 10 });
+    const img = f.children[1];
+    assert.equal(img.props.x, 10);
+    assert.equal(img.props.y, 10);
+    assert.equal(img.props.w, 380); // 400 - 2*10
+    assert.equal(img.props.h, 280); // 300 - 2*10
+  });
+
+  it("caption positioned at y = h + captionGap", () => {
+    _resetForTests();
+    const f = figure({
+      id: "fig6", src: "photo.png", w: 400, h: 300,
+      caption: "<p>Caption</p>", captionGap: 16,
+    });
+    const cap = f.children[2];
+    assert.equal(cap.props.y, 316); // 300 + 16
+    assert.equal(cap.props.x, 0);
+    assert.equal(cap.props.w, 400);
+  });
+
+  it("stores _figureConfig on the group", () => {
+    _resetForTests();
+    const f = figure({
+      id: "fig7", src: "photo.png", w: 400, h: 300,
+      containerFill: "#222", containerRadius: 8,
+      containerPadding: 12, captionGap: 20, fit: "cover",
+    });
+    assert.equal(f._compound, "figure");
+    assert.equal(f._figureConfig.src, "photo.png");
+    assert.equal(f._figureConfig.containerFill, "#222");
+    assert.equal(f._figureConfig.containerRadius, 8);
+    assert.equal(f._figureConfig.containerPadding, 12);
+    assert.equal(f._figureConfig.captionGap, 20);
+    assert.equal(f._figureConfig.fit, "cover");
+  });
+
+  it("generates auto ID when none provided", () => {
+    _resetForTests();
+    const f = figure({ src: "photo.png", w: 400, h: 300 });
+    assert.ok(f.id.startsWith("sk-"), "auto ID should start with sk-");
+  });
+
+  it("applies default values correctly", () => {
+    _resetForTests();
+    const f = figure({ id: "fig-def", src: "photo.png", w: 400, h: 300 });
+    assert.equal(f.props.x, 0);
+    assert.equal(f.props.y, 0);
+    assert.equal(f.props.anchor, "tl");
+    assert.equal(f.props.layer, "content");
+    assert.equal(f._figureConfig.containerFill, "transparent");
+    assert.equal(f._figureConfig.containerRadius, 0);
+    assert.equal(f._figureConfig.containerPadding, 0);
+    assert.equal(f._figureConfig.captionGap, 0);
+    assert.equal(f._figureConfig.fit, "contain");
+  });
+
+  it("image content includes correct src and object-fit", () => {
+    _resetForTests();
+    const f = figure({ id: "fig-img", src: "test.jpg", w: 400, h: 300, fit: "cover" });
+    const img = f.children[1];
+    assert.ok(img.content.includes('src="test.jpg"'), "img should contain src");
+    assert.ok(img.content.includes('object-fit: cover'), "img should contain object-fit");
+  });
+
+  it("child IDs are derived from figure ID", () => {
+    _resetForTests();
+    const f = figure({ id: "myfig", src: "photo.png", w: 400, h: 300, caption: "<p>Hi</p>" });
+    assert.equal(f.children[0].id, "myfig-bg");
+    assert.equal(f.children[1].id, "myfig-img");
+    assert.equal(f.children[2].id, "myfig-caption");
+  });
+});
+
+// =============================================================================
+// P2.3: figure() — Spacing Tokens
+// =============================================================================
+
+describe("P2.3: figure — spacing tokens", () => {
+  it("resolves spacing token for containerPadding", async () => {
+    _resetForTests();
+    await init({ spacing: { sm: 8, md: 16, lg: 24 } });
+    const f = figure({ id: "fig-sp1", src: "photo.png", w: 400, h: 300, containerPadding: "md" });
+    assert.equal(f._figureConfig.containerPadding, 16);
+    const img = f.children[1];
+    assert.equal(img.props.x, 16);
+    assert.equal(img.props.y, 16);
+    assert.equal(img.props.w, 368); // 400 - 2*16
+    assert.equal(img.props.h, 268); // 300 - 2*16
+  });
+
+  it("resolves spacing token for captionGap", async () => {
+    _resetForTests();
+    await init({ spacing: { sm: 8, md: 16, lg: 24 } });
+    const f = figure({
+      id: "fig-sp2", src: "photo.png", w: 400, h: 300,
+      caption: "<p>Cap</p>", captionGap: "lg",
+    });
+    assert.equal(f._figureConfig.captionGap, 24);
+    const cap = f.children[2];
+    assert.equal(cap.props.y, 324); // 300 + 24
+  });
+});
+
+// =============================================================================
+// P2.3: figure() — Layout Integration
+// =============================================================================
+
+describe("P2.3: figure — layout integration", () => {
+  it("layout resolves figure position", async () => {
+    _resetForTests();
+    const f = figure({ id: "fl1", src: "photo.png", w: 400, h: 300, x: 100, y: 200 });
+    const scene = await layout({ elements: [f] });
+
+    assert.ok(scene.elements["fl1"], "figure should exist in scene");
+    assert.equal(scene.elements["fl1"].resolved.x, 100);
+    assert.equal(scene.elements["fl1"].resolved.y, 200);
+  });
+
+  it("figure resolves correctly with layout — no errors", async () => {
+    _resetForTests();
+    const f = figure({
+      id: "fl2", src: "photo.png", w: 400, h: 300,
+      x: 50, y: 50, containerPadding: 10, containerFill: "#333",
+      caption: "<p>Test</p>", captionGap: 8,
+    });
+    const scene = await layout({ elements: [f] });
+
+    assert.equal(scene.errors.length, 0, "should have no layout errors");
+    assert.ok(scene.elements["fl2"], "figure group resolved");
+    assert.ok(scene.elements["fl2-bg"], "bgRect resolved");
+    assert.ok(scene.elements["fl2-img"], "img resolved");
+    assert.ok(scene.elements["fl2-caption"], "caption resolved");
+  });
+
+  it("figure children have correct resolved positions", async () => {
+    _resetForTests();
+    const f = figure({
+      id: "fl3", src: "photo.png", w: 400, h: 300,
+      x: 100, y: 100, containerPadding: 20,
+      caption: "<p>Caption</p>", captionGap: 10,
+    });
+    const scene = await layout({ elements: [f] });
+
+    // bgRect at (0,0) relative to group — resolved is group-relative
+    const bg = scene.elements["fl3-bg"];
+    assert.equal(bg.resolved.x, 0);
+    assert.equal(bg.resolved.y, 0);
+    assert.equal(bg.resolved.w, 400);
+    assert.equal(bg.resolved.h, 300);
+
+    // img at (padPx, padPx) relative to group — resolved is group-relative
+    const img = scene.elements["fl3-img"];
+    assert.equal(img.resolved.x, 20);
+    assert.equal(img.resolved.y, 20);
+    assert.equal(img.resolved.w, 360);
+    assert.equal(img.resolved.h, 260);
+
+    // caption at (0, h + captionGap) relative to group — resolved is group-relative
+    const cap = scene.elements["fl3-caption"];
+    assert.equal(cap.resolved.x, 0);
+    assert.equal(cap.resolved.y, 310);
+    assert.equal(cap.resolved.w, 400);
+  });
+
+  it("figure group resolved height matches container h", async () => {
+    _resetForTests();
+    const f = figure({ id: "fl4", src: "photo.png", w: 400, h: 300, x: 0, y: 0 });
+    const scene = await layout({ elements: [f] });
+
+    assert.equal(scene.elements["fl4"].resolved.w, 400, "group width matches w");
+    assert.equal(scene.elements["fl4"].resolved.h, 300, "group height matches h");
+  });
+});
+
+// =============================================================================
+// P2.3: figure() — Edge Cases
+// =============================================================================
+
+describe("P2.3: figure — edge cases", () => {
+  it("clamps image dimensions to 0 when padding exceeds half of w/h", () => {
+    _resetForTests();
+    // padding=250 means inner w = 400 - 500 = -100 -> clamped to 0
+    const f = figure({ id: "fig-clamp", src: "photo.png", w: 400, h: 300, containerPadding: 250 });
+    const img = f.children[1];
+    assert.equal(img.props.w, 0, "inner width clamped to 0");
+    assert.equal(img.props.h, 0, "inner height clamped to 0");
+  });
+
+  it("handles containerRadius as string", () => {
+    _resetForTests();
+    const f = figure({ id: "fig-radstr", src: "photo.png", w: 400, h: 300, containerRadius: "12px 0" });
+    const bgRect = f.children[0];
+    assert.equal(bgRect.props.style.borderRadius, "12px 0", "string radius passed through");
+  });
+});
+
+// =============================================================================
+// P3.1: cardGrid() — Element Shape & Structure
+// =============================================================================
+
+describe("P3.1: cardGrid — element shape & structure", () => {
+  it("creates vstack of 2 hstacks for 4 items with cols: 2", () => {
+    _resetForTests();
+    const a = el('', { id: "cg-a", w: 100, h: 50 });
+    const b = el('', { id: "cg-b", w: 100, h: 50 });
+    const c = el('', { id: "cg-c", w: 100, h: 50 });
+    const d = el('', { id: "cg-d", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c, d], { id: "grid1", cols: 2 });
+
+    assert.equal(g.type, "vstack", "outer element should be a vstack");
+    assert.equal(g.id, "grid1");
+    assert.equal(g.children.length, 2, "should have 2 row hstacks");
+    assert.equal(g.children[0].type, "hstack", "first row should be hstack");
+    assert.equal(g.children[1].type, "hstack", "second row should be hstack");
+    assert.equal(g.children[0].children.length, 2, "first row has 2 items");
+    assert.equal(g.children[1].children.length, 2, "second row has 2 items");
+  });
+
+  it("handles uneven item count — last row has fewer items", () => {
+    _resetForTests();
+    const a = el('', { id: "ug-a", w: 100, h: 50 });
+    const b = el('', { id: "ug-b", w: 100, h: 50 });
+    const c = el('', { id: "ug-c", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c], { id: "grid2", cols: 2 });
+
+    assert.equal(g.children.length, 2, "should have 2 rows");
+    assert.equal(g.children[0].children.length, 2, "first row has 2 items");
+    assert.equal(g.children[1].children.length, 1, "last row has 1 item");
+  });
+
+  it("assigns row IDs derived from grid ID", () => {
+    _resetForTests();
+    const a = el('', { id: "ri-a", w: 100, h: 50 });
+    const b = el('', { id: "ri-b", w: 100, h: 50 });
+    const c = el('', { id: "ri-c", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c], { id: "mygrid", cols: 2 });
+
+    assert.equal(g.children[0].id, "mygrid-row-0", "first row ID");
+    assert.equal(g.children[1].id, "mygrid-row-1", "second row ID");
+  });
+
+  it("each row hstack has align: 'stretch'", () => {
+    _resetForTests();
+    const a = el('', { id: "st-a", w: 100, h: 50 });
+    const b = el('', { id: "st-b", w: 100, h: 80 });
+
+    const g = cardGrid([a, b], { id: "stretch-grid", cols: 2 });
+
+    assert.equal(g.children[0].props.align, "stretch", "row hstack should have align: stretch");
+  });
+
+  it("defaults to 2 columns when cols is omitted", () => {
+    _resetForTests();
+    const items = [
+      el('', { id: "dc-a", w: 100, h: 50 }),
+      el('', { id: "dc-b", w: 100, h: 50 }),
+      el('', { id: "dc-c", w: 100, h: 50 }),
+    ];
+    const g = cardGrid(items, { id: "default-cols" });
+
+    assert.equal(g.children.length, 2, "should have 2 rows with default cols=2");
+    assert.equal(g.children[0].children.length, 2, "first row has 2 items");
+    assert.equal(g.children[1].children.length, 1, "second row has 1 item");
+  });
+});
+
+// =============================================================================
+// P3.1: cardGrid() — Gap & Positioning
+// =============================================================================
+
+describe("P3.1: cardGrid — gap & positioning", () => {
+  it("passes gap to both hstacks and vstack", () => {
+    _resetForTests();
+    const a = el('', { id: "gp-a", w: 100, h: 50 });
+    const b = el('', { id: "gp-b", w: 100, h: 50 });
+    const c = el('', { id: "gp-c", w: 100, h: 50 });
+    const d = el('', { id: "gp-d", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c, d], { id: "gap-grid", cols: 2, gap: 20 });
+
+    assert.equal(g.props.gap, 20, "vstack gap should be 20");
+    assert.equal(g.children[0].props.gap, 20, "first hstack gap should be 20");
+    assert.equal(g.children[1].props.gap, 20, "second hstack gap should be 20");
+  });
+
+  it("passes x, y, anchor to outer vstack", () => {
+    _resetForTests();
+    const a = el('', { id: "xy-a", w: 100, h: 50 });
+    const b = el('', { id: "xy-b", w: 100, h: 50 });
+
+    const g = cardGrid([a, b], { id: "pos-grid", x: 100, y: 200, anchor: "tc" });
+
+    assert.equal(g.props.x, 100);
+    assert.equal(g.props.y, 200);
+    assert.equal(g.props.anchor, "tc");
+  });
+
+  it("passes w to outer vstack", () => {
+    _resetForTests();
+    const a = el('', { id: "w-a", w: 100, h: 50 });
+    const b = el('', { id: "w-b", w: 100, h: 50 });
+
+    const g = cardGrid([a, b], { id: "w-grid", w: 800 });
+
+    assert.equal(g.props.w, 800);
+  });
+
+  it("passes layer and style to outer vstack", () => {
+    _resetForTests();
+    const a = el('', { id: "ls-a", w: 100, h: 50 });
+
+    const g = cardGrid([a], { id: "ls-grid", layer: "overlay", style: { background: "#123" } });
+
+    assert.equal(g.props.layer, "overlay");
+    assert.equal(g.props.style.background, "#123");
+  });
+
+  it("resolves spacing token for gap", async () => {
+    _resetForTests();
+    await init({ spacing: { sm: 8, md: 16, lg: 24 } });
+    const a = el('', { id: "sp-a", w: 100, h: 50 });
+    const b = el('', { id: "sp-b", w: 100, h: 50 });
+    const c = el('', { id: "sp-c", w: 100, h: 50 });
+    const d = el('', { id: "sp-d", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c, d], { id: "token-grid", cols: 2, gap: "md" });
+
+    assert.equal(g.props.gap, 16, "vstack gap should resolve to 16");
+    assert.equal(g.children[0].props.gap, 16, "hstack gap should resolve to 16");
+  });
+
+  it("defaults gap to 0 when omitted", () => {
+    _resetForTests();
+    const a = el('', { id: "dg-a", w: 100, h: 50 });
+    const b = el('', { id: "dg-b", w: 100, h: 50 });
+
+    const g = cardGrid([a, b], { id: "no-gap" });
+
+    assert.equal(g.props.gap, 0, "default gap should be 0");
+  });
+});
+
+// =============================================================================
+// P3.1: cardGrid() — Layout Integration
+// =============================================================================
+
+describe("P3.1: cardGrid — layout integration", () => {
+  it("resolves correctly with layout()", async () => {
+    _resetForTests();
+    const a = el('', { id: "la", w: 200, h: 100 });
+    const b = el('', { id: "lb", w: 200, h: 100 });
+    const c = el('', { id: "lc", w: 200, h: 100 });
+    const d = el('', { id: "ld", w: 200, h: 100 });
+
+    const g = cardGrid([a, b, c, d], { id: "layout-grid", cols: 2, gap: 10, x: 50, y: 50 });
+    const scene = await layout({ elements: [g] });
+
+    assert.ok(scene.elements["layout-grid"], "grid vstack should be in scene");
+    assert.equal(scene.elements["layout-grid"].resolved.x, 50);
+    assert.equal(scene.elements["layout-grid"].resolved.y, 50);
+    assert.ok(scene.elements["la"], "first item should be resolved");
+    assert.ok(scene.elements["ld"], "last item should be resolved");
+    assert.equal(scene.errors.length, 0, "should have no layout errors");
+  });
+
+  it("grid with 3 columns and 5 items has correct row structure", () => {
+    _resetForTests();
+    const items = [];
+    for (let i = 0; i < 5; i++) {
+      items.push(el('', { id: `g3-${i}`, w: 100, h: 50 }));
+    }
+
+    const g = cardGrid(items, { id: "grid3col", cols: 3 });
+
+    assert.equal(g.children.length, 2, "should have 2 rows");
+    assert.equal(g.children[0].children.length, 3, "first row has 3 items");
+    assert.equal(g.children[1].children.length, 2, "second row has 2 items");
+  });
+
+  it("single item produces one row with one element", () => {
+    _resetForTests();
+    const a = el('', { id: "single", w: 100, h: 50 });
+
+    const g = cardGrid([a], { id: "single-grid", cols: 3 });
+
+    assert.equal(g.children.length, 1, "should have 1 row");
+    assert.equal(g.children[0].children.length, 1, "row has 1 item");
+  });
+
+  it("empty items array produces no rows", () => {
+    _resetForTests();
+    const g = cardGrid([], { id: "empty-grid", cols: 2 });
+
+    assert.equal(g.children.length, 0, "should have 0 rows");
+    assert.equal(g.type, "vstack", "still returns a vstack");
+  });
+
+  it("works without options (all defaults)", () => {
+    _resetForTests();
+    const a = el('', { id: "def-a", w: 100, h: 50 });
+    const b = el('', { id: "def-b", w: 100, h: 50 });
+    const c = el('', { id: "def-c", w: 100, h: 50 });
+
+    const g = cardGrid([a, b, c]);
+
+    assert.equal(g.type, "vstack");
+    assert.equal(g.children.length, 2, "default cols=2 creates 2 rows");
+    assert.equal(g.props.gap, 0, "default gap is 0");
+    assert.equal(g.props.x, 0, "default x is 0");
+    assert.equal(g.props.y, 0, "default y is 0");
   });
 });

@@ -2,7 +2,7 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  el, group,
+  el, group, hstack,
   render, layout, init, safeRect,
   clearMeasureCache,
   resetIdCounter, _resetForTests,
@@ -118,6 +118,40 @@ describe("safe zone validation", () => {
       w => w.type === "outside_safe_zone" && w.elementId === "bg1"
     );
     assert.equal(safeWarnings.length, 0, "bg layer should not trigger safe zone warning");
+  });
+
+  it("content layer outside safe zone includes actionable suggestion", async () => {
+    _resetForTests();
+    await init();
+    const elements = [
+      el('', { id: "c1", x: 0, y: 100, w: 100, h: 100, layer: "content" }),
+    ];
+    const result = await layout({ elements });
+    const safeWarnings = result.warnings.filter(
+      w => w.type === "outside_safe_zone" && w.elementId === "c1"
+    );
+    assert.ok(safeWarnings.length > 0, "content layer should trigger safe zone warning");
+    assert.ok(
+      safeWarnings[0].message.includes("set layer: 'bg' to silence this check"),
+      "warning should include actionable suggestion to use bg layer"
+    );
+  });
+
+  it("overlay layer outside safe zone gets warning with suggestion", async () => {
+    _resetForTests();
+    await init();
+    const elements = [
+      el('', { id: "o1", x: 0, y: 100, w: 100, h: 100, layer: "overlay" }),
+    ];
+    const result = await layout({ elements });
+    const safeWarnings = result.warnings.filter(
+      w => w.type === "outside_safe_zone" && w.elementId === "o1"
+    );
+    assert.ok(safeWarnings.length > 0, "overlay layer should trigger safe zone warning");
+    assert.ok(
+      safeWarnings[0].message.includes("set layer: 'bg' to silence this check"),
+      "overlay warning should include actionable suggestion"
+    );
   });
 });
 
@@ -266,5 +300,152 @@ describe("strict mode — errors instead of warnings", () => {
       e => e.type === "outside_slide" && e.elementId === "r1"
     );
     assert.equal(slideErrors.length, 0, "non-strict should not produce errors");
+  });
+});
+
+// =============================================================================
+// P3.3: Ragged-bottom detection on hstacks
+// =============================================================================
+
+describe("P3.3: ragged-bottom detection on hstacks", () => {
+  it("emits ragged_bottom warning when hstack children have unequal heights", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "rb-c1", w: 200, h: 100 });
+    const child2 = el('', { id: "rb-c2", w: 200, h: 83 });
+    const child3 = el('', { id: "rb-c3", w: 200, h: 95 });
+    const stack = hstack([child1, child2, child3], { id: "rb-stack", x: 200, y: 200, gap: 10 });
+
+    const scene = await layout({ elements: [stack] });
+    const raggedWarns = scene.warnings.filter(w => w.type === "ragged_bottom");
+    assert.equal(raggedWarns.length, 1, "should emit exactly one ragged_bottom warning");
+    const w = raggedWarns[0];
+    assert.equal(w.elementId, "rb-stack");
+    assert.deepEqual(w.childHeights, [100, 83, 95]);
+    assert.equal(w.maxHeight, 100);
+    assert.ok(w.message.includes("unequal heights"), "message should mention unequal heights");
+    assert.ok(w.message.includes("stretch"), "message should suggest align: 'stretch'");
+  });
+
+  it("no warning when hstack children have equal heights", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "eq-c1", w: 200, h: 100 });
+    const child2 = el('', { id: "eq-c2", w: 200, h: 100 });
+    const child3 = el('', { id: "eq-c3", w: 200, h: 100 });
+    const stack = hstack([child1, child2, child3], { id: "eq-stack", x: 200, y: 200, gap: 10 });
+
+    const scene = await layout({ elements: [stack] });
+    const raggedWarns = scene.warnings.filter(w => w.type === "ragged_bottom");
+    assert.equal(raggedWarns.length, 0, "equal-height children should not trigger ragged_bottom");
+  });
+
+  it("no warning when hstack has align: 'stretch'", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "st-c1", w: 200, h: 100 });
+    const child2 = el('', { id: "st-c2", w: 200, h: 60 });
+    const stack = hstack([child1, child2], { id: "st-stack", x: 200, y: 200, gap: 10, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    const raggedWarns = scene.warnings.filter(w => w.type === "ragged_bottom");
+    assert.equal(raggedWarns.length, 0, "align: 'stretch' should suppress ragged_bottom warning");
+  });
+
+  it("no warning when hstack height difference is below threshold (5px)", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "th-c1", w: 200, h: 100 });
+    const child2 = el('', { id: "th-c2", w: 200, h: 97 });
+    const stack = hstack([child1, child2], { id: "th-stack", x: 200, y: 200, gap: 10 });
+
+    const scene = await layout({ elements: [stack] });
+    const raggedWarns = scene.warnings.filter(w => w.type === "ragged_bottom");
+    assert.equal(raggedWarns.length, 0, "height difference <= 5px should not trigger warning");
+  });
+
+  it("no warning when hstack has only one child", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "one-c1", w: 200, h: 100 });
+    const stack = hstack([child1], { id: "one-stack", x: 200, y: 200 });
+
+    const scene = await layout({ elements: [stack] });
+    const raggedWarns = scene.warnings.filter(w => w.type === "ragged_bottom");
+    assert.equal(raggedWarns.length, 0, "single-child hstack should not trigger ragged_bottom");
+  });
+});
+
+// =============================================================================
+// P3.3: Off-center assembly detection
+// =============================================================================
+
+describe("P3.3: off-center assembly detection", () => {
+  it("emits off_center_assembly warning for center-anchored group with mismatched w", async () => {
+    _resetForTests();
+    await init();
+    // Group with center anchor and authored w=1200, but children span only 800px
+    const child1 = el('', { id: "oc-c1", x: 0, y: 0, w: 400, h: 100 });
+    const child2 = el('', { id: "oc-c2", x: 400, y: 0, w: 400, h: 100 });
+    const g = group([child1, child2], { id: "oc-group", x: 960, y: 200, w: 1200, h: 200, anchor: "tc" });
+
+    const scene = await layout({ elements: [g] });
+    const offCenterWarns = scene.warnings.filter(w => w.type === "off_center_assembly");
+    assert.equal(offCenterWarns.length, 1, "should emit exactly one off_center_assembly warning");
+    const w = offCenterWarns[0];
+    assert.equal(w.elementId, "oc-group");
+    assert.equal(w.authoredW, 1200);
+    assert.equal(w.contentW, 800);
+    assert.ok(w.message.includes("bounds: 'hug'"), "message should suggest bounds: 'hug'");
+  });
+
+  it("no warning for group with bounds: 'hug'", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "hug-c1", x: 0, y: 0, w: 400, h: 100 });
+    const child2 = el('', { id: "hug-c2", x: 400, y: 0, w: 400, h: 100 });
+    const g = group([child1, child2], { id: "hug-group", x: 960, y: 200, w: 1200, h: 200, anchor: "tc", bounds: "hug" });
+
+    const scene = await layout({ elements: [g] });
+    const offCenterWarns = scene.warnings.filter(w => w.type === "off_center_assembly");
+    assert.equal(offCenterWarns.length, 0, "bounds: 'hug' group should not trigger off_center_assembly");
+  });
+
+  it("no warning when authored w closely matches content w (within 20px)", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "close-c1", x: 0, y: 0, w: 400, h: 100 });
+    const child2 = el('', { id: "close-c2", x: 400, y: 0, w: 400, h: 100 });
+    // children span 800px, authored w=810 (diff = 10, below 20px threshold)
+    const g = group([child1, child2], { id: "close-group", x: 960, y: 200, w: 810, h: 200, anchor: "tc" });
+
+    const scene = await layout({ elements: [g] });
+    const offCenterWarns = scene.warnings.filter(w => w.type === "off_center_assembly");
+    assert.equal(offCenterWarns.length, 0, "small width difference should not trigger warning");
+  });
+
+  it("no warning for group without center anchor", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "tl-c1", x: 0, y: 0, w: 400, h: 100 });
+    const child2 = el('', { id: "tl-c2", x: 400, y: 0, w: 400, h: 100 });
+    // anchor: 'tl' — not centered
+    const g = group([child1, child2], { id: "tl-group", x: 200, y: 200, w: 1200, h: 200, anchor: "tl" });
+
+    const scene = await layout({ elements: [g] });
+    const offCenterWarns = scene.warnings.filter(w => w.type === "off_center_assembly");
+    assert.equal(offCenterWarns.length, 0, "non-center anchor should not trigger warning");
+  });
+
+  it("detects off-center with cc anchor too", async () => {
+    _resetForTests();
+    await init();
+    const child1 = el('', { id: "cc-c1", x: 0, y: 0, w: 300, h: 100 });
+    // children span 300px, authored w=600 (diff = 300, well above 20px)
+    const g = group([child1], { id: "cc-group", x: 960, y: 540, w: 600, h: 200, anchor: "cc" });
+
+    const scene = await layout({ elements: [g] });
+    const offCenterWarns = scene.warnings.filter(w => w.type === "off_center_assembly");
+    assert.equal(offCenterWarns.length, 1, "cc anchor with mismatched w should trigger warning");
   });
 });

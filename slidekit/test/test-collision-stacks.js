@@ -1117,3 +1117,324 @@ describe("Collision detection: elements in different panels within a stack", () 
       "should detect collisions when panels overlap at the same position");
   });
 });
+
+// =============================================================================
+// hstack/vstack align: 'stretch'
+// =============================================================================
+
+describe("hstack align: 'stretch' — basic behavior", () => {
+  it("hstack stretch makes all children the same height (max measured height)", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 40 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 }); // tallest
+    const child3 = el('', { id: "c3", w: 80, h: 60 });
+    const stack = hstack([child1, child2, child3], { id: "hs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // All children should have h = max(40, 80, 60) = 80
+    assert.equal(scene.elements["c1"].resolved.h, 80);
+    assert.equal(scene.elements["c2"].resolved.h, 80);
+    assert.equal(scene.elements["c3"].resolved.h, 80);
+  });
+
+  it("hstack stretch positions children at y = stackY (top-aligned within stretch)", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 40 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
+    const stack = hstack([child1, child2], { id: "hs1", x: 200, y: 300, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // All children should be at stackY = 300
+    assert.equal(scene.elements["c1"].resolved.y, 300);
+    assert.equal(scene.elements["c2"].resolved.y, 300);
+  });
+
+  it("hstack stretch positions children left-to-right with gap", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 40 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
+    const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, gap: 20, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // child1 at x=100, child2 at x=100+100+20=220
+    assert.equal(scene.elements["c1"].resolved.x, 100);
+    assert.equal(scene.elements["c2"].resolved.x, 220);
+  });
+
+  it("hstack stretch preserves children's widths", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 40 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
+    const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Widths should remain as authored
+    assert.equal(scene.elements["c1"].resolved.w, 100);
+    assert.equal(scene.elements["c2"].resolved.w, 120);
+  });
+});
+
+describe("hstack align: 'stretch' — authored h warning", () => {
+  it("emits warning when child has authored h that differs from stretch h", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 40 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 }); // tallest
+    const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // child1 has authored h=40 but stretch requires h=80 — should warn
+    const stretchWarnings = scene.warnings.filter(w => w.type === "stretch_override");
+    assert.ok(stretchWarnings.length >= 1, "should have stretch override warning");
+
+    const warning = stretchWarnings.find(w => w.elementId === "c1");
+    assert.ok(warning, "should have warning for c1");
+    assert.equal(warning.property, "h");
+    assert.equal(warning.authored, 40);
+    assert.equal(warning.stretched, 80);
+  });
+
+  it("does not warn when child's authored h matches stretch h", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 80 });
+    const child2 = el('', { id: "c2", w: 120, h: 80 });
+    const stack = hstack([child1, child2], { id: "hs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Both children have the same h as the stretch h — no warnings
+    const stretchWarnings = scene.warnings.filter(w => w.type === "stretch_override");
+    assert.equal(stretchWarnings.length, 0, "should have no stretch override warnings");
+  });
+});
+
+describe("hstack align: 'stretch' — single child", () => {
+  it("stretch with single child: height equals that child's measured height", async () => {
+    _resetForTests();
+    await init();
+
+    const child = el('', { id: "c1", w: 100, h: 60 });
+    const stack = hstack([child], { id: "hs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // Single child: stretch h = max(60) = 60
+    assert.equal(scene.elements["c1"].resolved.h, 60);
+  });
+});
+
+describe("vstack align: 'stretch' — basic behavior", () => {
+  it("vstack stretch makes all children the same width (max measured width)", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 300, h: 50 }); // widest
+    const child3 = el('', { id: "c3", w: 200, h: 50 });
+    const stack = vstack([child1, child2, child3], { id: "vs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // All children should have w = max(100, 300, 200) = 300
+    assert.equal(scene.elements["c1"].resolved.w, 300);
+    assert.equal(scene.elements["c2"].resolved.w, 300);
+    assert.equal(scene.elements["c3"].resolved.w, 300);
+  });
+
+  it("vstack stretch uses stack's authored w if present", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 50 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 400, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // Stack has authored w=400, so all children should stretch to 400
+    assert.equal(scene.elements["c1"].resolved.w, 400);
+    assert.equal(scene.elements["c2"].resolved.w, 400);
+  });
+
+  it("vstack stretch positions children at x = stackX (left-aligned within stretch)", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 50 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 300, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // All children should be at stackX = 300
+    assert.equal(scene.elements["c1"].resolved.x, 300);
+    assert.equal(scene.elements["c2"].resolved.x, 300);
+  });
+
+  it("vstack stretch positions children top-to-bottom with gap", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 60 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, gap: 10, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // child1 at y=100, child2 at y=100+50+10=160
+    assert.equal(scene.elements["c1"].resolved.y, 100);
+    assert.equal(scene.elements["c2"].resolved.y, 160);
+  });
+
+  it("vstack stretch preserves children's heights", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 70 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Heights should remain as authored
+    assert.equal(scene.elements["c1"].resolved.h, 50);
+    assert.equal(scene.elements["c2"].resolved.h, 70);
+  });
+});
+
+describe("vstack align: 'stretch' — authored w warning", () => {
+  it("emits warning when child has authored w that differs from stretch w", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 300, h: 50 }); // widest
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // child1 has authored w=100 but stretch requires w=300 — should warn
+    const stretchWarnings = scene.warnings.filter(w => w.type === "stretch_override");
+    assert.ok(stretchWarnings.length >= 1, "should have stretch override warning");
+
+    const warning = stretchWarnings.find(w => w.elementId === "c1");
+    assert.ok(warning, "should have warning for c1");
+    assert.equal(warning.property, "w");
+    assert.equal(warning.authored, 100);
+    assert.equal(warning.stretched, 300);
+  });
+
+  it("does not warn when child's authored w matches stretch w", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 200, h: 50 });
+    const child2 = el('', { id: "c2", w: 200, h: 50 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Both children have the same w as the stretch w — no warnings
+    const stretchWarnings = scene.warnings.filter(w => w.type === "stretch_override");
+    assert.equal(stretchWarnings.length, 0, "should have no stretch override warnings");
+  });
+});
+
+describe("vstack align: 'stretch' — single child", () => {
+  it("stretch with single child: width equals that child's measured width", async () => {
+    _resetForTests();
+    await init();
+
+    const child = el('', { id: "c1", w: 150, h: 50 });
+    const stack = vstack([child], { id: "vs1", x: 100, y: 100, align: "stretch" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // Single child: stretch w = max(150) = 150
+    assert.equal(scene.elements["c1"].resolved.w, 150);
+  });
+});
+
+// =============================================================================
+// P1.1: Semantic spacing tokens — stacks and panel
+// =============================================================================
+
+describe("P1.1: hstack with spacing token gap", () => {
+  it("hstack with gap: 'sm' resolves to 16px gap between children", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 100, h: 50 });
+    const child2 = el('', { id: "c2", w: 120, h: 50 });
+    const stack = hstack([child1, child2], { id: "hs1", x: 50, y: 50, gap: "sm" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // child1 at x=50, child2 at x=50+100+16=166
+    assert.equal(scene.elements["c1"].resolved.x, 50);
+    assert.equal(scene.elements["c2"].resolved.x, 166);
+  });
+});
+
+describe("P1.1: vstack with spacing token gap", () => {
+  it("vstack with gap: 'xl' resolves to 48px gap between children", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "c1", w: 200, h: 80 });
+    const child2 = el('', { id: "c2", w: 200, h: 60 });
+    const stack = vstack([child1, child2], { id: "vs1", x: 100, y: 100, w: 200, gap: "xl" });
+
+    const scene = await layout({ elements: [stack] });
+    assert.equal(scene.errors.length, 0);
+
+    // child1 at y=100, child2 at y=100+80+48=228
+    assert.equal(scene.elements["c1"].resolved.y, 100);
+    assert.equal(scene.elements["c2"].resolved.y, 228);
+  });
+});
+
+describe("P1.1: panel with spacing token padding and gap", () => {
+  it("panel with padding: 'lg' and gap: 'sm' resolves correctly", async () => {
+    _resetForTests();
+    await init();
+
+    const child1 = el('', { id: "pc1", w: 200, h: 80 });
+    const child2 = el('', { id: "pc2", w: 200, h: 60 });
+    // padding: 'lg' = 32, gap: 'sm' = 16
+    const p = panel([child1, child2], { id: "pl1", w: 400, padding: "lg", gap: "sm" });
+
+    const scene = await layout({ elements: [p] });
+
+    // vstack height = 80 + 16 + 60 = 156
+    // auto-height = 156 + 2*32 = 220
+    const panelData = scene.elements["pl1"];
+    assert.equal(panelData.resolved.h, 220, "panel auto-height should use resolved padding");
+  });
+});

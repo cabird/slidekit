@@ -210,7 +210,7 @@ vstack([
   id: "my-vstack",
   x: 170, y: 200,
   gap: 16,          // Pixels between children
-  align: "left",    // "left" | "center" | "right"
+  align: "left",    // "left" | "center" | "right" | "stretch"
 });
 ```
 
@@ -229,7 +229,7 @@ hstack([
   id: "my-hstack",
   x: 170, y: 200,
   gap: 24,         // Pixels between children
-  align: "top",    // "top" | "middle" | "bottom"
+  align: "top",    // "top" | "middle" | "bottom" | "stretch"
 });
 ```
 

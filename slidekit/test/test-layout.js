@@ -10,7 +10,8 @@ import {
   centerVWith, centerHWith,
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
-  centerIn,
+  centerIn, placeBetween,
+  vstack, hstack, panel,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -1091,5 +1092,498 @@ describe("M3.4: provenance for measured el() with proper cleanup", () => {
     } finally {
       _resetForTests();
     }
+  });
+});
+
+// =============================================================================
+// P1.1: Semantic spacing tokens — relational positioning
+// =============================================================================
+
+describe("P1.1: below() with spacing token", () => {
+  it("resolves gap: 'md' to 24px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", { gap: "md" }), w: 200, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // anchor bottom = 100 + 50 = 150; + md (24) = 174
+    assert.equal(scene.elements["target"].resolved.y, 174);
+  });
+});
+
+// =============================================================================
+// P1.2: Hierarchical Scene Model
+// =============================================================================
+
+describe("P1.2: rootIds — top-level element tracking", () => {
+  it("root elements have parentId: null and appear in rootIds", async () => {
+    _resetForTests();
+    await init();
+    const a = el('', { id: "a", x: 0, y: 0, w: 100, h: 50 });
+    const b = el('', { id: "b", x: 200, y: 0, w: 100, h: 50 });
+    const scene = await layout({ elements: [a, b] });
+
+    assert.equal(scene.elements["a"].parentId, null);
+    assert.equal(scene.elements["b"].parentId, null);
+    assert.ok(scene.rootIds.includes("a"), "rootIds should contain 'a'");
+    assert.ok(scene.rootIds.includes("b"), "rootIds should contain 'b'");
+    assert.equal(scene.rootIds.length, 2, "rootIds should have exactly 2 elements");
+  });
+
+  it("rootIds contains only top-level elements (not children of groups/stacks)", async () => {
+    _resetForTests();
+    await init();
+    const g = group([
+      el('', { id: "child1", x: 10, y: 10, w: 50, h: 30 }),
+    ], { id: "grp", x: 100, y: 100, w: 200, h: 150 });
+    const standalone = el('', { id: "standalone", x: 400, y: 0, w: 100, h: 50 });
+    const scene = await layout({ elements: [g, standalone] });
+
+    assert.ok(scene.rootIds.includes("grp"), "rootIds should contain 'grp'");
+    assert.ok(scene.rootIds.includes("standalone"), "rootIds should contain 'standalone'");
+    assert.ok(!scene.rootIds.includes("child1"), "rootIds should NOT contain group child 'child1'");
+  });
+});
+
+describe("P1.2: group hierarchy — parentId and children", () => {
+  it("group children have parentId set to the group's ID", async () => {
+    _resetForTests();
+    await init();
+    const g = group([
+      el('', { id: "gc1", x: 0, y: 0, w: 50, h: 30 }),
+      el('', { id: "gc2", x: 60, y: 0, w: 50, h: 30 }),
+    ], { id: "grp", x: 100, y: 100, w: 200, h: 150 });
+    const scene = await layout({ elements: [g] });
+
+    assert.equal(scene.elements["gc1"].parentId, "grp");
+    assert.equal(scene.elements["gc2"].parentId, "grp");
+  });
+
+  it("group has children array listing child IDs in order", async () => {
+    _resetForTests();
+    await init();
+    const g = group([
+      el('', { id: "gc1", x: 0, y: 0, w: 50, h: 30 }),
+      el('', { id: "gc2", x: 60, y: 0, w: 50, h: 30 }),
+    ], { id: "grp", x: 100, y: 100, w: 200, h: 150 });
+    const scene = await layout({ elements: [g] });
+
+    assert.deepEqual(scene.elements["grp"].children, ["gc1", "gc2"]);
+  });
+
+  it("group children have localResolved equal to resolved (group-relative)", async () => {
+    _resetForTests();
+    await init();
+    const g = group([
+      el('', { id: "gc1", x: 10, y: 20, w: 50, h: 30 }),
+    ], { id: "grp", x: 200, y: 100, w: 200, h: 150 });
+    const scene = await layout({ elements: [g] });
+
+    // Group children's resolved is group-relative; localResolved should match
+    const gc1 = scene.elements["gc1"];
+    assert.equal(gc1.localResolved.x, gc1.resolved.x);
+    assert.equal(gc1.localResolved.y, gc1.resolved.y);
+    assert.equal(gc1.localResolved.w, gc1.resolved.w);
+    assert.equal(gc1.localResolved.h, gc1.resolved.h);
+  });
+});
+
+describe("P1.2: vstack hierarchy — parentId, children, localResolved", () => {
+  it("vstack children have parentId set to the stack's ID", async () => {
+    _resetForTests();
+    await init();
+    const stack = vstack([
+      el('', { id: "sc1", w: 100, h: 40 }),
+      el('', { id: "sc2", w: 100, h: 60 }),
+    ], { id: "vs1", x: 200, y: 100, w: 200, gap: 10 });
+    const scene = await layout({ elements: [stack] });
+
+    assert.equal(scene.elements["sc1"].parentId, "vs1");
+    assert.equal(scene.elements["sc2"].parentId, "vs1");
+  });
+
+  it("vstack has children array listing child IDs in order", async () => {
+    _resetForTests();
+    await init();
+    const stack = vstack([
+      el('', { id: "sc1", w: 100, h: 40 }),
+      el('', { id: "sc2", w: 100, h: 60 }),
+    ], { id: "vs1", x: 200, y: 100, w: 200, gap: 10 });
+    const scene = await layout({ elements: [stack] });
+
+    assert.deepEqual(scene.elements["vs1"].children, ["sc1", "sc2"]);
+  });
+
+  it("vstack children have localResolved relative to stack origin", async () => {
+    _resetForTests();
+    await init();
+    const stack = vstack([
+      el('', { id: "sc1", w: 100, h: 40 }),
+      el('', { id: "sc2", w: 100, h: 60 }),
+    ], { id: "vs1", x: 200, y: 100, w: 200, gap: 10 });
+    const scene = await layout({ elements: [stack] });
+
+    // sc1 absolute: (200, 100), stack at (200, 100) => local (0, 0)
+    assert.equal(scene.elements["sc1"].localResolved.x, 0);
+    assert.equal(scene.elements["sc1"].localResolved.y, 0);
+
+    // sc2 absolute: (200, 150), stack at (200, 100) => local (0, 50)
+    assert.equal(scene.elements["sc2"].localResolved.x, 0);
+    assert.equal(scene.elements["sc2"].localResolved.y, 50);
+  });
+
+  it("vstack not in rootIds but its children are not either", async () => {
+    _resetForTests();
+    await init();
+    const stack = vstack([
+      el('', { id: "sc1", w: 100, h: 40 }),
+    ], { id: "vs1", x: 0, y: 0, w: 200 });
+    const scene = await layout({ elements: [stack] });
+
+    assert.ok(scene.rootIds.includes("vs1"), "rootIds should contain the stack");
+    assert.ok(!scene.rootIds.includes("sc1"), "rootIds should NOT contain stack child");
+  });
+});
+
+describe("P1.2: hstack hierarchy — parentId, children, localResolved", () => {
+  it("hstack children have parentId and localResolved relative to stack", async () => {
+    _resetForTests();
+    await init();
+    const stack = hstack([
+      el('', { id: "hc1", w: 80, h: 40 }),
+      el('', { id: "hc2", w: 120, h: 40 }),
+    ], { id: "hs1", x: 300, y: 200, gap: 20 });
+    const scene = await layout({ elements: [stack] });
+
+    assert.equal(scene.elements["hc1"].parentId, "hs1");
+    assert.equal(scene.elements["hc2"].parentId, "hs1");
+    assert.deepEqual(scene.elements["hs1"].children, ["hc1", "hc2"]);
+
+    // hc1 absolute: (300, 200), stack at (300, 200) => local (0, 0)
+    assert.equal(scene.elements["hc1"].localResolved.x, 0);
+    assert.equal(scene.elements["hc1"].localResolved.y, 0);
+
+    // hc2 absolute: (300+80+20=400, 200), stack at (300, 200) => local (100, 0)
+    assert.equal(scene.elements["hc2"].localResolved.x, 100);
+    assert.equal(scene.elements["hc2"].localResolved.y, 0);
+  });
+});
+
+describe("P1.2: panel hierarchy — _internal flag", () => {
+  it("panel synthetic elements (bgRect, childStack) have _internal: true", async () => {
+    _resetForTests();
+    await init();
+    const p = panel(
+      [el('', { id: "pc1", w: 200, h: 40 })],
+      { id: "pnl", x: 100, y: 100, w: 300 }
+    );
+    const scene = await layout({ elements: [p] });
+
+    // Panel is a group with children [bgRect, childStack]
+    const pnlEntry = scene.elements["pnl"];
+    assert.ok(pnlEntry.children.length >= 2, "panel should have at least 2 children");
+
+    const bgRectId = pnlEntry.children[0];
+    const childStackId = pnlEntry.children[1];
+
+    assert.equal(scene.elements[bgRectId]._internal, true, "bgRect should be _internal");
+    assert.equal(scene.elements[childStackId]._internal, true, "childStack should be _internal");
+  });
+
+  it("panel user children have _internal: false", async () => {
+    _resetForTests();
+    await init();
+    const p = panel(
+      [el('', { id: "pc1", w: 200, h: 40 })],
+      { id: "pnl", x: 100, y: 100, w: 300 }
+    );
+    const scene = await layout({ elements: [p] });
+
+    assert.equal(scene.elements["pc1"]._internal, false, "user child should not be _internal");
+  });
+
+  it("panel group itself has _internal: false", async () => {
+    _resetForTests();
+    await init();
+    const p = panel(
+      [el('', { id: "pc1", w: 200, h: 40 })],
+      { id: "pnl", x: 100, y: 100, w: 300 }
+    );
+    const scene = await layout({ elements: [p] });
+
+    assert.equal(scene.elements["pnl"]._internal, false, "panel group should not be _internal");
+  });
+});
+
+describe("P1.2: root elements — localResolved equals resolved", () => {
+  it("root element localResolved matches resolved", async () => {
+    _resetForTests();
+    await init();
+    const a = el('', { id: "root1", x: 150, y: 250, w: 100, h: 50 });
+    const scene = await layout({ elements: [a] });
+
+    const entry = scene.elements["root1"];
+    assert.equal(entry.localResolved.x, entry.resolved.x);
+    assert.equal(entry.localResolved.y, entry.resolved.y);
+    assert.equal(entry.localResolved.w, entry.resolved.w);
+    assert.equal(entry.localResolved.h, entry.resolved.h);
+  });
+});
+
+describe("P1.2: leaf elements have empty children array", () => {
+  it("plain el() has empty children array", async () => {
+    _resetForTests();
+    await init();
+    const a = el('', { id: "leaf", x: 0, y: 0, w: 100, h: 50 });
+    const scene = await layout({ elements: [a] });
+
+    assert.deepEqual(scene.elements["leaf"].children, []);
+  });
+});
+
+describe("P1.2: nested structures — group inside vstack", () => {
+  it("group inside vstack has correct hierarchy chain", async () => {
+    _resetForTests();
+    await init();
+    const innerGroup = group([
+      el('', { id: "nested-child", x: 5, y: 5, w: 40, h: 20 }),
+    ], { id: "inner-grp", w: 100, h: 60 });
+
+    const stack = vstack([
+      el('', { id: "top-item", w: 100, h: 30 }),
+      innerGroup,
+    ], { id: "vs-outer", x: 100, y: 100, w: 200, gap: 10 });
+    const scene = await layout({ elements: [stack] });
+
+    // Stack is root
+    assert.equal(scene.elements["vs-outer"].parentId, null);
+    assert.ok(scene.rootIds.includes("vs-outer"));
+
+    // top-item is child of stack
+    assert.equal(scene.elements["top-item"].parentId, "vs-outer");
+
+    // inner-grp is child of stack
+    assert.equal(scene.elements["inner-grp"].parentId, "vs-outer");
+
+    // nested-child is child of inner-grp (not of stack)
+    assert.equal(scene.elements["nested-child"].parentId, "inner-grp");
+
+    // Verify children arrays
+    assert.deepEqual(scene.elements["vs-outer"].children, ["top-item", "inner-grp"]);
+    assert.deepEqual(scene.elements["inner-grp"].children, ["nested-child"]);
+
+    // nested-child should NOT be in rootIds
+    assert.ok(!scene.rootIds.includes("nested-child"));
+    assert.ok(!scene.rootIds.includes("top-item"));
+    assert.ok(!scene.rootIds.includes("inner-grp"));
+  });
+});
+
+describe("P1.2: nested structures — vstack inside group", () => {
+  it("vstack inside group preserves group ancestry for stack children", async () => {
+    _resetForTests();
+    await init();
+    // This tests the fix for walk([child], null) dropping parentGroupId
+    const innerStack = vstack([
+      el('', { id: "sc1", w: 80, h: 30 }),
+      el('', { id: "sc2", w: 80, h: 30 }),
+    ], { id: "inner-vs", w: 100, gap: 5 });
+
+    const g = group([
+      el('', { id: "label", x: 0, y: 0, w: 100, h: 20 }),
+      innerStack,
+    ], { id: "grp", x: 200, y: 100, w: 200, h: 200 });
+    const scene = await layout({ elements: [g] });
+
+    // Group is root
+    assert.equal(scene.elements["grp"].parentId, null);
+    assert.ok(scene.rootIds.includes("grp"));
+
+    // label is child of group
+    assert.equal(scene.elements["label"].parentId, "grp");
+
+    // inner-vs is child of group (via groupParent, not a root element)
+    assert.equal(scene.elements["inner-vs"].parentId, "grp");
+    assert.ok(!scene.rootIds.includes("inner-vs"), "inner stack should NOT be in rootIds");
+
+    // sc1/sc2 are children of inner-vs (via stackParent)
+    assert.equal(scene.elements["sc1"].parentId, "inner-vs");
+    assert.equal(scene.elements["sc2"].parentId, "inner-vs");
+
+    // Group's children includes label and inner-vs
+    assert.deepEqual(scene.elements["grp"].children, ["label", "inner-vs"]);
+    assert.deepEqual(scene.elements["inner-vs"].children, ["sc1", "sc2"]);
+
+    // None of the nested elements should be in rootIds
+    assert.ok(!scene.rootIds.includes("label"));
+    assert.ok(!scene.rootIds.includes("sc1"));
+    assert.ok(!scene.rootIds.includes("sc2"));
+  });
+});
+
+// =============================================================================
+// P2.2: placeBetween() — marker shape
+// =============================================================================
+
+describe("P2.2: placeBetween() — marker shape", () => {
+  it("returns correct _rel marker with two string refs and default bias", () => {
+    const m = placeBetween("a", "b");
+    assert.equal(m._rel, "between");
+    assert.equal(m.ref, "a");
+    assert.equal(m.ref2, "b");
+    assert.equal(m.bias, 0.35);
+  });
+
+  it("returns correct _rel marker with numeric bottom and custom bias", () => {
+    const m = placeBetween("a", 500, { bias: 0.5 });
+    assert.equal(m._rel, "between");
+    assert.equal(m.ref, "a");
+    assert.equal(m.ref2, 500);
+    assert.equal(m.bias, 0.5);
+  });
+});
+
+// =============================================================================
+// P2.2: placeBetween() — layout integration
+// =============================================================================
+
+describe("P2.2: layout() — placeBetween()", () => {
+  it("positions element between two refs with default bias (0.35)", async () => {
+    // topRef: y=100, h=50 => bottom edge = 150
+    // bottomRef: y=400 => top edge = 400
+    // target: h=40
+    // availableSlack = 400 - 150 - 40 = 210
+    // y = 150 + 210 * 0.35 = 150 + 73.5 = 223.5
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 400, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: placeBetween("top", "bottom"), w: 200, h: 40 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 150 + 210 * 0.35);
+  });
+
+  it("positions element between ref and absolute Y", async () => {
+    // topRef: y=100, h=50 => bottom edge = 150
+    // bottomY = 500 (absolute)
+    // target: h=60
+    // availableSlack = 500 - 150 - 60 = 290
+    // y = 150 + 290 * 0.35 = 150 + 101.5 = 251.5
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: placeBetween("top", 500), w: 200, h: 60 });
+    const scene = await layout({ elements: [top, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 150 + 290 * 0.35);
+  });
+
+  it("bias=0 places at top edge", async () => {
+    // topRef bottom edge = 150, bottomRef top edge = 400, target h=40
+    // availableSlack = 400 - 150 - 40 = 210
+    // y = 150 + 210 * 0 = 150
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 400, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: placeBetween("top", "bottom", { bias: 0 }), w: 200, h: 40 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 150);
+  });
+
+  it("bias=1 places at bottom edge minus element height", async () => {
+    // topRef bottom edge = 150, bottomRef top edge = 400, target h=40
+    // availableSlack = 400 - 150 - 40 = 210
+    // y = 150 + 210 * 1 = 360
+    // bottom edge of target = 360 + 40 = 400 = flush with bottomRef top
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 400, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: placeBetween("top", "bottom", { bias: 1 }), w: 200, h: 40 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 360);
+  });
+
+  it("negative slack falls back to topEdge + 8 and emits warning", async () => {
+    // topRef bottom edge = 150, bottomRef top edge = 170
+    // target h=100 => availableSlack = 170 - 150 - 100 = -80
+    // Fallback: y = 150 + 8 = 158
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 170, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: placeBetween("top", "bottom"), w: 200, h: 100 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 158);
+    // Check that a warning was emitted
+    const w = scene.warnings.find(w => w.type === "between_no_fit" && w.elementId === "target");
+    assert.ok(w, "expected a between_no_fit warning");
+  });
+});
+
+// =============================================================================
+// P2.5: group({ bounds: 'hug' })
+// =============================================================================
+
+describe("P2.5: group({ bounds: 'hug' })", () => {
+  it("computes correct w/h from children bounding box", async () => {
+    // Child 1 at (10, 20) 100x50, Child 2 at (200, 0) 80x60
+    // BBox: minX=10, minY=0, maxX=280, maxY=70 => w=270, h=70
+    const g = group([
+      el('', { id: "c1", x: 10, y: 20, w: 100, h: 50 }),
+      el('', { id: "c2", x: 200, y: 0, w: 80, h: 60 }),
+    ], { id: "hug-grp", x: 100, y: 100, bounds: "hug" });
+    const scene = await layout({ elements: [g] });
+
+    assert.equal(scene.elements["hug-grp"].resolved.w, 270);
+    assert.equal(scene.elements["hug-grp"].resolved.h, 70);
+  });
+
+  it("anchor: 'tc' centers correctly based on hug dimensions", async () => {
+    // Children: (0,0) 200x100 and (200,0) 200x100
+    // BBox: w=400, h=100
+    // anchor: 'tc' at x=960 => left = 960 - 400/2 = 760
+    const g = group([
+      el('', { id: "a1", x: 0, y: 0, w: 200, h: 100 }),
+      el('', { id: "a2", x: 200, y: 0, w: 200, h: 100 }),
+    ], { id: "tc-grp", x: 960, y: 50, anchor: "tc", bounds: "hug" });
+    const scene = await layout({ elements: [g] });
+
+    assert.equal(scene.elements["tc-grp"].resolved.w, 400);
+    assert.equal(scene.elements["tc-grp"].resolved.h, 100);
+    assert.equal(scene.elements["tc-grp"].resolved.x, 760);
+    assert.equal(scene.elements["tc-grp"].resolved.y, 50);
+  });
+
+  it("without bounds: 'hug', group uses authored w/h", async () => {
+    const g = group([
+      el('', { id: "n1", x: 0, y: 0, w: 200, h: 100 }),
+    ], { id: "no-hug", x: 100, y: 100, w: 500, h: 400 });
+    const scene = await layout({ elements: [g] });
+
+    assert.equal(scene.elements["no-hug"].resolved.w, 500);
+    assert.equal(scene.elements["no-hug"].resolved.h, 400);
+  });
+
+  it("bounds: 'hug' with single child", async () => {
+    const g = group([
+      el('', { id: "only", x: 30, y: 40, w: 120, h: 80 }),
+    ], { id: "single-hug", x: 0, y: 0, bounds: "hug" });
+    const scene = await layout({ elements: [g] });
+
+    // BBox: minX=30, minY=40, maxX=150, maxY=120 => w=120, h=80
+    assert.equal(scene.elements["single-hug"].resolved.w, 120);
+    assert.equal(scene.elements["single-hug"].resolved.h, 80);
+  });
+
+  it("stores computed hug dimensions in resolved scene model", async () => {
+    const g = group([
+      el('', { id: "s1", x: 0, y: 0, w: 300, h: 150 }),
+      el('', { id: "s2", x: 50, y: 100, w: 200, h: 100 }),
+    ], { id: "scene-hug", x: 0, y: 0, bounds: "hug" });
+    const scene = await layout({ elements: [g] });
+
+    // BBox: minX=0, minY=0, maxX=300, maxY=200 => w=300, h=200
+    const resolved = scene.elements["scene-hug"].resolved;
+    assert.equal(resolved.w, 300);
+    assert.equal(resolved.h, 200);
+    assert.equal(resolved.x, 0);
+    assert.equal(resolved.y, 0);
   });
 });

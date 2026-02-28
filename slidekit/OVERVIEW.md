@@ -65,6 +65,8 @@ Elements can be positioned relative to other elements — "24px below the title,
 
 Vertical and horizontal stack primitives let you say "stack these items with 20px gaps" without manually chaining relative position calls. They resolve to absolute coordinates — they're syntactic sugar over the coordinate system, not CSS flexbox.
 
+**Prefer `vstack` for text columns.** When you have a sequence of text elements (eyebrow, headline, body, etc.), use a `vstack` instead of chaining `below()` calls. The vstack declares position and gap once, makes reordering trivial, and eliminates ID-reference boilerplate. Reserve `below()` for one-off positioning between unrelated elements. Stacks also support `align: 'stretch'` to make all children the same size along the cross axis — useful for equal-height card rows.
+
 ### Safe Zone
 
 A configurable margin that defines where content *should* be placed, accounting for projector overscan and edge readability. Elements outside the safe zone trigger warnings (or errors in strict mode). Helper functions give you the safe zone rectangle for easy positioning.
@@ -79,9 +81,11 @@ Elements belong to one of three named layers — background, content, and overla
 
 ### Inspection and Validation
 
-After layout solve, you get a complete scene graph: every element's specified bounds, resolved bounds, ink bounds (actual rendered extent), overflow status, and safe zone compliance. Warnings and errors are structured JSON, not console messages. Validation can run in lenient mode (warnings only) or strict mode (errors halt layout).
+After layout solve, you get a hierarchical scene graph: every element's specified bounds, resolved bounds, local-resolved bounds (relative to parent), parent/children relationships, and safe zone compliance. The layout result includes `rootIds` for tree traversal. Warnings and errors are structured JSON, not console messages. Validation can run in lenient mode (warnings only) or strict mode (errors halt layout).
 
-Presentation-specific checks include minimum font size for projection readability, text contrast, content density (too sparse or too crowded), and word count per slide.
+Presentation-specific checks include minimum font size for projection readability, text contrast, content density (too sparse or too crowded), word count per slide, and panel content overflow. After rendering, DOM overflow detection catches divergences between off-screen measurement and actual browser layout.
+
+Background-layer elements (`layer: 'bg'`) are exempt from safe zone warnings — full-bleed backgrounds are expected to extend beyond the safe zone.
 
 ### Debug Overlay
 
@@ -92,7 +96,9 @@ A visual overlay that draws bounding boxes, safe zone boundaries, element IDs, a
 Beyond the core elements, SlideKit provides compound primitives for common slide patterns:
 
 - **Connectors** that draw lines and arrows between elements, with straight, elbow, and curved routing. Essential for flowcharts and relationship diagrams.
-- **Panels** — visual containers with a background, padding, and vertically stacked child elements. The "card" pattern that appears constantly in presentations.
+- **Panels** — visual containers with a background, padding, and vertically stacked child elements. The "card" pattern that appears constantly in presentations. Panels emit overflow warnings when content exceeds an explicit height.
+- **Figures** — image containers with a background rect, optional padding, and optional caption. A structured alternative to manual `el('<img ...>')` setups.
+- **Card grids** — arrange panels in a multi-row grid with `align: 'stretch'` so cards in each row share equal height.
 
 ## Alignment and Distribution
 
@@ -100,6 +106,10 @@ PowerPoint-style alignment and distribution operations work on arrays of element
 
 ## Additional Features
 
+- **Spacing tokens** — a semantic scale (`xs`, `sm`, `md`, `lg`, `xl`, `section`) for gaps and padding, customizable via `init()`. Use `getSpacing()` to resolve tokens in user-land code.
+- **`splitRect()`** — splits a rectangle into left and right halves with a configurable ratio and gap. Common for split-layout slides (text + image).
+- **`placeBetween()`** — positions an element vertically between two references with configurable bias.
+- **`group({ bounds: 'hug' })`** — auto-computes group dimensions from its children's bounding box.
 - **Grid system** with configurable columns and gutters for consistent cross-slide alignment.
 - **Snap** to round positions to grid increments.
 - **Percentage sugar** for positions and sizes, resolved to pixels during layout solve.

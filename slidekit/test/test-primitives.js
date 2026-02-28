@@ -5,6 +5,7 @@ import {
   el, group,
   resolveAnchor, filterStyle,
   init, safeRect, getConfig, resetIdCounter, _resetForTests,
+  getSpacing, splitRect,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -684,5 +685,205 @@ describe("getConfig()", () => {
     cfg.fonts[0].weights.push(900);
     const cfg2 = getConfig();
     assert.equal(cfg2.fonts[0].weights.length, 2, "weights array should not be mutated");
+  });
+});
+
+// =============================================================================
+// P1.1: Semantic Spacing Tokens — init() and getSpacing()
+// =============================================================================
+
+describe("P1.1: init() — spacing config", () => {
+  it("stores default spacing scale when no spacing provided", async () => {
+    _resetForTests();
+    await init();
+    const cfg = getConfig();
+    assert.ok(cfg.spacing, "spacing should exist in config");
+    assert.equal(cfg.spacing.xs, 8);
+    assert.equal(cfg.spacing.sm, 16);
+    assert.equal(cfg.spacing.md, 24);
+    assert.equal(cfg.spacing.lg, 32);
+    assert.equal(cfg.spacing.xl, 48);
+    assert.equal(cfg.spacing.section, 80);
+  });
+
+  it("merges custom spacing with defaults", async () => {
+    _resetForTests();
+    await init({ spacing: { xxl: 96, sm: 12 } });
+    const cfg = getConfig();
+    assert.equal(cfg.spacing.xxl, 96, "custom token should be added");
+    assert.equal(cfg.spacing.sm, 12, "existing token should be overridden");
+    assert.equal(cfg.spacing.lg, 32, "untouched default should remain");
+    assert.equal(cfg.spacing.section, 80, "untouched default should remain");
+  });
+});
+
+describe("P1.1: getSpacing()", () => {
+  it("resolves named token to pixel value", async () => {
+    _resetForTests();
+    await init();
+    assert.equal(getSpacing("lg"), 32);
+    assert.equal(getSpacing("xs"), 8);
+    assert.equal(getSpacing("section"), 80);
+  });
+
+  it("passes through numeric values unchanged", () => {
+    assert.equal(getSpacing(42), 42);
+    assert.equal(getSpacing(0), 0);
+    assert.equal(getSpacing(100), 100);
+  });
+
+  it("throws on unknown token with available tokens listed", async () => {
+    _resetForTests();
+    await init();
+    let threw = false;
+    let errorMsg = "";
+    try {
+      getSpacing("invalid");
+    } catch (e) {
+      threw = true;
+      errorMsg = e.message;
+    }
+    assert.ok(threw, "should throw for unknown token");
+    assert.ok(errorMsg.includes('"invalid"'), "error should mention the invalid token");
+    assert.ok(errorMsg.includes("xs"), "error should list available tokens");
+    assert.ok(errorMsg.includes("lg"), "error should list available tokens");
+  });
+
+  it("uses DEFAULT_SPACING when init() has not been called", () => {
+    _resetForTests(); // _config is now null
+    assert.equal(getSpacing("md"), 24, "should fall back to DEFAULT_SPACING");
+    assert.equal(getSpacing("xl"), 48, "should fall back to DEFAULT_SPACING");
+  });
+});
+
+// =============================================================================
+// P2.1: splitRect() layout helper
+// =============================================================================
+
+describe("P2.1: splitRect() — basic splits", () => {
+  const rect = { x: 100, y: 200, w: 1000, h: 600 };
+
+  it("splits evenly with ratio: 0.5", () => {
+    const { left, right } = splitRect(rect, { ratio: 0.5 });
+    assert.equal(left.w, 500);
+    assert.equal(right.w, 500);
+    assert.equal(left.x, 100);
+    assert.equal(right.x, 600);
+  });
+
+  it("splits 55/45 with gap: 48", () => {
+    const { left, right } = splitRect(rect, { ratio: 0.55, gap: 48 });
+    // leftW = Math.round((1000 - 48) * 0.55) = Math.round(523.6) = 524
+    // rightW = 1000 - 48 - 524 = 428
+    assert.equal(left.w, 524);
+    assert.equal(right.w, 428);
+    assert.equal(left.x, 100);
+    assert.equal(right.x, 100 + 524 + 48); // 672
+  });
+
+  it("defaults to ratio=0.5, gap=0 when called with no options", () => {
+    const { left, right } = splitRect(rect);
+    assert.equal(left.w, 500);
+    assert.equal(right.w, 500);
+    assert.equal(left.x, 100);
+    assert.equal(right.x, 600);
+  });
+
+  it("left + gap + right = original width (pixel-perfect)", () => {
+    // Test with several ratios that might produce rounding issues
+    const ratios = [0.3, 0.33, 0.5, 0.55, 0.618, 0.7];
+    const gaps = [0, 24, 48, 100];
+    for (const ratio of ratios) {
+      for (const gap of gaps) {
+        const { left, right } = splitRect(rect, { ratio, gap });
+        const total = left.w + gap + right.w;
+        assert.equal(total, rect.w,
+          `ratio=${ratio}, gap=${gap}: ${left.w} + ${gap} + ${right.w} = ${total}, expected ${rect.w}`);
+      }
+    }
+  });
+
+  it("both rects share the same y and h", () => {
+    const { left, right } = splitRect(rect, { ratio: 0.6, gap: 32 });
+    assert.equal(left.y, rect.y);
+    assert.equal(right.y, rect.y);
+    assert.equal(left.h, rect.h);
+    assert.equal(right.h, rect.h);
+  });
+
+  it("ratio=0 gives all width to the right side", () => {
+    const { left, right } = splitRect(rect, { ratio: 0, gap: 24 });
+    assert.equal(left.w, 0);
+    assert.equal(right.w, 1000 - 24);
+    assert.equal(left.w + 24 + right.w, rect.w);
+  });
+
+  it("ratio=1 gives all width to the left side", () => {
+    const { left, right } = splitRect(rect, { ratio: 1, gap: 24 });
+    assert.equal(left.w, 1000 - 24);
+    assert.equal(right.w, 0);
+    assert.equal(left.w + 24 + right.w, rect.w);
+  });
+
+  it("right edge of right rect aligns with original right edge", () => {
+    const { left, right } = splitRect(rect, { ratio: 0.618, gap: 32 });
+    assert.equal(right.x + right.w, rect.x + rect.w);
+  });
+});
+
+describe("P2.1: splitRect() — with safeRect()", () => {
+  it("works with safeRect() output", () => {
+    _resetForTests();
+    init();
+    try {
+      const sr = safeRect(); // default: {x:120, y:90, w:1680, h:900}
+      const { left, right } = splitRect(sr, { ratio: 0.5, gap: 48 });
+      // leftW = Math.round((1680 - 48) * 0.5) = Math.round(816) = 816
+      // rightW = 1680 - 48 - 816 = 816
+      assert.equal(left.x, 120);
+      assert.equal(left.y, 90);
+      assert.equal(left.h, 900);
+      assert.equal(right.h, 900);
+      assert.equal(left.w + 48 + right.w, 1680);
+    } finally {
+      _resetForTests();
+    }
+  });
+});
+
+describe("P2.1: splitRect() — spacing token gap", () => {
+  it("resolves gap: 'xl' to 48px", () => {
+    _resetForTests();
+    init();
+    try {
+      const rect = { x: 0, y: 0, w: 1000, h: 500 };
+      const { left, right } = splitRect(rect, { gap: 'xl' });
+      // gapPx = 48 (xl)
+      // leftW = Math.round((1000 - 48) * 0.5) = Math.round(476) = 476
+      // rightW = 1000 - 48 - 476 = 476
+      assert.equal(left.w, 476);
+      assert.equal(right.w, 476);
+      assert.equal(left.w + 48 + right.w, 1000);
+      assert.equal(right.x, 476 + 48); // 524
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("resolves gap: 'sm' to 16px", () => {
+    _resetForTests();
+    init();
+    try {
+      const rect = { x: 50, y: 50, w: 800, h: 400 };
+      const { left, right } = splitRect(rect, { ratio: 0.6, gap: 'sm' });
+      // gapPx = 16 (sm)
+      // leftW = Math.round((800 - 16) * 0.6) = Math.round(470.4) = 470
+      // rightW = 800 - 16 - 470 = 314
+      assert.equal(left.w, 470);
+      assert.equal(right.w, 314);
+      assert.equal(left.w + 16 + right.w, 800);
+    } finally {
+      _resetForTests();
+    }
   });
 });

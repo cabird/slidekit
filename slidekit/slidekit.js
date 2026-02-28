@@ -99,6 +99,7 @@ export function group(children, props = {}) {
     scale: 1,
     clip: false,
   });
+  // bounds: 'hug' is passed through via applyDefaults and consumed during layout
   return { id, type: "group", children, props: resolved };
 }
 
@@ -115,8 +116,8 @@ export function group(children, props = {}) {
  *
  * @param {Array} items - Array of SlideKit elements (children)
  * @param {object} props - Positioning and layout properties
- * @param {number} [props.gap=0] - Gap between children in pixels
- * @param {string} [props.align="left"] - Horizontal alignment: "left", "center", "right"
+ * @param {number|string} [props.gap=0] - Gap between children (px number or spacing token)
+ * @param {string} [props.align="left"] - Horizontal alignment: "left", "center", "right", "stretch"
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function vstack(items, props = {}) {
@@ -138,8 +139,8 @@ export function vstack(items, props = {}) {
  *
  * @param {Array} items - Array of SlideKit elements (children)
  * @param {object} props - Positioning and layout properties
- * @param {number} [props.gap=0] - Gap between children in pixels
- * @param {string} [props.align="top"] - Vertical alignment: "top", "middle", "bottom"
+ * @param {number|string} [props.gap=0] - Gap between children (px number or spacing token)
+ * @param {string} [props.align="top"] - Vertical alignment: "top", "middle", "bottom", "stretch"
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function hstack(items, props = {}) {
@@ -150,6 +151,47 @@ export function hstack(items, props = {}) {
     align: "top",
   });
   return { id, type: "hstack", children: items, props: resolved };
+}
+
+/**
+ * Arrange items in a grid pattern using vstack/hstack.
+ *
+ * Each row is an hstack with align:'stretch' so cards in the same row share
+ * equal height.  Rows are stacked vertically with the same gap.
+ *
+ * @param {Array} items - Array of SlideKit elements
+ * @param {object} opts
+ * @param {string}  [opts.id]        - Optional ID for the outer vstack
+ * @param {number}  [opts.cols=2]    - Columns per row
+ * @param {number|string} [opts.gap=0] - Gap between items (px or spacing token)
+ * @param {number}  [opts.x=0]       - X position
+ * @param {number}  [opts.y=0]       - Y position
+ * @param {number}  [opts.w]         - Width
+ * @param {string}  [opts.anchor]    - Anchor point
+ * @param {string}  [opts.layer]     - Layer name
+ * @param {object}  [opts.style]     - Style overrides
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer, style } = {}) {
+  const safeCols = Math.max(1, Math.floor(cols || 2));
+  const resolvedGap = resolveSpacing(typeof gap === 'string' || typeof gap === 'number' ? gap : 0);
+
+  // Split items into rows
+  const rows = [];
+  for (let i = 0; i < items.length; i += safeCols) {
+    rows.push(items.slice(i, i + safeCols));
+  }
+
+  // Each row is an hstack with align: 'stretch'
+  const rowStacks = rows.map((rowItems, idx) =>
+    hstack(rowItems, { id: id ? `${id}-row-${idx}` : undefined, gap: resolvedGap, align: 'stretch' })
+  );
+
+  // Stack rows vertically
+  return vstack(rowStacks, {
+    id, x, y, w, gap: resolvedGap,
+    anchor, layer, style,
+  });
 }
 
 // =============================================================================
@@ -514,6 +556,19 @@ let _fontWarnings = [];
 let _injectedFontLinks = new Set();
 
 /**
+ * Default spacing scale — named tokens to pixel values.
+ * Users can extend or override via init({ spacing: { ... } }).
+ */
+const DEFAULT_SPACING = {
+  xs: 8,
+  sm: 16,
+  md: 24,
+  lg: 32,
+  xl: 48,
+  section: 80,
+};
+
+/**
  * Default configuration values.
  */
 const DEFAULT_CONFIG = {
@@ -522,6 +577,7 @@ const DEFAULT_CONFIG = {
   strict: false,
   minFontSize: 24,
   fonts: [],
+  spacing: { ...DEFAULT_SPACING },
 };
 
 /**
@@ -533,6 +589,7 @@ const DEFAULT_CONFIG = {
  * @param {boolean} [config.strict] - Validation mode (strict vs lenient)
  * @param {number} [config.minFontSize] - Minimum font size for projection warnings
  * @param {Array} [config.fonts] - Fonts to preload: [{ family, weights, source }]
+ * @param {object} [config.spacing] - Custom spacing tokens merged with defaults (xs/sm/md/lg/xl/section)
  * @returns {Promise<object>} Resolves with the config when ready
  */
 export async function init(config = {}) {
@@ -542,6 +599,7 @@ export async function init(config = {}) {
     strict: config.strict !== undefined ? config.strict : DEFAULT_CONFIG.strict,
     minFontSize: config.minFontSize !== undefined ? config.minFontSize : DEFAULT_CONFIG.minFontSize,
     fonts: config.fonts || DEFAULT_CONFIG.fonts,
+    spacing: { ...DEFAULT_SPACING, ...(config.spacing || {}) },
   };
 
   // Compute and cache the safe rectangle
@@ -719,6 +777,27 @@ export function safeRect() {
 }
 
 /**
+ * Split a rectangle into two sub-rectangles (left and right).
+ *
+ * Useful for the common split-layout pattern (e.g. text on left, image on
+ * right). The `gap` parameter accepts a raw pixel number or a spacing token
+ * string (e.g. 'xl').
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} rect
+ * @param {{ ratio?: number, gap?: number|string }} [options]
+ * @returns {{ left: { x: number, y: number, w: number, h: number }, right: { x: number, y: number, w: number, h: number } }}
+ */
+export function splitRect(rect, { ratio = 0.5, gap = 0 } = {}) {
+  const gapPx = resolveSpacing(gap);
+  const leftW = Math.round((rect.w - gapPx) * ratio);
+  const rightW = rect.w - gapPx - leftW;
+  return {
+    left:  { x: rect.x, y: rect.y, w: leftW, h: rect.h },
+    right: { x: rect.x + leftW + gapPx, y: rect.y, w: rightW, h: rect.h },
+  };
+}
+
+/**
  * Get the current configuration. Returns null if init() hasn't been called.
  *
  * @returns {object|null}
@@ -727,6 +806,46 @@ export function getConfig() {
   if (!_config) return null;
   // Deep copy to prevent external mutation of internal state
   return JSON.parse(JSON.stringify(_config));
+}
+
+// =============================================================================
+// Spacing Tokens (P1.1)
+// =============================================================================
+
+/**
+ * Resolve a spacing value — either a named token (string) or a raw pixel
+ * number — to a concrete pixel number.
+ *
+ * - Numbers pass through unchanged (including 0).
+ * - Strings are looked up in the active spacing scale (_config.spacing),
+ *   falling back to DEFAULT_SPACING if init() hasn't been called yet.
+ * - Unknown token names throw with a list of available tokens.
+ * - undefined/null pass through (callers handle their own defaults).
+ *
+ * @param {number|string|undefined|null} value
+ * @returns {number|undefined|null}
+ */
+function resolveSpacing(value) {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const scale = _config?.spacing || DEFAULT_SPACING;
+    if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value];
+    const available = Object.keys(scale).join(', ');
+    throw new Error(`Unknown spacing token "${value}". Available tokens: ${available}`);
+  }
+  return value; // pass through undefined/null
+}
+
+/**
+ * Public API for resolving a spacing token to a pixel number.
+ * Useful for user-land calculations that need to stay in sync with the
+ * configured spacing scale.
+ *
+ * @param {number|string} token - A spacing token name or a pixel number
+ * @returns {number}
+ */
+export function getSpacing(token) {
+  return resolveSpacing(token);
 }
 
 /**
@@ -1000,11 +1119,11 @@ function applySlideBackground(section, background) {
  *
  * @param {string} refId - ID of the element to position relative to
  * @param {object} [opts={}] - Options
- * @param {number} [opts.gap=0] - Gap in pixels below the reference element's bottom edge
+ * @param {number|string} [opts.gap=0] - Gap below the reference element (px number or spacing token)
  * @returns {{ _rel: "below", ref: string, gap: number }}
  */
 export function below(refId, opts = {}) {
-  return { _rel: "below", ref: refId, gap: opts.gap ?? 0 };
+  return { _rel: "below", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
 }
 
 /**
@@ -1012,11 +1131,11 @@ export function below(refId, opts = {}) {
  *
  * @param {string} refId - ID of the element to position relative to
  * @param {object} [opts={}] - Options
- * @param {number} [opts.gap=0] - Gap in pixels above the reference element's top edge
+ * @param {number|string} [opts.gap=0] - Gap above the reference element (px number or spacing token)
  * @returns {{ _rel: "above", ref: string, gap: number }}
  */
 export function above(refId, opts = {}) {
-  return { _rel: "above", ref: refId, gap: opts.gap ?? 0 };
+  return { _rel: "above", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
 }
 
 /**
@@ -1024,11 +1143,11 @@ export function above(refId, opts = {}) {
  *
  * @param {string} refId - ID of the element to position relative to
  * @param {object} [opts={}] - Options
- * @param {number} [opts.gap=0] - Gap in pixels to the right of the reference element's right edge
+ * @param {number|string} [opts.gap=0] - Gap to the right of the reference element (px number or spacing token)
  * @returns {{ _rel: "rightOf", ref: string, gap: number }}
  */
 export function rightOf(refId, opts = {}) {
-  return { _rel: "rightOf", ref: refId, gap: opts.gap ?? 0 };
+  return { _rel: "rightOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
 }
 
 /**
@@ -1036,11 +1155,11 @@ export function rightOf(refId, opts = {}) {
  *
  * @param {string} refId - ID of the element to position relative to
  * @param {object} [opts={}] - Options
- * @param {number} [opts.gap=0] - Gap in pixels to the left of the reference element's left edge
+ * @param {number|string} [opts.gap=0] - Gap to the left of the reference element (px number or spacing token)
  * @returns {{ _rel: "leftOf", ref: string, gap: number }}
  */
 export function leftOf(refId, opts = {}) {
-  return { _rel: "leftOf", ref: refId, gap: opts.gap ?? 0 };
+  return { _rel: "leftOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
 }
 
 /**
@@ -1112,6 +1231,21 @@ export function alignRightWith(refId) {
 export function centerIn(rectParam) {
   const marker = { _rel: "centerIn", rect: rectParam };
   return { x: marker, y: marker };
+}
+
+/**
+ * Position Y between two vertical references with configurable bias.
+ *
+ * @param {string} topRef - ID of the element above (uses its bottom edge)
+ * @param {number|string} bottomYOrRef - Absolute Y number or ID of element below (uses its top edge)
+ * @param {object} [opts={}] - Options
+ * @param {number} [opts.bias=0.35] - 0.0 = flush with top, 1.0 = flush with bottom, 0.35 = biased toward top
+ * @returns {{ _rel: "between", ref: string, ref2: number|string, bias: number }}
+ */
+export function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
+  const clampedBias = Math.max(0, Math.min(1, numBias));
+  return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
 // =============================================================================
@@ -1607,14 +1741,16 @@ function deepClone(obj) {
 /**
  * Flatten all elements from a slide definition into a flat map by ID.
  * Recursively traverses groups and stacks to extract children.
- * Returns { flatMap, groupParent, stackParent, stackChildren }
+ * Returns { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals }
  *
  * @param {Array} elements - Slide elements array
  * @returns {{
  *   flatMap: Map<string, object>,
  *   groupParent: Map<string, string>,
  *   stackParent: Map<string, string>,
- *   stackChildren: Map<string, string[]>
+ *   stackChildren: Map<string, string[]>,
+ *   groupChildren: Map<string, string[]>,
+ *   panelInternals: Set<string>
  * }}
  */
 function flattenElements(elements) {
@@ -1622,6 +1758,8 @@ function flattenElements(elements) {
   const groupParent = new Map();
   const stackParent = new Map();   // childId -> stackId
   const stackChildren = new Map(); // stackId -> [childId, ...]
+  const groupChildren = new Map(); // groupId -> [childId, ...]
+  const panelInternals = new Set(); // IDs of synthetic panel elements (bgRect, childStack)
 
   function walk(els, parentGroupId) {
     for (const el of els) {
@@ -1630,6 +1768,13 @@ function flattenElements(elements) {
         groupParent.set(el.id, parentGroupId);
       }
       if (el.type === "group" && el.children) {
+        const childIds = el.children.map(c => c.id);
+        groupChildren.set(el.id, childIds);
+        // If this group is a panel compound, mark bgRect and childStack as internal
+        if (el._compound === "panel" && el.children.length >= 2) {
+          panelInternals.add(el.children[0].id); // bgRect
+          panelInternals.add(el.children[1].id); // childStack
+        }
         walk(el.children, el.id);
       }
       if ((el.type === "vstack" || el.type === "hstack") && el.children) {
@@ -1639,10 +1784,20 @@ function flattenElements(elements) {
           stackParent.set(child.id, el.id);
           childIds.push(child.id);
           // Recursively walk into nested stacks and groups using the same
-          // walk function — avoids redundant flattenElements([child]) call
+          // walk function — avoids redundant flattenElements([child]) call.
+          // Preserve parentGroupId so nested stacks inside groups retain
+          // their group ancestry chain.
           if ((child.type === "vstack" || child.type === "hstack") && child.children) {
-            walk([child], null);
+            walk([child], parentGroupId);
           } else if (child.type === "group" && child.children) {
+            // Record group children and panel internals before recursing,
+            // since walk(child.children, ...) doesn't re-process the group node itself.
+            const gcIds = child.children.map(c => c.id);
+            groupChildren.set(child.id, gcIds);
+            if (child._compound === "panel" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
             walk(child.children, child.id);
           }
         }
@@ -1652,7 +1807,7 @@ function flattenElements(elements) {
   }
 
   walk(elements, null);
-  return { flatMap, groupParent, stackParent, stackChildren };
+  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals };
 }
 
 /**
@@ -1751,7 +1906,9 @@ function buildProvenance(authoredValue, prop, element, wasMeasured) {
   if (isRelMarker(authoredValue)) {
     const prov = { source: "constraint", type: authoredValue._rel };
     if (authoredValue.ref) prov.ref = authoredValue.ref;
+    if (authoredValue.ref2 !== undefined) prov.ref2 = authoredValue.ref2;
     if (authoredValue.gap !== undefined) prov.gap = authoredValue.gap;
+    if (authoredValue.bias !== undefined) prov.bias = authoredValue.bias;
     if (authoredValue.rect) prov.rect = authoredValue.rect;
     return prov;
   }
@@ -1811,7 +1968,7 @@ export async function layout(slideDefinition, options = {}) {
   const collisionThreshold = options.collisionThreshold ?? 0;
 
   // Flatten elements to a map for easy lookup
-  const { flatMap, groupParent, stackParent, stackChildren } = flattenElements(elements);
+  const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals } = flattenElements(elements);
 
   // =========================================================================
   // Phase 1: Resolve Intrinsic Sizes
@@ -1907,7 +2064,7 @@ export async function layout(slideDefinition, options = {}) {
     for (const stackId of pendingStacks) {
       const el = flatMap.get(stackId);
       const childIds = stackChildren.get(stackId) || [];
-      const gap = el.props.gap ?? 0;
+      const gap = resolveSpacing(el.props.gap ?? 0);
       const stackW = el.props.w ?? 0;
 
       // Check all children have resolved sizes.
@@ -2074,6 +2231,43 @@ export async function layout(slideDefinition, options = {}) {
     }
   }
 
+  // Phase 1 (cont): bounds: 'hug' — compute group w/h from children bounding box
+  for (const [id, el] of flatMap) {
+    if (el.type !== "group" || el.props.bounds !== "hug") continue;
+    // Skip compound groups (panel, figure) — they manage their own sizing
+    if (el._compound) continue;
+    const childIds = groupChildren.get(id);
+    if (!childIds || childIds.length === 0) continue;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    let validChildren = 0;
+    for (const cid of childIds) {
+      const child = flatMap.get(cid);
+      const cs = resolvedSizes.get(cid);
+      if (!cs) continue;
+      const cx = child.props.x ?? 0;
+      const cy = child.props.y ?? 0;
+      // Skip children with _rel markers (unresolved at this phase)
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
+      minX = Math.min(minX, cx);
+      minY = Math.min(minY, cy);
+      maxX = Math.max(maxX, cx + cs.w);
+      maxY = Math.max(maxY, cy + cs.h);
+      validChildren++;
+    }
+    if (validChildren === 0) continue;
+    const hugW = maxX - minX;
+    const hugH = maxY - minY;
+
+    if (resolvedSizes.has(id)) {
+      const gs = resolvedSizes.get(id);
+      gs.w = hugW;
+      gs.h = hugH;
+    } else {
+      resolvedSizes.set(id, { w: hugW, h: hugH, wMeasured: false, hMeasured: false });
+    }
+  }
+
   // =========================================================================
   // Phase 2: Resolve Positions via Unified Topological Sort
   // =========================================================================
@@ -2127,6 +2321,24 @@ export async function layout(slideDefinition, options = {}) {
           });
         } else {
           depSet.add(yRef);
+        }
+      }
+
+      // P2.2: "between" markers have a second ref (ref2) that may also be a dependency
+      for (const prop of ["x", "y"]) {
+        const marker = el.props[prop];
+        if (isRelMarker(marker) && marker.ref2 !== undefined && typeof marker.ref2 === "string") {
+          if (!flatMap.has(marker.ref2)) {
+            errors.push({
+              type: "unknown_ref",
+              elementId: id,
+              property: prop,
+              ref: marker.ref2,
+              message: `Element "${id}": ${prop} references unknown element "${marker.ref2}" (ref2)`,
+            });
+          } else {
+            depSet.add(marker.ref2);
+          }
         }
       }
 
@@ -2286,6 +2498,26 @@ export async function layout(slideDefinition, options = {}) {
         if (marker._rel === "centerIn") {
           const r = marker.rect;
           x = r.x + r.w / 2 - w / 2;
+        } else if (marker._rel === "between") {
+          // P2.2: placeBetween on x-axis (left/right references)
+          const leftBounds = resolvedBounds.get(marker.ref);
+          const leftEdge = leftBounds.x + leftBounds.w;
+          const rightEdge = typeof marker.ref2 === "string"
+            ? resolvedBounds.get(marker.ref2).x
+            : marker.ref2;
+          const availableSlack = rightEdge - leftEdge - w;
+          if (availableSlack < 0) {
+            warnings.push({
+              type: "between_no_fit",
+              elementId: id,
+              ref1: marker.ref,
+              ref2: marker.ref2,
+              message: `Element "${id}": does not fit between "${marker.ref}" and ${typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2}; using minimum gap fallback.`,
+            });
+            x = leftEdge + resolveSpacing("xs");
+          } else {
+            x = leftEdge + availableSlack * marker.bias;
+          }
         } else {
           const refId = marker.ref;
           const refBounds = resolvedBounds.get(refId);
@@ -2303,6 +2535,26 @@ export async function layout(slideDefinition, options = {}) {
         if (marker._rel === "centerIn") {
           const r = marker.rect;
           y = r.y + r.h / 2 - h / 2;
+        } else if (marker._rel === "between") {
+          // P2.2: placeBetween — position between two vertical references
+          const topBounds = resolvedBounds.get(marker.ref);
+          const topEdge = topBounds.y + topBounds.h;
+          const bottomEdge = typeof marker.ref2 === "string"
+            ? resolvedBounds.get(marker.ref2).y
+            : marker.ref2;
+          const availableSlack = bottomEdge - topEdge - h;
+          if (availableSlack < 0) {
+            warnings.push({
+              type: "between_no_fit",
+              elementId: id,
+              ref1: marker.ref,
+              ref2: marker.ref2,
+              message: `Element "${id}": does not fit between "${marker.ref}" and ${typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2}; using minimum gap fallback.`,
+            });
+            y = topEdge + resolveSpacing("xs");
+          } else {
+            y = topEdge + availableSlack * marker.bias;
+          }
         } else {
           const refId = marker.ref;
           const refBounds = resolvedBounds.get(refId);
@@ -2324,46 +2576,116 @@ export async function layout(slideDefinition, options = {}) {
     // If this is a stack, position all children now
     if (el.type === "vstack" || el.type === "hstack") {
       const childIds = stackChildren.get(id) || [];
-      const gap = el.props.gap ?? 0;
+      const gap = resolveSpacing(el.props.gap ?? 0);
       const stackX = finalX;
       const stackY = finalY;
 
       if (el.type === "vstack") {
         const align = el.props.align || "left";
         let curY = stackY;
-        for (let i = 0; i < childIds.length; i++) {
-          const cid = childIds[i];
-          const cs = resolvedSizes.get(cid);
-          let childX;
-          if (align === "center") {
-            childX = stackX + (w - cs.w) / 2;
-          } else if (align === "right") {
-            childX = stackX + w - cs.w;
-          } else {
-            // "left" (default)
-            childX = stackX;
+
+        if (align === "stretch") {
+          // All children get the same width — the max measured width
+          // (or the stack's own authored w if present)
+          const maxW = childIds.length > 0
+            ? Math.max(...childIds.map(cid => resolvedSizes.get(cid).w))
+            : 0;
+          const stackAuthW = authoredSpecs.get(id)?.props?.w;
+          const stretchW = (stackAuthW !== undefined && stackAuthW !== null) ? w : maxW;
+
+          for (let i = 0; i < childIds.length; i++) {
+            const cid = childIds[i];
+            const cs = resolvedSizes.get(cid);
+            // Warn if child had explicit w that differs
+            const authoredW = authoredSpecs.get(cid).props.w;
+            if (authoredW !== undefined && authoredW !== null && authoredW !== stretchW) {
+              warnings.push({
+                type: "stretch_override",
+                elementId: cid,
+                property: "w",
+                authored: authoredW,
+                stretched: stretchW,
+                message: `Child '${cid}' has authored w=${authoredW} but stretch requires w=${stretchW}.`,
+              });
+            }
+            // Re-measure auto-height el() children when width changes
+            const childEl = flatMap.get(cid);
+            const childAuth = authoredSpecs.get(cid)?.props || {};
+            let childH = cs.h;
+            if (childEl?.type === "el" && stretchW !== cs.w &&
+                (childAuth.h === undefined || childAuth.h === null)) {
+              const metrics = await measure(childEl.content || "", { ...childEl.props, w: stretchW });
+              childH = metrics.h;
+              cs.h = childH;
+            }
+            resolvedBounds.set(cid, { x: stackX, y: curY, w: stretchW, h: childH });
+            curY += childH + gap;
           }
-          resolvedBounds.set(cid, { x: childX, y: curY, w: cs.w, h: cs.h });
-          curY += cs.h + gap;
+        } else {
+          for (let i = 0; i < childIds.length; i++) {
+            const cid = childIds[i];
+            const cs = resolvedSizes.get(cid);
+            let childX;
+            if (align === "center") {
+              childX = stackX + (w - cs.w) / 2;
+            } else if (align === "right") {
+              childX = stackX + w - cs.w;
+            } else {
+              // "left" (default)
+              childX = stackX;
+            }
+            resolvedBounds.set(cid, { x: childX, y: curY, w: cs.w, h: cs.h });
+            curY += cs.h + gap;
+          }
         }
       } else {
         // hstack
         const align = el.props.align || "top";
         let curX = stackX;
-        for (let i = 0; i < childIds.length; i++) {
-          const cid = childIds[i];
-          const cs = resolvedSizes.get(cid);
-          let childY;
-          if (align === "middle") {
-            childY = stackY + (h - cs.h) / 2;
-          } else if (align === "bottom") {
-            childY = stackY + h - cs.h;
-          } else {
-            // "top" (default)
-            childY = stackY;
+
+        if (align === "stretch") {
+          // All children get the same height — the max measured height
+          // (or the stack's own authored h if present)
+          const maxH = childIds.length > 0
+            ? Math.max(...childIds.map(cid => resolvedSizes.get(cid).h))
+            : 0;
+          const stackAuthH = authoredSpecs.get(id)?.props?.h;
+          const stretchH = (stackAuthH !== undefined && stackAuthH !== null) ? h : maxH;
+
+          for (let i = 0; i < childIds.length; i++) {
+            const cid = childIds[i];
+            const cs = resolvedSizes.get(cid);
+            // Warn if child had explicit h that differs
+            const authoredH = authoredSpecs.get(cid).props.h;
+            if (authoredH !== undefined && authoredH !== null && authoredH !== stretchH) {
+              warnings.push({
+                type: "stretch_override",
+                elementId: cid,
+                property: "h",
+                authored: authoredH,
+                stretched: stretchH,
+                message: `Child '${cid}' has authored h=${authoredH} but stretch requires h=${stretchH}.`,
+              });
+            }
+            resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
+            curX += cs.w + gap;
           }
-          resolvedBounds.set(cid, { x: curX, y: childY, w: cs.w, h: cs.h });
-          curX += cs.w + gap;
+        } else {
+          for (let i = 0; i < childIds.length; i++) {
+            const cid = childIds[i];
+            const cs = resolvedSizes.get(cid);
+            let childY;
+            if (align === "middle") {
+              childY = stackY + (h - cs.h) / 2;
+            } else if (align === "bottom") {
+              childY = stackY + h - cs.h;
+            } else {
+              // "top" (default)
+              childY = stackY;
+            }
+            resolvedBounds.set(cid, { x: curX, y: childY, w: cs.w, h: cs.h });
+            curX += cs.w + gap;
+          }
         }
       }
     }
@@ -2521,17 +2843,64 @@ export async function layout(slideDefinition, options = {}) {
       }
     }
 
+    // Determine parentId: group parent takes precedence, then stack parent.
+    // Use ?? (nullish coalescing) to avoid dropping falsy-but-valid IDs.
+    const parentId = (groupParent.get(id) ?? stackParent.get(id)) ?? null;
+
+    // Determine children array (ordered)
+    let children = [];
+    if (el.type === "group" && groupChildren.has(id)) {
+      children = groupChildren.get(id);
+    } else if ((el.type === "vstack" || el.type === "hstack") && stackChildren.has(id)) {
+      children = stackChildren.get(id);
+    }
+
+    // Compute localResolved (position relative to parent)
+    let localResolved;
+    if (!parentId) {
+      // Root element: local = absolute
+      localResolved = { ...bounds };
+    } else if (groupParent.has(id)) {
+      // Group child: resolved is already group-relative
+      localResolved = { ...bounds };
+    } else {
+      // Stack child: resolved is absolute; subtract stack's position
+      const stackBounds = resolvedBounds.get(parentId);
+      if (stackBounds) {
+        localResolved = {
+          x: bounds.x - stackBounds.x,
+          y: bounds.y - stackBounds.y,
+          w: bounds.w,
+          h: bounds.h,
+        };
+      } else {
+        localResolved = { ...bounds };
+      }
+    }
+
     sceneElements[id] = {
       id,
       type: el.type,
       authored: authored,
       resolved: { ...bounds },
+      localResolved,
+      parentId,
+      children,
+      _internal: panelInternals.has(id),
       provenance,
     };
 
     // Store layout flags for rendering
     if (el._layoutFlags) {
       sceneElements[id]._layoutFlags = { ...el._layoutFlags };
+    }
+  }
+
+  // Build rootIds: top-level elements with no parent
+  const rootIds = [];
+  for (const id of sortedOrder) {
+    if (sceneElements[id] && sceneElements[id].parentId === null) {
+      rootIds.push(id);
     }
   }
 
@@ -2578,12 +2947,15 @@ export async function layout(slideDefinition, options = {}) {
 
     // Store resolved connector data in the scene element and update resolved bounds
     if (sceneElements[id]) {
-      sceneElements[id].resolved = {
+      const connBounds = {
         x: connMinX,
         y: connMinY,
         w: connMaxX - connMinX,
         h: connMaxY - connMinY,
       };
+      sceneElements[id].resolved = { ...connBounds };
+      // Connectors are root elements, so localResolved === resolved
+      sceneElements[id].localResolved = { ...connBounds };
       sceneElements[id]._connectorResolved = {
         from: fromPt,
         to: toPt,
@@ -2759,13 +3131,14 @@ export async function layout(slideDefinition, options = {}) {
         bounds.y + bounds.h > sr.y + sr.h;
 
       if (outsideSafe) {
+        const suggestion = `. If intentional, set layer: 'bg' to silence this check.`;
         if (isStrict) {
           errors.push({
             type: "outside_safe_zone",
             elementId: id,
             resolved: { ...bounds },
             safeRect: { ...sr },
-            message: `Element "${id}" extends outside the safe zone`,
+            message: `Element "${id}" extends outside the safe zone` + suggestion,
           });
         } else {
           warnings.push({
@@ -2773,7 +3146,7 @@ export async function layout(slideDefinition, options = {}) {
             elementId: id,
             resolved: { ...bounds },
             safeRect: { ...sr },
-            message: `Element "${id}" extends outside the safe zone`,
+            message: `Element "${id}" extends outside the safe zone` + suggestion,
           });
         }
       }
@@ -2863,8 +3236,104 @@ export async function layout(slideDefinition, options = {}) {
     }
   }
 
+  // Panel overflow warnings (P2.4)
+  for (const [id, el] of flatMap) {
+    if (el._compound !== "panel") continue;
+    const config = el._panelConfig;
+    if (!config || config.panelH == null) continue; // skip auto-height panels
+
+    const childStack = (el.children || [])[1];
+    if (!childStack) continue;
+    const stackSizes = resolvedSizes.get(childStack.id);
+    if (!stackSizes) continue;
+
+    const contentH = stackSizes.h + 2 * config.padding;
+    const authoredH = config.panelH;
+    if (contentH > authoredH) {
+      warnings.push({
+        type: "panel_overflow",
+        elementId: id,
+        contentHeight: contentH,
+        authoredHeight: authoredH,
+        overflow: contentH - authoredH,
+        message: `Panel '${id}' content (${contentH}px) exceeds authored height (${authoredH}px) by ${contentH - authoredH}px. Remove explicit h to let panel size to content.`,
+      });
+    }
+  }
+
+  // Alignment consistency heuristics (P3.3)
+
+  // 1. Ragged-bottom detection on hstacks
+  for (const [id, el] of flatMap) {
+    if (el.type !== "hstack") continue;
+    const align = el.props.align || "top";
+    if (align === "stretch") continue; // already equal-height
+    const childIds = stackChildren.get(id) || [];
+    if (childIds.length < 2) continue;
+
+    const childHeights = [];
+    for (const cid of childIds) {
+      const bounds = resolvedBounds.get(cid);
+      if (bounds) childHeights.push(bounds.h);
+    }
+    if (childHeights.length < 2) continue;
+    const maxH = Math.max(...childHeights);
+    const minH = Math.min(...childHeights);
+    if (maxH - minH > 5) {
+      warnings.push({
+        type: "ragged_bottom",
+        elementId: id,
+        childHeights,
+        maxHeight: maxH,
+        message: `hstack '${id}' has children with unequal heights (${minH}-${maxH}px). Consider align: 'stretch' for equal-height cards.`,
+      });
+    }
+  }
+
+  // 2. Off-center assembly detection
+  for (const [id, el] of flatMap) {
+    if (el.type !== "group") continue;
+    if (el.props.bounds === "hug") continue; // hug handles centering correctly
+    if (el._compound) continue; // skip panels, figures, etc.
+    const anchor = el.props.anchor;
+    if (!anchor || typeof anchor !== "string" || !anchor.includes("c")) continue;
+    // anchor column must be center (second character is 'c')
+    if (anchor[1] !== "c") continue;
+
+    const childIds = groupChildren.get(id) || [];
+    if (childIds.length === 0) continue;
+
+    const authoredW = el.props.w;
+    if (authoredW === undefined || authoredW === null) continue;
+
+    // Compute actual children bounding box width from resolvedBounds
+    // (group children's resolvedBounds are already group-relative)
+    let contentMinX = Infinity, contentMaxX = -Infinity;
+    let validChildren = 0;
+    for (const cid of childIds) {
+      const cb = resolvedBounds.get(cid);
+      if (!cb) continue;
+      contentMinX = Math.min(contentMinX, cb.x);
+      contentMaxX = Math.max(contentMaxX, cb.x + cb.w);
+      validChildren++;
+    }
+    if (validChildren === 0) continue;
+    const contentW = contentMaxX - contentMinX;
+
+    if (Math.abs(authoredW - contentW) > 20) {
+      warnings.push({
+        type: "off_center_assembly",
+        elementId: id,
+        authoredW,
+        contentW,
+        message: `Group '${id}' has authored w=${authoredW} but content spans ${contentW}px. Consider bounds: 'hug' for accurate centering.`,
+      });
+    }
+  }
+
   return {
     elements: sceneElements,
+    rootIds,
     transforms: resolvedTransforms,
     warnings,
     errors,
@@ -3129,6 +3598,49 @@ export async function render(slides, options = {}) {
     // Append section to container
     container.appendChild(section);
     sections.push(section);
+  }
+
+  // =========================================================================
+  // Post-render Phase: DOM overflow detection (P0.2)
+  // =========================================================================
+  // After all slides are rendered to DOM, check every `el`-type element for
+  // cases where the browser's rendered content overflows its allocated box.
+  // This catches divergences between off-screen measure() and actual browser
+  // layout (font metric differences, line wrapping variations, etc.).
+  for (let i = 0; i < layouts.length; i++) {
+    const layoutResult = layouts[i];
+    const sceneElements = layoutResult.elements;
+    const section = sections[i];
+
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      // Only check el-type elements (text elements). Groups, stacks,
+      // connectors don't have meaningful overflow concerns.
+      if (entry.type !== "el") continue;
+
+      const dom = section.querySelector(`[data-sk-id="${id}"]`);
+      if (!dom) continue;
+
+      // Use 1px tolerance to avoid sub-pixel false positives
+      if (dom.scrollHeight > dom.clientHeight + 1) {
+        layoutResult.warnings.push({
+          type: "dom_overflow_y",
+          elementId: id,
+          clientHeight: dom.clientHeight,
+          scrollHeight: dom.scrollHeight,
+          overflow: dom.scrollHeight - dom.clientHeight,
+        });
+      }
+
+      if (dom.scrollWidth > dom.clientWidth + 1) {
+        layoutResult.warnings.push({
+          type: "dom_overflow_x",
+          elementId: id,
+          clientWidth: dom.clientWidth,
+          scrollWidth: dom.scrollWidth,
+          overflow: dom.scrollWidth - dom.clientWidth,
+        });
+      }
+    }
   }
 
   // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
@@ -3410,16 +3922,16 @@ function buildConnectorSVG(from, to, connProps) {
  * @param {number} [props.y=0] - Y position
  * @param {number} [props.w] - Width
  * @param {number} [props.h] - Height (auto-computed from children if not specified)
- * @param {number} [props.padding=24] - Internal padding
- * @param {number} [props.gap=16] - Gap between children
+ * @param {number|string} [props.padding=24] - Internal padding (px number or spacing token)
+ * @param {number|string} [props.gap=16] - Gap between children (px number or spacing token)
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function panel(children, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
 
-  const padding = rest.padding ?? 24;
-  const gap = rest.gap ?? 16;
+  const padding = resolveSpacing(rest.padding ?? 24);
+  const gap = resolveSpacing(rest.gap ?? 16);
   const panelW = rest.w;
   const panelH = rest.h;
 
@@ -3478,6 +3990,103 @@ export function panel(children, props = {}) {
   // Tag as a panel compound for layout pipeline integration
   result._compound = "panel";
   result._panelConfig = { padding, gap, panelW, panelH };
+
+  return result;
+}
+
+// =============================================================================
+// Figure Compound (P2.3)
+// =============================================================================
+
+/**
+ * Create a figure element: background container + image + optional caption.
+ *
+ * Returns a group containing:
+ *   1. Background rect (el with fill/radius)
+ *   2. Image element (el with <img>, inset by containerPadding)
+ *   3. Caption (optional el, positioned below the container)
+ *
+ * @param {object} opts - Figure configuration
+ * @param {string} [opts.id] - Custom ID for the figure group
+ * @param {string} opts.src - Image source URL
+ * @param {number} [opts.x=0] - X position
+ * @param {number} [opts.y=0] - Y position
+ * @param {number} opts.w - Container width (required)
+ * @param {number} opts.h - Container height (required for v1)
+ * @param {string} [opts.anchor='tl'] - Anchor point
+ * @param {string} [opts.layer='content'] - Layer name
+ * @param {string} [opts.containerFill='transparent'] - Background fill color
+ * @param {number} [opts.containerRadius=0] - Border radius in px
+ * @param {number|string} [opts.containerPadding=0] - Padding (px or spacing token)
+ * @param {string} [opts.caption] - Optional HTML caption string
+ * @param {number|string} [opts.captionGap=0] - Gap between container and caption (px or spacing token)
+ * @param {string} [opts.fit='contain'] - CSS object-fit for the image
+ * @param {object} [opts.style={}] - Additional style for the group
+ * @returns {{ id: string, type: string, children: Array, props: object }}
+ */
+export function figure(opts = {}) {
+  const {
+    id: customId, src, x = 0, y = 0, w, h,
+    anchor = 'tl', layer = 'content',
+    containerFill = 'transparent', containerRadius = 0,
+    containerPadding = 0,
+    caption, captionGap = 0,
+    fit = 'contain',
+    style = {},
+  } = opts;
+
+  const padPx = resolveSpacing(containerPadding);
+  const gapPx = resolveSpacing(captionGap);
+
+  const figId = customId || nextId();
+
+  // Resolve border-radius: number -> "Npx", string -> pass through
+  const radiusVal = typeof containerRadius === 'number'
+    ? `${containerRadius}px`
+    : containerRadius;
+
+  // Background container rect
+  const bgRect = el('', {
+    id: `${figId}-bg`,
+    x: 0, y: 0, w, h,
+    style: { background: containerFill, borderRadius: radiusVal },
+  });
+
+  // Image element — clamp to 0 to prevent negative sizes when padding exceeds half
+  const innerW = Math.max(0, w - 2 * padPx);
+  const innerH = Math.max(0, h - 2 * padPx);
+  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
+    id: `${figId}-img`,
+    x: padPx, y: padPx,
+    w: innerW,
+    h: innerH,
+  });
+
+  const children = [bgRect, img];
+
+  // Optional caption
+  if (caption) {
+    const cap = el(caption, {
+      id: `${figId}-caption`,
+      x: 0, y: h + gapPx,
+      w,
+    });
+    children.push(cap);
+  }
+
+  // Pass w and h to the group so the layout pipeline knows the figure's
+  // intrinsic size during Phase 1 (same pattern as panel).
+  const result = group(children, {
+    id: figId,
+    x, y, w, h,
+    anchor,
+    layer,
+    style,
+  });
+
+  // Tag as a figure compound for layout pipeline integration
+  result._compound = 'figure';
+  result._figureConfig = { src, containerFill, containerRadius, containerPadding: padPx, captionGap: gapPx, fit };
 
   return result;
 }
@@ -3679,8 +4288,8 @@ function _reIdChildren(el, suffix) {
 export function repeat(element, config = {}) {
   const count = config.count || 1;
   const cols = config.cols ?? count; // default: single row
-  const gapX = config.gapX ?? 0;
-  const gapY = config.gapY ?? 0;
+  const gapX = resolveSpacing(config.gapX ?? 0);
+  const gapY = resolveSpacing(config.gapY ?? 0);
   const startX = config.startX ?? 0;
   const startY = config.startY ?? 0;
 

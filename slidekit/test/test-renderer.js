@@ -1048,3 +1048,112 @@ describe("M1.4: multiple slides", () => {
     });
   });
 });
+
+// =============================================================================
+// P0.2: Post-render DOM overflow detection
+// =============================================================================
+
+describe("P0.2: DOM overflow detection", () => {
+  it("detects dom_overflow_y when content overflows element height", async () => {
+    await withContainer(async (container) => {
+      // Create an element with a very small explicit h but lots of text content.
+      // The font size ensures the text is much taller than 20px.
+      const slides = [{
+        elements: [
+          el(
+            '<p style="font-size:48px;line-height:1.2;margin:0">Line one<br>Line two<br>Line three<br>Line four</p>',
+            { id: "overflow-el", x: 0, y: 0, w: 400, h: 20 }
+          ),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      const yWarnings = layouts[0].warnings.filter(
+        w => w.type === "dom_overflow_y" && w.elementId === "overflow-el"
+      );
+      assert.ok(yWarnings.length > 0, "should have a dom_overflow_y warning");
+    });
+  });
+
+  it("no overflow warning when element has sufficient height", async () => {
+    await withContainer(async (container) => {
+      // A short text in a generously sized box should not overflow.
+      const slides = [{
+        elements: [
+          el('<p style="font-size:16px;margin:0">Short</p>', { id: "no-overflow", x: 0, y: 0, w: 400, h: 200 }),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      const overflowWarnings = layouts[0].warnings.filter(
+        w => (w.type === "dom_overflow_y" || w.type === "dom_overflow_x") && w.elementId === "no-overflow"
+      );
+      assert.equal(overflowWarnings.length, 0, "should have no DOM overflow warnings");
+    });
+  });
+
+  it("detects overflow even with overflow:clip styling", async () => {
+    await withContainer(async (container) => {
+      // overflow:clip hides content visually but scrollHeight still reports full content size
+      const slides = [{
+        elements: [
+          el(
+            '<p style="font-size:48px;line-height:1.2;margin:0">Line one<br>Line two<br>Line three<br>Line four</p>',
+            { id: "clipped-el", x: 0, y: 0, w: 400, h: 20, overflow: "clip" }
+          ),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      const yWarnings = layouts[0].warnings.filter(
+        w => w.type === "dom_overflow_y" && w.elementId === "clipped-el"
+      );
+      assert.ok(yWarnings.length > 0, "should detect overflow even with clip");
+    });
+  });
+
+  it("warning has correct shape with all required fields", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el(
+            '<p style="font-size:48px;line-height:1.2;margin:0">Line one<br>Line two<br>Line three<br>Line four</p>',
+            { id: "shape-el", x: 0, y: 0, w: 400, h: 20 }
+          ),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      const yWarning = layouts[0].warnings.find(
+        w => w.type === "dom_overflow_y" && w.elementId === "shape-el"
+      );
+      assert.ok(yWarning, "should have a dom_overflow_y warning");
+      assert.equal(yWarning.type, "dom_overflow_y");
+      assert.equal(yWarning.elementId, "shape-el");
+      assert.equal(typeof yWarning.clientHeight, "number", "clientHeight should be a number");
+      assert.equal(typeof yWarning.scrollHeight, "number", "scrollHeight should be a number");
+      assert.equal(typeof yWarning.overflow, "number", "overflow should be a number");
+      assert.ok(yWarning.overflow > 0, "overflow should be positive");
+      assert.equal(yWarning.overflow, yWarning.scrollHeight - yWarning.clientHeight, "overflow should equal scrollHeight - clientHeight");
+    });
+  });
+
+  it("does not check group or stack elements for overflow", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          group([
+            el('<p style="font-size:48px;line-height:1.2;margin:0">Tall text<br>More text</p>', { id: "child-el", x: 0, y: 0, w: 200, h: 20 }),
+          ], { id: "grp", x: 0, y: 0, w: 400, h: 30 }),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      const groupOverflows = layouts[0].warnings.filter(
+        w => (w.type === "dom_overflow_y" || w.type === "dom_overflow_x") && w.elementId === "grp"
+      );
+      assert.equal(groupOverflows.length, 0, "group elements should not have DOM overflow warnings");
+
+      // But the child el inside the group should still be checked
+      const childOverflows = layouts[0].warnings.filter(
+        w => w.type === "dom_overflow_y" && w.elementId === "child-el"
+      );
+      assert.ok(childOverflows.length > 0, "child el inside group should still get overflow warnings");
+    });
+  });
+});
