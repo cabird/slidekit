@@ -2,8 +2,8 @@
 // BLED Minimalist Editorial aesthetic built with SlideKit
 
 import {
-  init, render, safeRect, measureText,
-  text, image, rect, rule, group,
+  init, render, safeRect, measure,
+  el, group,
   below, rightOf, centerHWith, alignTopWith,
   vstack, hstack,
 } from '../slidekit/slidekit.js';
@@ -55,17 +55,15 @@ export async function run() {
   // ── Reusable label+rule pattern for white content slides ──
   function sectionLabel(slidePrefix, labelText, x, y, w) {
     return [
-      text(labelText, {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.15em">${labelText}</p>`, {
         id: `${slidePrefix}-label`,
         x, y, w,
-        font: SANS, size: SZ.label, weight: 600, color: GRAY,
-        letterSpacing: '0.15em',
       }),
-      rule({
+      el('', {
         id: `${slidePrefix}-rule`,
         x, y: below(`${slidePrefix}-label`, { gap: 12 }),
-        w: w || 600,
-        color: LIGHT_RULE, thickness: 1,
+        w: w || 600, h: 1,
+        style: { background: LIGHT_RULE },
       }),
     ];
   }
@@ -73,17 +71,15 @@ export async function run() {
   // Same for dark backgrounds
   function sectionLabelDark(slidePrefix, labelText, x, y, w) {
     return [
-      text(labelText, {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:rgba(255,255,255,0.5); letter-spacing:0.15em">${labelText}</p>`, {
         id: `${slidePrefix}-label`,
         x, y, w,
-        font: SANS, size: SZ.label, weight: 600, color: 'rgba(255,255,255,0.5)',
-        letterSpacing: '0.15em',
       }),
-      rule({
+      el('', {
         id: `${slidePrefix}-rule`,
         x, y: below(`${slidePrefix}-label`, { gap: 12 }),
-        w: w || 600,
-        color: DARK_RULE, thickness: 1,
+        w: w || 600, h: 1,
+        style: { background: DARK_RULE },
       }),
     ];
   }
@@ -97,7 +93,7 @@ export async function run() {
     background: 'assets/title-bg.png',
     elements: [
       // Dark overlay for text legibility
-      rect({
+      el('', {
         id: 's01-overlay',
         x: 0, y: 0, w: 1920, h: 1080,
         layer: 'bg',
@@ -105,31 +101,23 @@ export async function run() {
       }),
 
       // Main title
-      text('AI WHERE\nIT MATTERS', {
+      el(`<p style="font-size:140px; font-family:${SERIF}; font-weight:700; color:${WHITE}; line-height:0.92; letter-spacing:0.03em">AI WHERE<br>IT MATTERS</p>`, {
         id: 's01-title',
         x: safe.x, y: 320, w: 1200,
-        font: SERIF, size: 140, weight: 700, color: WHITE,
-        lineHeight: 0.92,
-        letterSpacing: '0.03em',
       }),
 
       // Subtitle
-      text('WHERE, WHY, AND HOW DEVELOPERS WANT AI SUPPORT', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.12em; line-height:1.6">WHERE, WHY, AND HOW DEVELOPERS WANT AI SUPPORT</p>`, {
         id: 's01-subtitle',
         x: safe.x, y: below('s01-title', { gap: 32 }),
         w: 1000,
-        font: SANS, size: SZ.label, weight: 500, color: 'rgba(255,255,255,0.6)',
-        letterSpacing: '0.12em',
-        lineHeight: 1.6,
       }),
 
       // Conference + authors (bottom-left, single line)
-      text('ICSE 2026  \u00B7  Choudhuri, Badea, Bird, Butler, DeLine, Houck', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.4); letter-spacing:0.06em">ICSE 2026  \u00B7  Choudhuri, Badea, Bird, Butler, DeLine, Houck</p>`, {
         id: 's01-credits',
         x: safe.x, y: 960,
         w: 900,
-        font: SANS, size: SZ.caption, weight: 400, color: 'rgba(255,255,255,0.4)',
-        letterSpacing: '0.06em',
       }),
     ],
     notes: 'Opening slide. Title of the paper, authors, conference.',
@@ -140,9 +128,10 @@ export async function run() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Measure "WORK" to position the teal asterisk precisely
-  const heroFont = { font: SERIF, size: 180, weight: 700, letterSpacing: '0.02em' };
-  const workMeasure = measureText('WORK', heroFont);
-  const asteriskX = safe.x + workMeasure.block.w;
+  const workMeasure = await measure(
+    `<p style="font-size:180px; font-family:${SERIF}; font-weight:700; letter-spacing:0.02em">WORK</p>`
+  );
+  const asteriskX = safe.x + workMeasure.w;
   // Second line y = hero y + first line height (size * lineHeight)
   const heroY = 200;
   const line2Y = heroY + 180 * 0.95;
@@ -152,7 +141,7 @@ export async function run() {
     background: 'assets/tension-bg.png',
     elements: [
       // Dark overlay
-      rect({
+      el('', {
         id: 's02-overlay',
         x: 0, y: 0, w: 1920, h: 1080,
         layer: 'bg',
@@ -160,30 +149,23 @@ export async function run() {
       }),
 
       // Hero text — two lines with tight leading
-      text('THE RIGHT\nWORK', {
+      el(`<p style="font-size:180px; font-family:${SERIF}; font-weight:700; color:${WHITE}; letter-spacing:0.02em; line-height:0.95">THE RIGHT<br>WORK</p>`, {
         id: 's02-hero',
         x: safe.x, y: heroY,
         w: 1600,
-        font: SERIF, size: 180, weight: 700, color: WHITE,
-        letterSpacing: '0.02em',
-        lineHeight: 0.95,
       }),
 
       // Teal asterisk — positioned at end of "WORK" on line 2
-      text('*', {
+      el(`<p style="font-size:180px; font-family:${SERIF}; font-weight:700; color:${TEAL}; line-height:0.95">*</p>`, {
         id: 's02-asterisk',
         x: asteriskX, y: line2Y,
-        font: SERIF, size: 180, weight: 700, color: TEAL,
-        lineHeight: 0.95,
       }),
 
       // Body text (bottom-left)
-      text('AI tools promise faster delivery \u2014\nbut are they optimizing the right tasks?', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.6); line-height:1.6">AI tools promise faster delivery \u2014<br>but are they optimizing the right tasks?</p>`, {
         id: 's02-body',
         x: safe.x, y: 860,
         w: safe.w * 0.55,
-        font: SANS, size: SZ.body, weight: 400, color: 'rgba(255,255,255,0.6)',
-        lineHeight: 1.6,
       }),
     ],
     notes: 'Set up the core problem \u2014 AI adoption is widespread but not strategic. The adoption paradox.',
@@ -198,10 +180,9 @@ export async function run() {
     background: WHITE,
     elements: [
       // Left half: photo
-      image('assets/inquiry-photo.png', {
+      el('<img src="assets/inquiry-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's03-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
@@ -209,45 +190,35 @@ export async function run() {
       ...sectionLabel('s03', 'RESEARCH QUESTIONS', R_X, 100, R_W),
 
       // RQ1
-      text('01', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">01</p>`, {
         id: 's03-rq1-num',
         x: R_X, y: below('s03-rule', { gap: 40 }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('How do task appraisals shape openness to AI?', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:1.3">How do task appraisals shape openness to AI?</p>`, {
         id: 's03-rq1-text',
         x: R_X + 80, y: alignTopWith('s03-rq1-num'),
         w: R_W - 80,
-        font: SERIF, size: SZ.heading, weight: 700, color: BLACK,
-        lineHeight: 1.3,
       }),
-      text('Cognitive appraisal theory applied to 20 SE tasks', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">Cognitive appraisal theory applied to 20 SE tasks</p>`, {
         id: 's03-rq1-sub',
         x: R_X + 80, y: below('s03-rq1-text', { gap: 12 }),
         w: R_W - 80,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
 
       // RQ2
-      text('02', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">02</p>`, {
         id: 's03-rq2-num',
         x: R_X, y: below('s03-rq1-sub', { gap: 48 }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('Which RAI principles do developers prioritize?', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:1.3">Which RAI principles do developers prioritize?</p>`, {
         id: 's03-rq2-text',
         x: R_X + 80, y: alignTopWith('s03-rq2-num'),
         w: R_W - 80,
-        font: SERIF, size: SZ.heading, weight: 700, color: BLACK,
-        lineHeight: 1.3,
       }),
-      text('8 Responsible AI principles across 5 task categories', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">8 Responsible AI principles across 5 task categories</p>`, {
         id: 's03-rq2-sub',
         x: R_X + 80, y: below('s03-rq2-text', { gap: 12 }),
         w: R_W - 80,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
     ],
   };
@@ -262,100 +233,86 @@ export async function run() {
     id: 's04-framework',
     background: WHITE,
     elements: [
-      image('assets/framework-photo.png', {
+      el('<img src="assets/framework-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's04-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s04', 'THEORETICAL FRAMEWORK', R_X, 100, R_W),
 
-      text('Cognitive Appraisal Theory', {
+      el(`<p style="font-size:${SZ.subtitle}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">Cognitive Appraisal Theory</p>`, {
         id: 's04-title',
         x: R_X, y: below('s04-rule', { gap: 24 }),
         w: R_W,
-        font: SERIF, size: SZ.subtitle, weight: 700, color: BLACK,
       }),
 
       // Driver 1: VALUE
-      text('VALUE', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">VALUE</p>`, {
         id: 's04-d1-label',
         x: R_X, y: below('s04-title', { gap: 48 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      rule({
+      el('', {
         id: 's04-d1-rule',
         x: R_X, y: below('s04-d1-label', { gap: 8 }),
-        w: R_W * 0.4, color: LIGHT_RULE, thickness: 1,
+        w: R_W * 0.4, h: 1,
+        style: { background: LIGHT_RULE },
       }),
-      text('How important is this task to my goals?', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">How important is this task to my goals?</p>`, {
         id: 's04-d1-desc',
         x: R_X, y: below('s04-d1-rule', { gap: 8 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
 
       // Driver 2: IDENTITY
-      text('IDENTITY', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">IDENTITY</p>`, {
         id: 's04-d2-label',
         x: R_X, y: below('s04-d1-desc', { gap: driverGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      rule({
+      el('', {
         id: 's04-d2-rule',
         x: R_X, y: below('s04-d2-label', { gap: 8 }),
-        w: R_W * 0.4, color: LIGHT_RULE, thickness: 1,
+        w: R_W * 0.4, h: 1,
+        style: { background: LIGHT_RULE },
       }),
-      text('How central is this task to who I am as a developer?', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">How central is this task to who I am as a developer?</p>`, {
         id: 's04-d2-desc',
         x: R_X, y: below('s04-d2-rule', { gap: 8 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
 
       // Driver 3: ACCOUNTABILITY
-      text('ACCOUNTABILITY', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">ACCOUNTABILITY</p>`, {
         id: 's04-d3-label',
         x: R_X, y: below('s04-d2-desc', { gap: driverGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      rule({
+      el('', {
         id: 's04-d3-rule',
         x: R_X, y: below('s04-d3-label', { gap: 8 }),
-        w: R_W * 0.4, color: LIGHT_RULE, thickness: 1,
+        w: R_W * 0.4, h: 1,
+        style: { background: LIGHT_RULE },
       }),
-      text('How responsible am I for the outcome?', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">How responsible am I for the outcome?</p>`, {
         id: 's04-d3-desc',
         x: R_X, y: below('s04-d3-rule', { gap: 8 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
 
       // Driver 4: DEMANDS
-      text('DEMANDS', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">DEMANDS</p>`, {
         id: 's04-d4-label',
         x: R_X, y: below('s04-d3-desc', { gap: driverGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      rule({
+      el('', {
         id: 's04-d4-rule',
         x: R_X, y: below('s04-d4-label', { gap: 8 }),
-        w: R_W * 0.4, color: LIGHT_RULE, thickness: 1,
+        w: R_W * 0.4, h: 1,
+        style: { background: LIGHT_RULE },
       }),
-      text('How much effort and cognitive load does this require?', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">How much effort and cognitive load does this require?</p>`, {
         id: 's04-d4-desc',
         x: R_X, y: below('s04-d4-rule', { gap: 8 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
     ],
   };
@@ -368,61 +325,49 @@ export async function run() {
     id: 's05-method',
     background: WHITE,
     elements: [
-      image('assets/survey-photo.png', {
+      el('<img src="assets/survey-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's05-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s05', 'METHODOLOGY', R_X, 100, R_W),
 
       // Stat 1: 860
-      text('860', {
+      el(`<p style="font-size:72px; font-family:${SERIF}; font-weight:700; color:${BLACK}">860</p>`, {
         id: 's05-stat1-num',
         x: R_X, y: below('s05-rule', { gap: 56 }),
-        font: SERIF, size: 72, weight: 700, color: BLACK,
       }),
-      text('DEVELOPERS', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.15em">DEVELOPERS</p>`, {
         id: 's05-stat1-label',
         x: R_X + 8, y: below('s05-stat1-num', { gap: 4 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.15em',
       }),
 
       // Stat 2: 20
-      text('20', {
+      el(`<p style="font-size:72px; font-family:${SERIF}; font-weight:700; color:${BLACK}">20</p>`, {
         id: 's05-stat2-num',
         x: R_X, y: below('s05-stat1-label', { gap: 40 }),
-        font: SERIF, size: 72, weight: 700, color: BLACK,
       }),
-      text('SE TASKS', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.15em">SE TASKS</p>`, {
         id: 's05-stat2-label',
         x: R_X + 8, y: below('s05-stat2-num', { gap: 4 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.15em',
       }),
 
       // Stat 3: 3,981
-      text('3,981', {
+      el(`<p style="font-size:72px; font-family:${SERIF}; font-weight:700; color:${BLACK}">3,981</p>`, {
         id: 's05-stat3-num',
         x: R_X, y: below('s05-stat2-label', { gap: 40 }),
-        font: SERIF, size: 72, weight: 700, color: BLACK,
       }),
-      text('QUALITATIVE RESPONSES', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.15em">QUALITATIVE RESPONSES</p>`, {
         id: 's05-stat3-label',
         x: R_X + 8, y: below('s05-stat3-num', { gap: 4 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.15em',
       }),
 
       // Method note
-      text('Mixed-methods survey at Microsoft, 6 continents', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">Mixed-methods survey at Microsoft, 6 continents</p>`, {
         id: 's05-note',
         x: R_X, y: below('s05-stat3-label', { gap: 48 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
     ],
   };
@@ -437,90 +382,73 @@ export async function run() {
     id: 's06-taxonomy',
     background: WHITE,
     elements: [
-      image('assets/taxonomy-photo.png', {
+      el('<img src="assets/taxonomy-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's06-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s06', 'TASK LANDSCAPE', R_X, 100, R_W),
 
-      text('20 SE Tasks', {
+      el(`<p style="font-size:${SZ.subtitle}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">20 SE Tasks</p>`, {
         id: 's06-title',
         x: R_X, y: below('s06-rule', { gap: 24 }),
         w: R_W,
-        font: SERIF, size: SZ.subtitle, weight: 700, color: BLACK,
       }),
 
       // Category 1
-      text('DEVELOPMENT', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">DEVELOPMENT</p>`, {
         id: 's06-c1',
         x: R_X, y: below('s06-title', { gap: 40 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      text('Coding, debugging, testing, code review', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Coding, debugging, testing, code review</p>`, {
         id: 's06-c1-tasks',
         x: R_X, y: below('s06-c1', { gap: 6 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
       // Category 2
-      text('DESIGN & PLANNING', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">DESIGN & PLANNING</p>`, {
         id: 's06-c2',
         x: R_X, y: below('s06-c1-tasks', { gap: catGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      text('System design, requirements, architecture', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">System design, requirements, architecture</p>`, {
         id: 's06-c2-tasks',
         x: R_X, y: below('s06-c2', { gap: 6 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
       // Category 3
-      text('QUALITY & RISK', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">QUALITY & RISK</p>`, {
         id: 's06-c3',
         x: R_X, y: below('s06-c2-tasks', { gap: catGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      text('Security, reliability, compliance, risk assessment', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Security, reliability, compliance, risk assessment</p>`, {
         id: 's06-c3-tasks',
         x: R_X, y: below('s06-c3', { gap: 6 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
       // Category 4
-      text('INFRASTRUCTURE & OPS', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">INFRASTRUCTURE & OPS</p>`, {
         id: 's06-c4',
         x: R_X, y: below('s06-c3-tasks', { gap: catGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      text('CI/CD, environment setup, DevOps, monitoring', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">CI/CD, environment setup, DevOps, monitoring</p>`, {
         id: 's06-c4-tasks',
         x: R_X, y: below('s06-c4', { gap: 6 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
       // Category 5
-      text('META-WORK', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.12em">META-WORK</p>`, {
         id: 's06-c5',
         x: R_X, y: below('s06-c4-tasks', { gap: catGap }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.12em',
       }),
-      text('Documentation, mentoring, customer support, AI integration', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Documentation, mentoring, customer support, AI integration</p>`, {
         id: 's06-c5-tasks',
         x: R_X, y: below('s06-c5', { gap: 6 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
     ],
   };
@@ -537,89 +465,67 @@ export async function run() {
     elements: [
       ...sectionLabel('s07', 'KEY FINDING', safe.x, 100, safe.w),
 
-      text('All Four Appraisals\nPredict AI Adoption', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:1.2">All Four Appraisals<br>Predict AI Adoption</p>`, {
         id: 's07-title',
         x: safe.x, y: below('s07-rule', { gap: 24 }),
         w: safe.w * 0.6,
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
-        lineHeight: 1.2,
       }),
 
       // Hypothesis results — large sign + driver name
-      text('+', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">+</p>`, {
         id: 's07-h1-sign',
         x: safe.x, y: below('s07-title', { gap: 56 }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('VALUE', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em; line-height:3">VALUE</p>`, {
         id: 's07-h1-label',
         x: safe.x + 60, y: alignTopWith('s07-h1-sign'),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
-        lineHeight: 3,
       }),
-      text('Higher task value \u2192 greater openness and usage', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Higher task value \u2192 greater openness and usage</p>`, {
         id: 's07-h1-desc',
         x: safe.x + 60, y: below('s07-h1-label', { gap: 4 }),
         w: safe.w * 0.5,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
-      text('\u00B1', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">\u00B1</p>`, {
         id: 's07-h2-sign',
         x: safe.x, y: below('s07-h1-desc', { gap: hGap }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('IDENTITY', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em; line-height:3">IDENTITY</p>`, {
         id: 's07-h2-label',
         x: safe.x + 60, y: alignTopWith('s07-h2-sign'),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
-        lineHeight: 3,
       }),
-      text('Dual effect: lower openness, higher usage', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${TEAL}">Dual effect: lower openness, higher usage</p>`, {
         id: 's07-h2-desc',
         x: safe.x + 60, y: below('s07-h2-label', { gap: 4 }),
         w: safe.w * 0.5,
-        font: SANS, size: SZ.body, weight: 400, color: TEAL,
       }),
 
-      text('+', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">+</p>`, {
         id: 's07-h3-sign',
         x: safe.x, y: below('s07-h2-desc', { gap: hGap }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('ACCOUNTABILITY', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em; line-height:3">ACCOUNTABILITY</p>`, {
         id: 's07-h3-label',
         x: safe.x + 60, y: alignTopWith('s07-h3-sign'),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
-        lineHeight: 3,
       }),
-      text('Higher responsibility \u2192 seek AI as safety net', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Higher responsibility \u2192 seek AI as safety net</p>`, {
         id: 's07-h3-desc',
         x: safe.x + 60, y: below('s07-h3-label', { gap: 4 }),
         w: safe.w * 0.5,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
-      text('+', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">+</p>`, {
         id: 's07-h4-sign',
         x: safe.x, y: below('s07-h3-desc', { gap: hGap }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('DEMANDS', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em; line-height:3">DEMANDS</p>`, {
         id: 's07-h4-label',
         x: safe.x + 60, y: alignTopWith('s07-h4-sign'),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
-        lineHeight: 3,
       }),
-      text('Higher cognitive load \u2192 welcome AI relief', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Higher cognitive load \u2192 welcome AI relief</p>`, {
         id: 's07-h4-desc',
         x: safe.x + 60, y: below('s07-h4-label', { gap: 4 }),
         w: safe.w * 0.5,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
     ],
   };
@@ -632,50 +538,42 @@ export async function run() {
     id: 's08-identity',
     background: WHITE,
     elements: [
-      image('assets/identity-photo.png', {
+      el('<img src="assets/identity-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's08-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s08', 'THE IDENTITY PARADOX', R_X, 100, R_W),
 
       // Quote 1
-      text('\u201CI do not want AI to handle writing code for me. That\u2019s the part I enjoy.\u201D', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:400; color:${BLACK}; line-height:1.45">\u201CI do not want AI to handle writing code for me. That\u2019s the part I enjoy.\u201D</p>`, {
         id: 's08-quote1',
         x: R_X, y: below('s08-rule', { gap: 48 }),
         w: R_W,
-        font: SERIF, size: SZ.heading, weight: 400, color: BLACK,
-        lineHeight: 1.45,
       }),
-      text('\u2014 P110, SENIOR DEVELOPER', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.1em">\u2014 P110, SENIOR DEVELOPER</p>`, {
         id: 's08-attr1',
         x: R_X, y: below('s08-quote1', { gap: 16 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.1em',
       }),
 
       // Thin separator
-      rule({
+      el('', {
         id: 's08-sep',
         x: R_X, y: below('s08-attr1', { gap: 48 }),
-        w: 60, color: LIGHT_RULE, thickness: 1,
+        w: 60, h: 1,
+        style: { background: LIGHT_RULE },
       }),
 
       // Quote 2
-      text('\u201CAI should enhance human engineers\u2019 learning, not replace tasks that allow them to become better.\u201D', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SERIF}; font-weight:400; color:${DARK}; line-height:1.5">\u201CAI should enhance human engineers\u2019 learning, not replace tasks that allow them to become better.\u201D</p>`, {
         id: 's08-quote2',
         x: R_X, y: below('s08-sep', { gap: 48 }),
         w: R_W,
-        font: SERIF, size: SZ.body, weight: 400, color: DARK,
-        lineHeight: 1.5,
       }),
-      text('\u2014 P16', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.1em">\u2014 P16</p>`, {
         id: 's08-attr2',
         x: R_X, y: below('s08-quote2', { gap: 16 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.1em',
       }),
     ],
     notes: 'Identity shows a dual pattern: lower openness (\u03B2=-.09) but higher usage (\u03B2=.15). Developers protect their craft identity while pragmatically using AI.',
@@ -696,7 +594,7 @@ export async function run() {
     background: 'assets/clusters-bg.png',
     elements: [
       // Dark overlay
-      rect({
+      el('', {
         id: 's09-overlay',
         x: 0, y: 0, w: 1920, h: 1080,
         layer: 'bg',
@@ -706,79 +604,64 @@ export async function run() {
       ...sectionLabelDark('s09', 'CLUSTER ANALYSIS', safe.x, 100, safe.w),
 
       // Column 1: Core Work
-      text('C1', {
+      el(`<p style="font-size:${SZ.display}px; font-family:${SERIF}; font-weight:700; color:${WHITE}">C1</p>`, {
         id: 's09-c1-num',
         x: col1X, y: colY,
-        font: SERIF, size: SZ.display, weight: 700, color: WHITE,
       }),
-      text('CORE WORK', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:rgba(255,255,255,0.7); letter-spacing:0.15em">CORE WORK</p>`, {
         id: 's09-c1-name',
         x: col1X, y: below('s09-c1-num', { gap: 8 }),
-        font: SANS, size: SZ.label, weight: 600, color: 'rgba(255,255,255,0.7)',
-        letterSpacing: '0.15em',
       }),
-      text('Coding, debugging, testing,\ncode review, system design\n\nHigh value & demands\nStrong AI appetite \u2014\nbut identity constrains delegation', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.55); line-height:1.6">Coding, debugging, testing,<br>code review, system design<br><br>High value & demands<br>Strong AI appetite \u2014<br>but identity constrains delegation</p>`, {
         id: 's09-c1-desc',
         x: col1X, y: below('s09-c1-name', { gap: 20 }),
         w: colW,
-        font: SANS, size: SZ.body, weight: 400, color: 'rgba(255,255,255,0.55)',
-        lineHeight: 1.6,
       }),
 
       // Vertical rule 1
-      rule({
+      el('', {
         id: 's09-vr1',
         x: col1X + colW + 40, y: colY,
-        h: 380, direction: 'vertical',
-        color: DARK_RULE, thickness: 1,
+        w: 1, h: 380,
+        style: { background: DARK_RULE },
       }),
 
       // Column 2: People & AI-Building
-      text('C2', {
+      el(`<p style="font-size:${SZ.display}px; font-family:${SERIF}; font-weight:700; color:${WHITE}">C2</p>`, {
         id: 's09-c2-num',
         x: col2X, y: colY,
-        font: SERIF, size: SZ.display, weight: 700, color: WHITE,
       }),
-      text('PEOPLE & AI-BUILDING', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:rgba(255,255,255,0.7); letter-spacing:0.15em">PEOPLE & AI-BUILDING</p>`, {
         id: 's09-c2-name',
         x: col2X, y: below('s09-c2-num', { gap: 8 }),
-        font: SANS, size: SZ.label, weight: 600, color: 'rgba(255,255,255,0.7)',
-        letterSpacing: '0.15em',
       }),
-      text('Mentoring, AI integration\n\nStrong identity\nAI largely resisted \u2014\nrelationships are irreducibly human', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.55); line-height:1.6">Mentoring, AI integration<br><br>Strong identity<br>AI largely resisted \u2014<br>relationships are irreducibly human</p>`, {
         id: 's09-c2-desc',
         x: col2X, y: below('s09-c2-name', { gap: 20 }),
         w: colW,
-        font: SANS, size: SZ.body, weight: 400, color: 'rgba(255,255,255,0.55)',
-        lineHeight: 1.6,
       }),
 
       // Vertical rule 2
-      rule({
+      el('', {
         id: 's09-vr2',
         x: col2X + colW + 40, y: colY,
-        h: 380, direction: 'vertical',
-        color: DARK_RULE, thickness: 1,
+        w: 1, h: 380,
+        style: { background: DARK_RULE },
       }),
 
       // Column 3: Ops & Coordination
-      text('C3', {
+      el(`<p style="font-size:${SZ.display}px; font-family:${SERIF}; font-weight:700; color:${WHITE}">C3</p>`, {
         id: 's09-c3-num',
         x: col3X, y: colY,
-        font: SERIF, size: SZ.display, weight: 700, color: WHITE,
       }),
-      text('OPS & COORDINATION', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:rgba(255,255,255,0.7); letter-spacing:0.15em">OPS & COORDINATION</p>`, {
         id: 's09-c3-name',
         x: col3X, y: below('s09-c3-num', { gap: 8 }),
-        font: SANS, size: SZ.label, weight: 600, color: 'rgba(255,255,255,0.7)',
-        letterSpacing: '0.15em',
       }),
-      text('DevOps, env setup,\ndocumentation, customer support\n\nLow identity\nAI welcome for toil reduction \u2014\nbut reliability first', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.55); line-height:1.6">DevOps, env setup,<br>documentation, customer support<br><br>Low identity<br>AI welcome for toil reduction \u2014<br>but reliability first</p>`, {
         id: 's09-c3-desc',
         x: col3X, y: below('s09-c3-name', { gap: 20 }),
         w: colW,
-        font: SANS, size: SZ.body, weight: 400, color: 'rgba(255,255,255,0.55)',
-        lineHeight: 1.6,
       }),
     ],
   };
@@ -793,73 +676,59 @@ export async function run() {
     elements: [
       ...sectionLabel('s10', 'NEED VS. USE', safe.x, 100, safe.w),
 
-      text('Where AI Support Is Needed vs. Used', {
+      el(`<p style="font-size:${SZ.subtitle}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">Where AI Support Is Needed vs. Used</p>`, {
         id: 's10-title',
         x: safe.x, y: below('s10-rule', { gap: 24 }),
         w: safe.w * 0.7,
-        font: SERIF, size: SZ.subtitle, weight: 700, color: BLACK,
       }),
 
       // Paper figure
-      image('assets/quadrant-map.png', {
+      el('<img src="assets/quadrant-map.png" style="width:100%;height:100%;object-fit:contain">', {
         id: 's10-figure',
         x: safe.x, y: below('s10-title', { gap: 32 }),
         w: safe.w * 0.65,
         h: 620,
-        fit: 'contain',
       }),
 
       // Quadrant legend (right side)
-      text('BUILD', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">BUILD</p>`, {
         id: 's10-q1',
         x: safe.x + safe.w * 0.72, y: below('s10-title', { gap: 60 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('High need, low use \u2014 invest here', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">High need, low use \u2014 invest here</p>`, {
         id: 's10-q1-desc',
         x: safe.x + safe.w * 0.72, y: below('s10-q1', { gap: 6 }),
         w: 340,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
-      text('IMPROVE', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">IMPROVE</p>`, {
         id: 's10-q2',
         x: safe.x + safe.w * 0.72, y: below('s10-q1-desc', { gap: 32 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('High need, high use \u2014 refine tools', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">High need, high use \u2014 refine tools</p>`, {
         id: 's10-q2-desc',
         x: safe.x + safe.w * 0.72, y: below('s10-q2', { gap: 6 }),
         w: 340,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
-      text('SUSTAIN', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">SUSTAIN</p>`, {
         id: 's10-q3',
         x: safe.x + safe.w * 0.72, y: below('s10-q2-desc', { gap: 32 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('Low need, high use \u2014 maintain', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Low need, high use \u2014 maintain</p>`, {
         id: 's10-q3-desc',
         x: safe.x + safe.w * 0.72, y: below('s10-q3', { gap: 6 }),
         w: 340,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
 
-      text('DE-PRIORITIZE', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">DE-PRIORITIZE</p>`, {
         id: 's10-q4',
         x: safe.x + safe.w * 0.72, y: below('s10-q3-desc', { gap: 32 }),
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('Low need, low use \u2014 redirect effort', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}">Low need, low use \u2014 redirect effort</p>`, {
         id: 's10-q4-desc',
         x: safe.x + safe.w * 0.72, y: below('s10-q4', { gap: 6 }),
         w: 340,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
       }),
     ],
   };
@@ -872,43 +741,37 @@ export async function run() {
     id: 's11-core-work',
     background: WHITE,
     elements: [
-      image('assets/core-work-photo.png', {
+      el('<img src="assets/core-work-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's11-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s11', 'CORE WORK \u2014 C1', R_X, 100, R_W),
 
-      text('Augment,\nDon\u2019t Replace', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:1.15">Augment,<br>Don\u2019t Replace</p>`, {
         id: 's11-title',
         x: R_X, y: below('s11-rule', { gap: 24 }),
         w: R_W,
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
-        lineHeight: 1.15,
       }),
 
-      text('Workflow efficiency.\nProactive quality.\nCross-context awareness.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.7">Workflow efficiency.<br>Proactive quality.<br>Cross-context awareness.</p>`, {
         id: 's11-want',
         x: R_X, y: below('s11-title', { gap: 40 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.7,
       }),
 
-      rule({
+      el('', {
         id: 's11-sep',
         x: R_X, y: below('s11-want', { gap: 32 }),
-        w: 60, color: LIGHT_RULE, thickness: 1,
+        w: 60, h: 1,
+        style: { background: LIGHT_RULE },
       }),
 
-      text('But: retain oversight,\ndecision control, preserve craft.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:500; color:${DARK}; line-height:1.7">But: retain oversight,<br>decision control, preserve craft.</p>`, {
         id: 's11-but',
         x: R_X, y: below('s11-sep', { gap: 32 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 500, color: DARK,
-        lineHeight: 1.7,
       }),
     ],
   };
@@ -921,58 +784,48 @@ export async function run() {
     id: 's12-ops',
     background: WHITE,
     elements: [
-      image('assets/ops-photo.png', {
+      el('<img src="assets/ops-photo.png" style="width:100%;height:100%;object-fit:cover">', {
         id: 's12-photo',
         x: 0, y: 0, w: HALF, h: 1080,
-        fit: 'cover',
         layer: 'bg',
       }),
 
       ...sectionLabel('s12', 'OPS & COORDINATION \u2014 C3', R_X, 100, R_W),
 
-      text('Automate\nthe Toil', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:1.15">Automate<br>the Toil</p>`, {
         id: 's12-title',
         x: R_X, y: below('s12-rule', { gap: 24 }),
         w: R_W,
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
-        lineHeight: 1.15,
       }),
 
-      text('CI/CD pipelines.\nEnvironment setup.\nDocumentation.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.7">CI/CD pipelines.<br>Environment setup.<br>Documentation.</p>`, {
         id: 's12-tasks',
         x: R_X, y: below('s12-title', { gap: 40 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.7,
       }),
 
-      rule({
+      el('', {
         id: 's12-sep',
         x: R_X, y: below('s12-tasks', { gap: 32 }),
-        w: 60, color: LIGHT_RULE, thickness: 1,
+        w: 60, h: 1,
+        style: { background: LIGHT_RULE },
       }),
 
-      text('Determinism, verifiability,\nhuman-gated.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:500; color:${DARK}; line-height:1.7">Determinism, verifiability,<br>human-gated.</p>`, {
         id: 's12-constraint',
         x: R_X, y: below('s12-sep', { gap: 32 }),
         w: R_W,
-        font: SANS, size: SZ.body, weight: 500, color: DARK,
-        lineHeight: 1.7,
       }),
 
       // Quote
-      text('\u201CAnything that touches prod stays behind human gates.\u201D', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SERIF}; font-weight:400; color:${GRAY}; line-height:1.5">\u201CAnything that touches prod stays behind human gates.\u201D</p>`, {
         id: 's12-quote',
         x: R_X, y: below('s12-constraint', { gap: 40 }),
         w: R_W,
-        font: SERIF, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
-      text('\u2014 P165', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.1em">\u2014 P165</p>`, {
         id: 's12-attr',
         x: R_X, y: below('s12-quote', { gap: 8 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.1em',
       }),
     ],
   };
@@ -986,7 +839,7 @@ export async function run() {
     background: 'assets/people-photo.png',
     elements: [
       // Subtle overlay for text readability at bottom
-      rect({
+      el('', {
         id: 's13-overlay',
         x: 0, y: 700, w: 1920, h: 380,
         layer: 'bg',
@@ -996,18 +849,15 @@ export async function run() {
       }),
 
       // Label
-      text('PEOPLE & AI-BUILDING \u2014 C2', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:600; color:rgba(255,255,255,0.5); letter-spacing:0.15em">PEOPLE & AI-BUILDING \u2014 C2</p>`, {
         id: 's13-label',
         x: safe.x, y: 880,
-        font: SANS, size: SZ.label, weight: 600, color: 'rgba(255,255,255,0.5)',
-        letterSpacing: '0.15em',
       }),
 
       // Title
-      text('Keep It Human', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${WHITE}">Keep It Human</p>`, {
         id: 's13-title',
         x: safe.x, y: below('s13-label', { gap: 12 }),
-        font: SERIF, size: SZ.title, weight: 700, color: WHITE,
       }),
     ],
     notes: 'People & AI-Building cluster shows the highest identity scores. Mentoring is about relationships, not information transfer. Developers quote: "Relationships are important" (P85). This cluster actively resists AI delegation.',
@@ -1027,97 +877,84 @@ export async function run() {
     elements: [
       ...sectionLabel('s14', 'SYNTHESIS', safe.x, 100, safe.w),
 
-      text('The Augmentation Spectrum', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">The Augmentation Spectrum</p>`, {
         id: 's14-title',
         x: safe.x, y: below('s14-rule', { gap: 24 }),
         w: safe.w * 0.7,
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
 
       // Spectrum line
-      rule({
+      el('', {
         id: 's14-line',
         x: spectrumX, y: spectrumY,
-        w: spectrumW,
-        color: LIGHT_RULE, thickness: 2,
+        w: spectrumW, h: 2,
+        style: { background: LIGHT_RULE },
       }),
 
       // Tick marks (short vertical rules)
-      rule({
+      el('', {
         id: 's14-tick1',
         x: spectrumX, y: spectrumY - 12,
-        h: 24, direction: 'vertical',
-        color: BLACK, thickness: 2,
+        w: 2, h: 24,
+        style: { background: BLACK },
       }),
-      rule({
+      el('', {
         id: 's14-tick2',
         x: spectrumX + spectrumW / 2, y: spectrumY - 12,
-        h: 24, direction: 'vertical',
-        color: BLACK, thickness: 2,
+        w: 2, h: 24,
+        style: { background: BLACK },
       }),
-      rule({
+      el('', {
         id: 's14-tick3',
         x: spectrumX + spectrumW, y: spectrumY - 12,
-        h: 24, direction: 'vertical',
-        color: BLACK, thickness: 2,
+        w: 2, h: 24,
+        style: { background: BLACK },
       }),
 
       // Position 1: AUGMENT (left)
-      text('AUGMENT', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">AUGMENT</p>`, {
         id: 's14-p1-label',
         x: spectrumX, y: spectrumY + 24,
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('Core Work', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${DARK}">Core Work</p>`, {
         id: 's14-p1-cluster',
         x: spectrumX, y: below('s14-p1-label', { gap: 8 }),
-        font: SERIF, size: SZ.heading, weight: 700, color: DARK,
       }),
-      text('value + identity', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:400; color:${GRAY}">value + identity</p>`, {
         id: 's14-p1-driver',
         x: spectrumX, y: below('s14-p1-cluster', { gap: 6 }),
-        font: SANS, size: SZ.label, weight: 400, color: GRAY,
       }),
 
       // Position 2: AUTOMATE (center)
-      text('AUTOMATE', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">AUTOMATE</p>`, {
         id: 's14-p2-label',
         x: spectrumX + spectrumW / 2, y: spectrumY + 24,
         anchor: 'tl',
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('Ops & Coordination', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${DARK}">Ops & Coordination</p>`, {
         id: 's14-p2-cluster',
         x: spectrumX + spectrumW / 2, y: below('s14-p2-label', { gap: 8 }),
-        font: SERIF, size: SZ.heading, weight: 700, color: DARK,
       }),
-      text('low identity + demands', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:400; color:${GRAY}">low identity + demands</p>`, {
         id: 's14-p2-driver',
         x: spectrumX + spectrumW / 2, y: below('s14-p2-cluster', { gap: 6 }),
-        font: SANS, size: SZ.label, weight: 400, color: GRAY,
       }),
 
       // Position 3: RESIST (right)
-      text('RESIST', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:700; color:${BLACK}; letter-spacing:0.1em">RESIST</p>`, {
         id: 's14-p3-label',
         x: spectrumX + spectrumW, y: spectrumY + 24,
         anchor: 'tr',
-        font: SANS, size: SZ.label, weight: 700, color: BLACK,
-        letterSpacing: '0.1em',
       }),
-      text('People & AI-Building', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${DARK}">People & AI-Building</p>`, {
         id: 's14-p3-cluster',
         x: spectrumX + spectrumW, y: below('s14-p3-label', { gap: 8 }),
         anchor: 'tr',
-        font: SERIF, size: SZ.heading, weight: 700, color: DARK,
       }),
-      text('high identity + relational', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:400; color:${GRAY}">high identity + relational</p>`, {
         id: 's14-p3-driver',
         x: spectrumX + spectrumW, y: below('s14-p3-cluster', { gap: 6 }),
         anchor: 'tr',
-        font: SANS, size: SZ.label, weight: 400, color: GRAY,
       }),
     ],
   };
@@ -1132,36 +969,30 @@ export async function run() {
     elements: [
       ...sectionLabel('s15', 'RESPONSIBLE AI', safe.x, 100, safe.w),
 
-      text('Priorities Vary by Context', {
+      el(`<p style="font-size:${SZ.subtitle}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">Priorities Vary by Context</p>`, {
         id: 's15-title',
         x: safe.x, y: below('s15-rule', { gap: 24 }),
         w: safe.w * 0.7,
-        font: SERIF, size: SZ.subtitle, weight: 700, color: BLACK,
       }),
 
       // Paper figure
-      image('assets/rai-chart.png', {
+      el('<img src="assets/rai-chart.png" style="width:100%;height:100%;object-fit:contain">', {
         id: 's15-figure',
         x: safe.x, y: below('s15-title', { gap: 32 }),
         w: safe.w * 0.65,
         h: 520,
-        fit: 'contain',
       }),
 
       // Takeaway text
-      text('Systems-facing tasks: Reliability & Safety (85%), Privacy & Security (77%)', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">Systems-facing tasks: Reliability & Safety (85%), Privacy & Security (77%)</p>`, {
         id: 's15-takeaway1',
         x: safe.x, y: below('s15-figure', { gap: 24 }),
         w: safe.w * 0.7,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
-      text('People-facing tasks: Fairness & Inclusiveness elevated', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.5">People-facing tasks: Fairness & Inclusiveness elevated</p>`, {
         id: 's15-takeaway2',
         x: safe.x, y: below('s15-takeaway1', { gap: 8 }),
         w: safe.w * 0.7,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.5,
       }),
     ],
   };
@@ -1179,63 +1010,48 @@ export async function run() {
       ...sectionLabel('s16', 'IMPLICATIONS FOR TOOL BUILDERS', safe.x, 100, safe.w),
 
       // Item 1
-      text('01', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">01</p>`, {
         id: 's16-n1',
         x: safe.x, y: below('s16-rule', { gap: 48 }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('Task-Aware Personas', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:2">Task-Aware Personas</p>`, {
         id: 's16-t1',
         x: safe.x + 80, y: alignTopWith('s16-n1'),
-        font: SERIF, size: SZ.heading, weight: 700, color: BLACK,
-        lineHeight: 2,
       }),
-      text('AI should adapt its behavior to the task at hand \u2014 more assertive for ops, more collaborative for design.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.6">AI should adapt its behavior to the task at hand \u2014 more assertive for ops, more collaborative for design.</p>`, {
         id: 's16-d1',
         x: safe.x + 80, y: below('s16-t1', { gap: 4 }),
         w: safe.w * 0.55,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.6,
       }),
 
       // Item 2
-      text('02', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">02</p>`, {
         id: 's16-n2',
         x: safe.x, y: below('s16-d1', { gap: impGap }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('Human-Gated Control', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:2">Human-Gated Control</p>`, {
         id: 's16-t2',
         x: safe.x + 80, y: alignTopWith('s16-n2'),
-        font: SERIF, size: SZ.heading, weight: 700, color: BLACK,
-        lineHeight: 2,
       }),
-      text('Ship AI that proposes, not disposes. For Core Work, developers want oversight and decision authority.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.6">Ship AI that proposes, not disposes. For Core Work, developers want oversight and decision authority.</p>`, {
         id: 's16-d2',
         x: safe.x + 80, y: below('s16-t2', { gap: 4 }),
         w: safe.w * 0.55,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.6,
       }),
 
       // Item 3
-      text('03', {
+      el(`<p style="font-size:${SZ.title}px; font-family:${SERIF}; font-weight:700; color:${BLACK}">03</p>`, {
         id: 's16-n3',
         x: safe.x, y: below('s16-d2', { gap: impGap }),
-        font: SERIF, size: SZ.title, weight: 700, color: BLACK,
       }),
-      text('Augmentation, Not Automation', {
+      el(`<p style="font-size:${SZ.heading}px; font-family:${SERIF}; font-weight:700; color:${BLACK}; line-height:2">Augmentation, Not Automation</p>`, {
         id: 's16-t3',
         x: safe.x + 80, y: alignTopWith('s16-n3'),
-        font: SERIF, size: SZ.heading, weight: 700, color: BLACK,
-        lineHeight: 2,
       }),
-      text('Preserve agency, foster expertise, sustain meaningful work. The goal is better developers, not fewer.', {
+      el(`<p style="font-size:${SZ.body}px; font-family:${SANS}; font-weight:400; color:${GRAY}; line-height:1.6">Preserve agency, foster expertise, sustain meaningful work. The goal is better developers, not fewer.</p>`, {
         id: 's16-d3',
         x: safe.x + 80, y: below('s16-t3', { gap: 4 }),
         w: safe.w * 0.55,
-        font: SANS, size: SZ.body, weight: 400, color: GRAY,
-        lineHeight: 1.6,
       }),
     ],
   };
@@ -1249,7 +1065,7 @@ export async function run() {
     background: 'assets/closing-bg.png',
     elements: [
       // Dark overlay
-      rect({
+      el('', {
         id: 's17-overlay',
         x: 0, y: 0, w: 1920, h: 1080,
         layer: 'bg',
@@ -1257,37 +1073,27 @@ export async function run() {
       }),
 
       // Main closing statement
-      text('DELIVER AI\nWHERE IT\nMATTERS', {
+      el(`<p style="font-size:${SZ.hero}px; font-family:${SERIF}; font-weight:700; color:${WHITE}; line-height:0.95; letter-spacing:0.02em">DELIVER AI<br>WHERE IT<br>MATTERS</p>`, {
         id: 's17-title',
         x: safe.x, y: 240, w: 1200,
-        font: SERIF, size: SZ.hero, weight: 700, color: WHITE,
-        lineHeight: 0.95,
-        letterSpacing: '0.02em',
       }),
 
       // Subtitle
-      text('PRESERVE AGENCY. FOSTER EXPERTISE. SUSTAIN MEANINGFUL WORK.', {
+      el(`<p style="font-size:${SZ.label}px; font-family:${SANS}; font-weight:500; color:rgba(255,255,255,0.6); letter-spacing:0.12em; line-height:1.6">PRESERVE AGENCY. FOSTER EXPERTISE. SUSTAIN MEANINGFUL WORK.</p>`, {
         id: 's17-subtitle',
         x: safe.x, y: below('s17-title', { gap: 40 }),
         w: 1000,
-        font: SANS, size: SZ.label, weight: 500, color: 'rgba(255,255,255,0.6)',
-        letterSpacing: '0.12em',
-        lineHeight: 1.6,
       }),
 
       // Credits (bottom-left)
-      text('Choudhuri  \u00B7  Badea  \u00B7  Bird  \u00B7  Butler  \u00B7  DeLine  \u00B7  Houck', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:400; color:rgba(255,255,255,0.35); letter-spacing:0.05em">Choudhuri  \u00B7  Badea  \u00B7  Bird  \u00B7  Butler  \u00B7  DeLine  \u00B7  Houck</p>`, {
         id: 's17-authors',
         x: safe.x, y: 940,
         w: 800,
-        font: SANS, size: SZ.caption, weight: 400, color: 'rgba(255,255,255,0.35)',
-        letterSpacing: '0.05em',
       }),
-      text('ICSE 2026', {
+      el(`<p style="font-size:${SZ.caption}px; font-family:${SANS}; font-weight:600; color:${GRAY}; letter-spacing:0.15em">ICSE 2026</p>`, {
         id: 's17-conf',
         x: safe.x, y: below('s17-authors', { gap: 8 }),
-        font: SANS, size: SZ.caption, weight: 600, color: GRAY,
-        letterSpacing: '0.15em',
       }),
     ],
     notes: 'Closing message. Reinforce the augmentation thesis.',

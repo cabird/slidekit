@@ -1,8 +1,9 @@
 // SlideKit Tests — M3.5 (Layout Solve Pipeline, Relative Positioning, Provenance, Scene Model)
+// Updated for v2 API: all element factories replaced with el(html, layoutProps)
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, image, rect, rule, group,
+  el, group,
   render, layout,
   init, safeRect, _resetForTests,
   below, above, rightOf, leftOf,
@@ -115,11 +116,13 @@ describe("M3.2: relative positioning helpers — marker shape", () => {
     assert.equal(m.ref, "ref1");
   });
 
-  it("centerIn() returns a _rel marker with rect", () => {
+  it("centerIn() returns { x, y } _rel markers for spread usage", () => {
     const r = { x: 100, y: 50, w: 800, h: 600 };
     const m = centerIn(r);
-    assert.equal(m._rel, "centerIn");
-    assert.deepEqual(m.rect, r);
+    assert.equal(m.x._rel, "centerIn");
+    assert.deepEqual(m.x.rect, r);
+    assert.equal(m.y._rel, "centerIn");
+    assert.deepEqual(m.y.rect, r);
   });
 });
 
@@ -144,8 +147,8 @@ describe("M3.1: layout() — basic scene graph shape", () => {
   });
 
   it("resolves a single static element", async () => {
-    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 100, y: 200, w: 300, h: 150 });
+    const scene = await layout({ elements: [e] });
 
     assert.ok(scene.elements["r1"], "r1 should exist in scene");
     assert.equal(scene.elements["r1"].resolved.x, 100);
@@ -155,8 +158,8 @@ describe("M3.1: layout() — basic scene graph shape", () => {
   });
 
   it("resolves multiple static elements independently", async () => {
-    const e1 = rect({ id: "a", x: 0, y: 0, w: 100, h: 50 });
-    const e2 = rect({ id: "b", x: 500, y: 300, w: 200, h: 100 });
+    const e1 = el('', { id: "a", x: 0, y: 0, w: 100, h: 50 });
+    const e2 = el('', { id: "b", x: 500, y: 300, w: 200, h: 100 });
     const scene = await layout({ elements: [e1, e2] });
 
     assert.equal(scene.elements["a"].resolved.x, 0);
@@ -183,31 +186,31 @@ describe("M3.1: layout() — basic scene graph shape", () => {
 
 describe("M3.1: layout() — anchor resolution for static elements", () => {
   it("applies tl anchor correctly (no shift)", async () => {
-    const el = rect({ id: "r", x: 100, y: 200, w: 300, h: 150, anchor: "tl" });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", x: 100, y: 200, w: 300, h: 150, anchor: "tl" });
+    const scene = await layout({ elements: [e] });
     assert.equal(scene.elements["r"].resolved.x, 100);
     assert.equal(scene.elements["r"].resolved.y, 200);
   });
 
   it("applies cc anchor correctly", async () => {
-    const el = rect({ id: "r", x: 960, y: 540, w: 400, h: 200, anchor: "cc" });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", x: 960, y: 540, w: 400, h: 200, anchor: "cc" });
+    const scene = await layout({ elements: [e] });
     // cc: x = 960 - 200 = 760, y = 540 - 100 = 440
     assert.equal(scene.elements["r"].resolved.x, 760);
     assert.equal(scene.elements["r"].resolved.y, 440);
   });
 
   it("applies br anchor correctly", async () => {
-    const el = rect({ id: "r", x: 500, y: 400, w: 200, h: 100, anchor: "br" });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", x: 500, y: 400, w: 200, h: 100, anchor: "br" });
+    const scene = await layout({ elements: [e] });
     // br: x = 500 - 200 = 300, y = 400 - 100 = 300
     assert.equal(scene.elements["r"].resolved.x, 300);
     assert.equal(scene.elements["r"].resolved.y, 300);
   });
 
   it("applies tc anchor correctly", async () => {
-    const el = rect({ id: "r", x: 960, y: 0, w: 200, h: 100, anchor: "tc" });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", x: 960, y: 0, w: 200, h: 100, anchor: "tc" });
+    const scene = await layout({ elements: [e] });
     // tc: x = 960 - 100 = 860, y = 0
     assert.equal(scene.elements["r"].resolved.x, 860);
     assert.equal(scene.elements["r"].resolved.y, 0);
@@ -220,8 +223,8 @@ describe("M3.1: layout() — anchor resolution for static elements", () => {
 
 describe("M3.2: layout() — below()", () => {
   it("positions element Y below reference bottom edge", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: 100, y: below("anchor"), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: below("anchor"), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // anchor bottom = 100 + 50 = 150
@@ -229,8 +232,8 @@ describe("M3.2: layout() — below()", () => {
   });
 
   it("positions element Y below reference with gap", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: 100, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // anchor bottom = 150 + gap 20 = 170
@@ -240,8 +243,8 @@ describe("M3.2: layout() — below()", () => {
 
 describe("M3.2: layout() — above()", () => {
   it("positions element Y above reference top edge", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 200, w: 200, h: 50 });
-    const target = rect({ id: "target", x: 100, y: above("anchor"), w: 200, h: 80 });
+    const anchor = el('', { id: "anchor", x: 100, y: 200, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: above("anchor"), w: 200, h: 80 });
     const scene = await layout({ elements: [anchor, target] });
 
     // above: y = ref.y - ownH - gap = 200 - 80 - 0 = 120
@@ -249,8 +252,8 @@ describe("M3.2: layout() — above()", () => {
   });
 
   it("positions element Y above reference with gap", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 200, w: 200, h: 50 });
-    const target = rect({ id: "target", x: 100, y: above("anchor", { gap: 10 }), w: 200, h: 80 });
+    const anchor = el('', { id: "anchor", x: 100, y: 200, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: above("anchor", { gap: 10 }), w: 200, h: 80 });
     const scene = await layout({ elements: [anchor, target] });
 
     // above: y = 200 - 80 - 10 = 110
@@ -260,8 +263,8 @@ describe("M3.2: layout() — above()", () => {
 
 describe("M3.2: layout() — rightOf()", () => {
   it("positions element X to the right of reference", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: rightOf("anchor"), y: 100, w: 150, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: rightOf("anchor"), y: 100, w: 150, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // rightOf: x = ref.x + ref.w = 100 + 200 = 300
@@ -269,8 +272,8 @@ describe("M3.2: layout() — rightOf()", () => {
   });
 
   it("positions element X to the right of reference with gap", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: rightOf("anchor", { gap: 30 }), y: 100, w: 150, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: rightOf("anchor", { gap: 30 }), y: 100, w: 150, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // rightOf: x = 300 + 30 = 330
@@ -280,8 +283,8 @@ describe("M3.2: layout() — rightOf()", () => {
 
 describe("M3.2: layout() — leftOf()", () => {
   it("positions element X to the left of reference", async () => {
-    const anchor = rect({ id: "anchor", x: 300, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: leftOf("anchor"), y: 100, w: 100, h: 50 });
+    const anchor = el('', { id: "anchor", x: 300, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: leftOf("anchor"), y: 100, w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // leftOf: x = ref.x - ownW = 300 - 100 = 200
@@ -289,8 +292,8 @@ describe("M3.2: layout() — leftOf()", () => {
   });
 
   it("positions element X to the left of reference with gap", async () => {
-    const anchor = rect({ id: "anchor", x: 300, y: 100, w: 200, h: 50 });
-    const target = rect({ id: "target", x: leftOf("anchor", { gap: 20 }), y: 100, w: 100, h: 50 });
+    const anchor = el('', { id: "anchor", x: 300, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: leftOf("anchor", { gap: 20 }), y: 100, w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // leftOf: x = 300 - 100 - 20 = 180
@@ -300,8 +303,8 @@ describe("M3.2: layout() — leftOf()", () => {
 
 describe("M3.2: layout() — centerVWith()", () => {
   it("centers element vertically with reference", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 100 });
-    const target = rect({ id: "target", x: 100, y: centerVWith("anchor"), w: 200, h: 40 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 100, y: centerVWith("anchor"), w: 200, h: 40 });
     const scene = await layout({ elements: [anchor, target] });
 
     // centerV: y = ref.y + ref.h/2 - ownH/2 = 100 + 50 - 20 = 130
@@ -311,8 +314,8 @@ describe("M3.2: layout() — centerVWith()", () => {
 
 describe("M3.2: layout() — centerHWith()", () => {
   it("centers element horizontally with reference", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 400, h: 100 });
-    const target = rect({ id: "target", x: centerHWith("anchor"), y: 250, w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 400, h: 100 });
+    const target = el('', { id: "target", x: centerHWith("anchor"), y: 250, w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // centerH: x = ref.x + ref.w/2 - ownW/2 = 100 + 200 - 100 = 200
@@ -322,8 +325,8 @@ describe("M3.2: layout() — centerHWith()", () => {
 
 describe("M3.2: layout() — alignTopWith()", () => {
   it("aligns element top with reference top", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 150, w: 200, h: 100 });
-    const target = rect({ id: "target", x: 400, y: alignTopWith("anchor"), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 150, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 400, y: alignTopWith("anchor"), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // alignTop: y = ref.y = 150
@@ -333,8 +336,8 @@ describe("M3.2: layout() — alignTopWith()", () => {
 
 describe("M3.2: layout() — alignBottomWith()", () => {
   it("aligns element bottom with reference bottom", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 200 });
-    const target = rect({ id: "target", x: 400, y: alignBottomWith("anchor"), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 200 });
+    const target = el('', { id: "target", x: 400, y: alignBottomWith("anchor"), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // alignBottom: y = ref.y + ref.h - ownH = 100 + 200 - 50 = 250
@@ -344,8 +347,8 @@ describe("M3.2: layout() — alignBottomWith()", () => {
 
 describe("M3.2: layout() — alignLeftWith()", () => {
   it("aligns element left with reference left", async () => {
-    const anchor = rect({ id: "anchor", x: 200, y: 100, w: 300, h: 100 });
-    const target = rect({ id: "target", x: alignLeftWith("anchor"), y: 300, w: 100, h: 50 });
+    const anchor = el('', { id: "anchor", x: 200, y: 100, w: 300, h: 100 });
+    const target = el('', { id: "target", x: alignLeftWith("anchor"), y: 300, w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // alignLeft: x = ref.x = 200
@@ -355,8 +358,8 @@ describe("M3.2: layout() — alignLeftWith()", () => {
 
 describe("M3.2: layout() — alignRightWith()", () => {
   it("aligns element right with reference right", async () => {
-    const anchor = rect({ id: "anchor", x: 200, y: 100, w: 300, h: 100 });
-    const target = rect({ id: "target", x: alignRightWith("anchor"), y: 300, w: 100, h: 50 });
+    const anchor = el('', { id: "anchor", x: 200, y: 100, w: 300, h: 100 });
+    const target = el('', { id: "target", x: alignRightWith("anchor"), y: 300, w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // alignRight: x = ref.x + ref.w - ownW = 200 + 300 - 100 = 400
@@ -367,8 +370,8 @@ describe("M3.2: layout() — alignRightWith()", () => {
 describe("M3.2: layout() — centerIn()", () => {
   it("centers element within a given rectangle", async () => {
     const r = { x: 100, y: 50, w: 800, h: 600 };
-    const el = rect({ id: "c", x: centerIn(r), y: centerIn(r), w: 200, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "c", ...centerIn(r), w: 200, h: 100 });
+    const scene = await layout({ elements: [e] });
 
     // centerIn x: 100 + 400 - 100 = 400
     // centerIn y: 50 + 300 - 50 = 300
@@ -376,13 +379,25 @@ describe("M3.2: layout() — centerIn()", () => {
     assert.equal(scene.elements["c"].resolved.y, 300);
   });
 
+  it("spread pattern does not collapse to (0,0)", async () => {
+    // Regression: old centerIn returned { _rel, rect } which spread _rel to
+    // top-level props instead of onto x/y, so x/y silently defaulted to 0.
+    const r = { x: 100, y: 100, w: 600, h: 400 };
+    const e = el('', { id: "c", ...centerIn(r), w: 100, h: 100 });
+    const scene = await layout({ elements: [e] });
+    assert.ok(scene.elements["c"].resolved.x !== 0, "x should not be 0 — centerIn must set x");
+    assert.ok(scene.elements["c"].resolved.y !== 0, "y should not be 0 — centerIn must set y");
+    assert.equal(scene.elements["c"].resolved.x, 350); // 100 + 300 - 50
+    assert.equal(scene.elements["c"].resolved.y, 250); // 100 + 200 - 50
+  });
+
   it("centers element within safeRect()", async () => {
     _resetForTests();
     await init();
     try {
       const sr = safeRect(); // default: {x:120, y:90, w:1680, h:900}
-      const el = rect({ id: "c", x: centerIn(sr), y: centerIn(sr), w: 400, h: 200 });
-      const scene = await layout({ elements: [el] });
+      const e = el('', { id: "c", ...centerIn(sr), w: 400, h: 200 });
+      const scene = await layout({ elements: [e] });
 
       // centerIn x: 120 + 840 - 200 = 760
       // centerIn y: 90 + 450 - 100 = 440
@@ -400,9 +415,9 @@ describe("M3.2: layout() — centerIn()", () => {
 
 describe("M3.2: layout() — chained relative positioning", () => {
   it("resolves a chain: A -> B -> C", async () => {
-    const a = rect({ id: "a", x: 100, y: 100, w: 200, h: 50 });
-    const b = rect({ id: "b", x: 100, y: below("a", { gap: 10 }), w: 200, h: 50 });
-    const c = rect({ id: "c", x: 100, y: below("b", { gap: 10 }), w: 200, h: 50 });
+    const a = el('', { id: "a", x: 100, y: 100, w: 200, h: 50 });
+    const b = el('', { id: "b", x: 100, y: below("a", { gap: 10 }), w: 200, h: 50 });
+    const c = el('', { id: "c", x: 100, y: below("b", { gap: 10 }), w: 200, h: 50 });
     const scene = await layout({ elements: [a, b, c] });
 
     // a: y=100
@@ -415,9 +430,9 @@ describe("M3.2: layout() — chained relative positioning", () => {
 
   it("resolves elements declared out of dependency order", async () => {
     // c depends on b, b depends on a — but declared in reverse
-    const c = rect({ id: "c", x: 100, y: below("b", { gap: 5 }), w: 100, h: 30 });
-    const b = rect({ id: "b", x: 100, y: below("a", { gap: 5 }), w: 100, h: 30 });
-    const a = rect({ id: "a", x: 100, y: 0, w: 100, h: 30 });
+    const c = el('', { id: "c", x: 100, y: below("b", { gap: 5 }), w: 100, h: 30 });
+    const b = el('', { id: "b", x: 100, y: below("a", { gap: 5 }), w: 100, h: 30 });
+    const a = el('', { id: "a", x: 100, y: 0, w: 100, h: 30 });
     const scene = await layout({ elements: [c, b, a] });
 
     // a: y=0
@@ -429,8 +444,8 @@ describe("M3.2: layout() — chained relative positioning", () => {
   });
 
   it("resolves mixed x and y relative positioning", async () => {
-    const anchor = rect({ id: "anchor", x: 100, y: 100, w: 200, h: 100 });
-    const target = rect({
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', {
       id: "target",
       x: rightOf("anchor", { gap: 20 }),
       y: centerVWith("anchor"),
@@ -453,10 +468,10 @@ describe("M3.2: layout() — chained relative positioning", () => {
 describe("M3.1: anchor does NOT double-apply on _rel positions", () => {
   it("_rel on y with cc anchor only applies anchor to authored x", async () => {
     // anchor element: a at (100, 100, 200x100)
-    const a = rect({ id: "a", x: 100, y: 100, w: 200, h: 100 });
+    const a = el('', { id: "a", x: 100, y: 100, w: 200, h: 100 });
     // target: x=200 (authored), y=below("a") (_rel), anchor="cc", w=100, h=40
     // Expected: x should be anchor-shifted (200 - 50 = 150), y should NOT be shifted
-    const target = rect({
+    const target = el('', {
       id: "target",
       x: 200,
       y: below("a"),
@@ -473,8 +488,8 @@ describe("M3.1: anchor does NOT double-apply on _rel positions", () => {
   });
 
   it("_rel on x with br anchor only applies anchor to authored y", async () => {
-    const a = rect({ id: "a", x: 100, y: 100, w: 200, h: 100 });
-    const target = rect({
+    const a = el('', { id: "a", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', {
       id: "target",
       x: rightOf("a", { gap: 10 }),
       y: 500,
@@ -491,8 +506,8 @@ describe("M3.1: anchor does NOT double-apply on _rel positions", () => {
   });
 
   it("both x and y _rel: anchor shift is applied to neither", async () => {
-    const a = rect({ id: "a", x: 100, y: 100, w: 200, h: 100 });
-    const target = rect({
+    const a = el('', { id: "a", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', {
       id: "target",
       x: rightOf("a"),
       y: below("a"),
@@ -515,9 +530,9 @@ describe("M3.1: anchor does NOT double-apply on _rel positions", () => {
 
 describe("M3.1: layout() — error handling", () => {
   it("reports error for _rel marker on w", async () => {
-    const el = rect({ id: "r1", x: 0, y: 0, h: 100 });
-    el.props.w = below("other"); // invalid: _rel on dimension
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 0, y: 0, h: 100 });
+    e.props.w = below("other"); // invalid: _rel on dimension
+    const scene = await layout({ elements: [e] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
     assert.equal(scene.errors[0].type, "invalid_rel_on_dimension");
@@ -525,9 +540,9 @@ describe("M3.1: layout() — error handling", () => {
   });
 
   it("reports error for _rel marker on h", async () => {
-    const el = rect({ id: "r1", x: 0, y: 0, w: 100 });
-    el.props.h = below("other"); // invalid: _rel on dimension
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 0, y: 0, w: 100 });
+    e.props.h = below("other"); // invalid: _rel on dimension
+    const scene = await layout({ elements: [e] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
     assert.equal(scene.errors[0].type, "invalid_rel_on_dimension");
@@ -535,8 +550,8 @@ describe("M3.1: layout() — error handling", () => {
   });
 
   it("reports error for unknown ref in _rel marker", async () => {
-    const el = rect({ id: "r1", x: 0, y: below("nonexistent"), w: 100, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 0, y: below("nonexistent"), w: 100, h: 100 });
+    const scene = await layout({ elements: [e] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
     assert.equal(scene.errors[0].type, "unknown_ref");
@@ -544,8 +559,8 @@ describe("M3.1: layout() — error handling", () => {
   });
 
   it("detects circular dependency between two elements", async () => {
-    const a = rect({ id: "a", x: 0, y: below("b"), w: 100, h: 50 });
-    const b = rect({ id: "b", x: 0, y: below("a"), w: 100, h: 50 });
+    const a = el('', { id: "a", x: 0, y: below("b"), w: 100, h: 50 });
+    const b = el('', { id: "b", x: 0, y: below("a"), w: 100, h: 50 });
     const scene = await layout({ elements: [a, b] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
@@ -555,9 +570,9 @@ describe("M3.1: layout() — error handling", () => {
   });
 
   it("detects circular dependency in a 3-element chain", async () => {
-    const a = rect({ id: "a", x: 0, y: below("c"), w: 100, h: 50 });
-    const b = rect({ id: "b", x: 0, y: below("a"), w: 100, h: 50 });
-    const c = rect({ id: "c", x: 0, y: below("b"), w: 100, h: 50 });
+    const a = el('', { id: "a", x: 0, y: below("c"), w: 100, h: 50 });
+    const b = el('', { id: "b", x: 0, y: below("a"), w: 100, h: 50 });
+    const c = el('', { id: "c", x: 0, y: below("b"), w: 100, h: 50 });
     const scene = await layout({ elements: [a, b, c] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
@@ -565,8 +580,8 @@ describe("M3.1: layout() — error handling", () => {
   });
 
   it("returns empty elements on error", async () => {
-    const el = rect({ id: "r1", x: 0, y: below("nonexistent"), w: 100, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 0, y: below("nonexistent"), w: 100, h: 100 });
+    const scene = await layout({ elements: [e] });
 
     assert.deepEqual(scene.elements, {});
   });
@@ -578,8 +593,8 @@ describe("M3.1: layout() — error handling", () => {
 
 describe("M3.4: provenance tracking", () => {
   it("authored position gets source:authored provenance", async () => {
-    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 100, y: 200, w: 300, h: 150 });
+    const scene = await layout({ elements: [e] });
     const prov = scene.elements["r1"].provenance;
 
     assert.equal(prov.x.source, "authored");
@@ -589,8 +604,8 @@ describe("M3.4: provenance tracking", () => {
   });
 
   it("authored dimensions get source:authored provenance", async () => {
-    const el = rect({ id: "r1", x: 0, y: 0, w: 300, h: 150 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 0, y: 0, w: 300, h: 150 });
+    const scene = await layout({ elements: [e] });
     const prov = scene.elements["r1"].provenance;
 
     assert.equal(prov.w.source, "authored");
@@ -600,8 +615,8 @@ describe("M3.4: provenance tracking", () => {
   });
 
   it("_rel position gets source:constraint provenance", async () => {
-    const anchor = rect({ id: "anchor", x: 0, y: 0, w: 200, h: 100 });
-    const target = rect({ id: "target", x: 0, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 0, y: 0, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 0, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
     const prov = scene.elements["target"].provenance;
 
@@ -611,17 +626,16 @@ describe("M3.4: provenance tracking", () => {
     assert.equal(prov.y.gap, 20);
   });
 
-  it("measured text height gets source:measured provenance", async () => {
+  it("measured el() height gets source:measured provenance", async () => {
     _resetForTests();
     await init();
     try {
-      const el = text("Hello world", { id: "t1", x: 0, y: 0, w: 600, font: "sans-serif", size: 32 });
-      const scene = await layout({ elements: [el] });
+      const e = el('<p>Hello world</p>', { id: "t1", x: 0, y: 0, w: 600 });
+      const scene = await layout({ elements: [e] });
       const prov = scene.elements["t1"].provenance;
 
       assert.equal(prov.h.source, "measured");
       assert.ok(prov.h.measuredAt, "should have measuredAt metadata");
-      assert.equal(prov.h.measuredAt.size, 32);
     } finally {
       _resetForTests();
     }
@@ -629,8 +643,8 @@ describe("M3.4: provenance tracking", () => {
 
   it("centerIn provenance includes rect", async () => {
     const r = { x: 0, y: 0, w: 1920, h: 1080 };
-    const el = rect({ id: "c", x: centerIn(r), y: centerIn(r), w: 200, h: 100 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "c", ...centerIn(r), w: 200, h: 100 });
+    const scene = await layout({ elements: [e] });
     const prov = scene.elements["c"].provenance;
 
     assert.equal(prov.x.source, "constraint");
@@ -647,19 +661,19 @@ describe("M3.4: provenance tracking", () => {
 
 describe("M3.4: authored spec preservation", () => {
   it("scene graph includes authored specs for each element", async () => {
-    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 100, y: 200, w: 300, h: 150 });
+    const scene = await layout({ elements: [e] });
     const authored = scene.elements["r1"].authored;
 
     assert.ok(authored, "authored spec should exist");
-    assert.equal(authored.type, "rect");
+    assert.equal(authored.type, "el");
     assert.equal(authored.props.x, 100);
     assert.equal(authored.props.y, 200);
   });
 
   it("authored spec preserves original _rel markers", async () => {
-    const anchor = rect({ id: "anchor", x: 0, y: 0, w: 200, h: 100 });
-    const target = rect({ id: "target", x: 0, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
+    const anchor = el('', { id: "anchor", x: 0, y: 0, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 0, y: below("anchor", { gap: 20 }), w: 200, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
     const authored = scene.elements["target"].authored;
 
@@ -670,11 +684,11 @@ describe("M3.4: authored spec preservation", () => {
   });
 
   it("authored spec is a deep clone (independent of original)", async () => {
-    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150, style: { opacity: "0.5" } });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 100, y: 200, w: 300, h: 150, style: { opacity: "0.5" } });
+    const scene = await layout({ elements: [e] });
 
     // Mutate the original element props after layout
-    el.props.x = 999;
+    e.props.x = 999;
 
     // The authored spec should still have the original value
     assert.equal(scene.elements["r1"].authored.props.x, 100);
@@ -682,21 +696,21 @@ describe("M3.4: authored spec preservation", () => {
 });
 
 // =============================================================================
-// M3.1: Rule Dimensions in Layout
+// M3.1: el() with explicit dimensions in Layout (replaces rule dimension tests)
 // =============================================================================
 
-describe("M3.1: rule dimensions in layout()", () => {
-  it("horizontal rule uses thickness as height", async () => {
-    const el = rule({ id: "hr", x: 0, y: 100, w: 500, thickness: 3 });
-    const scene = await layout({ elements: [el] });
+describe("M3.1: el() dimensions in layout()", () => {
+  it("horizontal line element uses explicit w and h", async () => {
+    const e = el('', { id: "hr", x: 0, y: 100, w: 500, h: 3 });
+    const scene = await layout({ elements: [e] });
 
     assert.equal(scene.elements["hr"].resolved.w, 500);
     assert.equal(scene.elements["hr"].resolved.h, 3);
   });
 
-  it("vertical rule uses thickness as width", async () => {
-    const el = rule({ id: "vr", x: 100, y: 0, h: 400, direction: "vertical", thickness: 4 });
-    const scene = await layout({ elements: [el] });
+  it("vertical line element uses explicit w and h", async () => {
+    const e = el('', { id: "vr", x: 100, y: 0, w: 4, h: 400 });
+    const scene = await layout({ elements: [e] });
 
     assert.equal(scene.elements["vr"].resolved.w, 4);
     assert.equal(scene.elements["vr"].resolved.h, 400);
@@ -710,8 +724,8 @@ describe("M3.1: rule dimensions in layout()", () => {
 describe("M3.1: group elements in layout()", () => {
   it("includes group and its children in scene graph", async () => {
     const g = group([
-      rect({ id: "child1", x: 0, y: 0, w: 100, h: 50 }),
-      rect({ id: "child2", x: 0, y: 60, w: 100, h: 50 }),
+      el('', { id: "child1", x: 0, y: 0, w: 100, h: 50 }),
+      el('', { id: "child2", x: 0, y: 60, w: 100, h: 50 }),
     ], { id: "grp", x: 200, y: 100, w: 400, h: 300 });
     const scene = await layout({ elements: [g] });
 
@@ -722,7 +736,7 @@ describe("M3.1: group elements in layout()", () => {
 
   it("resolves group position correctly", async () => {
     const g = group([
-      rect({ id: "child", x: 10, y: 20, w: 50, h: 50 }),
+      el('', { id: "child", x: 10, y: 20, w: 50, h: 50 }),
     ], { id: "grp", x: 200, y: 100, w: 400, h: 300 });
     const scene = await layout({ elements: [g] });
 
@@ -756,7 +770,7 @@ describe("M3.3: render() returns { sections, layouts }", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 }),
+          el('', { id: "r1", x: 100, y: 200, w: 300, h: 150 }),
         ],
       }];
       const result = await render(slides, { container });
@@ -776,8 +790,8 @@ describe("M3.3: render() DOM uses resolved positions from layout solve", () => {
     await withContainer(async (container) => {
       const slides = [{
         elements: [
-          rect({ id: "anchor", x: 100, y: 100, w: 200, h: 50 }),
-          rect({ id: "target", x: 100, y: below("anchor", { gap: 20 }), w: 200, h: 50 }),
+          el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 }),
+          el('', { id: "target", x: 100, y: below("anchor", { gap: 20 }), w: 200, h: 50 }),
         ],
       }];
       await render(slides, { container });
@@ -801,7 +815,7 @@ describe("M3.3: window.sk scene model persistence", () => {
     await init();
     await withContainer(async (container) => {
       const slides = [
-        { id: "slide-1", elements: [rect({ id: "r", x: 0, y: 0, w: 100, h: 100 })] },
+        { id: "slide-1", elements: [el('', { id: "r", x: 0, y: 0, w: 100, h: 100 })] },
       ];
       await render(slides, { container });
 
@@ -820,8 +834,8 @@ describe("M3.3: window.sk scene model persistence", () => {
     await init();
     await withContainer(async (container) => {
       const slides = [
-        { id: "s1", elements: [rect({ id: "r1", x: 0, y: 0, w: 100, h: 50 })] },
-        { id: "s2", elements: [rect({ id: "r2", x: 100, y: 100, w: 200, h: 100 })] },
+        { id: "s1", elements: [el('', { id: "r1", x: 0, y: 0, w: 100, h: 50 })] },
+        { id: "s2", elements: [el('', { id: "r2", x: 100, y: 100, w: 200, h: 100 })] },
       ];
       await render(slides, { container });
 
@@ -839,16 +853,16 @@ describe("M3.3: window.sk scene model persistence", () => {
 
 describe("M3.1: default x/y values", () => {
   it("elements without explicit x/y default to 0", async () => {
-    const el = rect({ id: "r", w: 100, h: 50 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", w: 100, h: 50 });
+    const scene = await layout({ elements: [e] });
 
     assert.equal(scene.elements["r"].resolved.x, 0);
     assert.equal(scene.elements["r"].resolved.y, 0);
   });
 
   it("element with x=0, y=0 resolves correctly (not falsy)", async () => {
-    const el = rect({ id: "r", x: 0, y: 0, w: 100, h: 50 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r", x: 0, y: 0, w: 100, h: 50 });
+    const scene = await layout({ elements: [e] });
 
     assert.equal(scene.elements["r"].resolved.x, 0);
     assert.equal(scene.elements["r"].resolved.y, 0);
@@ -861,16 +875,16 @@ describe("M3.1: default x/y values", () => {
 
 describe("M3.2: gap=0 works correctly (nullish coalescing)", () => {
   it("below with gap:0 positions exactly at bottom edge", async () => {
-    const anchor = rect({ id: "a", x: 0, y: 0, w: 100, h: 100 });
-    const target = rect({ id: "t", x: 0, y: below("a", { gap: 0 }), w: 100, h: 50 });
+    const anchor = el('', { id: "a", x: 0, y: 0, w: 100, h: 100 });
+    const target = el('', { id: "t", x: 0, y: below("a", { gap: 0 }), w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     assert.equal(scene.elements["t"].resolved.y, 100);
   });
 
   it("rightOf with gap:0 positions exactly at right edge", async () => {
-    const anchor = rect({ id: "a", x: 50, y: 0, w: 200, h: 100 });
-    const target = rect({ id: "t", x: rightOf("a", { gap: 0 }), y: 0, w: 100, h: 50 });
+    const anchor = el('', { id: "a", x: 50, y: 0, w: 200, h: 100 });
+    const target = el('', { id: "t", x: rightOf("a", { gap: 0 }), y: 0, w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     assert.equal(scene.elements["t"].resolved.x, 250);
@@ -883,8 +897,8 @@ describe("M3.2: gap=0 works correctly (nullish coalescing)", () => {
 
 describe("M3.1: self-referencing cycle detection", () => {
   it("detects a single-element self-reference", async () => {
-    const el = rect({ id: "self", x: 0, y: below("self"), w: 100, h: 50 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "self", x: 0, y: below("self"), w: 100, h: 50 });
+    const scene = await layout({ elements: [e] });
 
     assert.ok(scene.errors.length > 0, "should have errors");
     assert.equal(scene.errors[0].type, "dependency_cycle");
@@ -898,13 +912,13 @@ describe("M3.1: self-referencing cycle detection", () => {
 
 describe("M3.1: scene graph element structure", () => {
   it("each element has id, type, authored, resolved, provenance", async () => {
-    const el = rect({ id: "r1", x: 100, y: 200, w: 300, h: 150 });
-    const scene = await layout({ elements: [el] });
+    const e = el('', { id: "r1", x: 100, y: 200, w: 300, h: 150 });
+    const scene = await layout({ elements: [e] });
     const node = scene.elements["r1"];
 
     assert.ok(node, "r1 should exist");
     assert.equal(node.id, "r1");
-    assert.equal(node.type, "rect");
+    assert.equal(node.type, "el");
     assert.ok(node.authored, "should have authored");
     assert.ok(node.resolved, "should have resolved");
     assert.ok(node.provenance, "should have provenance");
@@ -914,28 +928,28 @@ describe("M3.1: scene graph element structure", () => {
     assert.ok("h" in node.resolved, "resolved should have h");
   });
 
-  it("text element has correct type in scene graph", async () => {
+  it("el() with HTML content has type 'el' in scene graph", async () => {
     _resetForTests();
     await init();
     try {
-      const el = text("Hello", { id: "t1", x: 0, y: 0, w: 200, h: 50 });
-      const scene = await layout({ elements: [el] });
-      assert.equal(scene.elements["t1"].type, "text");
+      const e = el('<p>Hello</p>', { id: "t1", x: 0, y: 0, w: 200, h: 50 });
+      const scene = await layout({ elements: [e] });
+      assert.equal(scene.elements["t1"].type, "el");
     } finally {
       _resetForTests();
     }
   });
 
-  it("image element has correct type in scene graph", async () => {
-    const el = image("test.jpg", { id: "img1", x: 0, y: 0, w: 200, h: 150 });
-    const scene = await layout({ elements: [el] });
-    assert.equal(scene.elements["img1"].type, "image");
+  it("el() with image content has type 'el' in scene graph", async () => {
+    const e = el('<img src="test.jpg" style="width:100%;height:100%;object-fit:cover">', { id: "img1", x: 0, y: 0, w: 200, h: 150 });
+    const scene = await layout({ elements: [e] });
+    assert.equal(scene.elements["img1"].type, "el");
   });
 
-  it("rule element has correct type in scene graph", async () => {
-    const el = rule({ id: "r1", x: 0, y: 0, w: 500, thickness: 3 });
-    const scene = await layout({ elements: [el] });
-    assert.equal(scene.elements["r1"].type, "rule");
+  it("el() with empty content has type 'el' in scene graph", async () => {
+    const e = el('', { id: "r1", x: 0, y: 0, w: 500, h: 3 });
+    const scene = await layout({ elements: [e] });
+    assert.equal(scene.elements["r1"].type, "el");
   });
 
   it("group element has correct type in scene graph", async () => {
@@ -952,7 +966,7 @@ describe("M3.1: scene graph element structure", () => {
 describe("M3.1: group child coordinates in scene graph", () => {
   it("group child resolved position is group-relative (not slide-absolute)", async () => {
     const g = group([
-      rect({ id: "child", x: 10, y: 20, w: 50, h: 50 }),
+      el('', { id: "child", x: 10, y: 20, w: 50, h: 50 }),
     ], { id: "grp", x: 200, y: 100, w: 400, h: 300 });
     const scene = await layout({ elements: [g] });
 
@@ -969,8 +983,8 @@ describe("M3.1: group child coordinates in scene graph", () => {
 
 describe("M3.2: negative and edge-case coordinates", () => {
   it("above() can produce negative y coordinate", async () => {
-    const anchor = rect({ id: "anchor", x: 0, y: 30, w: 100, h: 50 });
-    const target = rect({ id: "target", x: 0, y: above("anchor", { gap: 10 }), w: 100, h: 50 });
+    const anchor = el('', { id: "anchor", x: 0, y: 30, w: 100, h: 50 });
+    const target = el('', { id: "target", x: 0, y: above("anchor", { gap: 10 }), w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // above: y = 30 - 50 - 10 = -30
@@ -978,8 +992,8 @@ describe("M3.2: negative and edge-case coordinates", () => {
   });
 
   it("leftOf() can produce negative x coordinate", async () => {
-    const anchor = rect({ id: "anchor", x: 20, y: 0, w: 100, h: 50 });
-    const target = rect({ id: "target", x: leftOf("anchor", { gap: 10 }), y: 0, w: 50, h: 50 });
+    const anchor = el('', { id: "anchor", x: 20, y: 0, w: 100, h: 50 });
+    const target = el('', { id: "target", x: leftOf("anchor", { gap: 10 }), y: 0, w: 50, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     // leftOf: x = 20 - 50 - 10 = -40
@@ -987,8 +1001,8 @@ describe("M3.2: negative and edge-case coordinates", () => {
   });
 
   it("element positioned at x=0 with below() works correctly", async () => {
-    const anchor = rect({ id: "a", x: 0, y: 0, w: 100, h: 100 });
-    const target = rect({ id: "t", x: 0, y: below("a"), w: 100, h: 50 });
+    const anchor = el('', { id: "a", x: 0, y: 0, w: 100, h: 100 });
+    const target = el('', { id: "t", x: 0, y: below("a"), w: 100, h: 50 });
     const scene = await layout({ elements: [anchor, target] });
 
     assert.equal(scene.elements["t"].resolved.x, 0);
@@ -997,23 +1011,23 @@ describe("M3.2: negative and edge-case coordinates", () => {
 });
 
 // =============================================================================
-// M3.2: Cross-type relative positioning
+// M3.2: Cross-content relative positioning
 // =============================================================================
 
-describe("M3.2: cross-type relative positioning", () => {
-  it("text positioned below rect", async () => {
+describe("M3.2: cross-content relative positioning", () => {
+  it("text el() positioned below box el()", async () => {
     _resetForTests();
     await init();
     try {
-      const r = rect({ id: "box", x: 100, y: 50, w: 400, h: 200 });
-      const t = text("Caption", {
+      const box = el('', { id: "box", x: 100, y: 50, w: 400, h: 200 });
+      const caption = el('<p>Caption</p>', {
         id: "caption",
         x: 100,
         y: below("box", { gap: 16 }),
         w: 400,
         h: 40,
       });
-      const scene = await layout({ elements: [r, t] });
+      const scene = await layout({ elements: [box, caption] });
 
       // below: y = 50 + 200 + 16 = 266
       assert.equal(scene.elements["caption"].resolved.y, 266);
@@ -1022,13 +1036,13 @@ describe("M3.2: cross-type relative positioning", () => {
     }
   });
 
-  it("rule positioned below text", async () => {
+  it("line el() positioned below text el()", async () => {
     _resetForTests();
     await init();
     try {
-      const t = text("Heading", { id: "heading", x: 100, y: 100, w: 600, h: 50 });
-      const r = rule({ id: "underline", x: 100, y: below("heading", { gap: 8 }), w: 600 });
-      const scene = await layout({ elements: [t, r] });
+      const heading = el('<p>Heading</p>', { id: "heading", x: 100, y: 100, w: 600, h: 50 });
+      const underline = el('', { id: "underline", x: 100, y: below("heading", { gap: 8 }), w: 600, h: 2, style: { background: '#ffffff' } });
+      const scene = await layout({ elements: [heading, underline] });
 
       // below: y = 100 + 50 + 8 = 158
       assert.equal(scene.elements["underline"].resolved.y, 158);
@@ -1037,16 +1051,16 @@ describe("M3.2: cross-type relative positioning", () => {
     }
   });
 
-  it("image aligned right with rect", async () => {
-    const r = rect({ id: "card", x: 100, y: 100, w: 600, h: 400 });
-    const img = image("photo.jpg", {
+  it("image el() aligned right with box el()", async () => {
+    const card = el('', { id: "card", x: 100, y: 100, w: 600, h: 400 });
+    const photo = el('<img src="photo.jpg" style="width:100%;height:100%;object-fit:cover">', {
       id: "photo",
       x: alignRightWith("card"),
       y: alignTopWith("card"),
       w: 200,
       h: 200,
     });
-    const scene = await layout({ elements: [r, img] });
+    const scene = await layout({ elements: [card, photo] });
 
     // alignRight: x = 100 + 600 - 200 = 500
     // alignTop: y = 100
@@ -1059,18 +1073,17 @@ describe("M3.2: cross-type relative positioning", () => {
 // M3.4: Provenance with try/finally cleanup
 // =============================================================================
 
-describe("M3.4: provenance for measured text with proper cleanup", () => {
-  it("measured text h provenance includes measuredAt metadata and h > 0", async () => {
+describe("M3.4: provenance for measured el() with proper cleanup", () => {
+  it("measured el() h provenance includes measuredAt metadata and h > 0", async () => {
     _resetForTests();
     await init();
     try {
-      const el = text("Hello world", { id: "t1", x: 0, y: 0, w: 600, font: "sans-serif", size: 32 });
-      const scene = await layout({ elements: [el] });
+      const e = el('<p>Hello world</p>', { id: "t1", x: 0, y: 0, w: 600 });
+      const scene = await layout({ elements: [e] });
       const prov = scene.elements["t1"].provenance;
 
       assert.equal(prov.h.source, "measured");
       assert.ok(prov.h.measuredAt, "should have measuredAt metadata");
-      assert.equal(prov.h.measuredAt.size, 32);
       // Verify authored h was absent
       assert.equal(scene.elements["t1"].authored.props.h, undefined);
       // Verify resolved height is positive

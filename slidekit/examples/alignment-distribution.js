@@ -3,7 +3,7 @@
 
 import {
   init, render, safeRect,
-  text, rect, rule,
+  el, group,
   below,
   alignTop, distributeH, matchWidth,
 } from '../slidekit.js';
@@ -21,27 +21,26 @@ export async function run() {
     id: 'alignment',
     background: '#0c0c14',
     elements: [
-      text('Alignment & Distribution', {
+      el('<p style="font:700 52px Inter;color:#fff">Alignment &amp; Distribution</p>', {
         id: 'heading',
         x: safe.x, y: safe.y, w: safe.w,
-        size: 52, weight: 700, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'heading-rule',
         x: safe.x, y: below('heading', { gap: 16 }),
-        w: 80, color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // --- Top row: boxes before alignment (different heights, positions) ---
-      text('Before Transforms', {
+      el('<p style="font:24px Inter;color:rgba(255,255,255,0.5)">Before Transforms</p>', {
         id: 'before-label',
         x: safe.x, y: below('heading-rule', { gap: 32 }),
         w: 300,
-        size: 24, color: 'rgba(255,255,255,0.5)',
       }),
 
-      rect({
+      el('', {
         id: 'box-a',
         x: 200, y: 320, w: 200, h: 150,
         style: {
@@ -50,9 +49,9 @@ export async function run() {
           borderRadius: '8px',
         },
       }),
-      text('A', { id: 'label-a', x: 280, y: 375, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      el('<p style="font:600 28px Inter;color:#fff;text-align:center">A</p>', { id: 'label-a', x: 280, y: 375, w: 40, anchor: 'cc' }),
 
-      rect({
+      el('', {
         id: 'box-b',
         x: 500, y: 360, w: 180, h: 100,
         style: {
@@ -61,9 +60,9 @@ export async function run() {
           borderRadius: '8px',
         },
       }),
-      text('B', { id: 'label-b', x: 570, y: 390, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      el('<p style="font:600 28px Inter;color:#fff;text-align:center">B</p>', { id: 'label-b', x: 570, y: 390, w: 40, anchor: 'cc' }),
 
-      rect({
+      el('', {
         id: 'box-c',
         x: 780, y: 340, w: 220, h: 130,
         style: {
@@ -72,51 +71,59 @@ export async function run() {
           borderRadius: '8px',
         },
       }),
-      text('C', { id: 'label-c', x: 870, y: 385, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      el('<p style="font:600 28px Inter;color:#fff;text-align:center">C</p>', { id: 'label-c', x: 870, y: 385, w: 40, anchor: 'cc' }),
 
       // --- Bottom row: same boxes after transforms ---
-      text('After: alignTop + distributeH + matchWidth', {
+      el('<p style="font:24px Inter;color:rgba(255,255,255,0.5)">After: alignTop + distributeH + matchWidth</p>', {
         id: 'after-label',
         x: safe.x, y: 560,
         w: 700,
-        size: 24, color: 'rgba(255,255,255,0.5)',
       }),
 
-      rect({
-        id: 'box-d',
-        x: 200, y: 620, w: 200, h: 150,
-        style: {
-          background: 'rgba(124,92,191,0.3)',
-          border: '2px solid #7c5cbf',
-          borderRadius: '8px',
-        },
-      }),
-      text('A', { id: 'label-d', x: 280, y: 675, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 200, h: 150,
+          style: {
+            background: 'rgba(124,92,191,0.3)',
+            border: '2px solid #7c5cbf',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">A</p>', {
+          x: 80, y: 55, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-d', x: 200, y: 620, w: 200, h: 150 }),
 
-      rect({
-        id: 'box-e',
-        x: 500, y: 660, w: 180, h: 100,
-        style: {
-          background: 'rgba(66,133,244,0.3)',
-          border: '2px solid #4285f4',
-          borderRadius: '8px',
-        },
-      }),
-      text('B', { id: 'label-e', x: 570, y: 690, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 180, h: 100,
+          style: {
+            background: 'rgba(66,133,244,0.3)',
+            border: '2px solid #4285f4',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">B</p>', {
+          x: 70, y: 30, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-e', x: 500, y: 660, w: 180, h: 100 }),
 
-      rect({
-        id: 'box-f',
-        x: 780, y: 640, w: 220, h: 130,
-        style: {
-          background: 'rgba(52,168,83,0.3)',
-          border: '2px solid #34a853',
-          borderRadius: '8px',
-        },
-      }),
-      text('C', { id: 'label-f', x: 870, y: 685, w: 40, size: 28, weight: 600, color: '#fff', anchor: 'cc', align: 'center' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 220, h: 130,
+          style: {
+            background: 'rgba(52,168,83,0.3)',
+            border: '2px solid #34a853',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">C</p>', {
+          x: 90, y: 45, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-f', x: 780, y: 640, w: 220, h: 130 }),
 
       // Explanation
-      rect({
+      el('', {
         id: 'info-panel',
         x: 1100, y: 280, w: 650, h: 600,
         style: {
@@ -126,24 +133,22 @@ export async function run() {
         },
       }),
 
-      text('Transform Operations', {
+      el('<p style="font:600 28px Inter;color:#fff">Transform Operations</p>', {
         id: 'info-title',
         x: 1140, y: 310, w: 570,
-        size: 28, weight: 600, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'info-rule',
         x: 1140, y: below('info-title', { gap: 12 }),
-        w: 60, color: '#7c5cbf', thickness: 2,
+        w: 60, h: 2,
+        style: { background: '#7c5cbf' },
       }),
 
-      text('Transforms are PowerPoint-style alignment and distribution operations. They are placed in the `transforms` array and applied after position resolution.\n\n• alignTop — aligns top edges\n• alignLeft/Right/Bottom — edge alignment\n• distributeH/V — equal spacing\n• matchWidth/Height/Size — size matching\n• fitToRect — scale to fit a rectangle', {
+      el('<p style="font:20px Inter;color:rgba(255,255,255,0.6);line-height:1.5">Transforms are PowerPoint-style alignment and distribution operations. They are placed in the <code>transforms</code> array and applied after position resolution.<br><br>&bull; alignTop &mdash; aligns top edges<br>&bull; alignLeft/Right/Bottom &mdash; edge alignment<br>&bull; distributeH/V &mdash; equal spacing<br>&bull; matchWidth/Height/Size &mdash; size matching<br>&bull; fitToRect &mdash; scale to fit a rectangle</p>', {
         id: 'info-desc',
         x: 1140, y: below('info-rule', { gap: 16 }),
         w: 570,
-        size: 20, color: 'rgba(255,255,255,0.6)',
-        lineHeight: 1.5,
       }),
     ],
 

@@ -1,9 +1,9 @@
 // title-slide.js — Full-bleed background with centered title, subtitle, and accent rule
-// Demonstrates: image, text, rule, below, init, render, anchor system
+// Demonstrates: el (v2 API), below, init, render, anchor system
 
 import {
   init, render, safeRect,
-  text, rect, rule, image,
+  el,
   below,
 } from '../slidekit.js';
 
@@ -21,7 +21,7 @@ export async function run() {
     background: '#0c0c14',
     elements: [
       // Full-bleed background gradient
-      rect({
+      el('', {
         id: 'bg-glow',
         x: 0, y: 0, w: 1920, h: 1080,
         layer: 'bg',
@@ -31,41 +31,33 @@ export async function run() {
       }),
 
       // Main title — centered horizontally using anchor: "tc"
-      text('Building Better\nPresentations', {
+      el('<p style="font:700 80px/1.1 Inter;color:#ffffff;text-align:center;text-shadow:0 2px 20px rgba(0,0,0,0.5)">Building Better<br>Presentations</p>', {
         id: 'title-text',
         x: 960, y: 340, w: 1200,
         anchor: 'tc',
-        size: 80, weight: 700, color: '#ffffff',
-        align: 'center',
-        lineHeight: 1.1,
-        style: { textShadow: '0 2px 20px rgba(0,0,0,0.5)' },
       }),
 
       // Accent rule — positioned below the title with a 32px gap
-      rule({
+      el('', {
         id: 'accent',
         x: 960 - 40, y: below('title-text', { gap: 32 }),
-        w: 80,
-        color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // Subtitle — positioned below the rule
-      text('A coordinate-based approach to slide layout', {
+      el('<p style="font:400 32px Inter;color:rgba(255,255,255,0.6);text-align:center">A coordinate-based approach to slide layout</p>', {
         id: 'subtitle',
         x: 960, w: 800,
         y: below('accent', { gap: 24 }),
         anchor: 'tc',
-        size: 32, weight: 400, color: 'rgba(255,255,255,0.6)',
-        align: 'center',
       }),
 
       // Footer text anchored to bottom-center
-      text('SlideKit  |  2026', {
+      el('<p style="font:400 18px Inter;color:rgba(255,255,255,0.3);text-align:center">SlideKit  |  2026</p>', {
         id: 'footer',
         x: 960, y: 1000, w: 600,
         anchor: 'bc',
-        size: 18, weight: 400, color: 'rgba(255,255,255,0.3)',
-        align: 'center',
       }),
     ],
   }];

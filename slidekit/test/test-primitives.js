@@ -1,158 +1,99 @@
-// SlideKit Tests — M1.1 (Element Model), M1.2 (Anchors), M1.3 (CSS Filtering), M1.5 (Init)
+// SlideKit Tests — Core Element Model, Anchors, CSS Filtering, Init
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  text, image, rect, rule, group,
+  el, group,
   resolveAnchor, filterStyle,
   init, safeRect, getConfig, resetIdCounter, _resetForTests,
 } from '../slidekit.js';
 
 // =============================================================================
-// M1.1: Core Element Model
+// el() factory
 // =============================================================================
 
-describe("M1.1: text()", () => {
-  it("returns correct object shape", () => {
+describe("el() — object shape", () => {
+  it("returns correct structure", () => {
     resetIdCounter();
-    const el = text("Hello", { x: 100, y: 200, w: 800 });
-    assert.equal(el.type, "text");
-    assert.equal(el.content, "Hello");
-    assert.equal(el.props.x, 100);
-    assert.equal(el.props.y, 200);
-    assert.equal(el.props.w, 800);
+    const e = el('<p>Hello</p>', { x: 100, y: 200, w: 800 });
+    assert.equal(e.type, "el");
+    assert.equal(e.content, "<p>Hello</p>");
+    assert.equal(e.props.x, 100);
+    assert.equal(e.props.y, 200);
+    assert.equal(e.props.w, 800);
   });
 
-  it("applies default values for text-specific props", () => {
+  it("applies common defaults", () => {
     resetIdCounter();
-    const el = text("Hello");
-    assert.equal(el.props.font, "Inter");
-    assert.equal(el.props.size, 32);
-    assert.equal(el.props.weight, 400);
-    assert.equal(el.props.color, "#ffffff");
-    assert.equal(el.props.lineHeight, 1.3);
-    assert.equal(el.props.letterSpacing, "0");
-    assert.equal(el.props.align, "left");
-    assert.equal(el.props.overflow, "warn");
-    assert.equal(el.props.fit, null);
-    assert.equal(el.props.maxLines, null);
+    const e = el('<p>Hi</p>');
+    assert.equal(e.props.x, 0);
+    assert.equal(e.props.y, 0);
+    assert.equal(e.props.anchor, "tl");
+    assert.equal(e.props.layer, "content");
+    assert.equal(e.props.opacity, 1);
+    assert.equal(e.props.className, "");
+    assert.deepEqual(e.props.style, {});
   });
 
-  it("applies common default values", () => {
+  it("applies el-specific default: overflow visible", () => {
     resetIdCounter();
-    const el = text("Hello");
-    assert.equal(el.props.x, 0);
-    assert.equal(el.props.y, 0);
-    assert.equal(el.props.anchor, "tl");
-    assert.equal(el.props.layer, "content");
-    assert.equal(el.props.opacity, 1);
-    assert.equal(el.props.className, "");
-    assert.deepEqual(el.props.style, {});
+    const e = el('<p>Hi</p>');
+    assert.equal(e.props.overflow, "visible");
   });
 
   it("preserves user-provided props over defaults", () => {
     resetIdCounter();
-    const el = text("Hello", { font: "Georgia", size: 48, anchor: "cc", layer: "overlay" });
-    assert.equal(el.props.font, "Georgia");
-    assert.equal(el.props.size, 48);
-    assert.equal(el.props.anchor, "cc");
-    assert.equal(el.props.layer, "overlay");
+    const e = el('<p>Hi</p>', { anchor: "cc", layer: "overlay", overflow: "clip" });
+    assert.equal(e.props.anchor, "cc");
+    assert.equal(e.props.layer, "overlay");
+    assert.equal(e.props.overflow, "clip");
   });
 
   it("does not include id in props", () => {
     resetIdCounter();
-    const el = text("Hello", { id: "my-text" });
-    assert.equal(el.id, "my-text");
-    assert.equal(el.props.id, undefined, "id should not be in props");
+    const e = el('<p>Hi</p>', { id: "my-el" });
+    assert.equal(e.id, "my-el");
+    assert.equal(e.props.id, undefined, "id should not be in props");
   });
 
   it("passes through extra user props not in defaults", () => {
     resetIdCounter();
-    const el = text("Hello", { w: 400, h: 200, z: 5 });
-    assert.equal(el.props.w, 400);
-    assert.equal(el.props.h, 200);
-    assert.equal(el.props.z, 5);
+    const e = el('<p>Hi</p>', { w: 400, h: 200, rotate: 45 });
+    assert.equal(e.props.w, 400);
+    assert.equal(e.props.h, 200);
+    assert.equal(e.props.rotate, 45);
   });
 
   it("handles empty string content", () => {
     resetIdCounter();
-    const el = text("");
-    assert.equal(el.content, "");
-    assert.equal(el.type, "text");
+    const e = el('');
+    assert.equal(e.content, "");
+    assert.equal(e.type, "el");
+  });
+
+  it("stores container style in props", () => {
+    resetIdCounter();
+    const e = el('', { style: { background: "#1a1a2e", borderRadius: "12px" } });
+    assert.equal(e.props.style.background, "#1a1a2e");
+    assert.equal(e.props.style.borderRadius, "12px");
+  });
+
+  it("stores className in props", () => {
+    resetIdCounter();
+    const e = el('<p>Hi</p>', { className: "card accent" });
+    assert.equal(e.props.className, "card accent");
   });
 });
 
-describe("M1.1: image()", () => {
-  it("returns correct object shape", () => {
-    resetIdCounter();
-    const el = image("photo.jpg", { x: 0, y: 0, w: 1920, h: 1080 });
-    assert.equal(el.type, "image");
-    assert.equal(el.src, "photo.jpg");
-    assert.equal(el.props.w, 1920);
-    assert.equal(el.props.h, 1080);
-  });
-
-  it("applies image-specific defaults", () => {
-    resetIdCounter();
-    const el = image("photo.jpg");
-    assert.equal(el.props.fit, "cover");
-    assert.equal(el.props.position, "center");
-  });
-
-  it("does not include id in props", () => {
-    resetIdCounter();
-    const el = image("photo.jpg", { id: "hero" });
-    assert.equal(el.id, "hero");
-    assert.equal(el.props.id, undefined);
-  });
-});
-
-describe("M1.1: rect()", () => {
-  it("returns correct object shape", () => {
-    resetIdCounter();
-    const el = rect({ x: 100, y: 200, w: 500, h: 400 });
-    assert.equal(el.type, "rect");
-    assert.equal(el.props.x, 100);
-    assert.equal(el.props.w, 500);
-  });
-
-  it("applies rect-specific defaults", () => {
-    resetIdCounter();
-    const el = rect();
-    assert.equal(el.props.fill, "transparent");
-    assert.equal(el.props.radius, 0);
-    assert.equal(el.props.border, "none");
-    assert.equal(el.props.padding, 0);
-  });
-});
-
-describe("M1.1: rule()", () => {
-  it("returns correct object shape", () => {
-    resetIdCounter();
-    const el = rule({ x: 170, y: 470, w: 120 });
-    assert.equal(el.type, "rule");
-    assert.equal(el.props.x, 170);
-    assert.equal(el.props.w, 120);
-  });
-
-  it("applies rule-specific defaults", () => {
-    resetIdCounter();
-    const el = rule();
-    assert.equal(el.props.direction, "horizontal");
-    assert.equal(el.props.thickness, 2);
-    assert.equal(el.props.color, "#ffffff");
-  });
-});
-
-describe("M1.1: group()", () => {
+describe("group() — with el() children", () => {
   it("returns correct object shape with children", () => {
     resetIdCounter();
-    const child1 = rect({ w: 100, h: 100 });
-    const child2 = text("Hi", { w: 100 });
+    const child1 = el('', { w: 100, h: 100 });
+    const child2 = el('<p>Hi</p>', { w: 100 });
     const g = group([child1, child2], { x: 50, y: 50 });
     assert.equal(g.type, "group");
     assert.equal(g.children.length, 2);
-    assert.equal(g.children[0].type, "rect");
-    assert.equal(g.children[1].type, "text");
+    assert.equal(g.children[0].type, "el");
+    assert.equal(g.children[1].type, "el");
     assert.equal(g.props.x, 50);
   });
 
@@ -164,71 +105,63 @@ describe("M1.1: group()", () => {
   });
 });
 
-describe("M1.1: Auto-generated IDs", () => {
+describe("Auto-generated IDs", () => {
   it("generates sequential IDs starting from sk-1", () => {
     resetIdCounter();
-    const el1 = text("A");
-    const el2 = rect();
-    const el3 = image("x.jpg");
-    assert.equal(el1.id, "sk-1");
-    assert.equal(el2.id, "sk-2");
-    assert.equal(el3.id, "sk-3");
+    const e1 = el('<p>A</p>');
+    const e2 = el('');
+    const e3 = el('<img src="x.jpg">');
+    assert.equal(e1.id, "sk-1");
+    assert.equal(e2.id, "sk-2");
+    assert.equal(e3.id, "sk-3");
   });
 
   it("produces deterministic IDs after reset", () => {
-    // First call
     resetIdCounter();
-    const firstRun = [text("A").id, rect().id, image("x.jpg").id];
-
-    // Second call — same elements, same order, same IDs
+    const firstRun = [el('<p>A</p>').id, el('').id, el('<img>').id];
     resetIdCounter();
-    const secondRun = [text("A").id, rect().id, image("x.jpg").id];
-
+    const secondRun = [el('<p>A</p>').id, el('').id, el('<img>').id];
     assert.deepEqual(firstRun, secondRun, "IDs should be deterministic across calls");
   });
 
   it("user-provided id overrides auto-generated", () => {
     resetIdCounter();
-    const el1 = text("A");
-    const el2 = text("B", { id: "my-id" });
-    const el3 = text("C");
-    assert.equal(el1.id, "sk-1");
-    assert.equal(el2.id, "my-id");
-    // el3 should be sk-2 because el2 didn't consume an auto-ID
-    assert.equal(el3.id, "sk-2");
+    const e1 = el('<p>A</p>');
+    const e2 = el('<p>B</p>', { id: "my-id" });
+    const e3 = el('<p>C</p>');
+    assert.equal(e1.id, "sk-1");
+    assert.equal(e2.id, "my-id");
+    assert.equal(e3.id, "sk-2");
   });
 
-  it("each element type gets unique sequential IDs", () => {
+  it("el and group get unique sequential IDs", () => {
     resetIdCounter();
     const ids = [
-      text("A").id,
-      image("b.jpg").id,
-      rect().id,
-      rule().id,
+      el('<p>A</p>').id,
+      el('').id,
+      el('<img>').id,
       group([]).id,
     ];
-    assert.deepEqual(ids, ["sk-1", "sk-2", "sk-3", "sk-4", "sk-5"]);
+    assert.deepEqual(ids, ["sk-1", "sk-2", "sk-3", "sk-4"]);
   });
 });
 
-describe("M1.1: Style isolation", () => {
+describe("Style isolation", () => {
   it("each element gets its own style object (no shared reference)", () => {
     resetIdCounter();
-    const el1 = text("A");
-    const el2 = text("B");
-    assert.ok(el1.props.style !== el2.props.style, "style objects should be different references");
-    // Mutating one should not affect the other
-    el1.props.style.color = "red";
-    assert.equal(el2.props.style.color, undefined);
+    const e1 = el('<p>A</p>');
+    const e2 = el('<p>B</p>');
+    assert.ok(e1.props.style !== e2.props.style, "style objects should be different references");
+    e1.props.style.color = "red";
+    assert.equal(e2.props.style.color, undefined);
   });
 });
 
 // =============================================================================
-// M1.2: Anchor Resolution
+// Anchor Resolution
 // =============================================================================
 
-describe("M1.2: resolveAnchor()", () => {
-  // Test element: x=100, y=200, w=400, h=300
+describe("resolveAnchor()", () => {
   const x = 100, y = 200, w = 400, h = 300;
 
   it("tl — top-left: left=x, top=y", () => {
@@ -239,20 +172,20 @@ describe("M1.2: resolveAnchor()", () => {
 
   it("tc — top-center: left=x-w/2, top=y", () => {
     const r = resolveAnchor(x, y, w, h, "tc");
-    assert.equal(r.left, -100); // 100 - 200
+    assert.equal(r.left, -100);
     assert.equal(r.top, 200);
   });
 
   it("tr — top-right: left=x-w, top=y", () => {
     const r = resolveAnchor(x, y, w, h, "tr");
-    assert.equal(r.left, -300); // 100 - 400
+    assert.equal(r.left, -300);
     assert.equal(r.top, 200);
   });
 
   it("cl — center-left: left=x, top=y-h/2", () => {
     const r = resolveAnchor(x, y, w, h, "cl");
     assert.equal(r.left, 100);
-    assert.equal(r.top, 50); // 200 - 150
+    assert.equal(r.top, 50);
   });
 
   it("cc — center-center: left=x-w/2, top=y-h/2", () => {
@@ -270,7 +203,7 @@ describe("M1.2: resolveAnchor()", () => {
   it("bl — bottom-left: left=x, top=y-h", () => {
     const r = resolveAnchor(x, y, w, h, "bl");
     assert.equal(r.left, 100);
-    assert.equal(r.top, -100); // 200 - 300
+    assert.equal(r.top, -100);
   });
 
   it("bc — bottom-center: left=x-w/2, top=y-h", () => {
@@ -287,8 +220,8 @@ describe("M1.2: resolveAnchor()", () => {
 
   it("cc centers a 1200x100 box at slide center (960,540)", () => {
     const r = resolveAnchor(960, 540, 1200, 100, "cc");
-    assert.equal(r.left, 360); // 960 - 600
-    assert.equal(r.top, 490);  // 540 - 50
+    assert.equal(r.left, 360);
+    assert.equal(r.top, 490);
   });
 
   it("throws on invalid anchor string", () => {
@@ -313,10 +246,10 @@ describe("M1.2: resolveAnchor()", () => {
 });
 
 // =============================================================================
-// M1.3: CSS Property Filtering
+// CSS Property Filtering
 // =============================================================================
 
-describe("M1.3: filterStyle() — blocked properties", () => {
+describe("filterStyle() — blocked properties", () => {
   it("blocks position-related properties", () => {
     const { filtered, warnings } = filterStyle({
       position: "relative",
@@ -340,29 +273,10 @@ describe("M1.3: filterStyle() — blocked properties", () => {
     assert.equal(warnings.length, 4);
   });
 
-  it("blocks flex properties", () => {
-    const { filtered, warnings } = filterStyle({
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    });
+  it("blocks display", () => {
+    const { filtered, warnings } = filterStyle({ display: "flex" });
     assert.equal(Object.keys(filtered).length, 0);
-    assert.equal(warnings.length, 4);
-  });
-
-  it("blocks grid properties", () => {
-    const { filtered, warnings } = filterStyle({
-      gridTemplateColumns: "1fr 1fr",
-      gridArea: "main",
-    });
-    assert.equal(Object.keys(filtered).length, 0);
-    assert.equal(warnings.length, 2);
-  });
-
-  it("blocks float and clear", () => {
-    const { warnings } = filterStyle({ float: "left", clear: "both" });
-    assert.equal(warnings.length, 2);
+    assert.equal(warnings.length, 1);
   });
 
   it("blocks overflow properties", () => {
@@ -382,173 +296,63 @@ describe("M1.3: filterStyle() — blocked properties", () => {
     assert.equal(warnings[0].property, "transform");
   });
 
-  it("blocks vendor-prefixed layout properties", () => {
+  it("blocks translate, rotate, scale properties", () => {
     const { filtered, warnings } = filterStyle({
-      "-webkit-transform": "rotate(45deg)",
-      "-webkit-flex-direction": "row",
-      "-ms-flex-wrap": "wrap",
+      translate: "10px 20px",
+      rotate: "45deg",
+      scale: "1.5",
     });
-    assert.equal(filtered.WebkitTransform, undefined, "vendor-prefixed transform should be blocked");
-    assert.equal(filtered.WebkitFlexDirection, undefined, "vendor-prefixed flex-direction should be blocked");
-    assert.equal(filtered.msFlexWrap, undefined, "vendor-prefixed flex-wrap should be blocked");
+    assert.equal(Object.keys(filtered).length, 0);
     assert.equal(warnings.length, 3);
   });
 
-  it("allows vendor-prefixed non-layout properties", () => {
-    const { filtered, warnings } = filterStyle({
-      "-webkit-backdrop-filter": "blur(10px)",
-      "-webkit-font-smoothing": "antialiased",
-    });
-    assert.equal(warnings.length, 0);
-    assert.equal(filtered.WebkitBackdropFilter, "blur(10px)");
-    assert.equal(filtered.WebkitFontSmoothing, "antialiased");
-  });
-});
-
-describe("M1.3: filterStyle() — blocked measurement-affecting properties", () => {
-  it("blocks font properties that affect text measurement", () => {
-    const { filtered, warnings } = filterStyle({
-      font: "bold 24px Inter",
-      fontFamily: "Inter",
-      fontSize: "24px",
-      fontWeight: "700",
-      fontStyle: "italic",
-      fontVariant: "small-caps",
-      fontStretch: "condensed",
-      fontSizeAdjust: "0.5",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all font props should be blocked");
-    assert.equal(warnings.length, 8);
-  });
-
-  it("provides prescriptive suggestion for fontFamily", () => {
-    const { warnings } = filterStyle({ fontFamily: "Inter" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`font` convenience prop"),
-      "should suggest using the font convenience prop");
-  });
-
-  it("provides prescriptive suggestion for fontSize", () => {
-    const { warnings } = filterStyle({ fontSize: "24px" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`size` convenience prop"),
-      "should suggest using the size convenience prop");
-  });
-
-  it("provides prescriptive suggestion for fontWeight", () => {
-    const { warnings } = filterStyle({ fontWeight: "700" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`weight` convenience prop"),
-      "should suggest using the weight convenience prop");
-  });
-
-  it("blocks lineHeight and letterSpacing in style pass-through", () => {
-    const { filtered, warnings } = filterStyle({
-      lineHeight: "3",
-      letterSpacing: "0.1em",
-      wordSpacing: "4px",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all spacing props should be blocked");
-    assert.equal(warnings.length, 3);
-  });
-
-  it("provides prescriptive suggestion for lineHeight", () => {
-    const { warnings } = filterStyle({ lineHeight: "2" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`lineHeight` convenience prop"),
-      "should suggest using the lineHeight convenience prop");
-  });
-
-  it("blocks text layout properties", () => {
-    const { filtered, warnings } = filterStyle({
-      textTransform: "uppercase",
-      textIndent: "2em",
-      textOverflow: "ellipsis",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "text layout props should be blocked");
-    assert.equal(warnings.length, 3);
-  });
-
-  it("blocks word/line breaking properties", () => {
-    const { filtered, warnings } = filterStyle({
-      whiteSpace: "nowrap",
-      wordBreak: "break-all",
-      overflowWrap: "break-word",
-      wordWrap: "break-word",
-      hyphens: "auto",
-      lineBreak: "strict",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all breaking props should be blocked");
-    assert.equal(warnings.length, 6);
-  });
-
-  it("blocks padding properties", () => {
-    const { filtered, warnings } = filterStyle({
-      padding: "10px",
-      paddingTop: "20px",
-      paddingRight: "15px",
-      paddingBottom: "20px",
-      paddingLeft: "15px",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all padding props should be blocked");
-    assert.equal(warnings.length, 5);
-  });
-
-  it("provides prescriptive suggestion for padding", () => {
-    const { warnings } = filterStyle({ padding: "16px" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("rect()"),
-      "should suggest using a containing rect() for visual padding");
-  });
-
-  it("blocks boxSizing", () => {
-    const { warnings } = filterStyle({ boxSizing: "content-box" });
-    assert.equal(warnings.length, 1);
-  });
-
-  it("blocks writing mode properties", () => {
-    const { filtered, warnings } = filterStyle({
-      writingMode: "vertical-rl",
-      direction: "rtl",
-      textOrientation: "upright",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all writing mode props should be blocked");
-    assert.equal(warnings.length, 3);
-  });
-
-  it("blocks multi-column properties", () => {
-    const { filtered, warnings } = filterStyle({
-      columns: "2",
-      columnCount: "3",
-      columnWidth: "200px",
-    });
-    assert.equal(Object.keys(filtered).length, 0, "all column props should be blocked");
-    assert.equal(warnings.length, 3);
-  });
-
-  it("blocks line clamping properties", () => {
+  it("blocks contain and contentVisibility", () => {
     const { warnings } = filterStyle({
-      WebkitLineClamp: "3",
-      lineClamp: "3",
+      contain: "layout",
+      contentVisibility: "auto",
     });
     assert.equal(warnings.length, 2);
   });
 
-  it("blocks kebab-case measurement-affecting properties", () => {
+  it("blocks inset properties", () => {
     const { warnings } = filterStyle({
-      "font-family": "Inter",
-      "font-size": "24px",
-      "line-height": "2",
-      "letter-spacing": "0.1em",
-      "white-space": "nowrap",
-      "word-break": "break-all",
-      "text-transform": "uppercase",
+      inset: "0",
+      insetBlock: "10px",
+      insetInline: "20px",
     });
-    assert.equal(warnings.length, 7, "kebab-case variants should also be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("blocks logical sizing properties", () => {
+    const { warnings } = filterStyle({
+      blockSize: "100px",
+      inlineSize: "200px",
+      minBlockSize: "50px",
+      maxInlineSize: "400px",
+    });
+    assert.equal(warnings.length, 4);
+  });
+
+  it("blocks all margin variants", () => {
+    const { warnings } = filterStyle({
+      marginBlock: "10px",
+      marginBlockStart: "5px",
+      marginInline: "20px",
+      marginInlineEnd: "15px",
+    });
+    assert.equal(warnings.length, 4);
+  });
+
+  it("blocks vendor-prefixed layout properties", () => {
+    const { filtered, warnings } = filterStyle({
+      "-webkit-transform": "rotate(45deg)",
+    });
+    assert.equal(filtered.WebkitTransform, undefined, "vendor-prefixed transform should be blocked");
+    assert.equal(warnings.length, 1);
   });
 });
 
-describe("M1.3: filterStyle() — allowed properties", () => {
+describe("filterStyle() — allowed properties", () => {
   it("passes through visual styling properties", () => {
     const { filtered, warnings } = filterStyle({
       background: "linear-gradient(135deg, #1a1a2e, #16213e)",
@@ -567,12 +371,73 @@ describe("M1.3: filterStyle() — allowed properties", () => {
     assert.equal(filtered.color, "#ffffff");
   });
 
-  it("passes through purely-visual typography properties", () => {
+  it("passes through typography properties (no longer blocked)", () => {
+    const { filtered, warnings } = filterStyle({
+      fontFamily: "Inter, sans-serif",
+      fontSize: "24px",
+      fontWeight: "700",
+      fontStyle: "italic",
+      lineHeight: "1.5",
+      letterSpacing: "0.05em",
+      wordSpacing: "4px",
+    });
+    assert.equal(warnings.length, 0, "typography props should pass through");
+    assert.equal(filtered.fontFamily, "Inter, sans-serif");
+    assert.equal(filtered.fontSize, "24px");
+    assert.equal(filtered.fontWeight, "700");
+    assert.equal(filtered.fontStyle, "italic");
+    assert.equal(filtered.lineHeight, "1.5");
+    assert.equal(filtered.letterSpacing, "0.05em");
+  });
+
+  it("passes through text layout properties (no longer blocked)", () => {
+    const { filtered, warnings } = filterStyle({
+      textTransform: "uppercase",
+      textIndent: "2em",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      wordBreak: "break-all",
+    });
+    assert.equal(warnings.length, 0, "text layout props should pass through");
+    assert.equal(filtered.textTransform, "uppercase");
+    assert.equal(filtered.whiteSpace, "nowrap");
+  });
+
+  it("passes through padding properties (no longer blocked)", () => {
+    const { filtered, warnings } = filterStyle({
+      padding: "24px",
+      paddingTop: "12px",
+      paddingRight: "16px",
+    });
+    assert.equal(warnings.length, 0, "padding should pass through");
+    assert.equal(filtered.padding, "24px");
+  });
+
+  it("passes through flex properties (no longer blocked)", () => {
+    const { filtered, warnings } = filterStyle({
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    });
+    assert.equal(warnings.length, 0, "flex props should pass through");
+    assert.equal(filtered.flexDirection, "row");
+  });
+
+  it("passes through grid properties (no longer blocked)", () => {
+    const { filtered, warnings } = filterStyle({
+      gridTemplateColumns: "1fr 1fr",
+      gridArea: "main",
+    });
+    assert.equal(warnings.length, 0, "grid props should pass through");
+    assert.equal(filtered.gridTemplateColumns, "1fr 1fr");
+  });
+
+  it("passes through text decoration and shadow", () => {
     const { filtered, warnings } = filterStyle({
       textDecoration: "underline",
       textShadow: "0 2px 4px rgba(0,0,0,0.5)",
     });
-    assert.equal(warnings.length, 0, "textDecoration and textShadow should pass through");
+    assert.equal(warnings.length, 0);
     assert.equal(filtered.textDecoration, "underline");
     assert.equal(filtered.textShadow, "0 2px 4px rgba(0,0,0,0.5)");
   });
@@ -591,9 +456,19 @@ describe("M1.3: filterStyle() — allowed properties", () => {
     assert.equal(warnings.length, 0);
     assert.equal(filtered.transformOrigin, "center");
   });
+
+  it("passes through vendor-prefixed non-layout properties", () => {
+    const { filtered, warnings } = filterStyle({
+      "-webkit-backdrop-filter": "blur(10px)",
+      "-webkit-font-smoothing": "antialiased",
+    });
+    assert.equal(warnings.length, 0);
+    assert.equal(filtered.WebkitBackdropFilter, "blur(10px)");
+    assert.equal(filtered.WebkitFontSmoothing, "antialiased");
+  });
 });
 
-describe("M1.3: filterStyle() — camelCase normalization", () => {
+describe("filterStyle() — camelCase normalization", () => {
   it("normalizes kebab-case to camelCase", () => {
     const { filtered, warnings } = filterStyle({
       "background-color": "#1a1a2e",
@@ -608,13 +483,11 @@ describe("M1.3: filterStyle() — camelCase normalization", () => {
 
   it("blocks kebab-case blocked properties after normalization", () => {
     const { warnings } = filterStyle({
-      "flex-direction": "row",
       "margin-top": "10px",
-      "grid-template-columns": "1fr 1fr",
     });
-    assert.equal(warnings.length, 3);
-    assert.equal(warnings[0].property, "flexDirection");
-    assert.equal(warnings[0].originalProperty, "flex-direction");
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].property, "marginTop");
+    assert.equal(warnings[0].originalProperty, "margin-top");
   });
 
   it("preserves CSS custom properties (--variables)", () => {
@@ -637,177 +510,7 @@ describe("M1.3: filterStyle() — camelCase normalization", () => {
   });
 });
 
-describe("M1.3: filterStyle() — convenience props", () => {
-  it("maps color convenience prop to CSS color", () => {
-    const { filtered } = filterStyle({}, "text", { color: "#fff" });
-    assert.equal(filtered.color, "#fff");
-  });
-
-  it("maps font convenience prop to fontFamily", () => {
-    const { filtered } = filterStyle({}, "text", { font: "Space Grotesk" });
-    assert.equal(filtered.fontFamily, '"Space Grotesk", sans-serif');
-  });
-
-  it("maps size convenience prop to fontSize with px suffix", () => {
-    const { filtered } = filterStyle({}, "text", { size: 48 });
-    assert.equal(filtered.fontSize, "48px");
-  });
-
-  it("maps weight convenience prop to fontWeight as string", () => {
-    const { filtered } = filterStyle({}, "text", { weight: 700 });
-    assert.equal(filtered.fontWeight, "700");
-  });
-
-  it("maps fill convenience prop to background", () => {
-    const { filtered } = filterStyle({}, "rect", { fill: "#1a1a2e" });
-    assert.equal(filtered.background, "#1a1a2e");
-  });
-
-  it("maps radius convenience prop to borderRadius with px suffix", () => {
-    const { filtered } = filterStyle({}, "rect", { radius: 12 });
-    assert.equal(filtered.borderRadius, "12px");
-  });
-
-  it("maps border convenience prop to CSS border", () => {
-    const { filtered } = filterStyle({}, "rect", { border: "1px solid #fff" });
-    assert.equal(filtered.border, "1px solid #fff");
-  });
-
-  it("maps align convenience prop to textAlign", () => {
-    const { filtered } = filterStyle({}, "text", { align: "center" });
-    assert.equal(filtered.textAlign, "center");
-  });
-
-  it("maps lineHeight convenience prop", () => {
-    const { filtered } = filterStyle({}, "text", { lineHeight: 1.5 });
-    assert.equal(filtered.lineHeight, 1.5);
-  });
-
-  it("maps letterSpacing convenience prop", () => {
-    const { filtered } = filterStyle({}, "text", { letterSpacing: "0.05em" });
-    assert.equal(filtered.letterSpacing, "0.05em");
-  });
-
-  it("style object overrides convenience props on conflict", () => {
-    const { filtered } = filterStyle(
-      { color: "red" },  // style
-      "text",
-      { color: "blue" }  // convenience prop
-    );
-    // style wins over convenience
-    assert.equal(filtered.color, "red");
-  });
-
-  it("convenience props and style merge without conflict", () => {
-    const { filtered } = filterStyle(
-      { boxShadow: "0 4px 12px rgba(0,0,0,0.3)" },
-      "text",
-      { color: "#fff", size: 32 }
-    );
-    assert.equal(filtered.color, "#fff");
-    assert.equal(filtered.fontSize, "32px");
-    assert.equal(filtered.boxShadow, "0 4px 12px rgba(0,0,0,0.3)");
-  });
-
-  it("blocks style pass-through for measurement props even when convenience prop exists", () => {
-    const { filtered, warnings } = filterStyle(
-      { fontSize: "48px", lineHeight: "3", fontWeight: "900" },
-      "text",
-      { size: 24, lineHeight: 1.5, weight: 700 }
-    );
-    // Convenience props should still work
-    assert.equal(filtered.fontSize, "24px", "convenience size should apply");
-    assert.equal(filtered.lineHeight, 1.5, "convenience lineHeight should apply");
-    assert.equal(filtered.fontWeight, "700", "convenience weight should apply");
-    // But style pass-through of those same CSS props should be blocked with warnings
-    assert.equal(warnings.length, 3, "all 3 style overrides should generate warnings");
-  });
-
-  it("applies fontStyle convenience prop", () => {
-    const { filtered, warnings } = filterStyle(
-      {},
-      "text",
-      { fontStyle: "italic" }
-    );
-    assert.equal(filtered.fontStyle, "italic");
-    assert.equal(warnings.length, 0);
-  });
-
-  it("applies fontVariant convenience prop", () => {
-    const { filtered, warnings } = filterStyle(
-      {},
-      "text",
-      { fontVariant: "small-caps" }
-    );
-    assert.equal(filtered.fontVariant, "small-caps");
-    assert.equal(warnings.length, 0);
-  });
-
-  it("applies textTransform convenience prop", () => {
-    const { filtered, warnings } = filterStyle(
-      {},
-      "text",
-      { textTransform: "uppercase" }
-    );
-    assert.equal(filtered.textTransform, "uppercase");
-    assert.equal(warnings.length, 0);
-  });
-
-  it("applies wordSpacing convenience prop", () => {
-    const { filtered, warnings } = filterStyle(
-      {},
-      "text",
-      { wordSpacing: "0.2em" }
-    );
-    assert.equal(filtered.wordSpacing, "0.2em");
-    assert.equal(warnings.length, 0);
-  });
-
-  it("blocks style fontStyle but allows convenience prop fontStyle", () => {
-    const { filtered, warnings } = filterStyle(
-      { fontStyle: "oblique" },
-      "text",
-      { fontStyle: "italic" }
-    );
-    assert.equal(filtered.fontStyle, "italic", "convenience prop should apply");
-    assert.equal(warnings.length, 1, "style fontStyle should be blocked");
-    assert.ok(warnings[0].suggestion.includes("`fontStyle` convenience prop"));
-  });
-
-  it("blocks style textTransform but allows convenience prop textTransform", () => {
-    const { filtered, warnings } = filterStyle(
-      { textTransform: "lowercase" },
-      "text",
-      { textTransform: "uppercase" }
-    );
-    assert.equal(filtered.textTransform, "uppercase", "convenience prop should apply");
-    assert.equal(warnings.length, 1, "style textTransform should be blocked");
-    assert.ok(warnings[0].suggestion.includes("`textTransform` convenience prop"));
-  });
-
-  it("provides prescriptive suggestion for fontStyle", () => {
-    const { warnings } = filterStyle({ fontStyle: "italic" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`fontStyle` convenience prop"),
-      "should suggest using the fontStyle convenience prop");
-  });
-
-  it("provides prescriptive suggestion for wordSpacing", () => {
-    const { warnings } = filterStyle({ wordSpacing: "4px" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`wordSpacing` convenience prop"),
-      "should suggest using the wordSpacing convenience prop");
-  });
-
-  it("provides prescriptive suggestion for textTransform", () => {
-    const { warnings } = filterStyle({ textTransform: "uppercase" });
-    assert.equal(warnings.length, 1);
-    assert.ok(warnings[0].suggestion.includes("`textTransform` convenience prop"),
-      "should suggest using the textTransform convenience prop");
-  });
-});
-
-describe("M1.3: filterStyle() — empty/edge cases", () => {
+describe("filterStyle() — empty/edge cases", () => {
   it("returns empty filtered and no warnings for empty style", () => {
     const { filtered, warnings } = filterStyle({});
     assert.deepEqual(filtered, {});
@@ -821,7 +524,7 @@ describe("M1.3: filterStyle() — empty/edge cases", () => {
   });
 });
 
-describe("M1.3: filterStyle() — warning structure", () => {
+describe("filterStyle() — warning structure", () => {
   it("warning includes required fields", () => {
     const { warnings } = filterStyle({ display: "flex" });
     assert.equal(warnings.length, 1);
@@ -832,17 +535,17 @@ describe("M1.3: filterStyle() — warning structure", () => {
   });
 
   it("warning includes originalProperty for kebab-case input", () => {
-    const { warnings } = filterStyle({ "flex-direction": "row" });
-    assert.equal(warnings[0].originalProperty, "flex-direction");
-    assert.equal(warnings[0].property, "flexDirection");
+    const { warnings } = filterStyle({ "margin-top": "10px" });
+    assert.equal(warnings[0].originalProperty, "margin-top");
+    assert.equal(warnings[0].property, "marginTop");
   });
 });
 
 // =============================================================================
-// M1.5: Init Function
+// Init Function
 // =============================================================================
 
-describe("M1.5: init()", () => {
+describe("init()", () => {
   it("stores default config when called with no arguments", async () => {
     _resetForTests();
     await init();
@@ -913,7 +616,7 @@ describe("M1.5: init()", () => {
   });
 });
 
-describe("M1.5: safeRect()", () => {
+describe("safeRect()", () => {
   it("throws when called before init()", () => {
     _resetForTests();
     assert.throws(() => safeRect(), "safeRect should throw before init");
@@ -925,8 +628,8 @@ describe("M1.5: safeRect()", () => {
     const sr = safeRect();
     assert.equal(sr.x, 120);
     assert.equal(sr.y, 90);
-    assert.equal(sr.w, 1680); // 1920 - 120 - 120
-    assert.equal(sr.h, 900);  // 1080 - 90 - 90
+    assert.equal(sr.w, 1680);
+    assert.equal(sr.h, 900);
   });
 
   it("computes correctly from custom config", async () => {
@@ -938,8 +641,8 @@ describe("M1.5: safeRect()", () => {
     const sr = safeRect();
     assert.equal(sr.x, 200);
     assert.equal(sr.y, 150);
-    assert.equal(sr.w, 1520); // 1920 - 200 - 200
-    assert.equal(sr.h, 780);  // 1080 - 150 - 150
+    assert.equal(sr.w, 1520);
+    assert.equal(sr.h, 780);
   });
 
   it("returns a copy (mutation does not affect cached value)", async () => {
@@ -952,7 +655,7 @@ describe("M1.5: safeRect()", () => {
   });
 });
 
-describe("M1.5: getConfig()", () => {
+describe("getConfig()", () => {
   it("returns null before init()", () => {
     _resetForTests();
     assert.equal(getConfig(), null);
