@@ -1,8 +1,9 @@
 // SlideKit — Coordinate-Based Slide Layout Library
 // ES Module — all exports are named
 
+import { resetIdCounter, nextId } from './src/id.js';
+
 import {
-  _idCounter, set_idCounter,
   _config, set_config,
   _safeRectCache, set_safeRectCache,
   _loadedFonts, set_loadedFonts,
@@ -13,25 +14,7 @@ import {
   _transformIdCounter, set_transformIdCounter,
 } from './src/state.js';
 
-// =============================================================================
-// ID Generation (M1.1)
-// =============================================================================
-
-/**
- * Reset the auto-ID counter. Called at the start of each layout()/render() call
- * to ensure deterministic IDs for the same slide definition.
- */
-export function resetIdCounter() {
-  set_idCounter(0);
-}
-
-/**
- * Generate the next auto ID: sk-1, sk-2, ...
- */
-function nextId() {
-  set_idCounter(_idCounter + 1);
-  return `sk-${_idCounter}`;
-}
+export { resetIdCounter } from './src/id.js';
 
 // =============================================================================
 // Core Element Model (M1.1)
@@ -470,7 +453,7 @@ export function getConfig() {
 export function _resetForTests() {
   set_config(null);
   set_safeRectCache(null);
-  set_idCounter(0);
+  resetIdCounter();
   set_transformIdCounter(0);
   set_loadedFonts(new Set());
   set_fontWarnings([]);
