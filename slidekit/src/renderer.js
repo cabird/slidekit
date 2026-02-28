@@ -7,6 +7,7 @@ import { _config } from './state.js';
 import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
+import { applyStyleToDOM } from './dom-helpers.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
 let _layoutFn;
@@ -54,22 +55,7 @@ export function computeZOrder(elements) {
   return zMap;
 }
 
-/**
- * Apply merged style object to a DOM element's inline style.
- *
- * @param {HTMLElement} domEl - The DOM element to style
- * @param {object} styleObj - CSS properties in camelCase form
- */
-export function applyStyleToDOM(domEl, styleObj) {
-  for (const [key, value] of Object.entries(styleObj)) {
-    if (key.startsWith("--")) {
-      // CSS custom properties need setProperty
-      domEl.style.setProperty(key, value);
-    } else {
-      domEl.style[key] = value;
-    }
-  }
-}
+export { applyStyleToDOM } from './dom-helpers.js';
 
 /**
  * Set slide background on a <section> element using Reveal.js data-background-* attributes.

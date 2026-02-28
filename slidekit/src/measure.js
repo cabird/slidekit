@@ -7,17 +7,7 @@ import {
 
 import { _baselineCSS } from './style.js';
 import { filterStyle } from './style.js';
-
-// Local copy of applyStyleToDOM to avoid circular dependency with slidekit.js
-function applyStyleToDOM(domEl, styleObj) {
-  for (const [key, value] of Object.entries(styleObj)) {
-    if (key.startsWith("--")) {
-      domEl.style.setProperty(key, value);
-    } else {
-      domEl.style[key] = value;
-    }
-  }
-}
+import { applyStyleToDOM } from './dom-helpers.js';
 
 // =============================================================================
 // Measurement Container (M2.2, M2.3)
