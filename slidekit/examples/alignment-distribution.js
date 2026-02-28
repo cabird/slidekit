@@ -3,7 +3,7 @@
 
 import {
   init, render, safeRect,
-  el,
+  el, group,
   below,
   alignTop, distributeH, matchWidth,
 } from '../slidekit.js';
@@ -80,38 +80,47 @@ export async function run() {
         w: 700,
       }),
 
-      el('', {
-        id: 'box-d',
-        x: 200, y: 620, w: 200, h: 150,
-        style: {
-          background: 'rgba(124,92,191,0.3)',
-          border: '2px solid #7c5cbf',
-          borderRadius: '8px',
-        },
-      }),
-      el('<p style="font:600 28px Inter;color:#fff;text-align:center">A</p>', { id: 'label-d', x: 280, y: 675, w: 40, anchor: 'cc' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 200, h: 150,
+          style: {
+            background: 'rgba(124,92,191,0.3)',
+            border: '2px solid #7c5cbf',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">A</p>', {
+          x: 80, y: 55, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-d', x: 200, y: 620, w: 200, h: 150 }),
 
-      el('', {
-        id: 'box-e',
-        x: 500, y: 660, w: 180, h: 100,
-        style: {
-          background: 'rgba(66,133,244,0.3)',
-          border: '2px solid #4285f4',
-          borderRadius: '8px',
-        },
-      }),
-      el('<p style="font:600 28px Inter;color:#fff;text-align:center">B</p>', { id: 'label-e', x: 570, y: 690, w: 40, anchor: 'cc' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 180, h: 100,
+          style: {
+            background: 'rgba(66,133,244,0.3)',
+            border: '2px solid #4285f4',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">B</p>', {
+          x: 70, y: 30, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-e', x: 500, y: 660, w: 180, h: 100 }),
 
-      el('', {
-        id: 'box-f',
-        x: 780, y: 640, w: 220, h: 130,
-        style: {
-          background: 'rgba(52,168,83,0.3)',
-          border: '2px solid #34a853',
-          borderRadius: '8px',
-        },
-      }),
-      el('<p style="font:600 28px Inter;color:#fff;text-align:center">C</p>', { id: 'label-f', x: 870, y: 685, w: 40, anchor: 'cc' }),
+      group([
+        el('', {
+          x: 0, y: 0, w: 220, h: 130,
+          style: {
+            background: 'rgba(52,168,83,0.3)',
+            border: '2px solid #34a853',
+            borderRadius: '8px',
+          },
+        }),
+        el('<p style="font:600 28px Inter;color:#fff;text-align:center">C</p>', {
+          x: 90, y: 45, w: 40, anchor: 'cc',
+        }),
+      ], { id: 'box-f', x: 780, y: 640, w: 220, h: 130 }),
 
       // Explanation
       el('', {
