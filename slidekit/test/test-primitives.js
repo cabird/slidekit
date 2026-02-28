@@ -405,6 +405,149 @@ describe("M1.3: filterStyle() — blocked properties", () => {
   });
 });
 
+describe("M1.3: filterStyle() — blocked measurement-affecting properties", () => {
+  it("blocks font properties that affect text measurement", () => {
+    const { filtered, warnings } = filterStyle({
+      font: "bold 24px Inter",
+      fontFamily: "Inter",
+      fontSize: "24px",
+      fontWeight: "700",
+      fontStyle: "italic",
+      fontVariant: "small-caps",
+      fontStretch: "condensed",
+      fontSizeAdjust: "0.5",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all font props should be blocked");
+    assert.equal(warnings.length, 8);
+  });
+
+  it("provides prescriptive suggestion for fontFamily", () => {
+    const { warnings } = filterStyle({ fontFamily: "Inter" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`font` convenience prop"),
+      "should suggest using the font convenience prop");
+  });
+
+  it("provides prescriptive suggestion for fontSize", () => {
+    const { warnings } = filterStyle({ fontSize: "24px" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`size` convenience prop"),
+      "should suggest using the size convenience prop");
+  });
+
+  it("provides prescriptive suggestion for fontWeight", () => {
+    const { warnings } = filterStyle({ fontWeight: "700" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`weight` convenience prop"),
+      "should suggest using the weight convenience prop");
+  });
+
+  it("blocks lineHeight and letterSpacing in style pass-through", () => {
+    const { filtered, warnings } = filterStyle({
+      lineHeight: "3",
+      letterSpacing: "0.1em",
+      wordSpacing: "4px",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all spacing props should be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("provides prescriptive suggestion for lineHeight", () => {
+    const { warnings } = filterStyle({ lineHeight: "2" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`lineHeight` convenience prop"),
+      "should suggest using the lineHeight convenience prop");
+  });
+
+  it("blocks text layout properties", () => {
+    const { filtered, warnings } = filterStyle({
+      textTransform: "uppercase",
+      textIndent: "2em",
+      textOverflow: "ellipsis",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "text layout props should be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("blocks word/line breaking properties", () => {
+    const { filtered, warnings } = filterStyle({
+      whiteSpace: "nowrap",
+      wordBreak: "break-all",
+      overflowWrap: "break-word",
+      wordWrap: "break-word",
+      hyphens: "auto",
+      lineBreak: "strict",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all breaking props should be blocked");
+    assert.equal(warnings.length, 6);
+  });
+
+  it("blocks padding properties", () => {
+    const { filtered, warnings } = filterStyle({
+      padding: "10px",
+      paddingTop: "20px",
+      paddingRight: "15px",
+      paddingBottom: "20px",
+      paddingLeft: "15px",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all padding props should be blocked");
+    assert.equal(warnings.length, 5);
+  });
+
+  it("provides prescriptive suggestion for padding", () => {
+    const { warnings } = filterStyle({ padding: "16px" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("rect()"),
+      "should suggest using a containing rect() for visual padding");
+  });
+
+  it("blocks boxSizing", () => {
+    const { warnings } = filterStyle({ boxSizing: "content-box" });
+    assert.equal(warnings.length, 1);
+  });
+
+  it("blocks writing mode properties", () => {
+    const { filtered, warnings } = filterStyle({
+      writingMode: "vertical-rl",
+      direction: "rtl",
+      textOrientation: "upright",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all writing mode props should be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("blocks multi-column properties", () => {
+    const { filtered, warnings } = filterStyle({
+      columns: "2",
+      columnCount: "3",
+      columnWidth: "200px",
+    });
+    assert.equal(Object.keys(filtered).length, 0, "all column props should be blocked");
+    assert.equal(warnings.length, 3);
+  });
+
+  it("blocks line clamping properties", () => {
+    const { warnings } = filterStyle({
+      WebkitLineClamp: "3",
+      lineClamp: "3",
+    });
+    assert.equal(warnings.length, 2);
+  });
+
+  it("blocks kebab-case measurement-affecting properties", () => {
+    const { warnings } = filterStyle({
+      "font-family": "Inter",
+      "font-size": "24px",
+      "line-height": "2",
+      "letter-spacing": "0.1em",
+      "white-space": "nowrap",
+      "word-break": "break-all",
+      "text-transform": "uppercase",
+    });
+    assert.equal(warnings.length, 7, "kebab-case variants should also be blocked");
+  });
+});
+
 describe("M1.3: filterStyle() — allowed properties", () => {
   it("passes through visual styling properties", () => {
     const { filtered, warnings } = filterStyle({
@@ -424,17 +567,14 @@ describe("M1.3: filterStyle() — allowed properties", () => {
     assert.equal(filtered.color, "#ffffff");
   });
 
-  it("passes through typography properties", () => {
+  it("passes through purely-visual typography properties", () => {
     const { filtered, warnings } = filterStyle({
-      fontFamily: "Inter",
-      fontSize: "24px",
-      fontWeight: "700",
       textDecoration: "underline",
-      textTransform: "uppercase",
+      textShadow: "0 2px 4px rgba(0,0,0,0.5)",
     });
-    assert.equal(warnings.length, 0);
-    assert.equal(filtered.fontFamily, "Inter");
-    assert.equal(filtered.textTransform, "uppercase");
+    assert.equal(warnings.length, 0, "textDecoration and textShadow should pass through");
+    assert.equal(filtered.textDecoration, "underline");
+    assert.equal(filtered.textShadow, "0 2px 4px rgba(0,0,0,0.5)");
   });
 
   it("passes through transition and animation properties", () => {
@@ -567,6 +707,103 @@ describe("M1.3: filterStyle() — convenience props", () => {
     assert.equal(filtered.color, "#fff");
     assert.equal(filtered.fontSize, "32px");
     assert.equal(filtered.boxShadow, "0 4px 12px rgba(0,0,0,0.3)");
+  });
+
+  it("blocks style pass-through for measurement props even when convenience prop exists", () => {
+    const { filtered, warnings } = filterStyle(
+      { fontSize: "48px", lineHeight: "3", fontWeight: "900" },
+      "text",
+      { size: 24, lineHeight: 1.5, weight: 700 }
+    );
+    // Convenience props should still work
+    assert.equal(filtered.fontSize, "24px", "convenience size should apply");
+    assert.equal(filtered.lineHeight, 1.5, "convenience lineHeight should apply");
+    assert.equal(filtered.fontWeight, "700", "convenience weight should apply");
+    // But style pass-through of those same CSS props should be blocked with warnings
+    assert.equal(warnings.length, 3, "all 3 style overrides should generate warnings");
+  });
+
+  it("applies fontStyle convenience prop", () => {
+    const { filtered, warnings } = filterStyle(
+      {},
+      "text",
+      { fontStyle: "italic" }
+    );
+    assert.equal(filtered.fontStyle, "italic");
+    assert.equal(warnings.length, 0);
+  });
+
+  it("applies fontVariant convenience prop", () => {
+    const { filtered, warnings } = filterStyle(
+      {},
+      "text",
+      { fontVariant: "small-caps" }
+    );
+    assert.equal(filtered.fontVariant, "small-caps");
+    assert.equal(warnings.length, 0);
+  });
+
+  it("applies textTransform convenience prop", () => {
+    const { filtered, warnings } = filterStyle(
+      {},
+      "text",
+      { textTransform: "uppercase" }
+    );
+    assert.equal(filtered.textTransform, "uppercase");
+    assert.equal(warnings.length, 0);
+  });
+
+  it("applies wordSpacing convenience prop", () => {
+    const { filtered, warnings } = filterStyle(
+      {},
+      "text",
+      { wordSpacing: "0.2em" }
+    );
+    assert.equal(filtered.wordSpacing, "0.2em");
+    assert.equal(warnings.length, 0);
+  });
+
+  it("blocks style fontStyle but allows convenience prop fontStyle", () => {
+    const { filtered, warnings } = filterStyle(
+      { fontStyle: "oblique" },
+      "text",
+      { fontStyle: "italic" }
+    );
+    assert.equal(filtered.fontStyle, "italic", "convenience prop should apply");
+    assert.equal(warnings.length, 1, "style fontStyle should be blocked");
+    assert.ok(warnings[0].suggestion.includes("`fontStyle` convenience prop"));
+  });
+
+  it("blocks style textTransform but allows convenience prop textTransform", () => {
+    const { filtered, warnings } = filterStyle(
+      { textTransform: "lowercase" },
+      "text",
+      { textTransform: "uppercase" }
+    );
+    assert.equal(filtered.textTransform, "uppercase", "convenience prop should apply");
+    assert.equal(warnings.length, 1, "style textTransform should be blocked");
+    assert.ok(warnings[0].suggestion.includes("`textTransform` convenience prop"));
+  });
+
+  it("provides prescriptive suggestion for fontStyle", () => {
+    const { warnings } = filterStyle({ fontStyle: "italic" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`fontStyle` convenience prop"),
+      "should suggest using the fontStyle convenience prop");
+  });
+
+  it("provides prescriptive suggestion for wordSpacing", () => {
+    const { warnings } = filterStyle({ wordSpacing: "4px" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`wordSpacing` convenience prop"),
+      "should suggest using the wordSpacing convenience prop");
+  });
+
+  it("provides prescriptive suggestion for textTransform", () => {
+    const { warnings } = filterStyle({ textTransform: "uppercase" });
+    assert.equal(warnings.length, 1);
+    assert.ok(warnings[0].suggestion.includes("`textTransform` convenience prop"),
+      "should suggest using the textTransform convenience prop");
   });
 });
 

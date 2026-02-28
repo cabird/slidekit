@@ -382,12 +382,45 @@ const BLOCKED_PROPERTIES = new Set([
 
   // Transform (blocked entirely — use rotate prop)
   "transform",
+
+  // Font properties (affect text measurement — use convenience props)
+  "font",
+  "fontFamily", "fontSize", "fontWeight",
+  "fontStyle", "fontVariant", "fontStretch", "fontSizeAdjust",
+
+  // Line height & spacing (affect text measurement — use convenience props)
+  "lineHeight", "letterSpacing", "wordSpacing",
+
+  // Text layout (affect measurement or library-managed)
+  "textTransform", "textIndent", "textOverflow",
+
+  // Word/line breaking (library controls these for measurement)
+  "whiteSpace", "wordBreak", "overflowWrap", "wordWrap",
+  "hyphens", "lineBreak",
+
+  // Padding (library sets padding:0 for measurement)
+  "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "paddingBlock", "paddingBlockStart", "paddingBlockEnd",
+  "paddingInline", "paddingInlineStart", "paddingInlineEnd",
+
+  // Box sizing (library controls)
+  "boxSizing",
+
+  // Writing mode (changes layout orientation entirely)
+  "writingMode", "direction", "textOrientation",
+
+  // Multi-column (changes content flow)
+  "columns", "columnCount", "columnWidth",
+
+  // Line clamping (library manages truncation via overflow prop)
+  "WebkitLineClamp", "lineClamp",
 ]);
 
 /**
  * Suggestion messages for common blocked properties.
  */
 const BLOCKED_SUGGESTIONS = {
+  // Position / sizing
   display: "Use vstack() or hstack() for layout",
   position: "SlideKit uses absolute positioning; element placement is handled by x/y/anchor",
   top: "Use SlideKit's y property instead",
@@ -403,6 +436,58 @@ const BLOCKED_SUGGESTIONS = {
   float: "Use SlideKit's x/y positioning instead",
   overflow: "Use SlideKit's overflow property on text elements",
   transform: "Use the rotate prop for rotation; transform is blocked because the library owns element positioning",
+
+  // Font properties — must use convenience props so measureText() sees the same values
+  font: "Use the individual convenience props instead: font (family), size, weight, lineHeight",
+  fontFamily: "Use the `font` convenience prop instead (e.g., font: 'Inter'). This ensures measureText() uses the same font.",
+  fontSize: "Use the `size` convenience prop instead (e.g., size: 24). This ensures measureText() uses the same size.",
+  fontWeight: "Use the `weight` convenience prop instead (e.g., weight: 700). This ensures measureText() uses the same weight.",
+  fontStyle: "Use the `fontStyle` convenience prop instead (e.g., fontStyle: 'italic'). This ensures measureText() uses the same style.",
+  fontVariant: "Use the `fontVariant` convenience prop instead (e.g., fontVariant: 'small-caps'). This ensures measureText() uses the same variant.",
+  fontStretch: "fontStretch is blocked because it changes glyph widths, affecting text measurement.",
+  fontSizeAdjust: "fontSizeAdjust is blocked because it changes effective font size, affecting text measurement.",
+
+  // Line height & spacing — must use convenience props
+  lineHeight: "Use the `lineHeight` convenience prop instead (e.g., lineHeight: 1.5). This ensures measureText() uses the same line height.",
+  letterSpacing: "Use the `letterSpacing` convenience prop instead (e.g., letterSpacing: '0.05em'). This ensures measureText() uses the same spacing.",
+  wordSpacing: "Use the `wordSpacing` convenience prop instead (e.g., wordSpacing: '0.1em'). This ensures measureText() uses the same spacing.",
+
+  // Text layout
+  textTransform: "Use the `textTransform` convenience prop instead (e.g., textTransform: 'uppercase'). This ensures measureText() measures the transformed text.",
+  textIndent: "textIndent is blocked because it affects first-line measurement. Use padding or x offset instead.",
+  textOverflow: "Use SlideKit's overflow property on text elements (e.g., overflow: 'ellipsis')",
+
+  // Word/line breaking — library controls these
+  whiteSpace: "whiteSpace is controlled by the library for measurement consistency. It cannot be overridden.",
+  wordBreak: "wordBreak is controlled by the library for measurement consistency. It cannot be overridden.",
+  overflowWrap: "overflowWrap is controlled by the library for measurement consistency. It cannot be overridden.",
+  wordWrap: "wordWrap is controlled by the library for measurement consistency. Use overflowWrap instead (also blocked).",
+  hyphens: "hyphens is blocked because it affects line breaking and text measurement.",
+  lineBreak: "lineBreak is blocked because it affects line breaking and text measurement.",
+
+  // Padding — library sets padding:0 for measurement
+  padding: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x/y offsets or a containing rect() for visual padding.",
+  paddingTop: "padding is blocked because the library sets padding:0 for consistent text measurement. Use y offset or a containing rect() for visual padding.",
+  paddingRight: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x/w or a containing rect() for visual padding.",
+  paddingBottom: "padding is blocked because the library sets padding:0 for consistent text measurement. Use y/h or a containing rect() for visual padding.",
+  paddingLeft: "padding is blocked because the library sets padding:0 for consistent text measurement. Use x offset or a containing rect() for visual padding.",
+
+  // Box sizing
+  boxSizing: "boxSizing is controlled by the library (border-box). It cannot be overridden.",
+
+  // Writing mode
+  writingMode: "writingMode is blocked because it changes layout orientation, which the library cannot account for in measurement.",
+  direction: "direction is blocked because it changes layout direction, which the library cannot account for in measurement.",
+  textOrientation: "textOrientation is blocked because it changes glyph orientation in vertical writing modes.",
+
+  // Multi-column
+  columns: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
+  columnCount: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
+  columnWidth: "Multi-column layout is blocked because it changes content flow, which the library cannot account for in measurement.",
+
+  // Line clamping
+  WebkitLineClamp: "Line clamping is blocked. Use SlideKit's overflow property for text truncation.",
+  lineClamp: "Line clamping is blocked. Use SlideKit's overflow property for text truncation.",
 };
 
 /**
@@ -423,17 +508,21 @@ const SHADOWS = {
  * Some require value transformation (e.g., size -> fontSize with "px" suffix).
  */
 const CONVENIENCE_MAP = {
-  color:          { css: "color",         transform: (v) => v },
-  font:           { css: "fontFamily",    transform: (v) => `"${v}", sans-serif` },
-  size:           { css: "fontSize",      transform: (v) => typeof v === "number" ? `${v}px` : v },
-  weight:         { css: "fontWeight",    transform: (v) => String(v) },
-  lineHeight:     { css: "lineHeight",    transform: (v) => v },
-  letterSpacing:  { css: "letterSpacing", transform: (v) => v },
-  fill:           { css: "background",    transform: (v) => v },
-  radius:         { css: "borderRadius",  transform: (v) => typeof v === "number" ? `${v}px` : v },
-  border:         { css: "border",        transform: (v) => v },
-  align:          { css: "textAlign",     transform: (v) => v },
-  shadow:         { css: "boxShadow",     transform: (v) => SHADOWS[v] ?? v },
+  color:          { css: "color",          transform: (v) => v },
+  font:           { css: "fontFamily",     transform: (v) => `"${v}", sans-serif` },
+  size:           { css: "fontSize",       transform: (v) => typeof v === "number" ? `${v}px` : v },
+  weight:         { css: "fontWeight",     transform: (v) => String(v) },
+  fontStyle:      { css: "fontStyle",      transform: (v) => v },
+  fontVariant:    { css: "fontVariant",    transform: (v) => v },
+  textTransform:  { css: "textTransform",  transform: (v) => v },
+  lineHeight:     { css: "lineHeight",     transform: (v) => v },
+  letterSpacing:  { css: "letterSpacing",  transform: (v) => v },
+  wordSpacing:    { css: "wordSpacing",    transform: (v) => v },
+  fill:           { css: "background",     transform: (v) => v },
+  radius:         { css: "borderRadius",   transform: (v) => typeof v === "number" ? `${v}px` : v },
+  border:         { css: "border",         transform: (v) => v },
+  align:          { css: "textAlign",      transform: (v) => v },
+  shadow:         { css: "boxShadow",      transform: (v) => SHADOWS[v] ?? v },
 };
 
 /**
@@ -845,8 +934,12 @@ export function measureText(content, props = {}) {
   const font = props.font || "Inter";
   const size = props.size || 32;
   const weight = props.weight || 400;
+  const fontStyle = props.fontStyle || "normal";
+  const fontVariant = props.fontVariant || "normal";
+  const textTransform = props.textTransform || "none";
   const lineHeight = props.lineHeight || 1.3;
   const letterSpacing = props.letterSpacing || "0";
+  const wordSpacing = props.wordSpacing || "normal";
   const constrainW = props.w ?? null;
 
   // Check if the required font is loaded (warn if not, but don't block)
@@ -880,8 +973,12 @@ export function measureText(content, props = {}) {
   measureDiv.style.fontFamily = `"${font}", sans-serif`;
   measureDiv.style.fontSize = `${size}px`;
   measureDiv.style.fontWeight = String(weight);
+  measureDiv.style.fontStyle = fontStyle;
+  measureDiv.style.fontVariant = fontVariant;
+  measureDiv.style.textTransform = textTransform;
   measureDiv.style.lineHeight = String(lineHeight);
   measureDiv.style.letterSpacing = letterSpacing;
+  measureDiv.style.wordSpacing = wordSpacing;
   measureDiv.style.whiteSpace = "pre-wrap";
   measureDiv.style.wordBreak = "break-word";
   measureDiv.style.boxSizing = "border-box";
@@ -972,13 +1069,18 @@ export function clearMeasureCache() {
 export function fitText(content, box, options = {}) {
   const font = options.font ?? "Inter";
   const weight = options.weight ?? 400;
+  const fontStyle = options.fontStyle ?? "normal";
+  const fontVariant = options.fontVariant ?? "normal";
+  const textTransform = options.textTransform ?? "none";
   const lineHeight = options.lineHeight ?? 1.3;
   const letterSpacing = options.letterSpacing ?? "0";
+  const wordSpacing = options.wordSpacing ?? "normal";
   const minSize = options.minSize ?? 12;
   const maxSize = options.maxSize ?? 200;
   const step = options.step ?? 1;
 
   const warnings = [];
+  const fontProps = { font, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing };
 
   // Binary search for the largest font size that fits
   let lo = minSize;
@@ -988,7 +1090,7 @@ export function fitText(content, box, options = {}) {
 
   // First check: does maxSize already fit?
   const maxMetrics = measureText(content, {
-    font, weight, lineHeight, letterSpacing, size: maxSize, w: box.w,
+    ...fontProps, size: maxSize, w: box.w,
   });
   if (maxMetrics.block.h <= box.h) {
     return { fontSize: maxSize, metrics: maxMetrics, warnings };
@@ -998,7 +1100,7 @@ export function fitText(content, box, options = {}) {
   while (hi - lo >= step) {
     const mid = Math.floor((lo + hi) / 2);
     const metrics = measureText(content, {
-      font, weight, lineHeight, letterSpacing, size: mid, w: box.w,
+      ...fontProps, size: mid, w: box.w,
     });
 
     if (metrics.block.h <= box.h) {
@@ -1014,7 +1116,7 @@ export function fitText(content, box, options = {}) {
   if (!bestMetrics) {
     bestSize = minSize;
     bestMetrics = measureText(content, {
-      font, weight, lineHeight, letterSpacing, size: minSize, w: box.w,
+      ...fontProps, size: minSize, w: box.w,
     });
     if (bestMetrics.block.h > box.h) {
       warnings.push({
@@ -1138,8 +1240,12 @@ function getEffectiveDimensions(element) {
       font: props.font,
       size: props.size,
       weight: props.weight,
+      fontStyle: props.fontStyle,
+      fontVariant: props.fontVariant,
+      textTransform: props.textTransform,
       lineHeight: props.lineHeight,
       letterSpacing: props.letterSpacing,
+      wordSpacing: props.wordSpacing,
     };
     if (props.w && props.w > 0) {
       measureProps.w = props.w;
@@ -2131,8 +2237,12 @@ export async function layout(slideDefinition, options = {}) {
                   font: child.props.font,
                   size: child.props.size,
                   weight: child.props.weight,
+                  fontStyle: child.props.fontStyle,
+                  fontVariant: child.props.fontVariant,
+                  textTransform: child.props.textTransform,
                   lineHeight: child.props.lineHeight,
                   letterSpacing: child.props.letterSpacing,
+                  wordSpacing: child.props.wordSpacing,
                   w: stackW,
                 });
                 childSize.w = stackW;
@@ -2570,8 +2680,12 @@ export async function layout(slideDefinition, options = {}) {
       font: el.props.font,
       size: el.props.size,
       weight: el.props.weight,
+      fontStyle: el.props.fontStyle,
+      fontVariant: el.props.fontVariant,
+      textTransform: el.props.textTransform,
       lineHeight: el.props.lineHeight,
       letterSpacing: el.props.letterSpacing,
+      wordSpacing: el.props.wordSpacing,
       w: bounds.w,
     });
 
@@ -2621,8 +2735,12 @@ export async function layout(slideDefinition, options = {}) {
             font: el.props.font,
             size: el.props.size,
             weight: el.props.weight,
+            fontStyle: el.props.fontStyle,
+            fontVariant: el.props.fontVariant,
+            textTransform: el.props.textTransform,
             lineHeight: el.props.lineHeight,
             letterSpacing: el.props.letterSpacing,
+            wordSpacing: el.props.wordSpacing,
             w: bounds.w,
           });
 
@@ -2647,8 +2765,12 @@ export async function layout(slideDefinition, options = {}) {
         const fitResult = fitText(contentStr, { w: bounds.w, h: bounds.h }, {
           font: el.props.font,
           weight: el.props.weight,
+          fontStyle: el.props.fontStyle,
+          fontVariant: el.props.fontVariant,
+          textTransform: el.props.textTransform,
           lineHeight: el.props.lineHeight,
           letterSpacing: el.props.letterSpacing,
+          wordSpacing: el.props.wordSpacing,
           minSize: el.props.fit?.minSize ?? 12,
           maxSize: el.props.size || 32,
           step: el.props.fit?.step ?? 1,
@@ -3132,7 +3254,19 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
 
   // Build the merged CSS from convenience props + user style
   const convenienceProps = extractConvenienceProps(props);
-  const { filtered: mergedStyle } = filterStyle(props.style || {}, type, convenienceProps);
+  const { filtered: mergedStyle, warnings: styleWarnings } = filterStyle(props.style || {}, type, convenienceProps);
+
+  // Surface blocked-property warnings via console and scene graph
+  if (styleWarnings.length > 0) {
+    for (const warn of styleWarnings) {
+      console.warn(`[SlideKit] Element "${element.id}": style.${warn.property} is blocked. ${warn.suggestion}`);
+    }
+    // Attach to scene graph so getLayout() / inspection can see them
+    const sceneEntry = sceneElements[element.id];
+    if (sceneEntry) {
+      sceneEntry.styleWarnings = styleWarnings;
+    }
+  }
 
   // Create the element div
   const div = document.createElement("div");
@@ -3174,6 +3308,16 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
   // Type-specific rendering
   switch (type) {
     case "text": {
+      // Match white-space mode to what measureText() used:
+      // - No explicit w: measurement used white-space:pre (no wrapping)
+      // - With explicit w: measurement used white-space:pre-wrap + word-break:break-word
+      if (props.w !== undefined) {
+        div.style.whiteSpace = "pre-wrap";
+        div.style.wordBreak = "break-word";
+      } else {
+        div.style.whiteSpace = "pre";
+      }
+
       // Use element.content which may have been modified by ellipsis overflow policy
       const content = String(element.content ?? "");
       const parts = content.split("\n");
@@ -3422,8 +3566,12 @@ export function bullets(items, props = {}) {
   const size = rest.size ?? 32;
   const weight = rest.weight ?? 400;
   const color = rest.color || "#ffffff";
+  const fontStyle = rest.fontStyle || "normal";
+  const fontVariant = rest.fontVariant || "normal";
+  const textTransform = rest.textTransform || "none";
   const lineHeight = rest.lineHeight ?? 1.3;
   const letterSpacing = rest.letterSpacing || "0";
+  const wordSpacing = rest.wordSpacing || "normal";
   const w = rest.w;
 
   // Flatten items into a list of { text, level } entries
@@ -3444,7 +3592,7 @@ export function bullets(items, props = {}) {
 
   // Measure bullet character width once (same font/size for all levels)
   const bulletMetrics = measureText(bulletChar, {
-    font, size, weight, lineHeight, letterSpacing,
+    font, size, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing,
   });
   const bulletWidth = bulletMetrics.block.w;
 
@@ -3462,7 +3610,7 @@ export function bullets(items, props = {}) {
     const textW = rawTextW !== undefined ? Math.max(0, rawTextW) : undefined;
 
     // Measure the text to determine item height
-    const textMeasureProps = { font, size, weight, lineHeight, letterSpacing };
+    const textMeasureProps = { font, size, weight, fontStyle, fontVariant, textTransform, lineHeight, letterSpacing, wordSpacing };
     if (textW && textW > 0) textMeasureProps.w = textW;
     const textMetrics = measureText(fi.text, textMeasureProps);
     const itemH = Math.max(bulletMetrics.block.h, textMetrics.block.h);
@@ -3470,13 +3618,13 @@ export function bullets(items, props = {}) {
     const bulletEl = text(bulletChar, {
       x: itemIndent,
       y: 0,
-      font, size, weight, color: bulletColor, lineHeight, letterSpacing,
+      font, size, weight, fontStyle, fontVariant, textTransform, color: bulletColor, lineHeight, letterSpacing, wordSpacing,
     });
 
     const textProps = {
       x: itemIndent + bulletWidth + bulletGap,
       y: 0,
-      font, size, weight, color, lineHeight, letterSpacing,
+      font, size, weight, fontStyle, fontVariant, textTransform, color, lineHeight, letterSpacing, wordSpacing,
     };
     if (textW && textW > 0) {
       textProps.w = textW;
