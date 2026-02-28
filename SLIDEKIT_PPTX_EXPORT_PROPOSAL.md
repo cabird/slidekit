@@ -2,39 +2,66 @@
 
 ## Summary
 
-Export the resolved SlideKit scene graph to a `.pptx` file. After `render()`, `window.sk` contains every element's final position, size, type, content, and authored styles. A converter walks this data and emits equivalent PPTX constructs using PptxGenJS. The result is a PowerPoint file that reproduces the SlideKit layout with high fidelity — no browser, no Reveal.js, no Node server required at runtime.
+Export a rendered SlideKit presentation to `.pptx` by walking the live DOM. After `render()`, every element exists in the browser with fully resolved computed styles — fonts, colors, gradients, shadows, borders — all calculated by the browser's CSS engine. The exporter inspects this rendered DOM (via `getComputedStyle()`, `TreeWalker`, `getBoundingClientRect()`), extracts visual properties, and emits equivalent PPTX constructs using PptxGenJS. No HTML parsing, no CSS interpretation — the browser already did that work.
 
 ---
 
-## Data Source
+## Core Insight: Let the Browser Be Your CSS Engine
 
-The converter reads from `window.sk` after `render()` completes. For each slide:
+SlideKit v2's `el(html, props)` accepts arbitrary HTML content rendered via `innerHTML`. The content can include rich text with mixed fonts/sizes/colors, images, nested divs, lists — anything the browser can render.
+
+Rather than trying to parse HTML source or interpret CSS rules, the exporter **reads what the browser computed**:
+
+```js
+const domEl = document.querySelector('[data-sk-id="my-title"]');
+const style = getComputedStyle(domEl);
+
+// Every CSS property is fully resolved:
+style.backgroundColor  // → "rgb(51, 51, 51)"        (not "#333" or "var(--bg)")
+style.backgroundImage  // → "linear-gradient(135deg, rgb(59, 130, 246), rgb(167, 139, 250))"
+style.fontFamily       // → '"Inter", sans-serif'     (resolved, not inherited)
+style.fontSize         // → "24px"                    (resolved, not "1.5em")
+style.boxShadow        // → "rgba(0, 0, 0, 0.3) 0px 4px 12px 0px"
+style.borderRadius     // → "12px"                    (resolved, not "0.75rem")
+```
+
+No cascade, no specificity, no inheritance to worry about — `getComputedStyle()` returns the final answer. CSS classes, inline styles, inherited values, custom properties — all resolved to concrete values.
+
+---
+
+## Data Sources
+
+The exporter reads from two sources after `render()` completes:
+
+### 1. Scene Graph (`window.sk`)
+
+Provides layout geometry:
 
 ```
-window.sk.layouts[i].elements   → Map of id → { type, authored, resolved, provenance }
-window.sk.slides[i].id          → Slide ID
+window.sk.layouts[i].elements  → Map of id → { type, authored, resolved, provenance }
 ```
 
-Each element provides:
-
-| Field | What it gives us |
+| Field | What it provides |
 |---|---|
-| `resolved.x, .y, .w, .h` | Final bounding box in pixels (top-left origin, after anchor resolution) |
-| `authored.type` | Element type: `text`, `rect`, `rule`, `image`, `group`, `vstack`, `hstack`, `connector` |
-| `authored.content` | Text string (for text elements) |
-| `authored.src` | Image URL/path (for image elements) |
-| `authored.props` | All authored properties: font, size, weight, color, lineHeight, align, fill, radius, border, opacity, rotate, style, className, etc. |
+| `resolved.x, .y, .w, .h` | Final bounding box in pixels (top-left origin) |
+| `authored.type` | Element type: `el`, `group`, `vstack`, `hstack`, `connector` |
+| `authored.content` | HTML string (for `el` elements) |
+| `_connectorResolved` | Connector endpoints `{ from: {x,y}, to: {x,y} }` |
 
-For connector elements, the scene graph also stores `_connectorResolved` with `from: { x, y }` and `to: { x, y }` — the resolved endpoint coordinates.
+### 2. Live DOM
 
-**What's NOT in `window.sk` but may be needed:**
+Provides visual properties. Every SlideKit element has a `data-sk-id` attribute:
 
-The `className` styles. When an element has `className: "glass-card"`, the scene graph stores the class name but not the resolved CSS. Two options:
+```js
+const domEl = document.querySelector(`[data-sk-id="${id}"]`);
+const style = getComputedStyle(domEl);
+```
 
-1. **Resolve at export time** — call `getComputedStyle()` on the DOM element via `document.querySelector('[data-sk-id="element-id"]')` and extract the relevant visual properties.
-2. **Require inline styles** — document that PPTX export only translates inline `style` properties and convenience props, not CSS classes. This is simpler and more predictable.
+This gives us every resolved CSS property — fonts, colors, backgrounds, borders, shadows, opacity, transforms — without needing to parse the source HTML or CSS.
 
-Recommendation: Option 2 for the initial implementation. CSS class resolution is fragile (depends on cascade, specificity, browser defaults) and introduces a DOM dependency. Elements that need PPTX-faithful rendering should use inline styles. Add class resolution as a later enhancement if needed.
+### Why Both Sources?
+
+The scene graph has **accurate layout geometry** (positions resolved through the topo-sort, anchors, relative positioning, transforms). The DOM has **accurate visual styling** (the browser's CSS engine resolved everything). Using both gives us the complete picture.
 
 ---
 
@@ -51,7 +78,7 @@ Recommendation: Option 2 for the initial implementation. CSS class resolution is
 
 **Coordinate conversion:**
 
-PowerPoint uses inches. SlideKit uses pixels on a 1920×1080 canvas. Standard conversion:
+PowerPoint uses inches. SlideKit uses pixels on a 1920×1080 canvas:
 
 ```
 PPTX slide dimensions: 13.333" × 7.5" (widescreen 16:9)
@@ -60,163 +87,199 @@ Scale factor: 13.333 / 1920 = 0.006944 inches/pixel
 
 So: `pptxX = skX * (13.333 / 1920)`, `pptxY = skY * (7.5 / 1080)`
 
-Both axes use the same scale factor (0.006944), so aspect ratio is preserved. This is exact — 1920 × 0.006944 = 13.333".
+Both axes use the same scale factor (0.006944), so aspect ratio is preserved.
 
-PptxGenJS accepts inches as numbers, or percentages as strings. We'll use inches.
+---
+
+## DOM Walking Strategy
+
+### Element Classification
+
+Every `el()` in the DOM needs to be classified for PPTX export. The exporter inspects the rendered DOM to determine what each element actually is:
+
+```js
+function classifyElement(domEl, sceneEntry) {
+  const style = getComputedStyle(domEl);
+  const children = domEl.childNodes;
+  const imgs = domEl.querySelectorAll('img');
+  const textContent = domEl.textContent?.trim();
+
+  // 1. Single image — PPTX picture
+  if (imgs.length === 1 && !textContent) return 'image';
+
+  // 2. No visible content, has background — PPTX shape
+  if (!textContent && !imgs.length) return 'shape';
+
+  // 3. Has text content — PPTX text box (with runs)
+  if (textContent) return 'textbox';
+
+  // 4. Complex mixed content — decompose or rasterize
+  return 'complex';
+}
+```
+
+Most real-world slides fall into the first three categories. The `complex` fallback handles edge cases by rasterizing the element to a PNG and embedding it as an image.
+
+### Text Run Extraction
+
+This is where DOM walking shines. For a text box element, walk its text nodes and group consecutive characters with identical computed styles into "runs":
+
+```js
+function extractTextRuns(domEl) {
+  const runs = [];
+  const walker = document.createTreeWalker(domEl, NodeFilter.SHOW_TEXT);
+
+  while (walker.nextNode()) {
+    const textNode = walker.currentNode;
+    const parent = textNode.parentElement;
+    const style = getComputedStyle(parent);
+    const text = textNode.textContent;
+    if (!text.trim() && !text.includes('\n')) continue;
+
+    runs.push({
+      text,
+      fontFamily: style.fontFamily,           // → '"Inter", sans-serif'
+      fontSize: parseFloat(style.fontSize),    // → 24 (px)
+      fontWeight: style.fontWeight,            // → "700"
+      fontStyle: style.fontStyle,              // → "italic" or "normal"
+      color: style.color,                      // → "rgb(255, 255, 255)"
+      textDecoration: style.textDecorationLine,// → "underline" or "none"
+      textTransform: style.textTransform,      // → "uppercase" or "none"
+      letterSpacing: style.letterSpacing,      // → "0.05em" (resolved to px)
+      lineHeight: style.lineHeight,            // → "31.2px" (resolved)
+      // Gradient text detection:
+      backgroundClip: style.webkitBackgroundClip || style.backgroundClip,
+      backgroundImage: style.backgroundImage,
+    });
+  }
+
+  // Merge adjacent runs with identical styles
+  return mergeAdjacentRuns(runs);
+}
+```
+
+This handles **arbitrary rich text** automatically — `<b>`, `<em>`, `<span style="color:red">`, nested `<div>`s with different fonts — because we're reading what the browser computed, not parsing HTML.
 
 ---
 
 ## Element-by-Element Mapping
 
-### Text Elements
+### Text Boxes (el with text content)
 
-SlideKit `text` → PptxGenJS `slide.addText()`
+DOM inspection → PptxGenJS `slide.addText(runs, options)`
 
-| SlideKit property | PPTX equivalent | Notes |
+| Computed style | PPTX equivalent | Notes |
 |---|---|---|
-| `resolved.x, .y, .w, .h` | `x, y, w, h` (inches) | Direct coordinate conversion |
-| `content` | Text content | Supports `\n` → multiple paragraphs |
-| `props.font` | `fontFace` | Font name string |
-| `props.size` | `fontSize` | PptxGenJS uses points. `size_pt = size_px * 0.75` (at 96 DPI) |
-| `props.weight` | `bold: true` if ≥ 600 | PPTX doesn't have numeric weights — only bold/not-bold. This is a fidelity loss. |
-| `props.color` | `color` | Hex string without `#` prefix. RGBA → hex + transparency percentage. |
-| `props.align` | `align` | `"left"`, `"center"`, `"right"` map directly |
-| `props.lineHeight` | `lineSpacingMultiple` | Direct mapping (1.3 → 1.3) |
-| `props.letterSpacing` | `charSpacing` | PptxGenJS uses points. Parse CSS value. |
-| `props.opacity` | Shape-level transparency | `transparency` percentage on the text box shape |
-| `props.rotate` | `rotate` | Degrees, direct mapping |
-| `style.textShadow` | `shadow` | See Shadow Mapping below |
+| `style.fontFamily` | `fontFace` | Extract first font name from the resolved list |
+| `style.fontSize` | `fontSize` | Convert px → pt: `pt = px * 0.75` |
+| `style.fontWeight` | `bold` | `>= 600` → `bold: true`. PPTX only has bold on/off. |
+| `style.fontStyle` | `italic` | `"italic"` → `italic: true` |
+| `style.color` | `color` | Parse `rgb(r,g,b)` → hex string |
+| `style.textAlign` | `align` | Direct mapping |
+| `style.lineHeight` | `lineSpacingMultiple` | Parse resolved px value ÷ fontSize |
+| `style.letterSpacing` | `charSpacing` | Parse resolved px → pt |
+| `style.textDecorationLine` | `underline` / `strike` | Map decoration types |
+| `style.textTransform` | Transform text content | Apply uppercase/lowercase to the actual string |
 
-**Font weight fidelity gap:** PowerPoint's text model supports `bold` (on/off), not CSS numeric weights (100–900). Weight 400 = normal, ≥ 600 = bold. Weights like 300 (light) or 500 (medium) lose their distinction. This is an inherent PPTX limitation. Document it as a known fidelity gap.
+**Rich text runs:** Each run in the `extractTextRuns()` output becomes a PptxGenJS text run object with its own formatting. This means `<b>Bold</b> and <em>italic</em>` produces three runs with different `bold`/`italic` flags — and it works automatically because the browser resolved the styles.
 
-**Multi-line text:** SlideKit splits on `\n` and renders `<br>` elements. PptxGenJS's `addText()` accepts an array of text runs with per-paragraph formatting. Map each `\n`-delimited segment to a separate paragraph.
+**Paragraphs:** Block-level elements (`<p>`, `<div>`, `<h1>`, `<br>`) create paragraph breaks. Detect by checking if a text node's parent is a block element or if there's a `<br>` between runs.
 
-**Text vertical alignment:** SlideKit positions text at exact pixel coordinates. PptxGenJS text boxes have `valign` (top/middle/bottom). Since we're setting exact `y` from the resolved position, use `valign: "top"` always — the scene graph already computed the correct top-left position.
+**Font weight fidelity gap:** PowerPoint supports `bold` on/off, not CSS's 100–900 scale. Weights 300 (light), 500 (medium) lose distinction. This is inherent to PPTX.
 
-**Word wrapping:** SlideKit auto-measures text wrapping. In PPTX, set `autoFit: false` and `wrap: true` on the text box. The PPTX renderer will re-wrap the text, which *may* produce slightly different line breaks due to font metric differences between browser rendering and PowerPoint's text engine. This is an unavoidable fidelity gap — the same text at the same font size can break differently in two rendering engines.
+**Text wrapping:** Set `autoFit: false` and `wrap: true` on the PPTX text box. Line breaks may differ slightly between browser and PowerPoint text engines — this is unavoidable.
+
+### Gradient Text
+
+DOM walking makes this **detectable and exportable**:
+
+```js
+const style = getComputedStyle(textParent);
+if (style.webkitBackgroundClip === 'text' || style.backgroundClip === 'text') {
+  // This is gradient text!
+  const gradient = style.backgroundImage;
+  // → "linear-gradient(135deg, rgb(59, 130, 246), rgb(167, 139, 250))"
+  // Parse → PPTX gradient fill on the text run
+}
+```
+
+PPTX supports gradient fills on text runs via `<a:gradFill>` inside `<a:rPr>`. Parse the computed `backgroundImage` gradient string → map to PPTX gradient stops. This was previously considered impossible with source-level HTML parsing.
 
 ---
 
-### Rectangle Elements
+### Shapes (el with no text content)
 
-SlideKit `rect` → PptxGenJS `slide.addShape('rect', ...)`
+An `el()` with no visible text content but with styling (background, border, radius) is a shape.
 
-| SlideKit property | PPTX equivalent | Notes |
+DOM inspection → PptxGenJS `slide.addShape('roundRect' | 'rect', options)`
+
+| Computed style | PPTX equivalent | Notes |
 |---|---|---|
-| `resolved.x, .y, .w, .h` | `x, y, w, h` | Coordinate conversion |
-| `props.fill` or `style.background` | `fill` | See Gradient Mapping below |
-| `props.radius` or `style.borderRadius` | `rectRadius` | In inches. Convert `px` value. |
-| `props.border` or `style.border` | `border` | Parse CSS shorthand → `{ type, pt, color }` |
-| `style.boxShadow` | `shadow` | See Shadow Mapping below |
-| `props.opacity` | `transparency` | Percentage (0–100) |
-| `props.rotate` | `rotate` | Degrees |
+| `style.backgroundColor` | `fill.color` | Parse `rgb()` → hex. Handles `rgba()` → hex + transparency. |
+| `style.backgroundImage` | `fill` (gradient) | Parse gradient string → PPTX gradient object |
+| `style.borderRadius` | `rectRadius` | Parse px → inches. Use `'roundRect'` shape type. |
+| `style.border*` | `border` | Parse resolved border-width, border-style, border-color |
+| `style.boxShadow` | `shadow` | Parse resolved shadow → angle, distance, blur, color |
+| `style.opacity` | `transparency` | `(1 - opacity) * 100` |
+| scene `rotate` prop | `rotate` | Degrees, direct mapping |
 
-**Border radius:** CSS `borderRadius` can be per-corner (`10px 0 10px 0`). PPTX `rectRadius` is uniform (one value for all corners). If per-corner values differ, use the average or the max and document the fidelity gap. PptxGenJS does not support per-corner radii — this is an OOXML limitation that even PowerPoint's UI enforces.
+**Border radius:** `getComputedStyle()` returns resolved per-corner values. PPTX `rectRadius` is uniform. Use the average or max. Per-corner radii are an OOXML limitation.
+
+**Multiple backgrounds:** CSS allows stacking (`gradient1, gradient2`). PPTX shapes have a single fill. Use the first (topmost) gradient.
 
 ---
 
-### Rule Elements
+### Images (el containing `<img>`)
 
-SlideKit `rule` → PptxGenJS `slide.addShape('line', ...)`
+Detect via `domEl.querySelector('img')`.
 
-| SlideKit property | PPTX equivalent | Notes |
+DOM inspection → PptxGenJS `slide.addImage()`
+
+| DOM property | PPTX equivalent | Notes |
 |---|---|---|
-| `resolved.x, .y` | `x, y` | Start point |
-| `resolved.w` (horizontal) | Line end point | `x2 = x + w` |
-| `resolved.h` (vertical) | Line end point | `y2 = y + h` |
-| `props.color` | `line.color` | Hex color |
-| `props.thickness` | `line.width` | In points (`px * 0.75`) |
+| `img.src` | `data` (base64) or `path` | Fetch → blob → base64 for self-contained PPTX |
+| `img.naturalWidth/Height` | Crop computation | Needed for object-fit simulation |
+| `style.objectFit` | `sizing` | `"cover"` → crop, `"contain"` → fit |
+| `style.objectPosition` | Crop offset | Adjusts crop rectangle center |
+| `style.opacity` | `transparency` | Percentage |
+| scene `rotate` prop | `rotate` | Degrees |
+| `style.borderRadius` | Shape mask | Rounded corners → PPTX clipped shape |
 
-For horizontal rules: `line` from `(x, y)` to `(x + w, y)`.
-For vertical rules: `line` from `(x, y)` to `(x, y + h)`.
+**Image embedding:** For browser-side export, fetch each image via `fetch()` → `blob()` → base64, then embed as `data:image/...;base64,...`. This ensures the PPTX is self-contained.
+
+**Object-fit simulation:**
+- `cover` — compute crop rectangle from natural dimensions vs rendered dimensions. PptxGenJS supports `sizing: { type: 'crop', x, y, w, h }`.
+- `contain` — scale to fit within frame. PptxGenJS `sizing: { type: 'contain' }`.
 
 ---
 
-### Image Elements
+### Containers (group, vstack, hstack)
 
-SlideKit `image` → PptxGenJS `slide.addImage()`
+These are structural. Their children already have absolute positions in the scene graph. The exporter flattens the hierarchy — it walks all leaf elements and emits each at its resolved position.
 
-| SlideKit property | PPTX equivalent | Notes |
+**Z-ordering:** Emit elements in declaration order within layers (bg → content → overlay). PPTX stacks shapes in insertion order.
+
+**Clipping groups:** If a group has `clip: true`, use PptxGenJS `addGroup()` which clips to the group bounds. For non-clipping groups, flatten.
+
+---
+
+### Connectors
+
+Scene graph provides `_connectorResolved.from` and `_connectorResolved.to` as absolute `{x, y}` coordinates. The SVG in the DOM provides additional visual properties.
+
+| Source | PPTX equivalent | Notes |
 |---|---|---|
-| `resolved.x, .y, .w, .h` | `x, y, w, h` | Coordinate conversion |
-| `src` | `path` or `data` | See Image Handling below |
-| `props.fit` | Cropping | See below |
-| `props.opacity` | `transparency` | Percentage |
-| `props.rotate` | `rotate` | Degrees |
+| `from, to` coordinates | `addShape('line', { x, y, x2, y2 })` | Coordinate conversion |
+| SVG `stroke` | `line.color` | Read from the `<line>` or `<path>` element |
+| SVG `stroke-width` | `line.width` | px → pt |
+| SVG `stroke-dasharray` | `line.dashType` | Map to nearest PPTX preset |
+| SVG `marker-end` | `endArrowType: 'arrow'` | Detect arrow markers |
+| Connector label `<text>` | Separate text box | PPTX connectors don't support inline text |
 
-**Image handling complexity:**
-
-1. **Local paths** (`hero.jpg`) — must be resolved to absolute URLs or base64. PptxGenJS accepts `data:` URIs (base64) or `path` (URLs). For browser-side export, fetch the image via `fetch()` → `blob()` → base64, then embed as `data:image/...;base64,...`. This ensures the PPTX is self-contained.
-
-2. **External URLs** (`https://...`) — PptxGenJS can embed by URL, but the image must be accessible at generation time. Prefer fetching and embedding as base64 for reliability.
-
-3. **`object-fit: cover`** — PPTX doesn't have CSS object-fit. To simulate `cover`, compute the crop rectangle: scale the image to fill the frame (maintaining aspect ratio), then crop the excess. PptxGenJS supports `sizing: { type: 'crop', x, y, w, h }`. This requires knowing the image's natural dimensions (via `Image()` element or stored metadata).
-
-4. **`object-fit: contain`** — scale the image to fit within the frame without cropping. Center within the element bounds. PPTX `sizing: { type: 'contain' }` in PptxGenJS.
-
-**Image resolution:** Since SlideKit targets 1920×1080 and PPTX renders at screen/print resolution, images should ideally be at least their rendered pixel dimensions. No conversion needed — PPTX embeds the full image and scales at render time.
-
----
-
-### Group, VStack, HStack Elements
-
-These are structural containers. Their children have already been resolved to absolute positions in the scene graph. The converter does NOT need to reconstruct the group/stack hierarchy — it just iterates all leaf elements in the flat scene graph and emits each one at its resolved position.
-
-**Exception: z-ordering.** SlideKit renders elements in declaration order within layers (bg → content → overlay). The converter must emit elements in the same order to PptxGenJS, since PPTX stacks shapes in insertion order. Walk the original `slide.elements` array (which preserves declaration order), look up each element's resolved position, and emit in that order.
-
-**Nested groups:** If a group has `clip: true`, the children should be masked to the group's bounds. PPTX doesn't have a direct "clip group" concept. Options:
-- Ignore clipping (most groups don't use it)
-- Use PPTX's built-in grouping (`slide.addGroup()` in PptxGenJS, which does clip)
-- Post-process: any child element that extends beyond the group's bounds gets its position/size clamped
-
-Recommendation: Use PptxGenJS `addGroup()` for groups with `clip: true`. For non-clipping groups, flatten.
-
----
-
-### Connector Elements
-
-SlideKit `connector` → PptxGenJS `slide.addShape('line', ...)` or `slide.addConnector()`
-
-The scene graph stores `_connectorResolved.from` and `_connectorResolved.to` as absolute `{ x, y }` coordinates.
-
-**Straight connectors:** Direct line from `from` to `to`. Map to `addShape('line', { x, y, x2, y2 })`.
-
-**Curved connectors:** SlideKit renders these as SVG cubic beziers. PPTX doesn't have arbitrary bezier connectors. Options:
-- Approximate as a straight line (loses curve)
-- Use PPTX's built-in "curved connector" shape type, which supports one or two control points but uses a different curve model than CSS cubic beziers
-- Render the SVG path as a freeform shape (`addShape('custGeom', ...)` with custom geometry) — most accurate but complex
-
-Recommendation: Use PPTX curved connector for the initial implementation. The curve won't be pixel-identical but will be visually similar. Document the difference.
-
-**Elbow connectors:** PPTX has native elbow connectors. Map the SlideKit elbow type to PPTX's elbow connector with the appropriate route.
-
-**Arrowheads:** PptxGenJS supports `beginArrowType` and `endArrowType`. Map SlideKit's `arrow` property:
-- `"end"` → `endArrowType: 'arrow'`
-- `"start"` → `beginArrowType: 'arrow'`
-- `"both"` → both
-- `"none"` → neither
-
-**Connector labels:** SlideKit renders labels as SVG `<text>` at the midpoint. PPTX connectors don't support inline labels. Emit the label as a separate text box positioned at the midpoint of the connector line.
-
-**Dashed lines:** `props.dash` array (e.g., `[5, 5]`) → PptxGenJS `line.dashType`. Map common patterns:
-- `[5, 5]` → `"dash"`
-- `[2, 2]` → `"dot"`
-- `[8, 4, 2, 4]` → `"dashDot"`
-- Other → closest PptxGenJS preset or `"dash"` as fallback
-
----
-
-### Bullet Lists
-
-SlideKit `bullets()` produces a `vstack` of `group` elements (each group contains a bullet character text + item text). In the scene graph, these are already flattened to individual text elements at absolute positions.
-
-**Two approaches:**
-
-1. **Flatten** — emit each bullet character and item text as individual PPTX text boxes at their resolved positions. Visually accurate but produces many small shapes.
-
-2. **Reconstruct** — detect the `_compound: "bullets"` tag on the parent element and rebuild as a single PPTX text box with PptxGenJS bullet formatting (`bullet: { type: 'bullet', char: '•' }`, with indent levels). Produces cleaner PPTX that's editable as a real bullet list.
-
-Recommendation: Approach 2 when the `_compound` tag is present, with fallback to Approach 1. The `_bulletItems` metadata on the element stores the original item structure.
+**Connector types:**
+- `straight` → Direct line
+- `curved` → PPTX curved connector (different curve model than SVG bezier — approximate)
+- `elbow` → PPTX elbow connector (native support)
 
 ---
 
@@ -224,155 +287,140 @@ Recommendation: Approach 2 when the `_compound` tag is present, with fallback to
 
 ### Gradient Mapping
 
-CSS gradients → PPTX gradient fills. This is the most complex translation.
-
-**Linear gradients:**
-
-```css
-/* CSS */
-background: linear-gradient(135deg, #1a1a3e 0%, #2a2a5e 100%);
-```
+`getComputedStyle()` returns the fully resolved gradient string:
 
 ```js
-// PptxGenJS
-fill: {
-  type: 'gradient',
-  gradientType: 'linear',
-  angle: 135,  // PPTX uses same degree convention: 0=right, 90=down
-  stops: [
-    { position: 0, color: '1a1a3e' },
-    { position: 100, color: '2a2a5e' },
-  ]
+style.backgroundImage
+// → "linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(167, 139, 250) 100%)"
+```
+
+All color values are resolved to `rgb()` — no hex, no named colors, no variables. Parse with a regex:
+
+```js
+function parseLinearGradient(computed) {
+  // "linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(167, 139, 250) 100%)"
+  const angleMatch = computed.match(/(\d+(?:\.\d+)?)deg/);
+  const angle = angleMatch ? parseFloat(angleMatch[1]) : 0;
+
+  const stopRegex = /rgb\((\d+),\s*(\d+),\s*(\d+)\)\s+(\d+(?:\.\d+)?)%/g;
+  const stops = [];
+  let match;
+  while ((match = stopRegex.exec(computed))) {
+    stops.push({
+      position: parseFloat(match[4]),
+      color: rgbToHex(match[1], match[2], match[3]),
+    });
+  }
+
+  return { angle, stops };
 }
 ```
 
-**Parsing CSS linear-gradient:**
+Map to PptxGenJS:
 
-1. Extract angle: `135deg` → `135`. Keywords (`to right` → `90`, `to bottom` → `180`, etc.).
-2. Extract color stops: parse `#hex position%` or `rgba(...) position%` pairs.
-3. Handle unitless stops (CSS distributes evenly if positions are omitted).
-
-**PPTX angle convention:** PPTX uses 0° = right, 90° = down, which matches CSS `linear-gradient` convention. No conversion needed.
-
-**Radial gradients:**
-
-```css
-/* CSS */
-background: radial-gradient(ellipse at 30% 40%, rgba(124,92,191,0.2) 0%, transparent 60%);
+```js
+fill: {
+  type: 'gradient',
+  gradientType: 'linear',
+  angle: parsedAngle,
+  stops: parsedStops,
+}
 ```
 
-PptxGenJS supports `gradientType: 'path'` for radial-like fills. However, the PPTX model differs from CSS:
-- PPTX radial gradients don't support arbitrary focal points (`at 30% 40%`) — they center on predefined positions (center, top-left, etc.)
-- `transparent` as a stop color → PPTX doesn't have a "transparent" color. Use the slide background color with 100% transparency.
-
-**Fidelity gap:** Radial gradients with off-center focal points will be approximate. Map the focal point to the nearest PPTX preset position. Document this.
-
-**Multiple backgrounds:**
-
-CSS allows stacking: `background: gradient1, gradient2`. PPTX shapes have a single fill. Options:
-- Use only the first (topmost) gradient
-- Stack multiple shapes at the same position, each with one gradient and appropriate transparency
-
-Recommendation: Use only the first gradient for simplicity. Stacked gradient backgrounds are typically used for subtle decorative effects that won't significantly impact the presentation.
+**Radial gradients:** `getComputedStyle()` resolves the focal point and color stops. PPTX radial gradients have limited focal point options (center, corners). Map to the nearest PPTX preset.
 
 ---
 
 ### Shadow Mapping
 
-CSS `box-shadow` → PPTX shape shadow.
-
-```css
-/* CSS */
-box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-/*          ↑ ↑   ↑    ↑               */
-/*          x y  blur  color            */
+```js
+style.boxShadow
+// → "rgba(0, 0, 0, 0.3) 0px 8px 32px 0px"
+//    color             offX offY blur spread
 ```
 
+Fully resolved — all values in px, colors in `rgba()`. Parse and map:
+
 ```js
-// PptxGenJS
-shadow: {
-  type: 'outer',
-  angle: Math.atan2(y, x) * (180 / Math.PI),  // direction angle
-  blur: blur * 0.75,  // px to pt
-  offset: Math.sqrt(x*x + y*y) * 0.75,  // distance in pt
-  color: '000000',
-  opacity: 0.3,  // alpha channel
+function parseShadow(computed) {
+  // Parse: rgba(r,g,b,a) offsetX offsetY blur spread
+  const match = computed.match(
+    /rgba?\(([^)]+)\)\s+([-\d.]+)px\s+([-\d.]+)px\s+([-\d.]+)px(?:\s+([-\d.]+)px)?/
+  );
+  if (!match) return null;
+
+  const [r, g, b, a] = match[1].split(',').map(s => parseFloat(s.trim()));
+  const offsetX = parseFloat(match[2]);
+  const offsetY = parseFloat(match[3]);
+  const blur = parseFloat(match[4]);
+
+  return {
+    type: 'outer',
+    angle: Math.atan2(offsetY, offsetX) * (180 / Math.PI),
+    offset: Math.sqrt(offsetX**2 + offsetY**2) * 0.75,  // px → pt
+    blur: blur * 0.75,
+    color: rgbToHex(r, g, b),
+    opacity: a ?? 1,
+  };
 }
 ```
 
-**Parsing CSS box-shadow:**
-
-1. Split into `offsetX offsetY blurRadius spreadRadius color`
-2. `spreadRadius` has no PPTX equivalent — ignore it (document as fidelity gap)
-3. `offsetX/Y` → compute angle and distance
-4. Parse color into hex + alpha
-5. Convert px measurements to points
-
-**Multiple shadows:** CSS allows comma-separated shadows. PPTX shapes have one shadow. Use the first shadow only.
-
-**Inset shadows:** `box-shadow: inset ...` → PptxGenJS `type: 'inner'`.
-
-**CSS text-shadow:** Similar mapping but applied via PptxGenJS text `shadow` option rather than shape-level shadow.
+Spread radius has no PPTX equivalent — silently dropped.
 
 ---
 
 ### Border Mapping
 
-CSS `border` → PPTX shape border.
-
-```css
-/* CSS */
-border: 1px solid rgba(255,255,255,0.15);
+```js
+style.borderTopWidth   // → "1px"
+style.borderTopStyle   // → "solid"
+style.borderTopColor   // → "rgba(255, 255, 255, 0.15)"
 ```
+
+All four sides resolved independently. For uniform borders (most common), read one side:
 
 ```js
-// PptxGenJS
 border: {
-  type: 'solid',
-  pt: 0.75,  // 1px * 0.75
-  color: 'FFFFFF',
-  transparency: 85,  // (1 - 0.15) * 100
+  type: style.borderTopStyle === 'dashed' ? 'dash' : 'solid',
+  pt: parseFloat(style.borderTopWidth) * 0.75,
+  color: parseRgba(style.borderTopColor).hex,
+  transparency: parseRgba(style.borderTopColor).transparency,
 }
 ```
-
-**Parsing:** Split CSS shorthand into `width style color`. Map `style`:
-- `solid` → `"solid"`
-- `dashed` → `"dash"`
-- `dotted` → `"dot"`
-- `none` → omit border
 
 ---
 
 ### Color Mapping
 
-SlideKit uses CSS color formats. PPTX uses 6-char hex + optional transparency percentage.
+`getComputedStyle()` always returns colors as `rgb(r, g, b)` or `rgba(r, g, b, a)` — never hex, never named colors, never HSL. This simplifies parsing enormously:
 
-| CSS format | PPTX mapping |
-|---|---|
-| `#ffffff` | `'FFFFFF'`, transparency `0` |
-| `#fff` | Expand to `'FFFFFF'` |
-| `rgba(255,255,255,0.6)` | `'FFFFFF'`, transparency `40` (= `(1 - 0.6) * 100`) |
-| `hsla(...)` | Convert to RGB first, then hex + transparency |
-| `transparent` | `'000000'`, transparency `100` |
+```js
+function parseColor(computed) {
+  const match = computed.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!match) return { hex: '000000', transparency: 0 };
 
-Need a CSS color parser. Many small libraries exist, or implement a focused parser for the formats SlideKit actually uses (`#hex`, `rgba()`, `hsla()`, named colors).
+  const hex = [match[1], match[2], match[3]]
+    .map(n => parseInt(n).toString(16).padStart(2, '0'))
+    .join('');
+  const alpha = match[4] !== undefined ? parseFloat(match[4]) : 1;
+
+  return { hex, transparency: Math.round((1 - alpha) * 100) };
+}
+```
+
+No need for a general CSS color parser. `getComputedStyle()` normalizes everything.
 
 ---
 
-### Backdrop Filter (No Equivalent)
+### Backdrop Filter (No PPTX Equivalent)
 
-```css
-backdrop-filter: blur(12px);
--webkit-backdrop-filter: blur(12px);
+```js
+style.backdropFilter  // → "blur(12px)"
 ```
 
-PowerPoint has no equivalent. The glassmorphism effect (frosted glass over background content) cannot be reproduced. Options:
+Detectable via computed style, but PowerPoint has no equivalent. The glassmorphism effect cannot be reproduced.
 
-1. **Ignore** — drop the property silently
-2. **Approximate** — use a semi-transparent fill (which is what the element already has via its `background` property). The blur effect is lost but the translucency is preserved.
-3. **Rasterize** — capture a screenshot of the area behind the element, apply a Gaussian blur, and embed as a background image. Complex, fragile, and overkill for most cases.
-
-Recommendation: Option 2 (ignore `backdrop-filter`, keep the existing semi-transparent fill). Document as a known limitation.
+**Approach:** Ignore `backdrop-filter`, keep the existing semi-transparent fill. The translucency is preserved; only the blur effect is lost. Document as a known limitation.
 
 ---
 
@@ -380,13 +428,15 @@ Recommendation: Option 2 (ignore `backdrop-filter`, keep the existing semi-trans
 
 ### Slide Background
 
-SlideKit backgrounds are set via `slide.background`:
+The slide `<section>` element has `data-background-*` attributes set by SlideKit:
 
-| SlideKit background | PPTX mapping |
-|---|---|
-| Solid color (`#0c0c14`) | `slide.background = { color: '0c0c14' }` |
-| CSS gradient | `slide.background = { fill: { type: 'gradient', ... } }` |
-| Image path | `slide.background = { path: '...' }` or base64 data |
+```js
+section.getAttribute('data-background-color')    // → "#0c0c14"
+section.getAttribute('data-background-gradient')  // → "linear-gradient(...)"
+section.getAttribute('data-background-image')     // → "path/to/image.jpg"
+```
+
+Map to PptxGenJS slide background accordingly.
 
 ### Speaker Notes
 
@@ -394,15 +444,13 @@ SlideKit backgrounds are set via `slide.background`:
 
 ### Slide Dimensions
 
-Set once on the PptxGenJS `Presentation` object:
-
 ```js
 const pptx = new PptxGenJS();
 pptx.defineLayout({ name: 'SLIDEKIT', width: 13.333, height: 7.5 });
 pptx.layout = 'SLIDEKIT';
 ```
 
-This matches 1920×1080 at 144 DPI (PowerPoint's internal resolution) and produces standard 16:9 widescreen slides.
+Matches 1920×1080 at standard widescreen 16:9.
 
 ---
 
@@ -411,34 +459,57 @@ This matches 1920×1080 at 144 DPI (PowerPoint's internal resolution) and produc
 ### Converter Pipeline
 
 ```
-window.sk.layouts[i]
+After render() completes:
     ↓
-1. Walk elements in declaration order (preserves z-order)
+1. For each slide <section>:
     ↓
-2. For each element:
-   a. Read resolved bounds → convert to inches
-   b. Read authored props → map to PptxGenJS options
-   c. Parse CSS values (gradients, shadows, borders, colors)
-   d. Handle type-specific logic (text runs, image embedding, connectors)
+2. Walk [data-sk-id] elements in z-order (layer → declaration order)
     ↓
-3. Emit PptxGenJS API calls
+3. For each element:
+   a. Read resolved bounds from window.sk → convert to inches
+   b. Classify: textbox | shape | image | connector | complex
+   c. Read getComputedStyle() → extract visual properties
+   d. For textboxes: TreeWalker → extract text runs with per-run styles
+   e. For images: read <img> src, naturalWidth/Height, object-fit
+   f. For shapes: read background, border, radius, shadow
+   g. Map all computed CSS values → PptxGenJS options
     ↓
-4. pptx.writeFile() → .pptx download
+4. Emit PptxGenJS API calls
+    ↓
+5. pptx.writeFile() → .pptx download
 ```
+
+### Rasterization Fallback
+
+For elements that can't be cleanly decomposed (complex nested HTML, CSS effects with no PPTX equivalent), the exporter falls back to rasterization:
+
+```js
+async function rasterizeElement(domEl, bounds) {
+  // Use html2canvas or a similar library to capture the element as a PNG
+  const canvas = await html2canvas(domEl, {
+    width: bounds.w,
+    height: bounds.h,
+    backgroundColor: null,  // transparent background
+  });
+  return canvas.toDataURL('image/png');
+}
+```
+
+The rasterized PNG is embedded as a PPTX image at the element's exact position. It loses editability but preserves visual fidelity.
 
 ### Module Structure
 
 ```
 slidekit/
-  export-pptx.js          — The converter module
-  css-parser.js            — CSS gradient/shadow/border/color parsing utilities
+  export-pptx.js       — Main exporter: DOM walking, classification, PptxGenJS emission
+  export-pptx-parse.js  — Computed CSS value parsers (gradients, shadows, borders, colors)
 ```
 
-`export-pptx.js` exports a single function:
+`export-pptx.js` exports:
 
 ```js
 export async function exportPptx(options = {}) {
-  // Reads from window.sk
+  // Reads from window.sk + live DOM
   // Returns a Blob or triggers a download
 }
 ```
@@ -447,92 +518,94 @@ Options:
 - `filename` — output filename (default: `"slidekit-export.pptx"`)
 - `slides` — array of slide indices to export (default: all)
 - `embedImages` — whether to fetch and embed images as base64 (default: `true`)
-- `resolveClassNames` — whether to call `getComputedStyle()` for className-styled elements (default: `false`)
+- `rasterizeFallback` — whether to rasterize complex elements (default: `true`)
 
 ### Dependencies
 
 - **PptxGenJS** — loaded via CDN or npm. ~300KB minified. No other dependencies.
-- **CSS parser** — custom, focused on the subset of CSS SlideKit actually produces. Not a general-purpose CSS parser.
+- **html2canvas** (optional) — for rasterization fallback. ~40KB minified. Only needed if `rasterizeFallback: true`.
 
 ---
 
-## Fidelity Gaps Summary
+## Difficulty Assessment
 
-Things that will not be pixel-identical between browser rendering and PPTX:
+With DOM walking, the difficulty profile changes dramatically compared to source-level HTML/CSS parsing:
+
+| Aspect | Difficulty | Approach |
+|---|---|---|
+| Positioning / sizing | **Easy** | Scene graph `resolved.{x,y,w,h}` → inch conversion |
+| Plain text | **Easy** | Single text run from `textContent` + `getComputedStyle()` |
+| Rich text runs | **Easy** | `TreeWalker` over text nodes, `getComputedStyle()` per parent, merge by style |
+| Gradient text | **Medium** | Detect `backgroundClip: "text"` + parse `backgroundImage` → PPTX text gradient fill |
+| Shapes (backgrounds) | **Easy** | `backgroundColor` / `backgroundImage` → PPTX fill |
+| Borders | **Easy** | `borderTopWidth/Style/Color` → PPTX border |
+| Border radius | **Easy** | `borderRadius` → `rectRadius` (uniform approximation) |
+| Images | **Easy** | Find `<img>`, read `src`, `naturalWidth/Height`, `objectFit` |
+| Linear gradients | **Medium** | Parse resolved `backgroundImage` string → PPTX gradient stops |
+| Radial gradients | **Medium** | Parse string, map focal point to nearest PPTX preset |
+| Shadows | **Medium** | Parse resolved `boxShadow` → PPTX shadow (angle, distance, blur, color) |
+| Connectors | **Medium** | Scene graph endpoints + SVG attributes → PPTX line/connector |
+| Opacity / transparency | **Easy** | `style.opacity` → shape transparency; `rgba` → color transparency |
+| `backdrop-filter` | **Hard** | No PPTX equivalent. Keep semi-transparent fill, lose blur. |
+| Complex nested HTML | **Medium** | Rasterization fallback |
+| CSS animations | **N/A** | Out of scope — PPTX has its own animation model |
+
+**Estimated coverage:** ~90-95% of elements in a typical slide deck convert cleanly. The remaining 5-10% (primarily `backdrop-filter` effects) either approximate gracefully or fall back to rasterization.
+
+---
+
+## Fidelity Gaps
 
 | Gap | Severity | Reason |
 |---|---|---|
-| Font weight granularity | Low | PPTX: bold/not-bold. CSS: 100–900 scale. Weights 300, 500 lose distinction. |
-| Text line breaks | Medium | Different text engines may break lines at different points. Same font, same size, different wrapping. |
+| Font weight granularity | Low | PPTX: bold/not-bold. CSS: 100–900. Weights 300, 500 lose distinction. |
+| Text line breaks | Medium | Different text engines may wrap at different points. |
 | `backdrop-filter: blur()` | Medium | No PPTX equivalent. Semi-transparent fill preserved, blur lost. |
-| Radial gradient focal point | Low | PPTX radial gradients don't support arbitrary `at X% Y%` positions. |
-| Multiple CSS backgrounds | Low | PPTX shapes have single fill. Only first gradient used. |
+| Radial gradient focal points | Low | PPTX radial gradients use preset positions, not arbitrary `at X% Y%`. |
+| Multiple CSS backgrounds | Low | PPTX shapes have single fill. First gradient used. |
 | Per-corner border radius | Low | PPTX has uniform `rectRadius` only. |
-| CSS `box-shadow` spread | Low | PPTX shadows don't have spread radius. |
-| Multiple shadows | Low | PPTX shapes support one shadow. First shadow used. |
-| Curved connector geometry | Low | PPTX curved connectors use different curve model than SVG cubic beziers. |
-| CSS animations | None at export | Animations are browser-only; PPTX has its own animation model (out of scope). |
-| Font rendering | Low | Sub-pixel differences between browser and PPTX text engines. Affects kerning, hinting. |
+| `box-shadow` spread radius | Low | PPTX shadows don't have spread. |
+| Multiple shadows | Low | PPTX supports one shadow per shape. |
+| Curved connector geometry | Low | PPTX curved connectors differ from SVG beziers. |
+| Font rendering | Low | Sub-pixel differences between browser and PPTX. |
+| Font availability | Medium | PPTX references fonts by name; viewer needs them installed. |
 
-None of these are showstoppers. The layout — which is the hard part — will be exact because SlideKit's absolute positioning maps directly to PPTX's absolute positioning model.
+None are showstoppers. Layout is exact because both systems use absolute positioning.
 
 ---
 
-## Edge Cases and Gotchas
+## Edge Cases
 
 ### Font Availability
 
-The PPTX file references fonts by name. If the viewer's system doesn't have the font installed, PowerPoint substitutes. This is a standard PPTX problem, not specific to SlideKit.
-
-Mitigation: PptxGenJS doesn't embed fonts (PPTX font embedding is complex and rarely done). Document which fonts the presentation uses. For Google Fonts, the viewer needs them installed or the presentation needs to be viewed on a system with them.
+PPTX references fonts by name. If the viewer's system doesn't have the font, PowerPoint substitutes. PptxGenJS doesn't embed fonts. Document which fonts are used.
 
 ### Large Image Files
 
-Embedding multiple high-resolution images as base64 can produce very large PPTX files. Consider:
-- Compressing images before embedding (resize to rendered dimensions)
-- Making image embedding optional
-- Warning when total embedded image size exceeds a threshold (e.g., 50MB)
+Multiple high-resolution base64-embedded images can bloat the PPTX. Consider compressing images to rendered dimensions before embedding. Warn when total size exceeds 50MB.
 
 ### Element Overlap and Transparency
 
-SlideKit uses CSS `opacity` and RGBA colors for transparency. PPTX has shape-level `transparency` and fill-level `transparency`. These are different:
-- CSS `opacity: 0.5` on a text element affects both the text AND its background → PPTX `transparency: 50` on the shape
-- CSS `rgba(255,255,255,0.5)` as text color affects only the text color → PPTX text color with 50% transparency
-
-The converter must distinguish between these two transparency models and map correctly.
-
-### SVG Connector Rendering
-
-SlideKit renders connectors as SVG elements in the DOM. The converter reads the resolved endpoints from the scene graph, not from the SVG. This means the converter doesn't need to parse SVG — it uses the same data the SVG was generated from.
-
-### Empty or Decorative Elements
-
-Background rects with only a gradient fill (no content) are common in SlideKit slides. These should be emitted as PPTX shapes with the gradient fill. Don't skip them — they're visually significant.
+CSS `opacity: 0.5` affects the entire element (content + background) → PPTX shape-level `transparency: 50`. But `rgba(255,255,255,0.5)` as text color affects only the text → PPTX text color transparency. The computed style distinguishes these automatically since `getComputedStyle()` reports them on different properties.
 
 ### Z-Order Across Layers
 
-SlideKit has three layers: `bg`, `content`, `overlay`. All background-layer elements render below all content-layer elements, etc. The converter must emit elements in layer order (all bg first, then content, then overlay), preserving declaration order within each layer.
+SlideKit has `bg`, `content`, `overlay` layers. Emit all bg elements first, then content, then overlay, preserving declaration order within each layer.
+
+### Rasterized Elements
+
+Rasterized elements lose editability in PowerPoint — they become static images. The exporter should log which elements were rasterized so the user can decide whether to simplify the HTML for better PPTX compatibility.
 
 ---
 
 ## Testing Strategy
 
-1. **Round-trip comparison:** Render a SlideKit presentation in the browser, export to PPTX, open in PowerPoint, screenshot both, and compare visually. Not automated (different renderers will differ), but validates gross correctness.
+1. **Round-trip visual comparison:** Render in browser, export to PPTX, open in PowerPoint, screenshot both, compare. Validates gross correctness.
 
-2. **Property mapping unit tests:** For each CSS → PPTX mapping (gradients, shadows, borders, colors), test the parser with known inputs and verify the PPTX output structure.
+2. **Computed style parser tests:** Unit test each CSS parser (gradient, shadow, border, color) with known `getComputedStyle()` outputs.
 
-3. **Coordinate accuracy tests:** Export a slide with elements at known positions, open the PPTX, extract element positions from the XML, and verify they match the expected inch values within floating-point tolerance.
+3. **Text run extraction tests:** Create elements with mixed formatting, verify run extraction produces correct run boundaries and styles.
 
-4. **Edge case tests:** Empty slides, slides with only background elements, slides with 50+ elements, connectors with labels, nested groups, rotated elements.
+4. **Coordinate accuracy tests:** Export a slide with known element positions, extract from PPTX XML, verify inch values match within float tolerance.
 
----
-
-## Open Questions
-
-1. **Should the converter run in the browser or Node?** Browser is simpler (reads directly from `window.sk`, uses PptxGenJS's browser bundle). Node would require serializing the scene graph and passing it. Recommendation: browser-first, with Node support as a later option by accepting a serialized scene graph.
-
-2. **Should we support PPTX → SlideKit import?** Out of scope for this proposal, but worth noting as a future direction. Parsing OOXML is significantly more complex than generating it.
-
-3. **Should connector labels be separate text boxes or embedded in the connector?** PPTX connectors don't support inline text. Separate text boxes at the midpoint is the only option. But these text boxes won't move if someone drags the connector in PowerPoint — they'll need manual repositioning. Document this.
-
-4. **How to handle `className`-only styling?** If a rect has `className: "glass-card"` and no inline `style`, the PPTX shape will have no fill/border/shadow. Either require inline styles for PPTX-targeted content, or add optional `getComputedStyle()` resolution at export time.
+5. **Coverage tests:** Run against the 17-slide ICSE test deck, check how many elements classify as textbox/shape/image vs. complex (rasterization fallback).
