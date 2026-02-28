@@ -379,6 +379,18 @@ describe("M3.2: layout() — centerIn()", () => {
     assert.equal(scene.elements["c"].resolved.y, 300);
   });
 
+  it("spread pattern does not collapse to (0,0)", async () => {
+    // Regression: old centerIn returned { _rel, rect } which spread _rel to
+    // top-level props instead of onto x/y, so x/y silently defaulted to 0.
+    const r = { x: 100, y: 100, w: 600, h: 400 };
+    const e = el('', { id: "c", ...centerIn(r), w: 100, h: 100 });
+    const scene = await layout({ elements: [e] });
+    assert.ok(scene.elements["c"].resolved.x !== 0, "x should not be 0 — centerIn must set x");
+    assert.ok(scene.elements["c"].resolved.y !== 0, "y should not be 0 — centerIn must set y");
+    assert.equal(scene.elements["c"].resolved.x, 350); // 100 + 300 - 50
+    assert.equal(scene.elements["c"].resolved.y, 250); // 100 + 200 - 50
+  });
+
   it("centers element within safeRect()", async () => {
     _resetForTests();
     await init();

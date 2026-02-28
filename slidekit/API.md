@@ -283,7 +283,7 @@ el('<p style="font:28px Inter;color:#fff">Centered</p>',
 
 **Parameters:** `rect` — `{ x, y, w, h }`
 
-**Returns:** `{ _rel: "centerIn", rect }` — resolves x and y to center the element within the rectangle.
+**Returns:** `{ x: { _rel: "centerIn", rect }, y: { _rel: "centerIn", rect } }` — designed for spread: `{ ...centerIn(rect), w: 400 }` sets both x and y.
 
 > **Note:** Relative positioning markers are only valid on `x` and `y` properties. Using them on `w` or `h` produces an error.
 
