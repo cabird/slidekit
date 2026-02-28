@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideKit Example Runner</title>
+
+  <!-- Reveal.js CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+
+  <style>
+    body { margin: 0; }
+    .slidekit-layer { font-family: system-ui, -apple-system, sans-serif; }
+    #example-nav {
+      position: fixed; top: 8px; right: 8px; z-index: 9999;
+      background: rgba(0,0,0,0.8); padding: 8px 12px; border-radius: 6px;
+      font-family: system-ui; font-size: 13px; color: #aaa;
+    }
+    #example-nav select {
+      background: #222; color: #fff; border: 1px solid #555;
+      padding: 4px 8px; border-radius: 4px; font-size: 13px; margin-left: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- SlideKit renders slides here -->
+    </div>
+  </div>
+
+  <!-- Example selector -->
+  <div id="example-nav">
+    Example:
+    <select id="example-select">
+      <option value="title-slide">title-slide</option>
+      <option value="card-row">card-row</option>
+      <option value="bullet-list">bullet-list</option>
+      <option value="relative-positioning">relative-positioning</option>
+      <option value="text-fitting">text-fitting</option>
+      <option value="alignment-distribution">alignment-distribution</option>
+      <option value="safe-zone-validation">safe-zone-validation</option>
+      <option value="connectors">connectors</option>
+      <option value="grid-layout">grid-layout</option>
+      <option value="full-presentation">full-presentation</option>
+    </select>
+  </div>
+
+  <!-- Reveal.js -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <script type="module">
+    const params = new URLSearchParams(location.search);
+    const example = params.get('example') || 'title-slide';
+
+    // Update the select to reflect the current example
+    const select = document.getElementById('example-select');
+    select.value = example;
+    select.addEventListener('change', () => {
+      location.search = `?example=${select.value}`;
+    });
+
+    try {
+      const mod = await import(`./${example}.js`);
+      await mod.run();
+
+      Reveal.initialize({
+        hash: true,
+        slideNumber: true,
+        transition: 'fade',
+        width: 1920,
+        height: 1080,
+        center: false,
+      });
+
+      console.log(`Example "${example}" loaded successfully`);
+      console.log('Scene model available at window.sk');
+    } catch (err) {
+      console.error(`Failed to load example "${example}":`, err);
+      document.querySelector('.slides').innerHTML = `
+        <section>
+          <div style="color: #ea4335; font-size: 32px; padding: 100px; text-align: center;">
+            <p>Failed to load example: <strong>${example}</strong></p>
+            <pre style="font-size: 18px; text-align: left; max-width: 1200px; margin: 40px auto; color: #ff9999;">${err.stack || err.message}</pre>
+          </div>
+        </section>
+      `;
+    }
+  </script>
+</body>
+</html>
