@@ -10,7 +10,7 @@ import {
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
   centerIn,
-  vstack, hstack,
+  vstack, hstack, panel,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -929,5 +929,191 @@ describe("M5.4: stack edge cases", () => {
     assert.ok(pairs.includes("r1-r2"), "should have r1-r2 collision");
     assert.ok(pairs.includes("r1-r3"), "should have r1-r3 collision");
     assert.ok(pairs.includes("r2-r3"), "should have r2-r3 collision");
+  });
+});
+
+// =============================================================================
+// Panel-in-Stack: hstack/vstack intrinsic sizing with panel children
+// =============================================================================
+
+describe("Panel-in-stack: hstack resolves correct width from panel children", () => {
+  it("hstack width = sum of panel widths + gaps", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([el('A', { id: "p1-txt", w: 'fill', h: 40 })], { id: "p1", w: 500 });
+    const p2 = panel([el('B', { id: "p2-txt", w: 'fill', h: 40 })], { id: "p2", w: 500 });
+    const stack = hstack([p1, p2], { id: "hs", x: 100, y: 100, gap: 40 });
+
+    const scene = await layout({ elements: [stack] });
+
+    // hstack width should be 500 + 40 + 500 = 1040
+    const hsResolved = scene.elements["hs"].resolved;
+    assert.equal(hsResolved.w, 1040, "hstack width should be sum of panel widths + gaps");
+  });
+
+  it("hstack height = max of panel auto-heights", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    // Panel 1: one child, height = child.h + 2*padding = 40 + 48 = 88
+    const p1 = panel([el('A', { id: "p1-txt", w: 'fill', h: 40 })], { id: "p1", w: 400, padding: 24 });
+    // Panel 2: two children, height = 40 + 16 (gap) + 60 + 48 = 164
+    const p2 = panel([
+      el('B', { id: "p2-t1", w: 'fill', h: 40 }),
+      el('C', { id: "p2-t2", w: 'fill', h: 60 }),
+    ], { id: "p2", w: 400, padding: 24, gap: 16 });
+    const stack = hstack([p1, p2], { id: "hs", x: 100, y: 100, gap: 30 });
+
+    const scene = await layout({ elements: [stack] });
+
+    const hsResolved = scene.elements["hs"].resolved;
+    // hstack height should be max of panel auto-heights
+    assert.ok(hsResolved.h > 0, "hstack should have non-zero height");
+    // Panel 2 is taller (2 children), so hstack height should match panel 2
+    const p2Resolved = scene.elements["p2"].resolved;
+    assert.equal(hsResolved.h, p2Resolved.h, "hstack height should equal tallest panel");
+  });
+
+  it("anchor 'tc' on hstack with panels centers correctly", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([el('A', { id: "a1", w: 'fill', h: 40 })], { id: "card1", w: 500 });
+    const p2 = panel([el('B', { id: "a2", w: 'fill', h: 40 })], { id: "card2", w: 500 });
+    const stack = hstack([p1, p2], {
+      id: "cards",
+      x: 960, y: 300,
+      anchor: 'tc',
+      gap: 40,
+    });
+
+    const scene = await layout({ elements: [stack] });
+
+    const hsResolved = scene.elements["cards"].resolved;
+    // Total width = 500 + 40 + 500 = 1040
+    // anchor 'tc' at x=960: left = 960 - 1040/2 = 440
+    assert.equal(hsResolved.w, 1040, "hstack width should be 1040");
+    assert.equal(hsResolved.x, 440, "hstack x should be centered at 440");
+  });
+
+  it("vstack width = max of panel widths", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([el('A', { id: "v1-txt", w: 'fill', h: 40 })], { id: "vp1", w: 400 });
+    const p2 = panel([el('B', { id: "v2-txt", w: 'fill', h: 40 })], { id: "vp2", w: 600 });
+    const stack = vstack([p1, p2], { id: "vs", x: 100, y: 100, gap: 20 });
+
+    const scene = await layout({ elements: [stack] });
+
+    const vsResolved = scene.elements["vs"].resolved;
+    assert.equal(vsResolved.w, 600, "vstack width should be max of panel widths");
+  });
+
+  it("vstack height = sum of panel auto-heights + gaps", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([el('A', { id: "vh1", w: 'fill', h: 40 })], { id: "vp1", w: 400, padding: 24 });
+    const p2 = panel([el('B', { id: "vh2", w: 'fill', h: 60 })], { id: "vp2", w: 400, padding: 24 });
+    const stack = vstack([p1, p2], { id: "vs", x: 100, y: 100, gap: 20 });
+
+    const scene = await layout({ elements: [stack] });
+
+    const vsResolved = scene.elements["vs"].resolved;
+    const p1Resolved = scene.elements["vp1"].resolved;
+    const p2Resolved = scene.elements["vp2"].resolved;
+    const expectedH = p1Resolved.h + 20 + p2Resolved.h;
+    assert.equal(vsResolved.h, expectedH, "vstack height should be sum of panel heights + gaps");
+  });
+
+  it("below() works correctly with hstack containing panels", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([el('A', { id: "bt1", w: 'fill', h: 40 })], { id: "bp1", w: 400, padding: 24 });
+    const p2 = panel([el('B', { id: "bt2", w: 'fill', h: 40 })], { id: "bp2", w: 400, padding: 24 });
+    const row = hstack([p1, p2], { id: "row1", x: 100, y: 100, gap: 20 });
+    const footer = el('Footer', { id: "footer", x: 100, y: below("row1", { gap: 30 }), w: 400, h: 40 });
+
+    const scene = await layout({ elements: [row, footer] });
+
+    const rowResolved = scene.elements["row1"].resolved;
+    const footerResolved = scene.elements["footer"].resolved;
+    // footer.y should be row1.y + row1.h + 30
+    const expectedY = rowResolved.y + rowResolved.h + 30;
+    assert.equal(footerResolved.y, expectedY, "below() should use correct hstack height");
+    assert.ok(rowResolved.h > 0, "hstack should have non-zero height for below() to work");
+  });
+});
+
+// =============================================================================
+// Collision detection: no false positives for elements in different panels
+// =============================================================================
+
+describe("Collision detection: elements in different panels within a stack", () => {
+  it("no collisions between non-overlapping panels in an hstack", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([
+      el('Icon1', { id: "icon1", w: 'fill', h: 60 }),
+      el('Label1', { id: "label1", w: 'fill', h: 30 }),
+    ], { id: "card1", w: 500 });
+    const p2 = panel([
+      el('Icon2', { id: "icon2", w: 'fill', h: 60 }),
+      el('Label2', { id: "label2", w: 'fill', h: 30 }),
+    ], { id: "card2", w: 500 });
+    const stack = hstack([p1, p2], { id: "cards", x: 100, y: 100, gap: 40 });
+
+    const scene = await layout({ elements: [stack] });
+
+    // Elements inside different panels should NOT collide
+    // (they have different absolute positions even though group-relative coords match)
+    assert.equal(scene.collisions.length, 0,
+      "should have no collisions between elements in separate non-overlapping panels");
+  });
+
+  it("no collisions between panels in a vstack", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    const p1 = panel([
+      el('A', { id: "va", w: 'fill', h: 40 }),
+    ], { id: "vcard1", w: 500 });
+    const p2 = panel([
+      el('B', { id: "vb", w: 'fill', h: 40 }),
+    ], { id: "vcard2", w: 500 });
+    const stack = vstack([p1, p2], { id: "vcards", x: 100, y: 100, gap: 20 });
+
+    const scene = await layout({ elements: [stack] });
+
+    assert.equal(scene.collisions.length, 0,
+      "should have no collisions between elements in separate non-overlapping panels in vstack");
+  });
+
+  it("detects real collisions between overlapping panel contents", async () => {
+    _resetForTests();
+    init({ slide: { w: 1920, h: 1080 } });
+
+    // Two panels at the SAME position (gap=0, same x) — their contents overlap
+    const p1 = panel([
+      el('A', { id: "oa", w: 'fill', h: 80 }),
+    ], { id: "olap1", w: 300 });
+    const p2 = panel([
+      el('B', { id: "ob", w: 'fill', h: 80 }),
+    ], { id: "olap2", w: 300 });
+    // Place both panels at the same position using a group (not a stack)
+    const g = group([
+      { ...p1, props: { ...p1.props, x: 0, y: 0 } },
+      { ...p2, props: { ...p2.props, x: 0, y: 0 } },
+    ], { id: "overlap-group", x: 100, y: 100 });
+
+    const scene = await layout({ elements: [g] });
+
+    // Elements inside overlapping panels SHOULD collide
+    assert.ok(scene.collisions.length > 0,
+      "should detect collisions when panels overlap at the same position");
   });
 });

@@ -1910,8 +1910,41 @@ export async function layout(slideDefinition, options = {}) {
       const gap = el.props.gap ?? 0;
       const stackW = el.props.w ?? 0;
 
-      // Check all children have resolved sizes
-      const allChildrenSized = childIds.every(cid => resolvedSizes.has(cid));
+      // Check all children have resolved sizes.
+      // For panel compounds, also ensure the inner vstack has resolved so that
+      // the panel's auto-height is available before the containing stack resolves.
+      let allChildrenSized = true;
+      for (const cid of childIds) {
+        if (!resolvedSizes.has(cid)) {
+          allChildrenSized = false;
+          break;
+        }
+        const childEl = flatMap.get(cid);
+        if (childEl && childEl._compound === "panel") {
+          const config = childEl._panelConfig;
+          if (!config) continue;
+          const panelChildren = childEl.children || [];
+          const childStack = panelChildren[1]; // [bgRect, vstack]
+          if (childStack && !resolvedSizes.has(childStack.id)) {
+            // Inner vstack hasn't resolved yet — can't compute panel auto-height
+            allChildrenSized = false;
+            break;
+          }
+          // Update panel group size from inner vstack (auto-height/width)
+          if (childStack && resolvedSizes.has(childStack.id)) {
+            const stackSizes = resolvedSizes.get(childStack.id);
+            const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
+            const panelSizes = resolvedSizes.get(cid);
+            panelSizes.h = autoH;
+            if (config.panelW != null) panelSizes.w = config.panelW;
+            // Also update bgRect height
+            const bgRect = panelChildren[0];
+            if (bgRect && resolvedSizes.has(bgRect.id)) {
+              resolvedSizes.get(bgRect.id).h = autoH;
+            }
+          }
+        }
+      }
       if (!allChildrenSized) continue;
 
       if (el.type === "vstack") {
@@ -2568,6 +2601,60 @@ export async function layout(slideDefinition, options = {}) {
 
   const collisions = [];
 
+  // Helper: compute absolute (slide-level) bounds for an element by walking
+  // up the group/stack parent ancestry chain.  Stack children have coords set
+  // by their parent stack; if that stack lives inside a group, the coords are
+  // group-relative and need the group's offset added.
+  function absoluteBounds(id) {
+    const bounds = resolvedBounds.get(id);
+    if (!bounds) return null;
+    let offsetX = 0, offsetY = 0;
+    let current = id;
+    while (true) {
+      const gp = groupParent.get(current);
+      if (gp) {
+        const gpBounds = resolvedBounds.get(gp);
+        if (gpBounds) {
+          offsetX += gpBounds.x;
+          offsetY += gpBounds.y;
+        }
+        current = gp;
+        continue;
+      }
+      const sp = stackParent.get(current);
+      if (sp) {
+        // Stack children's coords already include the stack's position,
+        // but the stack itself might be inside a group — keep walking.
+        current = sp;
+        continue;
+      }
+      break;
+    }
+    return { x: bounds.x + offsetX, y: bounds.y + offsetY, w: bounds.w, h: bounds.h };
+  }
+
+  // Helper: check if `ancestorId` is an ancestor of `id` by walking the
+  // stack-parent / group-parent chains.  Used to skip ancestor-descendant
+  // pairs in collision detection.
+  function isAncestorOf(ancestorId, id) {
+    let current = id;
+    while (true) {
+      const gp = groupParent.get(current);
+      if (gp) {
+        if (gp === ancestorId) return true;
+        current = gp;
+        continue;
+      }
+      const sp = stackParent.get(current);
+      if (sp) {
+        if (sp === ancestorId) return true;
+        current = sp;
+        continue;
+      }
+      return false;
+    }
+  }
+
   // Collect elements for collision detection, grouped by layer.
   // Stack children appear as individual elements.
   // Skip: group children (positioned relative to group), stacks themselves
@@ -2598,13 +2685,15 @@ export async function layout(slideDefinition, options = {}) {
         const idA = ids[i];
         const idB = ids[j];
 
-        // Skip if one is a child of the other (group/stack containment)
-        const parentA = stackParent.get(idA) || groupParent.get(idA);
-        const parentB = stackParent.get(idB) || groupParent.get(idB);
-        if (parentA === idB || parentB === idA) continue;
+        // Skip if one is an ancestor of the other (group/stack containment).
+        // Walks the full ancestry chain, not just direct parents, so that
+        // e.g. a panel group is not flagged against its deeply-nested children.
+        if (isAncestorOf(idA, idB) || isAncestorOf(idB, idA)) continue;
 
-        let boundsA = resolvedBounds.get(idA);
-        let boundsB = resolvedBounds.get(idB);
+        // Use absolute bounds so elements inside groups are compared
+        // correctly (their resolvedBounds may be group-relative).
+        let boundsA = absoluteBounds(idA);
+        let boundsB = absoluteBounds(idB);
         if (!boundsA || !boundsB) continue;
 
         // Apply AABB expansion for rotated elements
@@ -3371,14 +3460,20 @@ export function panel(children, props = {}) {
   });
 
   // Create the group container
-  const result = group([bgRect, childStack], {
+  // Pass w/h to the group so the layout pipeline knows the panel's intrinsic
+  // size during Phase 1.  Without this, getEffectiveDimensions returns {w:0,h:0}
+  // for the group, causing parent stacks to compute wrong totals.
+  const groupProps = {
     id,
     x: rest.x ?? 0,
     y: rest.y ?? 0,
     layer: rest.layer || "content",
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl",
-  });
+  };
+  if (panelW != null) groupProps.w = panelW;
+  if (panelH != null) groupProps.h = panelH;
+  const result = group([bgRect, childStack], groupProps);
 
   // Tag as a panel compound for layout pipeline integration
   result._compound = "panel";
