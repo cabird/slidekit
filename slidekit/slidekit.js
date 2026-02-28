@@ -214,24 +214,14 @@ import { resolveAnchor } from './src/anchor.js';
 export { filterStyle, resolveShadow, getShadowPresets } from './src/style.js';
 import { filterStyle, _baselineCSS, SHADOWS, resolveShadow, getShadowPresets } from './src/style.js';
 
+export { getSpacing } from './src/spacing.js';
+import { DEFAULT_SPACING, resolveSpacing } from './src/spacing.js';
+
 // =============================================================================
 // Init Function & Configuration (M1.5)
 // =============================================================================
 
 // Configuration and font/measurement state are imported from ./src/state.js
-
-/**
- * Default spacing scale — named tokens to pixel values.
- * Users can extend or override via init({ spacing: { ... } }).
- */
-const DEFAULT_SPACING = {
-  xs: 8,
-  sm: 16,
-  md: 24,
-  lg: 32,
-  xl: 48,
-  section: 80,
-};
 
 /**
  * Default configuration values.
@@ -471,46 +461,6 @@ export function getConfig() {
   if (!_config) return null;
   // Deep copy to prevent external mutation of internal state
   return JSON.parse(JSON.stringify(_config));
-}
-
-// =============================================================================
-// Spacing Tokens (P1.1)
-// =============================================================================
-
-/**
- * Resolve a spacing value — either a named token (string) or a raw pixel
- * number — to a concrete pixel number.
- *
- * - Numbers pass through unchanged (including 0).
- * - Strings are looked up in the active spacing scale (_config.spacing),
- *   falling back to DEFAULT_SPACING if init() hasn't been called yet.
- * - Unknown token names throw with a list of available tokens.
- * - undefined/null pass through (callers handle their own defaults).
- *
- * @param {number|string|undefined|null} value
- * @returns {number|undefined|null}
- */
-function resolveSpacing(value) {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const scale = _config?.spacing || DEFAULT_SPACING;
-    if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value];
-    const available = Object.keys(scale).join(', ');
-    throw new Error(`Unknown spacing token "${value}". Available tokens: ${available}`);
-  }
-  return value; // pass through undefined/null
-}
-
-/**
- * Public API for resolving a spacing token to a pixel number.
- * Useful for user-land calculations that need to stay in sync with the
- * configured spacing scale.
- *
- * @param {number|string} token - A spacing token name or a pixel number
- * @returns {number}
- */
-export function getSpacing(token) {
-  return resolveSpacing(token);
 }
 
 /**
