@@ -1019,10 +1019,11 @@ export function alignRightWith(refId) {
  * Center within a rectangle (e.g., safeRect()).
  *
  * @param {{ x: number, y: number, w: number, h: number }} rectParam - Rectangle to center within
- * @returns {{ _rel: "centerIn", rect: object }}
+ * @returns {{ x: { _rel: "centerIn", rect: object }, y: { _rel: "centerIn", rect: object } }}
  */
 export function centerIn(rectParam) {
-  return { _rel: "centerIn", rect: rectParam };
+  const marker = { _rel: "centerIn", rect: rectParam };
+  return { x: marker, y: marker };
 }
 
 // =============================================================================

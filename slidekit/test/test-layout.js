@@ -116,11 +116,13 @@ describe("M3.2: relative positioning helpers — marker shape", () => {
     assert.equal(m.ref, "ref1");
   });
 
-  it("centerIn() returns a _rel marker with rect", () => {
+  it("centerIn() returns { x, y } _rel markers for spread usage", () => {
     const r = { x: 100, y: 50, w: 800, h: 600 };
     const m = centerIn(r);
-    assert.equal(m._rel, "centerIn");
-    assert.deepEqual(m.rect, r);
+    assert.equal(m.x._rel, "centerIn");
+    assert.deepEqual(m.x.rect, r);
+    assert.equal(m.y._rel, "centerIn");
+    assert.deepEqual(m.y.rect, r);
   });
 });
 
@@ -368,7 +370,7 @@ describe("M3.2: layout() — alignRightWith()", () => {
 describe("M3.2: layout() — centerIn()", () => {
   it("centers element within a given rectangle", async () => {
     const r = { x: 100, y: 50, w: 800, h: 600 };
-    const e = el('', { id: "c", x: centerIn(r), y: centerIn(r), w: 200, h: 100 });
+    const e = el('', { id: "c", ...centerIn(r), w: 200, h: 100 });
     const scene = await layout({ elements: [e] });
 
     // centerIn x: 100 + 400 - 100 = 400
@@ -382,7 +384,7 @@ describe("M3.2: layout() — centerIn()", () => {
     await init();
     try {
       const sr = safeRect(); // default: {x:120, y:90, w:1680, h:900}
-      const e = el('', { id: "c", x: centerIn(sr), y: centerIn(sr), w: 400, h: 200 });
+      const e = el('', { id: "c", ...centerIn(sr), w: 400, h: 200 });
       const scene = await layout({ elements: [e] });
 
       // centerIn x: 120 + 840 - 200 = 760
@@ -629,7 +631,7 @@ describe("M3.4: provenance tracking", () => {
 
   it("centerIn provenance includes rect", async () => {
     const r = { x: 0, y: 0, w: 1920, h: 1080 };
-    const e = el('', { id: "c", x: centerIn(r), y: centerIn(r), w: 200, h: 100 });
+    const e = el('', { id: "c", ...centerIn(r), w: 200, h: 100 });
     const scene = await layout({ elements: [e] });
     const prov = scene.elements["c"].provenance;
 
