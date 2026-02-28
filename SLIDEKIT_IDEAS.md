@@ -84,4 +84,13 @@ sk.lint({
 
 ## More Ideas (Add Here)
 
-*(placeholder for future ideas)*
+*(placeholder for future ideas.  Read these and ask the user about them 
+ and then add them to the main doc and remove from here... this is basically a worklist.)*
+ 
+When using fit-text a bunch, it's possible that similar elements that should have the same size font...
+ 
+Slide Animations (Future)
+Build Order / Fragments
+Elements appear in a specified sequence during presentation (click-to-advance). Maps naturally to Reveal.js's built-in fragment system — add a buildOrder property (integer) to any SlideKit element, and optionally a buildEffect ("fade-in", "fade-up", "grow", "highlight", etc.) that maps to Reveal's fragment classes. Elements with the same buildOrder value appear together. Elements with no buildOrder appear immediately. Should be straightforward since it's just adding attributes to the already-rendered divs — no architectural changes to the layout system.
+Motion Animations
+Elements move, grow, shrink, or transform over time within a slide (not just appear/disappear). Significantly more complex than build order — needs a way to specify start/end states, timing, and triggers. Could potentially use CSS transitions/animations (which already pass through the style property) but would need SlideKit to manage multiple "states" of an element's position/size, which conflicts with the current single-resolved-frame model. Might need a keyframe or state concept at the scene model level. Defer until there's a concrete use case driving the design.
