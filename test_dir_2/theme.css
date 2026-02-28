@@ -1,0 +1,118 @@
+/* SlideKit Theme: Dark Precision (ICSE 2026) */
+/* Styling only — no layout properties */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Inter:wght@300;400;600&display=swap');
+
+:root {
+  --bg: #111827;
+  --text: #F9FAFB;
+  --text-muted: #9CA3AF;
+  --accent-1: #3B82F6;
+  --accent-2: #10B981;
+  --accent-3: #F43F5E;
+  --accent-4: #A78BFA;
+  --surface: rgba(255,255,255,0.06);
+  --surface-border: rgba(255,255,255,0.1);
+  --glow: rgba(59,130,246,0.15);
+}
+
+/* Gradient text */
+.grad {
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass card base */
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  backdrop-filter: blur(10px);
+}
+.glass.accent-blue { border-bottom: 2px solid var(--accent-1); }
+.glass.accent-green { border-bottom: 2px solid var(--accent-2); }
+.glass.accent-rose { border-bottom: 2px solid var(--accent-3); }
+.glass.accent-purple { border-bottom: 2px solid var(--accent-4); }
+
+/* Overline badge */
+.overline {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  color: var(--accent-1);
+  border: 1px solid var(--accent-1);
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+}
+
+/* Stat card bottom accent bar */
+.stat-bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-1);
+}
+.stat-bar.green::after { background: var(--accent-2); }
+.stat-bar.rose::after { background: var(--accent-3); }
+
+/* Quote block */
+.quote-block {
+  border-left: 3px solid var(--accent-1);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface);
+}
+.quote-block.green { border-left-color: var(--accent-2); }
+.quote-block.rose { border-left-color: var(--accent-3); }
+
+/* Icon circle */
+.icon-circle {
+  border-radius: 50%;
+  text-align: center;
+  line-height: 1;
+}
+.icon-circle.blue { background: rgba(59,130,246,0.15); }
+.icon-circle.green { background: rgba(16,185,129,0.15); }
+.icon-circle.rose { background: rgba(244,63,94,0.15); }
+.icon-circle.purple { background: rgba(167,139,250,0.15); }
+
+/* Fig container (light bg for paper figures) */
+.fig-container {
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+/* Beta coefficient badges */
+.beta {
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+}
+.beta.positive { color: var(--accent-2); }
+.beta.negative { color: var(--accent-3); }
+.beta.dual { color: var(--accent-4); }
+
+/* Table styling */
+.data-table-row {
+  border-bottom: 1px solid var(--surface-border);
+}
+
+/* Glow background effect */
+.glow-tr::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, var(--glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Code waterfall animation */
+@keyframes codefall {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
