@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Style utilities (CSS filtering, baseline CSS, shadow presets)
 
 // =============================================================================

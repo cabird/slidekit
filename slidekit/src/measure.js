@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Measurement utilities (container management, HTML measurement)
 
 import { state } from './state.js';

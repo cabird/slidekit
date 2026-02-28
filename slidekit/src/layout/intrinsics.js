@@ -1,3 +1,4 @@
+// @ts-check
 // Phase 1: Intrinsic Size Resolution — extracted from layout.js
 // Handles measuring elements, resolving percentages, stack sizes, panel auto-height, and hug bounds.
 

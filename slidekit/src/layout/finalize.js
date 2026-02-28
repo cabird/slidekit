@@ -1,3 +1,4 @@
+// @ts-check
 // Phase 4: Finalize — extracted from layout.js
 // Handles: provenance, scene graph, connector endpoints, collision detection,
 // presentation validations, and final warnings.

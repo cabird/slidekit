@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Init Function & Configuration (M1.5)
 // Extracted from slidekit.js
 

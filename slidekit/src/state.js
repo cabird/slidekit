@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Centralized mutable state
 // Single exported state object replaces individual exports.
 

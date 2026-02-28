@@ -1,3 +1,4 @@
+// @ts-check
 // Compound Primitives — connect, panel, figure
 
 import { nextId } from './id.js';
@@ -18,16 +19,7 @@ import { resolveSpacing } from './spacing.js';
  *
  * @param {string} fromId - ID of the source element
  * @param {string} toId - ID of the target element
- * @param {object} [props={}] - Connector properties
- * @param {string} [props.type="straight"] - Line type: "straight", "curved", "elbow"
- * @param {string} [props.arrow="end"] - Arrow heads: "none", "start", "end", "both"
- * @param {string} [props.color="#ffffff"] - Line color
- * @param {number} [props.thickness=2] - Line thickness
- * @param {Array|null} [props.dash=null] - Dash array (e.g., [5, 5]) or null for solid
- * @param {string} [props.fromAnchor="cr"] - Anchor point on source element
- * @param {string} [props.toAnchor="cl"] - Anchor point on target element
- * @param {string} [props.label] - Optional label text
- * @param {object} [props.labelStyle] - Style for the label { size, color, font, weight }
+ * @param {Object} [props={}] - Connector properties
  * @returns {{ id: string, type: string, props: object }}
  */
 export function connect(fromId, toId, props = {}) {
@@ -93,13 +85,7 @@ export function getAnchorPoint(bounds, anchor) {
  * Children with w: "fill" resolve to panel.w - 2 * padding.
  *
  * @param {Array} children - Array of SlideKit elements
- * @param {object} [props={}] - Panel properties
- * @param {number} [props.x=0] - X position
- * @param {number} [props.y=0] - Y position
- * @param {number} [props.w] - Width
- * @param {number} [props.h] - Height (auto-computed from children if not specified)
- * @param {number|string} [props.padding=24] - Internal padding (px number or spacing token)
- * @param {number|string} [props.gap=16] - Gap between children (px number or spacing token)
+ * @param {Object} [props={}] - Panel properties
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function panel(children, props = {}) {
@@ -164,7 +150,9 @@ export function panel(children, props = {}) {
   const result = group([bgRect, childStack], groupProps);
 
   // Tag as a panel compound for layout pipeline integration
+  // @ts-ignore — extended properties on group return
   result._compound = "panel";
+  // @ts-ignore — extended properties on group return
   result._panelConfig = { padding, gap, panelW, panelH };
 
   return result;
@@ -182,22 +170,7 @@ export function panel(children, props = {}) {
  *   2. Image element (el with <img>, inset by containerPadding)
  *   3. Caption (optional el, positioned below the container)
  *
- * @param {object} opts - Figure configuration
- * @param {string} [opts.id] - Custom ID for the figure group
- * @param {string} opts.src - Image source URL
- * @param {number} [opts.x=0] - X position
- * @param {number} [opts.y=0] - Y position
- * @param {number} opts.w - Container width (required)
- * @param {number} opts.h - Container height (required for v1)
- * @param {string} [opts.anchor='tl'] - Anchor point
- * @param {string} [opts.layer='content'] - Layer name
- * @param {string} [opts.containerFill='transparent'] - Background fill color
- * @param {number} [opts.containerRadius=0] - Border radius in px
- * @param {number|string} [opts.containerPadding=0] - Padding (px or spacing token)
- * @param {string} [opts.caption] - Optional HTML caption string
- * @param {number|string} [opts.captionGap=0] - Gap between container and caption (px or spacing token)
- * @param {string} [opts.fit='contain'] - CSS object-fit for the image
- * @param {object} [opts.style={}] - Additional style for the group
+ * @param {Object} [opts={}] - Figure configuration
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function figure(opts = {}) {
@@ -261,7 +234,9 @@ export function figure(opts = {}) {
   });
 
   // Tag as a figure compound for layout pipeline integration
+  // @ts-ignore — extended properties on group return
   result._compound = 'figure';
+  // @ts-ignore — extended properties on group return
   result._figureConfig = { src, containerFill, containerRadius, containerPadding: padPx, captionGap: gapPx, fit };
 
   return result;

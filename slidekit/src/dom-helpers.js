@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Apply a style object to a DOM element, handling CSS custom properties.
  * @param {HTMLElement} domEl - The DOM element to style

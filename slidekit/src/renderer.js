@@ -1,3 +1,4 @@
+// @ts-check
 // =============================================================================
 // Renderer — DOM rendering from resolved scene graphs
 // =============================================================================
@@ -548,6 +549,7 @@ export async function render(slides, options = {}) {
 
   // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
   if (typeof window !== "undefined") {
+    // @ts-ignore — custom property on window for debugging
     window.sk = {
       layouts,
       slides: slides.map((s, i) => ({

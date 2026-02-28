@@ -1,3 +1,4 @@
+// @ts-check
 // Layout Solve Pipeline — orchestrator
 // Calls Phase 1 (intrinsics), Phase 2 (positions), Phase 2.5 (overflow),
 // Phase 3 (transforms), and Phase 4 (finalize).

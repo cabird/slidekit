@@ -1,3 +1,4 @@
+// @ts-check
 // Pure helper functions extracted from layout.js
 // This is a leaf module — no imports from other slidekit modules.
 

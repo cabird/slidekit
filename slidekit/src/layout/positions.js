@@ -1,3 +1,4 @@
+// @ts-check
 // Phase 2: Position resolution via topological sort
 // Extracted from layout.js
 

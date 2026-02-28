@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Spacing Tokens (P1.1)
 // Extracted from slidekit.js
 

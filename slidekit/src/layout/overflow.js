@@ -1,3 +1,4 @@
+// @ts-check
 // Overflow policy checking — extracted from layout.js (Phase 2.5)
 // Checks if content overflows elements with explicit height and applies overflow policies.
 

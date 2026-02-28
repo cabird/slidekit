@@ -1,3 +1,4 @@
+// @ts-check
 // =============================================================================
 // Core Element Model (M1.1)
 // =============================================================================
@@ -93,9 +94,7 @@ export function group(children, props = {}) {
  * based on the stack's origin and the children's measured sizes.
  *
  * @param {Array} items - Array of SlideKit elements (children)
- * @param {object} props - Positioning and layout properties
- * @param {number|string} [props.gap=0] - Gap between children (px number or spacing token)
- * @param {string} [props.align="left"] - Horizontal alignment: "left", "center", "right", "stretch"
+ * @param {Object} [props={}] - Positioning and layout properties
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function vstack(items, props = {}) {
@@ -116,9 +115,7 @@ export function vstack(items, props = {}) {
  * based on the stack's origin and the children's measured sizes.
  *
  * @param {Array} items - Array of SlideKit elements (children)
- * @param {object} props - Positioning and layout properties
- * @param {number|string} [props.gap=0] - Gap between children (px number or spacing token)
- * @param {string} [props.align="top"] - Vertical alignment: "top", "middle", "bottom", "stretch"
+ * @param {Object} [props={}] - Positioning and layout properties
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function hstack(items, props = {}) {
@@ -138,16 +135,7 @@ export function hstack(items, props = {}) {
  * equal height.  Rows are stacked vertically with the same gap.
  *
  * @param {Array} items - Array of SlideKit elements
- * @param {object} opts
- * @param {string}  [opts.id]        - Optional ID for the outer vstack
- * @param {number}  [opts.cols=2]    - Columns per row
- * @param {number|string} [opts.gap=0] - Gap between items (px or spacing token)
- * @param {number}  [opts.x=0]       - X position
- * @param {number}  [opts.y=0]       - Y position
- * @param {number}  [opts.w]         - Width
- * @param {string}  [opts.anchor]    - Anchor point
- * @param {string}  [opts.layer]     - Layer name
- * @param {object}  [opts.style]     - Style overrides
+ * @param {Object} [opts={}] - Grid options
  * @returns {{ id: string, type: string, children: Array, props: object }}
  */
 export function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer, style } = {}) {

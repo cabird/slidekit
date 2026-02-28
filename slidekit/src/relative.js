@@ -1,3 +1,4 @@
+// @ts-check
 // =============================================================================
 // Relative Positioning Helpers (M3.2)
 // =============================================================================
@@ -117,7 +118,7 @@ export function alignRightWith(refId) {
  * Center within a rectangle (e.g., safeRect()).
  *
  * @param {{ x: number, y: number, w: number, h: number }} rectParam - Rectangle to center within
- * @returns {{ x: { _rel: "centerIn", rect: object }, y: { _rel: "centerIn", rect: object } }}
+ * @returns {{ x: object, y: object }}
  */
 export function centerIn(rectParam) {
   const marker = { _rel: "centerIn", rect: rectParam };

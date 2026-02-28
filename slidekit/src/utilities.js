@@ -1,3 +1,4 @@
+// @ts-check
 // SlideKit — Utility functions: grid, snap, resolvePercentage, repeat, rotatedAABB
 // Extracted from slidekit.js
 
@@ -19,11 +20,8 @@ function deepClone(obj) {
 /**
  * Create a grid system for consistent alignment across slides.
  *
- * @param {object} config - Grid configuration
- * @param {number} config.cols - Number of columns
- * @param {number} [config.gutter=30] - Space between columns
- * @param {object} [config.margin] - Margins { left, right }. Defaults to safe zone margins.
- * @returns {{ col: function, spanW: function, colWidth: number, cols: number, gutter: number }}
+ * @param {Object} [config={}] - Grid configuration
+ * @returns {{ col: function, spanW: function, colWidth: number, cols: number, gutter: number, marginLeft: number, marginRight: number, totalWidth: number }}
  */
 export function grid(config = {}) {
   const cols = config.cols || 12;
@@ -157,19 +155,6 @@ export function resolvePercentage(value, axis) {
 // Repeat / Duplicate (M8.5)
 // =============================================================================
 
-/**
- * Create copies of an element laid out in a grid pattern.
- *
- * @param {object} element - A SlideKit element to duplicate
- * @param {object} config - Repeat configuration
- * @param {number} config.count - Number of copies to create
- * @param {number} [config.cols] - Number of columns (default = count, single row)
- * @param {number} [config.gapX=0] - Horizontal gap between copies
- * @param {number} [config.gapY=0] - Vertical gap between copies
- * @param {number} [config.startX=0] - Starting X position
- * @param {number} [config.startY=0] - Starting Y position
- * @returns {{ id: string, type: string, children: Array, props: object }} A group containing all copies
- */
 function _reIdChildren(el, suffix) {
   if (!el.children) return;
   for (const child of el.children) {
@@ -180,6 +165,19 @@ function _reIdChildren(el, suffix) {
   }
 }
 
+/**
+ * Create copies of an element laid out in a grid pattern.
+ *
+ * @param {object} element - A SlideKit element to duplicate
+ * @param {object} config - Repeat configuration
+ * @param {number} [config.count] - Number of copies to create
+ * @param {number} [config.cols] - Number of columns (default = count, single row)
+ * @param {number} [config.gapX=0] - Horizontal gap between copies
+ * @param {number} [config.gapY=0] - Vertical gap between copies
+ * @param {number} [config.startX=0] - Starting X position
+ * @param {number} [config.startY=0] - Starting Y position
+ * @returns {{ id: string, type: string, children: Array, props: object }} A group containing all copies
+ */
 export function repeat(element, config = {}) {
   const count = config.count || 1;
   const cols = config.cols ?? count; // default: single row
