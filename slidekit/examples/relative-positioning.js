@@ -1,9 +1,9 @@
 // relative-positioning.js — Elements positioned relative to each other
-// Demonstrates: below, rightOf, alignTopWith, centerHWith, alignLeftWith, centerIn
+// Demonstrates: el (v2 API), below, rightOf, alignTopWith, centerHWith, alignLeftWith, centerIn
 
 import {
   init, render, safeRect,
-  text, rect, rule,
+  el,
   below, rightOf, alignTopWith, centerHWith, alignLeftWith, centerIn,
 } from '../slidekit.js';
 
@@ -20,21 +20,20 @@ export async function run() {
     id: 'relative-pos',
     background: '#0c0c14',
     elements: [
-      text('Relative Positioning', {
+      el('<p style="font:700 52px Inter;color:#ffffff">Relative Positioning</p>', {
         id: 'heading',
         x: safe.x, y: safe.y, w: safe.w,
-        size: 52, weight: 700, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'heading-rule',
         x: safe.x, y: below('heading', { gap: 16 }),
-        w: 80,
-        color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // Anchor element — everything else is relative to this
-      rect({
+      el('', {
         id: 'anchor-box',
         x: 200, y: 300, w: 400, h: 200,
         style: {
@@ -44,16 +43,14 @@ export async function run() {
         },
       }),
 
-      text('Anchor Element', {
+      el('<p style="font:600 28px Inter;color:#ffffff;text-align:center">Anchor Element</p>', {
         id: 'anchor-label',
         ...centerIn({ x: 200, y: 300, w: 400, h: 200 }),
         w: 360,
-        size: 28, weight: 600, color: '#ffffff',
-        align: 'center',
       }),
 
       // Below the anchor box with a 24px gap
-      rect({
+      el('', {
         id: 'below-box',
         x: 200, y: below('anchor-box', { gap: 24 }),
         w: 400, h: 120,
@@ -64,15 +61,14 @@ export async function run() {
         },
       }),
 
-      text('below("anchor-box", { gap: 24 })', {
+      el('<p style="font:400 18px Inter;color:rgba(255,255,255,0.7)">below("anchor-box", { gap: 24 })</p>', {
         id: 'below-label',
         x: 220, y: below('anchor-box', { gap: 50 }),
         w: 360,
-        size: 18, color: 'rgba(255,255,255,0.7)',
       }),
 
       // To the right of the anchor box
-      rect({
+      el('', {
         id: 'right-box',
         x: rightOf('anchor-box', { gap: 40 }),
         y: alignTopWith('anchor-box'),
@@ -84,16 +80,15 @@ export async function run() {
         },
       }),
 
-      text('rightOf + alignTopWith', {
+      el('<p style="font:400 18px Inter;color:rgba(255,255,255,0.7)">rightOf + alignTopWith</p>', {
         id: 'right-label',
         x: rightOf('anchor-box', { gap: 60 }),
         y: below('right-box', { gap: 12 }),
         w: 300,
-        size: 18, color: 'rgba(255,255,255,0.7)',
       }),
 
       // Centered horizontally with the anchor box, further down
-      rect({
+      el('', {
         id: 'centered-box',
         x: centerHWith('anchor-box'),
         y: below('below-box', { gap: 40 }),
@@ -106,18 +101,16 @@ export async function run() {
         },
       }),
 
-      text('centerHWith("anchor-box")', {
+      el('<p style="font:400 18px Inter;color:rgba(255,255,255,0.7);text-align:center">centerHWith("anchor-box")</p>', {
         id: 'centered-label',
         x: centerHWith('anchor-box'),
         y: below('centered-box', { gap: 12 }),
         w: 300,
         anchor: 'tc',
-        size: 18, color: 'rgba(255,255,255,0.7)',
-        align: 'center',
       }),
 
       // Right side: explanation panel
-      rect({
+      el('', {
         id: 'info-panel',
         x: 1100, y: 300, w: 650, h: 500,
         style: {
@@ -127,24 +120,22 @@ export async function run() {
         },
       }),
 
-      text('How It Works', {
+      el('<p style="font:600 28px Inter;color:#ffffff">How It Works</p>', {
         id: 'info-title',
         x: 1140, y: 330, w: 570,
-        size: 28, weight: 600, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'info-rule',
         x: 1140, y: below('info-title', { gap: 12 }),
-        w: 60, color: '#7c5cbf', thickness: 2,
+        w: 60, h: 2,
+        style: { background: '#7c5cbf' },
       }),
 
-      text('Relative positioning helpers return deferred markers that are resolved during layout(). The library builds a dependency graph and uses topological sort to resolve positions in the correct order.\n\nCircular dependencies are detected and reported as errors.', {
+      el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.6)">Relative positioning helpers return deferred markers that are resolved during layout(). The library builds a dependency graph and uses topological sort to resolve positions in the correct order.<br><br>Circular dependencies are detected and reported as errors.</p>', {
         id: 'info-desc',
         x: 1140, y: below('info-rule', { gap: 16 }),
         w: 570,
-        size: 20, color: 'rgba(255,255,255,0.6)',
-        lineHeight: 1.5,
       }),
     ],
   }];

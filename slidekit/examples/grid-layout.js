@@ -1,9 +1,9 @@
 // grid-layout.js — Using the grid system for consistent positioning
-// Demonstrates: grid(), col(), spanW(), snap(), text, rect
+// Demonstrates: grid(), col(), spanW(), snap(), el
 
 import {
   init, render, safeRect,
-  text, rect, rule,
+  el,
   below, grid, snap,
 } from '../slidekit.js';
 
@@ -23,22 +23,22 @@ export async function run() {
     id: 'grid-layout',
     background: '#0c0c14',
     elements: [
-      // Heading spanning columns 1–8
-      text('Grid System', {
+      // Heading spanning columns 1-8
+      el('<p style="font:700 52px Inter;color:#fff">Grid System</p>', {
         id: 'heading',
         x: g.col(1), y: safe.y, w: g.spanW(1, 8),
-        size: 52, weight: 700, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'heading-rule',
         x: g.col(1), y: below('heading', { gap: 16 }),
-        w: 80, color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // Visualize the 12-column grid (background guides)
       ...Array.from({ length: 12 }, (_, i) =>
-        rect({
+        el('', {
           id: `grid-col-${i + 1}`,
           x: g.col(i + 1), y: 240, w: g.colWidth, h: 780,
           layer: 'bg',
@@ -50,8 +50,8 @@ export async function run() {
         })
       ),
 
-      // Content block: columns 1–4
-      rect({
+      // Content block: columns 1-4
+      el('', {
         id: 'block-1',
         x: g.col(1), y: 280, w: g.spanW(1, 4), h: 250,
         style: {
@@ -60,20 +60,18 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Columns 1–4', {
+      el('<p style="font:600 24px Inter;color:#fff">Columns 1&ndash;4</p>', {
         id: 'block-1-label',
         x: g.col(1) + 20, y: 300, w: g.spanW(1, 4) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
-      text(`x: ${g.col(1)}, w: ${g.spanW(1, 4)}`, {
+      el(`<p style="font:18px Inter;color:rgba(255,255,255,0.5)">x: ${g.col(1)}, w: ${g.spanW(1, 4)}</p>`, {
         id: 'block-1-coords',
         x: g.col(1) + 20, y: below('block-1-label', { gap: 8 }),
         w: g.spanW(1, 4) - 40,
-        size: 18, color: 'rgba(255,255,255,0.5)',
       }),
 
-      // Content block: columns 5–8
-      rect({
+      // Content block: columns 5-8
+      el('', {
         id: 'block-2',
         x: g.col(5), y: 280, w: g.spanW(5, 8), h: 250,
         style: {
@@ -82,20 +80,18 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Columns 5–8', {
+      el('<p style="font:600 24px Inter;color:#fff">Columns 5&ndash;8</p>', {
         id: 'block-2-label',
         x: g.col(5) + 20, y: 300, w: g.spanW(5, 8) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
-      text(`x: ${g.col(5)}, w: ${g.spanW(5, 8)}`, {
+      el(`<p style="font:18px Inter;color:rgba(255,255,255,0.5)">x: ${g.col(5)}, w: ${g.spanW(5, 8)}</p>`, {
         id: 'block-2-coords',
         x: g.col(5) + 20, y: below('block-2-label', { gap: 8 }),
         w: g.spanW(5, 8) - 40,
-        size: 18, color: 'rgba(255,255,255,0.5)',
       }),
 
-      // Content block: columns 9–12
-      rect({
+      // Content block: columns 9-12
+      el('', {
         id: 'block-3',
         x: g.col(9), y: 280, w: g.spanW(9, 12), h: 250,
         style: {
@@ -104,20 +100,18 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Columns 9–12', {
+      el('<p style="font:600 24px Inter;color:#fff">Columns 9&ndash;12</p>', {
         id: 'block-3-label',
         x: g.col(9) + 20, y: 300, w: g.spanW(9, 12) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
-      text(`x: ${g.col(9)}, w: ${g.spanW(9, 12)}`, {
+      el(`<p style="font:18px Inter;color:rgba(255,255,255,0.5)">x: ${g.col(9)}, w: ${g.spanW(9, 12)}</p>`, {
         id: 'block-3-coords',
         x: g.col(9) + 20, y: below('block-3-label', { gap: 8 }),
         w: g.spanW(9, 12) - 40,
-        size: 18, color: 'rgba(255,255,255,0.5)',
       }),
 
-      // Full-width block: columns 1–12
-      rect({
+      // Full-width block: columns 1-12
+      el('', {
         id: 'block-full',
         x: g.col(1), y: 570, w: g.spanW(1, 12), h: 120,
         style: {
@@ -126,14 +120,13 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Full width: columns 1–12', {
+      el('<p style="font:600 24px Inter;color:#fff">Full width: columns 1&ndash;12</p>', {
         id: 'block-full-label',
         x: g.col(1) + 20, y: 590, w: g.spanW(1, 12) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
 
-      // Two halves: 1–6 and 7–12
-      rect({
+      // Two halves: 1-6 and 7-12
+      el('', {
         id: 'half-left',
         x: g.col(1), y: 730, w: g.spanW(1, 6), h: 120,
         style: {
@@ -142,13 +135,12 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Left half: 1–6', {
+      el('<p style="font:600 24px Inter;color:#fff">Left half: 1&ndash;6</p>', {
         id: 'half-left-label',
         x: g.col(1) + 20, y: 750, w: g.spanW(1, 6) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
 
-      rect({
+      el('', {
         id: 'half-right',
         x: g.col(7), y: 730, w: g.spanW(7, 12), h: 120,
         style: {
@@ -157,17 +149,15 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('Right half: 7–12', {
+      el('<p style="font:600 24px Inter;color:#fff">Right half: 7&ndash;12</p>', {
         id: 'half-right-label',
         x: g.col(7) + 20, y: 750, w: g.spanW(7, 12) - 40,
-        size: 24, weight: 600, color: '#ffffff',
       }),
 
       // Grid config info
-      text(`Grid: ${g.cols} cols, ${g.gutter}px gutter, colWidth: ${g.colWidth}px | snap(157, 10) = ${snap(157, 10)}`, {
+      el(`<p style="font:20px Inter;color:rgba(255,255,255,0.4)">Grid: ${g.cols} cols, ${g.gutter}px gutter, colWidth: ${g.colWidth}px | snap(157, 10) = ${snap(157, 10)}</p>`, {
         id: 'grid-info',
         x: g.col(1), y: 900, w: g.spanW(1, 12),
-        size: 20, color: 'rgba(255,255,255,0.4)',
       }),
     ],
   }];

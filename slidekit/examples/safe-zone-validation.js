@@ -3,7 +3,7 @@
 
 import {
   init, render, layout, safeRect,
-  text, rect, rule,
+  el,
   below,
 } from '../slidekit.js';
 
@@ -20,20 +20,20 @@ export async function run() {
     id: 'validation',
     background: '#0c0c14',
     elements: [
-      text('Layout Validation', {
+      el('<p style="font:700 52px Inter;color:#fff">Layout Validation</p>', {
         id: 'heading',
         x: safe.x, y: safe.y, w: safe.w,
-        size: 52, weight: 700, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'heading-rule',
         x: safe.x, y: below('heading', { gap: 16 }),
-        w: 80, color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // --- Properly placed element (inside safe zone) ---
-      rect({
+      el('', {
         id: 'safe-element',
         x: safe.x, y: 280, w: 500, h: 200,
         style: {
@@ -42,19 +42,17 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('✓ Inside safe zone', {
+      el('<p style="font:600 24px Inter;color:#34a853">&#x2713; Inside safe zone</p>', {
         id: 'safe-label',
         x: safe.x + 20, y: 310, w: 460,
-        size: 24, weight: 600, color: '#34a853',
       }),
-      text('This element is fully within the safe margins. No warnings generated.', {
+      el('<p style="font:18px Inter;color:rgba(255,255,255,0.6);line-height:1.4">This element is fully within the safe margins. No warnings generated.</p>', {
         id: 'safe-desc',
         x: safe.x + 20, y: below('safe-label', { gap: 8 }), w: 460,
-        size: 18, color: 'rgba(255,255,255,0.6)', lineHeight: 1.4,
       }),
 
       // --- Element partially outside safe zone (triggers warning) ---
-      rect({
+      el('', {
         id: 'warn-element',
         x: 30, y: 280, w: 200, h: 200,
         style: {
@@ -63,14 +61,13 @@ export async function run() {
           borderRadius: '12px',
         },
       }),
-      text('⚠ Partially outside', {
+      el('<p style="font:600 18px Inter;color:#fbbc04">&#x26A0; Partially outside</p>', {
         id: 'warn-label',
         x: 50, y: 310, w: 160,
-        size: 18, weight: 600, color: '#fbbc04',
       }),
 
       // --- Element near slide edge (may trigger bounds warning) ---
-      rect({
+      el('', {
         id: 'edge-element',
         x: 1870, y: 500, w: 100, h: 100,
         style: {
@@ -81,14 +78,13 @@ export async function run() {
       }),
 
       // --- Small text (triggers font size warning) ---
-      text('This text is below the minimum font size threshold', {
+      el('<p style="font-size:16px;font-family:Inter;color:rgba(255,255,255,0.5)">This text is below the minimum font size threshold</p>', {
         id: 'small-text',
         x: safe.x, y: 550, w: 500,
-        size: 16, color: 'rgba(255,255,255,0.5)',
       }),
 
       // --- Safe zone visualization ---
-      rect({
+      el('', {
         id: 'safe-zone-viz',
         x: safe.x, y: safe.y, w: safe.w, h: safe.h,
         layer: 'bg',
@@ -99,7 +95,7 @@ export async function run() {
       }),
 
       // Info panel on the right
-      rect({
+      el('', {
         id: 'info-panel',
         x: 1100, y: 280, w: 650, h: 500,
         style: {
@@ -109,24 +105,22 @@ export async function run() {
         },
       }),
 
-      text('Validation System', {
+      el('<p style="font:600 28px Inter;color:#fff">Validation System</p>', {
         id: 'info-title',
         x: 1140, y: 310, w: 570,
-        size: 28, weight: 600, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'info-rule',
         x: 1140, y: below('info-title', { gap: 12 }),
-        w: 60, color: '#7c5cbf', thickness: 2,
+        w: 60, h: 2,
+        style: { background: '#7c5cbf' },
       }),
 
-      text('layout() returns structured validation data:\n\n• warnings — safe zone violations, small fonts, clustering\n• errors — off-slide elements, circular deps (strict mode)\n• collisions — overlapping elements with overlap area\n\nThe safeRect() helper provides the usable content area. Check console for this slide\'s validation output.', {
+      el('<p style="font:20px Inter;color:rgba(255,255,255,0.6);line-height:1.5">layout() returns structured validation data:<br><br>&bull; warnings &mdash; safe zone violations, small fonts, clustering<br>&bull; errors &mdash; off-slide elements, circular deps (strict mode)<br>&bull; collisions &mdash; overlapping elements with overlap area<br><br>The safeRect() helper provides the usable content area. Check console for this slide\'s validation output.</p>', {
         id: 'info-desc',
         x: 1140, y: below('info-rule', { gap: 16 }),
         w: 570,
-        size: 20, color: 'rgba(255,255,255,0.6)',
-        lineHeight: 1.5,
       }),
     ],
   };

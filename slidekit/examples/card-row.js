@@ -1,9 +1,9 @@
 // card-row.js — Horizontal row of styled cards with equal sizing
-// Demonstrates: hstack, rect, text, panel, style, className, below
+// Demonstrates: hstack, el (v2 API), panel, style, className, below
 
 import {
   init, render, safeRect,
-  text, rect, rule,
+  el,
   below, hstack, panel,
 } from '../slidekit.js';
 
@@ -21,26 +21,25 @@ export async function run() {
     background: '#0c0c14',
     elements: [
       // Section heading
-      text('Three Approaches', {
+      el('<p style="font:700 52px Inter;color:#ffffff">Three Approaches</p>', {
         id: 'heading',
         x: safe.x, y: safe.y, w: safe.w,
-        size: 52, weight: 700, color: '#ffffff',
       }),
 
-      rule({
+      el('', {
         id: 'heading-rule',
         x: safe.x, y: below('heading', { gap: 16 }),
-        w: 80,
-        color: '#7c5cbf', thickness: 3,
+        w: 80, h: 3,
+        style: { background: '#7c5cbf' },
       }),
 
       // Three equal-width panels in a horizontal stack
       hstack([
         panel([
-          text('Declarative', { w: 'fill', size: 28, weight: 600, color: '#ffffff' }),
-          rule({ w: 'fill', color: 'rgba(255,255,255,0.15)', thickness: 1 }),
-          text('Define what you want, not how to get there. Coordinates are explicit and deterministic.', {
-            w: 'fill', size: 20, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5,
+          el('<p style="font:600 28px Inter;color:#ffffff">Declarative</p>', { w: 'fill' }),
+          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Define what you want, not how to get there. Coordinates are explicit and deterministic.</p>', {
+            w: 'fill',
           }),
         ], {
           id: 'card-1',
@@ -55,10 +54,10 @@ export async function run() {
         }),
 
         panel([
-          text('Measurable', { w: 'fill', size: 28, weight: 600, color: '#ffffff' }),
-          rule({ w: 'fill', color: 'rgba(255,255,255,0.15)', thickness: 1 }),
-          text('Text is measured before placement. Auto-fitting eliminates guesswork for font sizing.', {
-            w: 'fill', size: 20, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5,
+          el('<p style="font:600 28px Inter;color:#ffffff">Measurable</p>', { w: 'fill' }),
+          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Text is measured before placement. Auto-fitting eliminates guesswork for font sizing.</p>', {
+            w: 'fill',
           }),
         ], {
           id: 'card-2',
@@ -73,10 +72,10 @@ export async function run() {
         }),
 
         panel([
-          text('Validated', { w: 'fill', size: 28, weight: 600, color: '#ffffff' }),
-          rule({ w: 'fill', color: 'rgba(255,255,255,0.15)', thickness: 1 }),
-          text('Overlap detection, safe zone checks, and font size validation happen automatically.', {
-            w: 'fill', size: 20, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5,
+          el('<p style="font:600 28px Inter;color:#ffffff">Validated</p>', { w: 'fill' }),
+          el('', { w: 'fill', h: 1, style: { background: 'rgba(255,255,255,0.15)' } }),
+          el('<p style="font:400 20px/1.5 Inter;color:rgba(255,255,255,0.65)">Overlap detection, safe zone checks, and font size validation happen automatically.</p>', {
+            w: 'fill',
           }),
         ], {
           id: 'card-3',
