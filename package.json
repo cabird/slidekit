@@ -1,12 +1,15 @@
 {
   "scripts": {
-    "lint": "eslint slidekit/src/",
-    "typecheck": "tsc --noEmit"
+    "dev": "esbuild slidekit/slidekit.js --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap --watch",
+    "build": "esbuild slidekit/slidekit.js --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap --minify",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint slidekit/src/"
   },
   "dependencies": {
     "playwright": "^1.58.2"
   },
   "devDependencies": {
+    "esbuild": "^0.27.3",
     "eslint": "^9.39.3",
     "eslint-plugin-import": "^2.32.0",
     "typescript": "^5.9.3"

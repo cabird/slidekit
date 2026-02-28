@@ -5,3 +5,4 @@ screenshots/
 scene-model-data.json
 package.json
 package-lock.json
+slidekit/dist/
