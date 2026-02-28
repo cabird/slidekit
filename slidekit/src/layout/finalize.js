@@ -2,7 +2,7 @@
 // Handles: provenance, scene graph, connector endpoints, collision detection,
 // presentation validations, and final warnings.
 
-import { _config, _safeRectCache } from '../state.js';
+import { state } from '../state.js';
 import { getAnchorPoint } from '../compounds.js';
 import { rotatedAABB } from '../utilities.js';
 import { buildProvenance, computeAABBIntersection } from './helpers.js';
@@ -341,14 +341,14 @@ export function finalize({
   // Presentation-Specific Validations (M4.3)
   // =========================================================================
 
-  const cfg = _config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
+  const cfg = state.config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
   const slideW = cfg.slide?.w ?? 1920;
   const slideH = cfg.slide?.h ?? 1080;
   const isStrict = cfg.strict === true;
   const minFontSizeThreshold = cfg.minFontSize ?? 24;
 
   // Safe zone check
-  const sr = _safeRectCache;
+  const sr = state.safeRectCache;
   if (sr) {
     for (const id of sortedOrder) {
       const el = flatMap.get(id);

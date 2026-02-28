@@ -2,17 +2,15 @@
 // Alignment, Distribution & Size Matching Transforms (M6)
 // =============================================================================
 
-import {
-  _transformIdCounter, set_transformIdCounter,
-} from './state.js';
+import { state } from './state.js';
 
 /**
  * Transform ID counter — auto-generates unique IDs for transforms.
  * Reset when the layout pipeline runs so transforms are deterministic.
  */
 export function nextTransformId() {
-  set_transformIdCounter(_transformIdCounter + 1);
-  return `transform-${_transformIdCounter}`;
+  state.transformIdCounter += 1;
+  return `transform-${state.transformIdCounter}`;
 }
 
 /**

@@ -1,9 +1,6 @@
 // SlideKit — Measurement utilities (container management, HTML measurement)
 
-import {
-  _measureContainer, set_measureContainer,
-  _measureCache, set_measureCache,
-} from './state.js';
+import { state } from './state.js';
 
 import { _baselineCSS } from './style.js';
 import { filterStyle } from './style.js';
@@ -21,7 +18,7 @@ import { applyStyleToDOM } from './dom-helpers.js';
  * to the slidekit-layer base settings so measurements match rendering.
  */
 export function _ensureMeasureContainer() {
-  if (_measureContainer && _measureContainer.parentNode) return;
+  if (state.measureContainer && state.measureContainer.parentNode) return;
 
   if (typeof document === "undefined" || !document.body) {
     throw new Error(
@@ -29,30 +26,30 @@ export function _ensureMeasureContainer() {
     );
   }
 
-  set_measureContainer(document.createElement("div"));
-  _measureContainer.style.position = "absolute";
-  _measureContainer.style.left = "-9999px";
-  _measureContainer.style.top = "-9999px";
-  _measureContainer.style.visibility = "hidden";
+  state.measureContainer = document.createElement("div");
+  state.measureContainer.style.position = "absolute";
+  state.measureContainer.style.left = "-9999px";
+  state.measureContainer.style.top = "-9999px";
+  state.measureContainer.style.visibility = "hidden";
   // Prevent scrolling or interaction
-  _measureContainer.style.overflow = "hidden";
-  _measureContainer.style.pointerEvents = "none";
+  state.measureContainer.style.overflow = "hidden";
+  state.measureContainer.style.pointerEvents = "none";
   // No max dimensions — let content determine size
-  _measureContainer.setAttribute("data-sk-role", "measure-container");
+  state.measureContainer.setAttribute("data-sk-role", "measure-container");
 
   // Baseline CSS for measurement — identical to render-time baseline
   const baselineStyle = document.createElement("style");
   baselineStyle.textContent = _baselineCSS("[data-sk-measure]");
-  _measureContainer.appendChild(baselineStyle);
+  state.measureContainer.appendChild(baselineStyle);
 
-  document.body.appendChild(_measureContainer);
+  document.body.appendChild(state.measureContainer);
 }
 
 /**
  * Clear the measurement cache. Useful when fonts are loaded or for testing.
  */
 export function clearMeasureCache() {
-  _measureCache.clear();
+  state.measureCache.clear();
 }
 
 // =============================================================================
@@ -84,8 +81,8 @@ function _elMeasureCacheKey(html, props) {
 export async function measure(html, props = {}) {
   // Check cache first
   const cacheKey = _elMeasureCacheKey(html, props);
-  if (_measureCache.has(cacheKey)) {
-    return _measureCache.get(cacheKey);
+  if (state.measureCache.has(cacheKey)) {
+    return state.measureCache.get(cacheKey);
   }
 
   _ensureMeasureContainer();
@@ -106,7 +103,7 @@ export async function measure(html, props = {}) {
   div.innerHTML = html;
 
   // Append to DOM (required for images to start loading and layout to compute)
-  _measureContainer.appendChild(div);
+  state.measureContainer.appendChild(div);
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");
@@ -125,10 +122,10 @@ export async function measure(html, props = {}) {
 
   // Read dimensions
   const result = { w: div.offsetWidth, h: div.scrollHeight };
-  _measureContainer.removeChild(div);
+  state.measureContainer.removeChild(div);
 
   // Cache result
-  _measureCache.set(cacheKey, result);
+  state.measureCache.set(cacheKey, result);
 
   return result;
 }

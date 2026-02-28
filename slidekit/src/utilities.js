@@ -1,7 +1,7 @@
 // SlideKit — Utility functions: grid, snap, resolvePercentage, repeat, rotatedAABB
 // Extracted from slidekit.js
 
-import { _config, _safeRectCache } from './state.js';
+import { state } from './state.js';
 import { resolveSpacing } from './spacing.js';
 import { group } from './elements.js';
 
@@ -34,15 +34,15 @@ export function grid(config = {}) {
   if (config.margin) {
     marginLeft = config.margin.left ?? 120;
     marginRight = config.margin.right ?? 120;
-  } else if (_safeRectCache) {
-    marginLeft = _safeRectCache.x;
-    marginRight = (_config?.slide?.w ?? 1920) - (_safeRectCache.x + _safeRectCache.w);
+  } else if (state.safeRectCache) {
+    marginLeft = state.safeRectCache.x;
+    marginRight = (state.config?.slide?.w ?? 1920) - (state.safeRectCache.x + state.safeRectCache.w);
   } else {
     marginLeft = 120;
     marginRight = 120;
   }
 
-  const totalWidth = (_config?.slide?.w ?? 1920) - marginLeft - marginRight;
+  const totalWidth = (state.config?.slide?.w ?? 1920) - marginLeft - marginRight;
   const totalGutters = (cols - 1) * gutter;
   const colWidth = (totalWidth - totalGutters) / cols;
 
@@ -123,9 +123,9 @@ export function snap(value, gridSize) {
 export function resolvePercentage(value, axis) {
   if (typeof value !== "string") return value;
 
-  const slideW = _config?.slide?.w ?? 1920;
-  const slideH = _config?.slide?.h ?? 1080;
-  const sr = _safeRectCache || { x: 120, y: 90, w: 1680, h: 900 };
+  const slideW = state.config?.slide?.w ?? 1920;
+  const slideH = state.config?.slide?.h ?? 1080;
+  const sr = state.safeRectCache || { x: 120, y: 90, w: 1680, h: 900 };
 
   // Check for safe-zone-relative: "safe:N%"
   const safeMatch = value.match(/^safe:\s*([0-9.]+)%$/);

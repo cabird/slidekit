@@ -2,7 +2,7 @@
 // Calls Phase 1 (intrinsics), Phase 2 (positions), Phase 2.5 (overflow),
 // Phase 3 (transforms), and Phase 4 (finalize).
 
-import { set_transformIdCounter } from '../state.js';
+import { state } from '../state.js';
 import { nextTransformId, applyTransform } from '../transforms.js';
 
 import { deepClone, flattenElements } from './helpers.js';
@@ -80,7 +80,7 @@ export async function layout(slideDefinition, options = {}) {
   // Process each transform in order, modifying resolved positions/sizes.
   // After applying a transform, update provenance to source: "transform".
   // Reset the transform ID counter for deterministic IDs.
-  set_transformIdCounter(0);
+  state.transformIdCounter = 0;
 
   // Re-assign transform IDs deterministically for this layout call
   const resolvedTransforms = [];

@@ -1,16 +1,7 @@
 // SlideKit — Init Function & Configuration (M1.5)
 // Extracted from slidekit.js
 
-import {
-  _config, set_config,
-  _safeRectCache, set_safeRectCache,
-  _loadedFonts, set_loadedFonts,
-  _measureContainer, set_measureContainer,
-  _measureCache, set_measureCache,
-  _fontWarnings, set_fontWarnings,
-  _injectedFontLinks, set_injectedFontLinks,
-  _transformIdCounter, set_transformIdCounter,
-} from './state.js';
+import { state } from './state.js';
 
 import { DEFAULT_SPACING, resolveSpacing } from './spacing.js';
 import { resetIdCounter } from './id.js';
@@ -40,18 +31,18 @@ export const DEFAULT_CONFIG = {
  * @returns {Promise<object>} Resolves with the config when ready
  */
 export async function init(config = {}) {
-  set_config({
+  state.config = {
     slide: { ...DEFAULT_CONFIG.slide, ...(config.slide || {}) },
     safeZone: { ...DEFAULT_CONFIG.safeZone, ...(config.safeZone || {}) },
     strict: config.strict !== undefined ? config.strict : DEFAULT_CONFIG.strict,
     minFontSize: config.minFontSize !== undefined ? config.minFontSize : DEFAULT_CONFIG.minFontSize,
     fonts: config.fonts || DEFAULT_CONFIG.fonts,
     spacing: { ...DEFAULT_SPACING, ...(config.spacing || {}) },
-  });
+  };
 
   // Compute and cache the safe rectangle
-  const sz = _config.safeZone;
-  const sl = _config.slide;
+  const sz = state.config.safeZone;
+  const sl = state.config.slide;
   const safeW = sl.w - sz.left - sz.right;
   const safeH = sl.h - sz.top - sz.bottom;
   if (safeW <= 0 || safeH <= 0) {
@@ -60,24 +51,24 @@ export async function init(config = {}) {
       `Check slide dimensions (${sl.w}x${sl.h}) and safeZone margins.`
     );
   }
-  set_safeRectCache({
+  state.safeRectCache = {
     x: sz.left,
     y: sz.top,
     w: safeW,
     h: safeH,
-  });
+  };
 
   // Reset font state
-  set_loadedFonts(new Set());
-  set_fontWarnings([]);
-  set_measureCache(new Map());
+  state.loadedFonts = new Set();
+  state.fontWarnings = [];
+  state.measureCache = new Map();
 
   // M2.1: Font Preloading
-  if (_config.fonts.length > 0) {
-    await _loadFonts(_config.fonts);
+  if (state.config.fonts.length > 0) {
+    await _loadFonts(state.config.fonts);
   }
 
-  return _config;
+  return state.config;
 }
 
 /**
@@ -146,14 +137,14 @@ async function _loadSingleFont(fontString, key, testString, timeoutMs) {
 
     // If we got a result (array of FontFace), check if it's non-empty
     if (Array.isArray(loadResult) && loadResult.length > 0) {
-      _loadedFonts.add(key);
+      state.loadedFonts.add(key);
     } else {
       // Font load returned empty — the font may not exist or hasn't been registered
       // Still add it if document.fonts.check passes
       if (document.fonts.check(fontString, testString)) {
-        _loadedFonts.add(key);
+        state.loadedFonts.add(key);
       } else {
-        _fontWarnings.push({
+        state.fontWarnings.push({
           type: "font_load_failed",
           font: key,
           message: `Font "${key}" could not be loaded. Falling back to system font.`,
@@ -162,7 +153,7 @@ async function _loadSingleFont(fontString, key, testString, timeoutMs) {
     }
   } catch (err) {
     // Timeout or other error
-    _fontWarnings.push({
+    state.fontWarnings.push({
       type: "font_load_timeout",
       font: key,
       message: `Font "${key}" failed to load within timeout. Falling back to system font.`,
@@ -188,7 +179,7 @@ function _injectGoogleFontLink(fontDef) {
   link.rel = "stylesheet";
   link.href = href;
   document.head.appendChild(link);
-  _injectedFontLinks.add(link);
+  state.injectedFontLinks.add(link);
 }
 
 /**
@@ -199,7 +190,7 @@ function _injectGoogleFontLink(fontDef) {
  * @returns {boolean}
  */
 export function isFontLoaded(family, weight = 400) {
-  return _loadedFonts.has(`${family}:${weight}`);
+  return state.loadedFonts.has(`${family}:${weight}`);
 }
 
 /**
@@ -208,7 +199,7 @@ export function isFontLoaded(family, weight = 400) {
  * @returns {Array} Array of warning objects
  */
 export function getFontWarnings() {
-  return [..._fontWarnings];
+  return [...state.fontWarnings];
 }
 
 /**
@@ -217,10 +208,10 @@ export function getFontWarnings() {
  * @returns {{ x: number, y: number, w: number, h: number }}
  */
 export function safeRect() {
-  if (!_safeRectCache) {
+  if (!state.safeRectCache) {
     throw new Error("SlideKit.init() must be called before safeRect()");
   }
-  return { ..._safeRectCache };
+  return { ...state.safeRectCache };
 }
 
 /**
@@ -250,9 +241,9 @@ export function splitRect(rect, { ratio = 0.5, gap = 0 } = {}) {
  * @returns {object|null}
  */
 export function getConfig() {
-  if (!_config) return null;
+  if (!state.config) return null;
   // Deep copy to prevent external mutation of internal state
-  return JSON.parse(JSON.stringify(_config));
+  return JSON.parse(JSON.stringify(state.config));
 }
 
 /**
@@ -260,21 +251,21 @@ export function getConfig() {
  * pre-init behavior and ensures test isolation.
  */
 export function _resetForTests() {
-  set_config(null);
-  set_safeRectCache(null);
+  state.config = null;
+  state.safeRectCache = null;
   resetIdCounter();
-  set_transformIdCounter(0);
-  set_loadedFonts(new Set());
-  set_fontWarnings([]);
-  set_measureCache(new Map());
+  state.transformIdCounter = 0;
+  state.loadedFonts = new Set();
+  state.fontWarnings = [];
+  state.measureCache = new Map();
   // Remove measurement container from DOM if it exists
-  if (_measureContainer && _measureContainer.parentNode) {
-    _measureContainer.parentNode.removeChild(_measureContainer);
+  if (state.measureContainer && state.measureContainer.parentNode) {
+    state.measureContainer.parentNode.removeChild(state.measureContainer);
   }
-  set_measureContainer(null);
+  state.measureContainer = null;
   // Remove injected Google Font link elements
-  for (const link of _injectedFontLinks) {
+  for (const link of state.injectedFontLinks) {
     if (link.parentNode) link.parentNode.removeChild(link);
   }
-  set_injectedFontLinks(new Set());
+  state.injectedFontLinks = new Set();
 }

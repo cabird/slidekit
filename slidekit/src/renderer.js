@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { resetIdCounter } from './id.js';
-import { _config } from './state.js';
+import { state } from './state.js';
 import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
@@ -555,7 +555,7 @@ export async function render(slides, options = {}) {
         layout: layouts[i],
       })),
       // M8.1: Expose config for debug overlay to read safe zone info
-      _config: _config ? JSON.parse(JSON.stringify(_config)) : null,
+      _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
     };
   }
 

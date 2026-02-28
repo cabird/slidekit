@@ -1,7 +1,7 @@
 // SlideKit — Spacing Tokens (P1.1)
 // Extracted from slidekit.js
 
-import { _config } from './state.js';
+import { state } from './state.js';
 
 /**
  * Built-in spacing scale (named tokens → pixel values).
@@ -32,7 +32,7 @@ export const DEFAULT_SPACING = {
 export function resolveSpacing(value) {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
-    const scale = _config?.spacing || DEFAULT_SPACING;
+    const scale = state.config?.spacing || DEFAULT_SPACING;
     if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value];
     const available = Object.keys(scale).join(', ');
     throw new Error(`Unknown spacing token "${value}". Available tokens: ${available}`);
