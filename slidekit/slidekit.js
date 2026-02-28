@@ -1,25 +1,35 @@
 // SlideKit — Coordinate-Based Slide Layout Library
 // ES Module — all exports are named
 
+import {
+  _idCounter, set_idCounter,
+  _config, set_config,
+  _safeRectCache, set_safeRectCache,
+  _loadedFonts, set_loadedFonts,
+  _measureContainer, set_measureContainer,
+  _measureCache, set_measureCache,
+  _fontWarnings, set_fontWarnings,
+  _injectedFontLinks, set_injectedFontLinks,
+  _transformIdCounter, set_transformIdCounter,
+} from './src/state.js';
+
 // =============================================================================
 // ID Generation (M1.1)
 // =============================================================================
-
-let _idCounter = 0;
 
 /**
  * Reset the auto-ID counter. Called at the start of each layout()/render() call
  * to ensure deterministic IDs for the same slide definition.
  */
 export function resetIdCounter() {
-  _idCounter = 0;
+  set_idCounter(0);
 }
 
 /**
  * Generate the next auto ID: sk-1, sk-2, ...
  */
 function nextId() {
-  _idCounter += 1;
+  set_idCounter(_idCounter + 1);
   return `sk-${_idCounter}`;
 }
 
@@ -517,43 +527,7 @@ ${prefix} table {
 // Init Function & Configuration (M1.5)
 // =============================================================================
 
-/**
- * Internal configuration state.
- */
-let _config = null;
-let _safeRectCache = null;
-
-// =============================================================================
-// Font Loading & Text Measurement State (M2)
-// =============================================================================
-
-/**
- * Set of successfully loaded font descriptors: "family:weight"
- * e.g., "Inter:400", "Space Grotesk:700"
- */
-let _loadedFonts = new Set();
-
-/**
- * The off-screen measurement container element (created lazily or during init).
- */
-let _measureContainer = null;
-
-/**
- * Cache for measurement results.
- * Key: stringified tuple of (content, font, size, weight, lineHeight, letterSpacing, w)
- * Value: measurement result object
- */
-let _measureCache = new Map();
-
-/**
- * Font loading warnings accumulated during init().
- */
-let _fontWarnings = [];
-
-/**
- * Set of injected Google Font <link> elements for cleanup during testing.
- */
-let _injectedFontLinks = new Set();
+// Configuration and font/measurement state are imported from ./src/state.js
 
 /**
  * Default spacing scale — named tokens to pixel values.
@@ -593,14 +567,14 @@ const DEFAULT_CONFIG = {
  * @returns {Promise<object>} Resolves with the config when ready
  */
 export async function init(config = {}) {
-  _config = {
+  set_config({
     slide: { ...DEFAULT_CONFIG.slide, ...(config.slide || {}) },
     safeZone: { ...DEFAULT_CONFIG.safeZone, ...(config.safeZone || {}) },
     strict: config.strict !== undefined ? config.strict : DEFAULT_CONFIG.strict,
     minFontSize: config.minFontSize !== undefined ? config.minFontSize : DEFAULT_CONFIG.minFontSize,
     fonts: config.fonts || DEFAULT_CONFIG.fonts,
     spacing: { ...DEFAULT_SPACING, ...(config.spacing || {}) },
-  };
+  });
 
   // Compute and cache the safe rectangle
   const sz = _config.safeZone;
@@ -613,17 +587,17 @@ export async function init(config = {}) {
       `Check slide dimensions (${sl.w}x${sl.h}) and safeZone margins.`
     );
   }
-  _safeRectCache = {
+  set_safeRectCache({
     x: sz.left,
     y: sz.top,
     w: safeW,
     h: safeH,
-  };
+  });
 
   // Reset font state
-  _loadedFonts = new Set();
-  _fontWarnings = [];
-  _measureCache = new Map();
+  set_loadedFonts(new Set());
+  set_fontWarnings([]);
+  set_measureCache(new Map());
 
   // M2.1: Font Preloading
   if (_config.fonts.length > 0) {
@@ -853,23 +827,23 @@ export function getSpacing(token) {
  * pre-init behavior and ensures test isolation.
  */
 export function _resetForTests() {
-  _config = null;
-  _safeRectCache = null;
-  _idCounter = 0;
-  _transformIdCounter = 0;
-  _loadedFonts = new Set();
-  _fontWarnings = [];
-  _measureCache = new Map();
+  set_config(null);
+  set_safeRectCache(null);
+  set_idCounter(0);
+  set_transformIdCounter(0);
+  set_loadedFonts(new Set());
+  set_fontWarnings([]);
+  set_measureCache(new Map());
   // Remove measurement container from DOM if it exists
   if (_measureContainer && _measureContainer.parentNode) {
     _measureContainer.parentNode.removeChild(_measureContainer);
   }
-  _measureContainer = null;
+  set_measureContainer(null);
   // Remove injected Google Font link elements
   for (const link of _injectedFontLinks) {
     if (link.parentNode) link.parentNode.removeChild(link);
   }
-  _injectedFontLinks = new Set();
+  set_injectedFontLinks(new Set());
 }
 
 // =============================================================================
@@ -892,7 +866,7 @@ function _ensureMeasureContainer() {
     );
   }
 
-  _measureContainer = document.createElement("div");
+  set_measureContainer(document.createElement("div"));
   _measureContainer.style.position = "absolute";
   _measureContainer.style.left = "-9999px";
   _measureContainer.style.top = "-9999px";
@@ -1256,10 +1230,10 @@ export function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
  * Transform ID counter — auto-generates unique IDs for transforms.
  * Reset when the layout pipeline runs so transforms are deterministic.
  */
-let _transformIdCounter = 0;
+// Transform ID counter is imported from ./src/state.js
 
 function nextTransformId() {
-  _transformIdCounter += 1;
+  set_transformIdCounter(_transformIdCounter + 1);
   return `transform-${_transformIdCounter}`;
 }
 
@@ -2750,7 +2724,7 @@ export async function layout(slideDefinition, options = {}) {
   // Process each transform in order, modifying resolved positions/sizes.
   // After applying a transform, update provenance to source: "transform".
   // Reset the transform ID counter for deterministic IDs.
-  _transformIdCounter = 0;
+  set_transformIdCounter(0);
 
   // Re-assign transform IDs deterministically for this layout call
   const resolvedTransforms = [];
