@@ -3,9 +3,10 @@
 
 import {
   init, render, safeRect, el,
-  below, rightOf, centerIn,
+  below, rightOf, centerIn, alignLeftWith,
   group, panel, hstack, vstack,
-} from '../slidekit/slidekit.js';
+  splitRect, figure, cardGrid,
+} from '../slidekit/slidekit.js?v=2';
 
 // ── Design tokens (from custom-theme.css) ──────────────────────────
 const C = {
@@ -35,6 +36,7 @@ export async function run() {
   });
 
   const safe = safeRect();
+  const { left, right } = splitRect(safe, { ratio: 0.55, gap: 60 });
 
   const slides = [
 
@@ -68,7 +70,7 @@ export async function run() {
         // Main title with gradient
         el(`<h1 style="font-family:${FONT_HEAD};font-size:120px;font-weight:900;line-height:1.05;text-transform:uppercase;background:linear-gradient(135deg, ${C.accent1}, ${C.accent2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-align:center;">AI Where It Matters</h1>`, {
           id: 's1-title',
-          x: 960, y: below('s1-overline', { gap: 32 }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s1-overline', { gap: 'lg' }), w: 1400, anchor: 'tc',
         }),
 
         // Subtitle
@@ -78,15 +80,15 @@ export async function run() {
         }),
 
         // Authors
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;font-weight:400;color:${C.accent2};letter-spacing:0.03em;text-align:center;">Rudrajit Choudhuri &nbsp;·&nbsp; Carmen Badea &nbsp;·&nbsp; Christian Bird &nbsp;·&nbsp; Jenna L. Butler &nbsp;·&nbsp; Robert DeLine &nbsp;·&nbsp; Brian Houck</p>`, {
+        el(`<p style="font-family:${FONT_BODY};font-size:24px;font-weight:400;color:${C.accent2};letter-spacing:0.03em;text-align:center;">Rudrajit Choudhuri &nbsp;\u00b7&nbsp; Carmen Badea &nbsp;\u00b7&nbsp; Christian Bird &nbsp;\u00b7&nbsp; Jenna L. Butler &nbsp;\u00b7&nbsp; Robert DeLine &nbsp;\u00b7&nbsp; Brian Houck</p>`, {
           id: 's1-authors',
-          x: 960, y: below('s1-subtitle', { gap: 40 }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s1-subtitle', { gap: 'xl' }), w: 1400, anchor: 'tc',
         }),
 
         // Affiliations
         el(`<p style="font-family:${FONT_BODY};font-size:19px;font-weight:400;color:${C.muted};text-align:center;">Oregon State University &nbsp;&nbsp;|&nbsp;&nbsp; Microsoft</p>`, {
           id: 's1-affiliations',
-          x: 960, y: below('s1-authors', { gap: 16 }), w: 600, anchor: 'tc',
+          x: 960, y: below('s1-authors', { gap: 'sm' }), w: 600, anchor: 'tc',
         }),
       ],
     },
@@ -99,34 +101,36 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">The Adoption Paradox</p>`, {
-          id: 's2-eyebrow',
-          x: 120, y: 310, w: 880,
-        }),
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">The Adoption Paradox</p>`, {
+            id: 's2-eyebrow',
+          }),
 
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:58px;font-weight:700;color:${C.text};line-height:1.15;">AI tools promise faster delivery and lower cognitive load</h2>`, {
-          id: 's2-headline',
-          x: 120, y: below('s2-eyebrow', { gap: 22 }), w: 880,
-        }),
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:58px;font-weight:700;color:${C.text};line-height:1.15;">AI tools promise faster delivery and lower cognitive load</h2>`, {
+            id: 's2-headline',
+          }),
 
-        // Subhead
-        el(`<p style="font-family:${FONT_BODY};font-size:28px;color:${C.text};line-height:1.6;">But are they optimizing the <strong style="color:${C.accent1};">right</strong> work?</p>`, {
-          id: 's2-subhead',
-          x: 120, y: below('s2-headline', { gap: 28 }), w: 880,
-        }),
+          // Subhead
+          el(`<p style="font-family:${FONT_BODY};font-size:28px;color:${C.text};line-height:1.6;">But are they optimizing the <strong style="color:${C.accent1};">right</strong> work?</p>`, {
+            id: 's2-subhead',
+          }),
 
-        // Body text
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Developers report more flow state — yet <strong style="color:${C.text};font-weight:600;">less time on the work they value most</strong>.</p>`, {
-          id: 's2-body',
-          x: 120, y: below('s2-subhead', { gap: 14 }), w: 880,
+          // Body text
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Developers report more flow state \u2014 yet <strong style="color:${C.text};font-weight:600;">less time on the work they value most</strong>.</p>`, {
+            id: 's2-body',
+          }),
+        ], {
+          id: 's2-text',
+          x: left.x, y: 310, w: left.w,
+          gap: 'md',
         }),
 
         // ── Right column: image ──
         el('<img src="assets/images/s02-tension.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's2-image',
-          x: 1060, y: 140, w: 740, h: 800,
+          x: right.x, y: 140, w: right.w, h: 800,
         }),
       ],
     },
@@ -148,13 +152,13 @@ export async function run() {
         hstack([
           // ── Card 1: RQ 1 ──
           panel([
-            el(`<div style="font-size:48px;line-height:1;">🔍</div>`, { id: 's3-icon1', w: 'fill' }),
+            el(`<div style="font-size:48px;line-height:1;">\uD83D\uDD0D</div>`, { id: 's3-icon1', w: 'fill' }),
             el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent1};">RQ 1</p>`, { id: 's3-label1', w: 'fill' }),
             el(`<p style="font-family:${FONT_BODY};font-size:26px;color:${C.text};line-height:1.5;">How do developers\u2019 <strong>task appraisals</strong> shape their openness to and use of AI\u00a0tools?</p>`, { id: 's3-desc1', w: 'fill' }),
           ], {
             id: 's3-card1',
             w: 500,
-            padding: 32,
+            padding: 'lg',
             gap: 12,
             fill: C.surface,
             radius: 10,
@@ -166,13 +170,13 @@ export async function run() {
 
           // ── Card 2: RQ 2 ──
           panel([
-            el(`<div style="font-size:48px;line-height:1;">🛡️</div>`, { id: 's3-icon2', w: 'fill' }),
+            el(`<div style="font-size:48px;line-height:1;">\uD83D\uDEE1\uFE0F</div>`, { id: 's3-icon2', w: 'fill' }),
             el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent2};">RQ 2</p>`, { id: 's3-label2', w: 'fill' }),
             el(`<p style="font-family:${FONT_BODY};font-size:26px;color:${C.text};line-height:1.5;">Which <strong>Responsible AI</strong> design principles do developers prioritize, and how do priorities vary?</p>`, { id: 's3-desc2', w: 'fill' }),
           ], {
             id: 's3-card2',
             w: 500,
-            padding: 32,
+            padding: 'lg',
             gap: 12,
             fill: C.surface,
             radius: 10,
@@ -186,7 +190,7 @@ export async function run() {
           x: 960, y: below('s3-eyebrow', { gap: 36 }),
           anchor: 'tc',
           gap: 40,
-          align: 'top',
+          align: 'stretch',
         }),
       ],
     },
@@ -199,29 +203,30 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Theoretical Lens</p>`, {
+            id: 's4-eyebrow',
+          }),
 
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Theoretical Lens</p>`, {
-          id: 's4-eyebrow',
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:56px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;">Cognitive Appraisal Theory</h2>`, {
+            id: 's4-headline',
+          }),
+
+          // Body paragraph 1
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">People evaluate events through personal appraisals that shape their emotional and behavioral\u00a0responses.</p>`, {
+            id: 's4-body1', w: 680,
+          }),
+
+          // Body paragraph 2
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">We adapt this to understand <strong style="color:${C.text};font-weight:600;">why developers seek or resist AI</strong> for different\u00a0tasks.</p>`, {
+            id: 's4-body2', w: 680,
+          }),
+        ], {
+          id: 's4-text',
           x: 120, y: 250, w: 700,
-        }),
-
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:56px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;">Cognitive Appraisal Theory</h2>`, {
-          id: 's4-headline',
-          x: 120, y: below('s4-eyebrow', { gap: 16 }), w: 700,
-        }),
-
-        // Body paragraph 1
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">People evaluate events through personal appraisals that shape their emotional and behavioral\u00a0responses.</p>`, {
-          id: 's4-body1',
-          x: 120, y: below('s4-headline', { gap: 28 }), w: 680,
-        }),
-
-        // Body paragraph 2
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">We adapt this to understand <strong style="color:${C.text};font-weight:600;">why developers seek or resist AI</strong> for different\u00a0tasks.</p>`, {
-          id: 's4-body2',
-          x: 120, y: below('s4-body1', { gap: 14 }), w: 680,
+          gap: 'md',
         }),
 
         // ── Flow diagram: Event → Appraisal → Response ──
@@ -239,90 +244,84 @@ export async function run() {
           </div>
         </div>`, {
           id: 's4-flow',
-          x: 120, y: below('s4-body2', { gap: 28 }), w: 600,
+          x: 120, y: below('s4-body2', { gap: 'md' }), w: 600,
         }),
 
-        // ── Right column: 2×2 card grid via nested hstack/vstack ──
-        vstack([
-          // Row 1: Value + Identity
-          hstack([
-            panel([
-              el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">💎</div>`, {
-                id: 's4-val-icon', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent1};text-align:center;">Value</p>`, {
-                id: 's4-val-label', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How important is this task to my goals?</p>`, {
-                id: 's4-val-desc', w: 'fill',
-              }),
-            ], {
-              id: 's4-card-value', w: 280,
-              padding: 20, gap: 8,
-              fill: C.surface, radius: 10,
-              border: `1px solid ${C.border}`,
-              style: { borderBottom: `2px solid ${C.accent1}` },
+        // ── Right column: 2×2 card grid ──
+        cardGrid([
+          panel([
+            el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(59,130,246,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">\uD83D\uDC8E</div>`, {
+              id: 's4-val-icon', w: 'fill',
             }),
-            panel([
-              el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">🪪</div>`, {
-                id: 's4-id-icon', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent2};text-align:center;">Identity</p>`, {
-                id: 's4-id-label', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How central is this to who I am as a developer?</p>`, {
-                id: 's4-id-desc', w: 'fill',
-              }),
-            ], {
-              id: 's4-card-identity', w: 280,
-              padding: 20, gap: 8,
-              fill: C.surface, radius: 10,
-              border: `1px solid ${C.border}`,
-              style: { borderBottom: `2px solid ${C.accent2}` },
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent1};text-align:center;">Value</p>`, {
+              id: 's4-val-label', w: 'fill',
             }),
-          ], { id: 's4-row1', gap: 20, align: 'top' }),
-
-          // Row 2: Accountability + Demands
-          hstack([
-            panel([
-              el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(244,63,94,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">⚖️</div>`, {
-                id: 's4-acc-icon', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent3};text-align:center;">Accountability</p>`, {
-                id: 's4-acc-label', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">Am I personally responsible for the outcome?</p>`, {
-                id: 's4-acc-desc', w: 'fill',
-              }),
-            ], {
-              id: 's4-card-accountability', w: 280,
-              padding: 20, gap: 8,
-              fill: C.surface, radius: 10,
-              border: `1px solid ${C.border}`,
-              style: { borderBottom: `2px solid ${C.accent3}` },
+            el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How important is this task to my goals?</p>`, {
+              id: 's4-val-desc', w: 'fill',
             }),
-            panel([
-              el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">⚡</div>`, {
-                id: 's4-dem-icon', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent4};text-align:center;">Demands</p>`, {
-                id: 's4-dem-label', w: 'fill',
-              }),
-              el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How cognitively or emotionally taxing is this?</p>`, {
-                id: 's4-dem-desc', w: 'fill',
-              }),
-            ], {
-              id: 's4-card-demands', w: 280,
-              padding: 20, gap: 8,
-              fill: C.surface, radius: 10,
-              border: `1px solid ${C.border}`,
-              style: { borderBottom: `2px solid ${C.accent4}` },
+          ], {
+            id: 's4-card-value', w: 280,
+            padding: 20, gap: 'xs',
+            fill: C.surface, radius: 10,
+            border: `1px solid ${C.border}`,
+            style: { borderBottom: `2px solid ${C.accent1}` },
+          }),
+          panel([
+            el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">\uD83E\uDEAA</div>`, {
+              id: 's4-id-icon', w: 'fill',
             }),
-          ], { id: 's4-row2', gap: 20, align: 'top' }),
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent2};text-align:center;">Identity</p>`, {
+              id: 's4-id-label', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How central is this to who I am as a developer?</p>`, {
+              id: 's4-id-desc', w: 'fill',
+            }),
+          ], {
+            id: 's4-card-identity', w: 280,
+            padding: 20, gap: 'xs',
+            fill: C.surface, radius: 10,
+            border: `1px solid ${C.border}`,
+            style: { borderBottom: `2px solid ${C.accent2}` },
+          }),
+          panel([
+            el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(244,63,94,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">\u2696\uFE0F</div>`, {
+              id: 's4-acc-icon', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent3};text-align:center;">Accountability</p>`, {
+              id: 's4-acc-label', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">Am I personally responsible for the outcome?</p>`, {
+              id: 's4-acc-desc', w: 'fill',
+            }),
+          ], {
+            id: 's4-card-accountability', w: 280,
+            padding: 20, gap: 'xs',
+            fill: C.surface, radius: 10,
+            border: `1px solid ${C.border}`,
+            style: { borderBottom: `2px solid ${C.accent3}` },
+          }),
+          panel([
+            el(`<div style="width:48px;height:48px;border-radius:50%;background:rgba(167,139,250,0.15);display:flex;align-items:center;justify-content:center;font-size:24px;">\u26A1</div>`, {
+              id: 's4-dem-icon', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent4};text-align:center;">Demands</p>`, {
+              id: 's4-dem-label', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:17px;color:${C.muted};line-height:1.5;text-align:center;">How cognitively or emotionally taxing is this?</p>`, {
+              id: 's4-dem-desc', w: 'fill',
+            }),
+          ], {
+            id: 's4-card-demands', w: 280,
+            padding: 20, gap: 'xs',
+            fill: C.surface, radius: 10,
+            border: `1px solid ${C.border}`,
+            style: { borderBottom: `2px solid ${C.accent4}` },
+          }),
         ], {
           id: 's4-grid',
-          x: 920, y: 220,
+          cols: 2,
           gap: 20,
+          x: 920, y: 220,
         }),
       ],
     },
@@ -345,7 +344,7 @@ export async function run() {
         // Main headline
         el(`<h2 style="font-family:${FONT_HEAD};font-size:56px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;">A Large-Scale Mixed-Methods Study</h2>`, {
           id: 's5-headline',
-          x: 120, y: below('s5-eyebrow', { gap: 16 }), w: 880,
+          x: 120, y: below('s5-eyebrow', { gap: 'sm' }), w: 880,
         }),
 
         // ── Stat cards row ──
@@ -364,7 +363,7 @@ export async function run() {
           ], {
             id: 's5-stat1',
             w: 240,
-            padding: 24, gap: 6,
+            padding: 'md', gap: 6,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -387,7 +386,7 @@ export async function run() {
           ], {
             id: 's5-stat2',
             w: 240,
-            padding: 24, gap: 6,
+            padding: 'md', gap: 6,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -410,7 +409,7 @@ export async function run() {
           ], {
             id: 's5-stat3',
             w: 240,
-            padding: 24, gap: 6,
+            padding: 'md', gap: 6,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -422,13 +421,13 @@ export async function run() {
           id: 's5-stats',
           x: 120, y: below('s5-headline', { gap: 36 }),
           gap: 20,
-          align: 'top',
+          align: 'stretch',
         }),
 
         // ── Right column: image ──
         el('<img src="assets/images/s05-method.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's5-image',
-          x: 1060, y: 140, w: 740, h: 800,
+          x: right.x, y: 140, w: right.w, h: 800,
         }),
       ],
     },
@@ -449,76 +448,79 @@ export async function run() {
         // Main heading
         el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;text-align:center;">20 Tasks Across 5 Categories</h2>`, {
           id: 's6-headline',
-          x: 960, y: below('s6-eyebrow', { gap: 16 }), w: 1200, anchor: 'tc',
+          x: 960, y: below('s6-eyebrow', { gap: 'sm' }), w: 1200, anchor: 'tc',
         }),
 
-        // Table header row
-        el(`<div style="display:flex;border-bottom:2px solid ${C.border};padding:10px 0;">
-          <div style="width:310px;font-family:${FONT_HEAD};font-size:20px;font-weight:600;color:${C.accent1};">Category</div>
-          <div style="flex:1;font-family:${FONT_HEAD};font-size:20px;font-weight:600;color:${C.accent1};">Tasks</div>
-        </div>`, {
-          id: 's6-thead',
-          x: 960, y: below('s6-headline', { gap: 32 }), w: 1100, anchor: 'tc',
-        }),
+        // Table rows as vstack (all gap:0, same x/w/anchor)
+        vstack([
+          // Table header row
+          el(`<div style="display:flex;border-bottom:2px solid ${C.border};padding:10px 0;">
+            <div style="width:310px;font-family:${FONT_HEAD};font-size:20px;font-weight:600;color:${C.accent1};">Category</div>
+            <div style="flex:1;font-family:${FONT_HEAD};font-size:20px;font-weight:600;color:${C.accent1};">Tasks</div>
+          </div>`, {
+            id: 's6-thead', w: 1100,
+          }),
 
-        // Row 1: Development
-        el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
-          <div style="width:310px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">⚙️</span>
-            <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:#F59E0B;">Development</span>
-          </div>
-          <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Coding/Programming · Bug Fixing/Debugging · Performance Optimization · Refactoring &amp; Maintenance/Updates · AI Integration</div>
-        </div>`, {
-          id: 's6-row1',
-          x: 960, y: below('s6-thead', { gap: 0 }), w: 1100, anchor: 'tc',
-        }),
+          // Row 1: Development
+          el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
+            <div style="width:310px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">\u2699\uFE0F</span>
+              <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:#F59E0B;">Development</span>
+            </div>
+            <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Coding/Programming \u00b7 Bug Fixing/Debugging \u00b7 Performance Optimization \u00b7 Refactoring &amp; Maintenance/Updates \u00b7 AI Integration</div>
+          </div>`, {
+            id: 's6-row1', w: 1100,
+          }),
 
-        // Row 2: Design & Planning
-        el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
-          <div style="width:310px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">📐</span>
-            <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent2};">Design &amp; Planning</span>
-          </div>
-          <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">System Design · Requirements Engineering · Project Planning &amp; Management</div>
-        </div>`, {
-          id: 's6-row2',
-          x: 960, y: below('s6-row1', { gap: 0 }), w: 1100, anchor: 'tc',
-        }),
+          // Row 2: Design & Planning
+          el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
+            <div style="width:310px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">\uD83D\uDCD0</span>
+              <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent2};">Design &amp; Planning</span>
+            </div>
+            <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">System Design \u00b7 Requirements Engineering \u00b7 Project Planning &amp; Management</div>
+          </div>`, {
+            id: 's6-row2', w: 1100,
+          }),
 
-        // Row 3: Quality & Risk Mgmt
-        el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
-          <div style="width:310px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">🛡️</span>
-            <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};">Quality &amp; Risk Mgmt</span>
-          </div>
-          <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Testing &amp; Quality Assurance · Code Review/Pull Requests · Security &amp; Compliance</div>
-        </div>`, {
-          id: 's6-row3',
-          x: 960, y: below('s6-row2', { gap: 0 }), w: 1100, anchor: 'tc',
-        }),
+          // Row 3: Quality & Risk Mgmt
+          el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
+            <div style="width:310px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">\uD83D\uDEE1\uFE0F</span>
+              <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};">Quality &amp; Risk Mgmt</span>
+            </div>
+            <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Testing &amp; Quality Assurance \u00b7 Code Review/Pull Requests \u00b7 Security &amp; Compliance</div>
+          </div>`, {
+            id: 's6-row3', w: 1100,
+          }),
 
-        // Row 4: Infrastructure & Ops
-        el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
-          <div style="width:310px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">🖥️</span>
-            <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent4};">Infrastructure &amp; Ops</span>
-          </div>
-          <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">DevOps (CI/CD) · Environment Setup &amp; Maintenance · Infrastructure Monitoring · Customer Support</div>
-        </div>`, {
-          id: 's6-row4',
-          x: 960, y: below('s6-row3', { gap: 0 }), w: 1100, anchor: 'tc',
-        }),
+          // Row 4: Infrastructure & Ops
+          el(`<div style="display:flex;align-items:baseline;border-bottom:1px solid ${C.border};padding:12px 0;">
+            <div style="width:310px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">\uD83D\uDDA5\uFE0F</span>
+              <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent4};">Infrastructure &amp; Ops</span>
+            </div>
+            <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">DevOps (CI/CD) \u00b7 Environment Setup &amp; Maintenance \u00b7 Infrastructure Monitoring \u00b7 Customer Support</div>
+          </div>`, {
+            id: 's6-row4', w: 1100,
+          }),
 
-        // Row 5: Meta-work (no bottom border on last row)
-        el(`<div style="display:flex;align-items:baseline;padding:12px 0;">
-          <div style="width:310px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:18px;">📚</span>
-            <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:#67E8F9;">Meta-work</span>
-          </div>
-          <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Documentation · Client/Stakeholder Communication · Mentoring &amp; Onboarding · Learning · Research &amp; Brainstorming</div>
-        </div>`, {
-          id: 's6-row5',
-          x: 960, y: below('s6-row4', { gap: 0 }), w: 1100, anchor: 'tc',
+          // Row 5: Meta-work (no bottom border on last row)
+          el(`<div style="display:flex;align-items:baseline;padding:12px 0;">
+            <div style="width:310px;display:flex;align-items:center;gap:8px;">
+              <span style="font-size:18px;">\uD83D\uDCDA</span>
+              <span style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:#67E8F9;">Meta-work</span>
+            </div>
+            <div style="flex:1;font-family:${FONT_BODY};font-size:19px;color:${C.muted};line-height:1.55;">Documentation \u00b7 Client/Stakeholder Communication \u00b7 Mentoring &amp; Onboarding \u00b7 Learning \u00b7 Research &amp; Brainstorming</div>
+          </div>`, {
+            id: 's6-row5', w: 1100,
+          }),
+        ], {
+          id: 's6-table',
+          x: 960, y: below('s6-headline', { gap: 'lg' }),
+          w: 1100,
+          anchor: 'tc',
+          gap: 0,
         }),
       ],
     },
@@ -531,29 +533,30 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">RQ1 Results</p>`, {
+            id: 's7-eyebrow',
+          }),
 
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">RQ1 Results</p>`, {
-          id: 's7-eyebrow',
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Appraisals Predict AI\u00a0Adoption</h2>`, {
+            id: 's7-headline',
+          }),
+
+          // Body text 1
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">All four appraisal dimensions <strong style="color:${C.text};font-weight:600;">significantly predict</strong> both openness to AI and current AI\u00a0usage.</p>`, {
+            id: 's7-body1', w: 680,
+          }),
+
+          // Body text 2 (methodology note)
+          el(`<p style="font-family:${FONT_BODY};font-size:20px;color:${C.muted};line-height:1.6;">Ordinal mixed-effects regression, controlling for role, experience, and task random effects.</p>`, {
+            id: 's7-body2', w: 680,
+          }),
+        ], {
+          id: 's7-text',
           x: 120, y: 260, w: 700,
-        }),
-
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Appraisals Predict AI\u00a0Adoption</h2>`, {
-          id: 's7-headline',
-          x: 120, y: below('s7-eyebrow', { gap: 16 }), w: 700,
-        }),
-
-        // Body text 1
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">All four appraisal dimensions <strong style="color:${C.text};font-weight:600;">significantly predict</strong> both openness to AI and current AI\u00a0usage.</p>`, {
-          id: 's7-body1',
-          x: 120, y: below('s7-headline', { gap: 28 }), w: 680,
-        }),
-
-        // Body text 2 (methodology note)
-        el(`<p style="font-family:${FONT_BODY};font-size:20px;color:${C.muted};line-height:1.6;">Ordinal mixed-effects regression, controlling for role, experience, and task random effects.</p>`, {
-          id: 's7-body2',
-          x: 120, y: below('s7-body1', { gap: 18 }), w: 680,
+          gap: 'md',
         }),
 
         // ── Right column: four appraisal result cards ──
@@ -562,7 +565,7 @@ export async function run() {
           panel([
             el(`<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:26px;">💎</span>
+                <span style="font-size:26px;">\uD83D\uDC8E</span>
                 <div>
                   <p style="font-family:${FONT_BODY};font-size:21px;font-weight:600;color:${C.accent1};margin:0;">Value</p>
                   <p style="font-family:${FONT_BODY};font-size:16px;color:${C.muted};margin:3px 0 0;">Higher value \u2192 more open to AI</p>
@@ -586,7 +589,7 @@ export async function run() {
           panel([
             el(`<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:26px;">🪪</span>
+                <span style="font-size:26px;">\uD83E\uDEAA</span>
                 <div>
                   <p style="font-family:${FONT_BODY};font-size:21px;font-weight:600;color:${C.accent2};margin:0;">Identity</p>
                   <p style="font-family:${FONT_BODY};font-size:16px;color:${C.muted};margin:3px 0 0;">Dual effect: protect craft, yet augment</p>
@@ -610,7 +613,7 @@ export async function run() {
           panel([
             el(`<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:26px;">⚖️</span>
+                <span style="font-size:26px;">\u2696\uFE0F</span>
                 <div>
                   <p style="font-family:${FONT_BODY};font-size:21px;font-weight:600;color:${C.accent3};margin:0;">Accountability</p>
                   <p style="font-family:${FONT_BODY};font-size:16px;color:${C.muted};margin:3px 0 0;">Responsible \u2192 want AI backup</p>
@@ -634,7 +637,7 @@ export async function run() {
           panel([
             el(`<div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
               <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:26px;">⚡</span>
+                <span style="font-size:26px;">\u26A1</span>
                 <div>
                   <p style="font-family:${FONT_BODY};font-size:21px;font-weight:600;color:${C.accent4};margin:0;">Demands</p>
                   <p style="font-family:${FONT_BODY};font-size:16px;color:${C.muted};margin:3px 0 0;">Higher load \u2192 seek AI relief</p>
@@ -669,32 +672,33 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Key Finding</p>`, {
+            id: 's8-eyebrow',
+          }),
 
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Key Finding</p>`, {
-          id: 's8-eyebrow',
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Identity: Protect &amp;&nbsp;Augment</h2>`, {
+            id: 's8-headline',
+          }),
+
+          // Dual arrow indicators
+          el(`<div style="display:flex;gap:32px;align-items:center;">
+            <span style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent3};">\u25BC Openness \u03B2 = \u2212.09</span>
+            <span style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent2};">\u25B2 Usage \u03B2 = +.15</span>
+          </div>`, {
+            id: 's8-dual-arrows',
+          }),
+
+          // Body text
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Developers <strong style="color:${C.accent3};font-weight:600;">guard</strong> tasks central to their identity \u2014 but <strong style="color:${C.accent2};font-weight:600;">use AI more</strong> on those same tasks to sharpen their\u00a0craft.</p>`, {
+            id: 's8-body', w: 780,
+          }),
+        ], {
+          id: 's8-text',
           x: 120, y: 260, w: 800,
-        }),
-
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Identity: Protect &amp;&nbsp;Augment</h2>`, {
-          id: 's8-headline',
-          x: 120, y: below('s8-eyebrow', { gap: 16 }), w: 800,
-        }),
-
-        // Dual arrow indicators
-        el(`<div style="display:flex;gap:32px;align-items:center;">
-          <span style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent3};">\u25BC Openness \u03B2 = \u2212.09</span>
-          <span style="font-family:${FONT_BODY};font-size:22px;font-weight:600;color:${C.accent2};">\u25B2 Usage \u03B2 = +.15</span>
-        </div>`, {
-          id: 's8-dual-arrows',
-          x: 120, y: below('s8-headline', { gap: 20 }), w: 800,
-        }),
-
-        // Body text
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Developers <strong style="color:${C.accent3};font-weight:600;">guard</strong> tasks central to their identity \u2014 but <strong style="color:${C.accent2};font-weight:600;">use AI more</strong> on those same tasks to sharpen their\u00a0craft.</p>`, {
-          id: 's8-body',
-          x: 120, y: below('s8-dual-arrows', { gap: 18 }), w: 780,
+          gap: 'md',
         }),
 
         // ── Right column: image + quote blocks ──
@@ -716,7 +720,7 @@ export async function run() {
         ], {
           id: 's8-quote1',
           x: 1000, y: below('s8-image', { gap: 12 }), w: 800,
-          padding: 16, gap: 6,
+          padding: 'sm', gap: 6,
           fill: C.surface,
           radius: '0 8px 8px 0',
           style: {
@@ -735,7 +739,7 @@ export async function run() {
         ], {
           id: 's8-quote2',
           x: 1000, y: below('s8-quote1', { gap: 10 }), w: 800,
-          padding: 16, gap: 6,
+          padding: 'sm', gap: 6,
           fill: C.surface,
           radius: '0 8px 8px 0',
           style: {
@@ -761,7 +765,7 @@ export async function run() {
         // Main heading
         el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;text-align:center;">Three Task Clusters Emerged</h2>`, {
           id: 's9-headline',
-          x: 960, y: below('s9-eyebrow', { gap: 16 }), w: 1200, anchor: 'tc',
+          x: 960, y: below('s9-eyebrow', { gap: 'sm' }), w: 1200, anchor: 'tc',
         }),
 
         // Three cluster cards
@@ -786,7 +790,7 @@ export async function run() {
           ], {
             id: 's9-card-c1',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -815,7 +819,7 @@ export async function run() {
           ], {
             id: 's9-card-c2',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -844,7 +848,7 @@ export async function run() {
           ], {
             id: 's9-card-c3',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -856,8 +860,8 @@ export async function run() {
           id: 's9-cards',
           x: 960, y: below('s9-headline', { gap: 36 }),
           anchor: 'tc',
-          gap: 24,
-          align: 'top',
+          gap: 'md',
+          align: 'stretch',
         }),
       ],
     },
@@ -878,20 +882,20 @@ export async function run() {
         // Main heading
         el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;text-align:center;">Where AI Support Is Needed vs.\u00a0Used</h2>`, {
           id: 's10-headline',
-          x: 960, y: below('s10-eyebrow', { gap: 16 }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s10-eyebrow', { gap: 'sm' }), w: 1400, anchor: 'tc',
         }),
 
         // Quadrant chart image
         el('<img src="assets/images/quadrant_screenshot_from_paper.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's10-chart',
-          x: 960, y: below('s10-headline', { gap: 24 }), w: 820, h: 620,
+          x: 960, y: below('s10-headline', { gap: 'md' }), w: 820, h: 620,
           anchor: 'tc',
         }),
 
         // Caption
         el(`<p style="font-family:${FONT_BODY};font-size:28px;color:${C.muted};line-height:1.5;text-align:center;">Tasks in the <strong style="color:${C.accent1};font-weight:600;">Build</strong> quadrant have high need but low current usage \u2014 the biggest opportunity gap.</p>`, {
           id: 's10-caption',
-          x: 960, y: below('s10-chart', { gap: 20 }), w: 1200, anchor: 'tc',
+          x: 960, y: below('s10-chart', { gap: 'xl' }), w: 1200, anchor: 'tc',
         }),
       ],
     },
@@ -904,39 +908,40 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C1 \u00B7 Core Work</p>`, {
+            id: 's11-eyebrow',
+          }),
 
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C1 \u00B7 Core Work</p>`, {
-          id: 's11-eyebrow',
-          x: 120, y: 310, w: 880,
-        }),
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">AI as Collaborator</h2>`, {
+            id: 's11-headline',
+          }),
 
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">AI as Collaborator</h2>`, {
-          id: 's11-headline',
-          x: 120, y: below('s11-eyebrow', { gap: 18 }), w: 880,
-        }),
+          // Bullet list
+          el(`<ul style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.8;list-style:disc;padding-left:24px;">
+            <li><strong style="color:${C.accent2};font-weight:600;">Workflow efficiency</strong> \u2014 automate boilerplate, scaffold code</li>
+            <li><strong style="color:${C.accent2};font-weight:600;">Proactive quality</strong> \u2014 catch bugs before review</li>
+            <li><strong style="color:${C.accent2};font-weight:600;">Cross-context awareness</strong> \u2014 surface relevant code &amp; docs</li>
+          </ul>`, {
+            id: 's11-bullets', w: 820,
+          }),
 
-        // Bullet list
-        el(`<ul style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.8;list-style:disc;padding-left:24px;">
-          <li><strong style="color:${C.accent2};font-weight:600;">Workflow efficiency</strong> \u2014 automate boilerplate, scaffold code</li>
-          <li><strong style="color:${C.accent2};font-weight:600;">Proactive quality</strong> \u2014 catch bugs before review</li>
-          <li><strong style="color:${C.accent2};font-weight:600;">Cross-context awareness</strong> \u2014 surface relevant code &amp; docs</li>
-        </ul>`, {
-          id: 's11-bullets',
-          x: 120, y: below('s11-headline', { gap: 28 }), w: 820,
-        }),
-
-        // Caveat line (rose)
-        el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};line-height:1.5;">But: retain oversight \u00B7 decision control \u00B7 preserve craft</p>`, {
-          id: 's11-caveat',
-          x: 120, y: below('s11-bullets', { gap: 24 }), w: 820,
+          // Caveat line (rose)
+          el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};line-height:1.5;">But: retain oversight \u00B7 decision control \u00B7 preserve craft</p>`, {
+            id: 's11-caveat', w: 820,
+          }),
+        ], {
+          id: 's11-text',
+          x: left.x, y: 310, w: left.w,
+          gap: 'md',
         }),
 
         // ── Right column: illustration ──
         el('<img src="assets/images/s11-core-work.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's11-image',
-          x: 1060, y: 160, w: 740, h: 760,
+          x: right.x, y: 160, w: right.w, h: 760,
         }),
       ],
     },
@@ -949,53 +954,54 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C3 \u00B7 Ops &amp; Coordination</p>`, {
+            id: 's12-eyebrow',
+          }),
 
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C3 \u00B7 Ops &amp; Coordination</p>`, {
-          id: 's12-eyebrow',
-          x: 120, y: 310, w: 880,
-        }),
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Automate the Grunt\u00a0Work</h2>`, {
+            id: 's12-headline',
+          }),
 
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Automate the Grunt\u00a0Work</h2>`, {
-          id: 's12-headline',
-          x: 120, y: below('s12-eyebrow', { gap: 18 }), w: 880,
-        }),
+          // Bullet list
+          el(`<ul style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.8;list-style:disc;padding-left:24px;">
+            <li><strong style="color:${C.accent2};font-weight:600;">Toil reduction</strong> \u2014 CI/CD, env setup, documentation</li>
+            <li><strong style="color:${C.accent2};font-weight:600;">Pattern execution</strong> \u2014 repetitive, well-defined workflows</li>
+          </ul>`, {
+            id: 's12-bullets', w: 820,
+          }),
 
-        // Bullet list
-        el(`<ul style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.8;list-style:disc;padding-left:24px;">
-          <li><strong style="color:${C.accent2};font-weight:600;">Toil reduction</strong> \u2014 CI/CD, env setup, documentation</li>
-          <li><strong style="color:${C.accent2};font-weight:600;">Pattern execution</strong> \u2014 repetitive, well-defined workflows</li>
-        </ul>`, {
-          id: 's12-bullets',
-          x: 120, y: below('s12-headline', { gap: 28 }), w: 820,
-        }),
+          // Quote block
+          panel([
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CAnything that touches prod stays behind human\u00a0gates.\u201D</p>`, { w: 'fill' }),
+            el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-style:normal;">\u2014 P165</p>`, { w: 'fill' }),
+          ], {
+            id: 's12-quote',
+            w: 760,
+            padding: 20, gap: 'xs',
+            fill: C.surface,
+            radius: '0 8px 8px 0',
+            style: {
+              borderLeft: `3px solid ${C.accent1}`,
+            },
+          }),
 
-        // Quote block
-        panel([
-          el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CAnything that touches prod stays behind human\u00a0gates.\u201D</p>`, { w: 'fill' }),
-          el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-style:normal;">\u2014 P165</p>`, { w: 'fill' }),
+          // Tagline (green keywords)
+          el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};line-height:1.5;">Determinism \u00B7 Verifiability \u00B7 Human-gated</p>`, {
+            id: 's12-tagline', w: 820,
+          }),
         ], {
-          id: 's12-quote',
-          x: 120, y: below('s12-bullets', { gap: 28 }), w: 760,
-          padding: 20, gap: 8,
-          style: {
-            background: C.surface,
-            borderRadius: '0 8px 8px 0',
-            borderLeft: `3px solid ${C.accent1}`,
-          },
-        }),
-
-        // Tagline (green keywords)
-        el(`<p style="font-family:${FONT_BODY};font-size:20px;font-weight:600;color:${C.accent3};line-height:1.5;">Determinism \u00B7 Verifiability \u00B7 Human-gated</p>`, {
-          id: 's12-tagline',
-          x: 120, y: below('s12-quote', { gap: 20 }), w: 820,
+          id: 's12-text',
+          x: left.x, y: 310, w: left.w,
+          gap: 'md',
         }),
 
         // ── Right column: illustration ──
         el('<img src="assets/images/s12-ops.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's12-image',
-          x: 1060, y: 160, w: 740, h: 760,
+          x: right.x, y: 160, w: right.w, h: 760,
         }),
       ],
     },
@@ -1008,67 +1014,69 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
-
-        // Eyebrow
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C2 \u00B7 People &amp; AI-Building</p>`, {
-          id: 's13-eyebrow',
-          x: 120, y: 310, w: 880,
-        }),
-
-        // Main headline
-        el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Keep It Human</h2>`, {
-          id: 's13-headline',
-          x: 120, y: below('s13-eyebrow', { gap: 18 }), w: 880,
-        }),
-
-        // Body text
-        el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Mentoring is about <strong style="color:${C.text};font-weight:600;">relationships</strong>, not information transfer. AI integration is <strong style="color:${C.text};font-weight:600;">craftwork</strong>.</p>`, {
-          id: 's13-body',
-          x: 120, y: below('s13-headline', { gap: 28 }), w: 820,
-        }),
-
-        // Quote block 1 (rose border) — "Relationships are important."
-        panel([
-          el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CRelationships are important.\u201D</p>`, {
-            id: 's13-q1-text', w: 'fill',
+        vstack([
+          // Eyebrow
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">C2 \u00B7 People &amp; AI-Building</p>`, {
+            id: 's13-eyebrow',
           }),
-          el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-weight:600;">\u2014 P85</p>`, {
-            id: 's13-q1-attr', w: 'fill',
+
+          // Main headline
+          el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.1;text-transform:uppercase;">Keep It Human</h2>`, {
+            id: 's13-headline',
+          }),
+
+          // Body text
+          el(`<p style="font-family:${FONT_BODY};font-size:24px;color:${C.muted};line-height:1.6;">Mentoring is about <strong style="color:${C.text};font-weight:600;">relationships</strong>, not information transfer. AI integration is <strong style="color:${C.text};font-weight:600;">craftwork</strong>.</p>`, {
+            id: 's13-body', w: 820,
+          }),
+
+          // Quote block 1 (rose border) — "Relationships are important."
+          panel([
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CRelationships are important.\u201D</p>`, {
+              id: 's13-q1-text', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-weight:600;">\u2014 P85</p>`, {
+              id: 's13-q1-attr', w: 'fill',
+            }),
+          ], {
+            id: 's13-quote1',
+            w: 760,
+            padding: 20, gap: 'xs',
+            fill: C.surface,
+            radius: '0 8px 8px 0',
+            style: {
+              borderLeft: `3px solid ${C.accent3}`,
+            },
+          }),
+
+          // Quote block 2 (green border) — "Mentoring teaches the mentor as well."
+          panel([
+            el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CMentoring teaches the mentor as\u00a0well.\u201D</p>`, {
+              id: 's13-q2-text', w: 'fill',
+            }),
+            el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-weight:600;">\u2014 P228</p>`, {
+              id: 's13-q2-attr', w: 'fill',
+            }),
+          ], {
+            id: 's13-quote2',
+            w: 760,
+            padding: 20, gap: 'xs',
+            fill: C.surface,
+            radius: '0 8px 8px 0',
+            style: {
+              borderLeft: `3px solid ${C.accent2}`,
+            },
           }),
         ], {
-          id: 's13-quote1',
-          x: 120, y: below('s13-body', { gap: 28 }), w: 760,
-          padding: 20, gap: 8,
-          style: {
-            background: C.surface,
-            borderRadius: '0 8px 8px 0',
-            borderLeft: `3px solid ${C.accent3}`,
-          },
-        }),
-
-        // Quote block 2 (green border) — "Mentoring teaches the mentor as well."
-        panel([
-          el(`<p style="font-family:${FONT_BODY};font-size:22px;font-style:italic;color:${C.text};line-height:1.5;">\u201CMentoring teaches the mentor as\u00a0well.\u201D</p>`, {
-            id: 's13-q2-text', w: 'fill',
-          }),
-          el(`<p style="font-family:${FONT_BODY};font-size:18px;color:${C.accent2};font-weight:600;">\u2014 P228</p>`, {
-            id: 's13-q2-attr', w: 'fill',
-          }),
-        ], {
-          id: 's13-quote2',
-          x: 120, y: below('s13-quote1', { gap: 14 }), w: 760,
-          padding: 20, gap: 8,
-          style: {
-            background: C.surface,
-            borderRadius: '0 8px 8px 0',
-            borderLeft: `3px solid ${C.accent2}`,
-          },
+          id: 's13-text',
+          x: left.x, y: 310, w: left.w,
+          gap: 'md',
         }),
 
         // ── Right column: illustration ──
         el('<img src="assets/images/s13-people.png" style="width:100%;height:100%;object-fit:contain;">', {
           id: 's13-image',
-          x: 1060, y: 160, w: 740, h: 760,
+          x: right.x, y: 160, w: right.w, h: 760,
         }),
       ],
     },
@@ -1093,37 +1101,39 @@ export async function run() {
         }),
 
         // ── Spectrum bar with emoji endpoints ──
+        hstack([
+          // Person emoji (left)
+          el(`<span style="font-size:32px;line-height:1;">\uD83E\uDDD1\u200D\uD83D\uDCBB</span>`, {
+            id: 's14-emoji-left', w: 40,
+          }),
 
-        // Person emoji (left)
-        el(`<span style="font-size:32px;line-height:1;">\uD83E\uDDD1\u200D\uD83D\uDCBB</span>`, {
-          id: 's14-emoji-left',
-          x: 200, y: below('s14-headline', { gap: 32 }), w: 40,
-        }),
+          // Gradient spectrum bar
+          el(`<div style="height:8px;background:linear-gradient(to right, ${C.accent1}, ${C.accent2}, ${C.accent3});border-radius:4px;box-shadow:0 0 12px rgba(59,130,246,0.3);"></div>`, {
+            id: 's14-bar', w: 1060, h: 8,
+          }),
 
-        // Gradient spectrum bar
-        el(`<div style="height:8px;background:linear-gradient(to right, ${C.accent1}, ${C.accent2}, ${C.accent3});border-radius:4px;box-shadow:0 0 12px rgba(59,130,246,0.3);"></div>`, {
-          id: 's14-bar',
-          x: rightOf('s14-emoji-left', { gap: 12 }), y: below('s14-headline', { gap: 42 }),
-          w: 1060, h: 8,
-        }),
-
-        // Robot emoji (right)
-        el(`<span style="font-size:32px;line-height:1;">\uD83E\uDD16</span>`, {
-          id: 's14-emoji-right',
-          x: rightOf('s14-bar', { gap: 12 }), y: below('s14-headline', { gap: 32 }),
-          w: 40,
+          // Robot emoji (right)
+          el(`<span style="font-size:32px;line-height:1;">\uD83E\uDD16</span>`, {
+            id: 's14-emoji-right', w: 40,
+          }),
+        ], {
+          id: 's14-spectrum',
+          x: 960, y: below('s14-headline', { gap: 'lg' }),
+          anchor: 'tc',
+          gap: 12,
+          align: 'middle',
         }),
 
         // "Human-Led" label
         el(`<span style="font-family:${FONT_BODY};font-size:18px;color:${C.accent1};">Human-Led</span>`, {
           id: 's14-label-left',
-          x: 200, y: below('s14-emoji-left', { gap: 6 }), w: 120,
+          x: alignLeftWith('s14-emoji-left'), y: below('s14-spectrum', { gap: 6 }), w: 120,
         }),
 
         // "AI-Led" label
-        el(`<span style="font-family:${FONT_BODY};font-size:18px;color:${C.accent3};text-align:right;">AI-Led</span>`, {
+        el(`<span style="font-family:${FONT_BODY};font-size:18px;color:${C.accent3};">AI-Led</span>`, {
           id: 's14-label-right',
-          x: 1300, y: below('s14-emoji-right', { gap: 6 }), w: 80,
+          x: alignLeftWith('s14-emoji-right'), y: below('s14-spectrum', { gap: 6 }), w: 80,
         }),
 
         // ── Three strategy cards ──
@@ -1142,7 +1152,7 @@ export async function run() {
           ], {
             id: 's14-card-augment',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1165,7 +1175,7 @@ export async function run() {
           ], {
             id: 's14-card-automate',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1188,7 +1198,7 @@ export async function run() {
           ], {
             id: 's14-card-resist',
             w: 350,
-            padding: 24, gap: 8,
+            padding: 'md', gap: 'xs',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1200,8 +1210,8 @@ export async function run() {
           id: 's14-cards',
           x: 960, y: below('s14-label-left', { gap: 20 }),
           anchor: 'tc',
-          gap: 24,
-          align: 'top',
+          gap: 'md',
+          align: 'stretch',
         }),
 
         // Caption / takeaway
@@ -1228,31 +1238,25 @@ export async function run() {
         // Main heading
         el(`<h2 style="font-family:${FONT_HEAD};font-size:60px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;text-align:center;">RAI Priorities Vary by Task\u00a0Context</h2>`, {
           id: 's15-headline',
-          x: 960, y: below('s15-eyebrow', { gap: 16 }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s15-eyebrow', { gap: 'sm' }), w: 1400, anchor: 'tc',
         }),
 
-        // Figure container (light background card holding the chart image)
-        el('', {
-          id: 's15-fig-bg',
-          x: 960, y: below('s15-headline', { gap: 24 }), w: 1100, h: 580,
+        // Figure container with chart image
+        figure({
+          id: 's15-fig',
+          src: 'assets/images/paper_fig_p8_1.png',
+          x: 960, y: below('s15-headline', { gap: 'md' }), w: 1100, h: 580,
           anchor: 'tc',
-          style: {
-            background: '#f8f9fa',
-            borderRadius: '10px',
-          },
-        }),
-
-        // Chart image
-        el('<img src="assets/images/paper_fig_p8_1.png" style="width:100%;height:100%;object-fit:contain;border-radius:6px;">', {
-          id: 's15-chart',
-          x: 960, y: below('s15-headline', { gap: 34 }), w: 1080, h: 560,
-          anchor: 'tc',
+          containerFill: '#f8f9fa',
+          containerRadius: 10,
+          containerPadding: 10,
+          fit: 'contain',
         }),
 
         // Caption
         el(`<p style="font-family:${FONT_BODY};font-size:28px;color:${C.muted};line-height:1.5;text-align:center;"><strong style="color:${C.accent1};font-weight:600;">Systems-facing:</strong> Reliability &amp; Safety (85%), Privacy (77%) &nbsp;\u2502&nbsp; <strong style="color:${C.accent2};font-weight:600;">Human-facing:</strong> Fairness elevated</p>`, {
           id: 's15-caption',
-          x: 960, y: below('s15-fig-bg', { gap: 20 }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s15-fig', { gap: 'xl' }), w: 1400, anchor: 'tc',
         }),
       ],
     },
@@ -1273,7 +1277,7 @@ export async function run() {
         // Main heading
         el(`<h2 style="font-family:${FONT_HEAD};font-size:64px;font-weight:700;color:${C.text};line-height:1.15;text-transform:uppercase;text-align:center;">Three Design Principles</h2>`, {
           id: 's16-headline',
-          x: 960, y: below('s16-eyebrow', { gap: 16 }), w: 1200, anchor: 'tc',
+          x: 960, y: below('s16-eyebrow', { gap: 'sm' }), w: 1200, anchor: 'tc',
         }),
 
         // Three principle cards
@@ -1292,7 +1296,7 @@ export async function run() {
           ], {
             id: 's16-card1',
             w: 340,
-            padding: 24, gap: 10,
+            padding: 'md', gap: 10,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1315,7 +1319,7 @@ export async function run() {
           ], {
             id: 's16-card2',
             w: 340,
-            padding: 24, gap: 10,
+            padding: 'md', gap: 10,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1338,7 +1342,7 @@ export async function run() {
           ], {
             id: 's16-card3',
             w: 340,
-            padding: 24, gap: 10,
+            padding: 'md', gap: 10,
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -1350,8 +1354,8 @@ export async function run() {
           id: 's16-cards',
           x: 960, y: below('s16-headline', { gap: 36 }),
           anchor: 'tc',
-          gap: 24,
-          align: 'top',
+          gap: 'md',
+          align: 'stretch',
         }),
       ],
     },
@@ -1364,29 +1368,30 @@ export async function run() {
       background: C.bg,
       elements: [
         // ── Left column: text content ──
+        vstack([
+          // Eyebrow — "CLOSING"
+          el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Closing</p>`, {
+            id: 's17-eyebrow',
+          }),
 
-        // Eyebrow — "CLOSING"
-        el(`<p style="font-family:${FONT_HEAD};font-size:22px;font-weight:600;color:${C.accent1};text-transform:uppercase;letter-spacing:0.12em;">Closing</p>`, {
-          id: 's17-eyebrow',
+          // Main headline with gradient (matches slide 1 gradient style)
+          el(`<h1 style="font-family:${FONT_HEAD};font-size:96px;font-weight:900;line-height:1.05;text-transform:uppercase;background:linear-gradient(135deg, ${C.accent1}, ${C.accent2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Deliver AI<br>Where It Matters</h1>`, {
+            id: 's17-headline',
+          }),
+
+          // Subtitle / tagline
+          el(`<p style="font-family:${FONT_BODY};font-size:30px;font-weight:300;color:${C.text};line-height:1.6;">Preserve agency. Foster expertise.<br>Sustain meaningful work.</p>`, {
+            id: 's17-subtitle',
+          }),
+
+          // Footer line with link icon and URL
+          el(`<p style="font-family:${FONT_BODY};font-size:20px;color:${C.muted};line-height:1.6;"><span style="color:${C.accent1};">\uD83D\uDCC4</span>\u00a0 Interactive diagrams, per-task reports &amp; chat with the research:\u00a0 <span style="color:${C.accent2};">aka.ms/AI-Where-It-Matters</span></p>`, {
+            id: 's17-footer',
+          }),
+        ], {
+          id: 's17-text',
           x: 120, y: 280, w: 850,
-        }),
-
-        // Main headline with gradient (matches slide 1 gradient style)
-        el(`<h1 style="font-family:${FONT_HEAD};font-size:96px;font-weight:900;line-height:1.05;text-transform:uppercase;background:linear-gradient(135deg, ${C.accent1}, ${C.accent2});-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Deliver AI<br>Where It Matters</h1>`, {
-          id: 's17-headline',
-          x: 120, y: below('s17-eyebrow', { gap: 20 }), w: 850,
-        }),
-
-        // Subtitle / tagline
-        el(`<p style="font-family:${FONT_BODY};font-size:30px;font-weight:300;color:${C.text};line-height:1.6;">Preserve agency. Foster expertise.<br>Sustain meaningful work.</p>`, {
-          id: 's17-subtitle',
-          x: 120, y: below('s17-headline', { gap: 32 }), w: 850,
-        }),
-
-        // Footer line with link icon and URL
-        el(`<p style="font-family:${FONT_BODY};font-size:20px;color:${C.muted};line-height:1.6;"><span style="color:${C.accent1};">\uD83D\uDCC4</span>\u00a0 Interactive diagrams, per-task reports &amp; chat with the research:\u00a0 <span style="color:${C.accent2};">aka.ms/AI-Where-It-Matters</span></p>`, {
-          id: 's17-footer',
-          x: 120, y: below('s17-subtitle', { gap: 32 }), w: 850,
+          gap: 'lg',
         }),
 
         // ── Right column: closing illustration ──
