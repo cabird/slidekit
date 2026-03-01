@@ -35,10 +35,11 @@ function mockElement(id, resolved, opts = {}) {
 // ---------------------------------------------------------------------------
 
 describe('lint: child-overflow', () => {
+  // Child resolved coords are LOCAL to parent; parent extent is (0, 0, w, h)
   it('detects child overflowing parent on bottom', () => {
     const elements = {
       parent: mockElement('parent', { x: 100, y: 100, w: 200, h: 200 }, { children: ['child'] }),
-      child: mockElement('child', { x: 100, y: 100, w: 200, h: 250 }, { parentId: 'parent' }),
+      child: mockElement('child', { x: 0, y: 0, w: 200, h: 250 }, { parentId: 'parent' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overflow = findings.filter(f => f.rule === 'child-overflow');
@@ -51,7 +52,7 @@ describe('lint: child-overflow', () => {
   it('detects child overflowing parent on right', () => {
     const elements = {
       parent: mockElement('parent', { x: 100, y: 100, w: 200, h: 200 }, { children: ['child'] }),
-      child: mockElement('child', { x: 100, y: 100, w: 250, h: 200 }, { parentId: 'parent' }),
+      child: mockElement('child', { x: 0, y: 0, w: 250, h: 200 }, { parentId: 'parent' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overflow = findings.filter(f => f.rule === 'child-overflow');
@@ -63,7 +64,7 @@ describe('lint: child-overflow', () => {
   it('detects child overflowing parent on left', () => {
     const elements = {
       parent: mockElement('parent', { x: 100, y: 100, w: 200, h: 200 }, { children: ['child'] }),
-      child: mockElement('child', { x: 50, y: 100, w: 200, h: 200 }, { parentId: 'parent' }),
+      child: mockElement('child', { x: -50, y: 0, w: 200, h: 200 }, { parentId: 'parent' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overflow = findings.filter(f => f.rule === 'child-overflow');
@@ -75,7 +76,7 @@ describe('lint: child-overflow', () => {
   it('detects child overflowing parent on top', () => {
     const elements = {
       parent: mockElement('parent', { x: 100, y: 100, w: 200, h: 200 }, { children: ['child'] }),
-      child: mockElement('child', { x: 100, y: 60, w: 200, h: 200 }, { parentId: 'parent' }),
+      child: mockElement('child', { x: 0, y: -40, w: 200, h: 200 }, { parentId: 'parent' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overflow = findings.filter(f => f.rule === 'child-overflow');
@@ -87,7 +88,7 @@ describe('lint: child-overflow', () => {
   it('reports no finding when child fits inside parent', () => {
     const elements = {
       parent: mockElement('parent', { x: 100, y: 100, w: 200, h: 200 }, { children: ['child'] }),
-      child: mockElement('child', { x: 110, y: 110, w: 180, h: 180 }, { parentId: 'parent' }),
+      child: mockElement('child', { x: 10, y: 10, w: 180, h: 180 }, { parentId: 'parent' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overflow = findings.filter(f => f.rule === 'child-overflow');
@@ -132,12 +133,16 @@ describe('lint: non-ancestor-overlap', () => {
   });
 
   it('detects overlapping cousins', () => {
+    // Coords are LOCAL to parent; absoluteBoundsOf sums up the chain
+    // c1 absolute: (100+350, 100+0) = (450, 100), w=500 → ends at 950
+    // c2 absolute: (600+0, 100+0) = (600, 100), w=200 → starts at 600
+    // Overlap: 600..950 on x → 350px overlap
     const elements = {
       gp: mockElement('gp', { x: 0, y: 0, w: 1920, h: 1080 }, { children: ['p1', 'p2'] }),
       p1: mockElement('p1', { x: 100, y: 100, w: 400, h: 400 }, { parentId: 'gp', children: ['c1'] }),
       p2: mockElement('p2', { x: 600, y: 100, w: 400, h: 400 }, { parentId: 'gp', children: ['c2'] }),
-      c1: mockElement('c1', { x: 200, y: 200, w: 500, h: 100 }, { parentId: 'p1' }),
-      c2: mockElement('c2', { x: 600, y: 200, w: 200, h: 100 }, { parentId: 'p2' }),
+      c1: mockElement('c1', { x: 350, y: 0, w: 500, h: 100 }, { parentId: 'p1' }),
+      c2: mockElement('c2', { x: 0, y: 0, w: 200, h: 100 }, { parentId: 'p2' }),
     };
     const findings = lintSlide(mockSlide('s1', elements));
     const overlaps = findings.filter(f => f.rule === 'non-ancestor-overlap');
@@ -518,7 +523,7 @@ describe('lint: lintSlide with slideElement', () => {
     };
     const slide = mockSlide('s1', elements);
     const findings = lintSlide(slide);
-    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'empty-text', 'image-upscaled', 'aspect-ratio-distortion', 'heading-size-inversion', 'low-contrast'];
+    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'image-upscaled', 'aspect-ratio-distortion', 'heading-size-inversion', 'low-contrast'];
     const domFindings = findings.filter(f => domRules.includes(f.rule));
     assert.equal(domFindings.length, 0, 'DOM rules should not run without slideElement');
   });
@@ -701,65 +706,6 @@ describe('lint: line-height-tight (DOM)', () => {
     const findings = lintSlide(slide, container);
     const tight = findings.filter(f => f.rule === 'line-height-tight');
     assert.equal(tight.length, 0);
-
-    document.body.removeChild(container);
-  });
-});
-
-describe('lint: empty-text (DOM)', () => {
-  it('detects empty el-type element', () => {
-    const container = document.createElement('section');
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-type', 'el');
-    el.setAttribute('data-sk-id', 'empty-el');
-    el.style.position = 'absolute';
-    el.textContent = '';
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const empty = findings.filter(f => f.rule === 'empty-text');
-    assert.equal(empty.length, 1);
-    assert.equal(empty[0].severity, 'warning');
-
-    document.body.removeChild(container);
-  });
-
-  it('does not flag element with text content', () => {
-    const container = document.createElement('section');
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-type', 'el');
-    el.setAttribute('data-sk-id', 'has-text');
-    el.style.position = 'absolute';
-    el.textContent = 'Hello world';
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const empty = findings.filter(f => f.rule === 'empty-text');
-    assert.equal(empty.length, 0);
-
-    document.body.removeChild(container);
-  });
-
-  it('does not flag element containing an image', () => {
-    const container = document.createElement('section');
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-type', 'el');
-    el.setAttribute('data-sk-id', 'img-el');
-    el.style.position = 'absolute';
-    const img = document.createElement('img');
-    img.src = 'test.png';
-    el.appendChild(img);
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const empty = findings.filter(f => f.rule === 'empty-text');
-    assert.equal(empty.length, 0);
 
     document.body.removeChild(container);
   });

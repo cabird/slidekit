@@ -57,9 +57,28 @@ function isAncestor(elements, elementId, ancestorId) {
   return false;
 }
 
-function boundsOf(el) {
+function localBoundsOf(el) {
   const r = el.resolved;
   return r ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
+}
+
+function absoluteBoundsOf(el, elements) {
+  const r = el.resolved;
+  if (!r) return null;
+  let absX = r.x;
+  let absY = r.y;
+  const visited = new Set();
+  let cur = el;
+  while (cur.parentId) {
+    if (visited.has(cur.id)) return null; // cycle — can't resolve
+    visited.add(cur.id);
+    const parent = elements[cur.parentId];
+    if (!parent?.resolved) return null; // broken chain — can't resolve
+    absX += parent.resolved.x;
+    absY += parent.resolved.y;
+    cur = parent;
+  }
+  return { x: absX, y: absY, w: r.w, h: r.h };
 }
 
 function normLayer(el) {
@@ -77,9 +96,10 @@ function ruleChildOverflow(elements) {
     if (!el.parentId || el._internal) continue;
     const parent = elements[el.parentId];
     if (!parent) continue;
-    const cb = boundsOf(el);
-    const pb = boundsOf(parent);
-    if (!cb || !pb) continue;
+    const cb = localBoundsOf(el);
+    const pr = parent.resolved;
+    if (!cb || !pr) continue;
+    const pb = { x: 0, y: 0, w: pr.w, h: pr.h };
 
     const edges = [
       { edge: 'left',   overshoot: pb.x - cb.x },
@@ -110,9 +130,14 @@ function ruleChildOverflow(elements) {
 
 function ruleNonAncestorOverlap(elements) {
   const findings = [];
+  const absCache = new Map();
+  function cachedAbsBounds(e) {
+    if (!absCache.has(e.id)) absCache.set(e.id, absoluteBoundsOf(e, elements));
+    return absCache.get(e.id);
+  }
   const els = Object.values(elements).filter(e => !e._internal);
   const withSize = els.filter(e => {
-    const b = boundsOf(e);
+    const b = cachedAbsBounds(e);
     return b && b.w > 0 && b.h > 0;
   });
 
@@ -128,8 +153,8 @@ function ruleNonAncestorOverlap(elements) {
 
       if (isAncestor(elements, a.id, b.id) || isAncestor(elements, b.id, a.id)) continue;
 
-      const ba = boundsOf(a);
-      const bb = boundsOf(b);
+      const ba = cachedAbsBounds(a);
+      const bb = cachedAbsBounds(b);
       if (!rectsOverlap(ba, bb)) continue;
 
       const key = [a.id, b.id].sort().join('|');
@@ -159,7 +184,7 @@ function ruleCanvasOverflow(elements) {
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
     if (normLayer(el) === 'bg') continue;
-    const b = boundsOf(el);
+    const b = absoluteBoundsOf(el, elements);
     if (!b) continue;
 
     const edges = [
@@ -193,7 +218,7 @@ function ruleSafeZoneViolation(elements) {
     if (el._internal) continue;
     if (el.parentId != null) continue;
     if (normLayer(el) === 'bg') continue;
-    const b = boundsOf(el);
+    const b = absoluteBoundsOf(el, elements);
     if (!b) continue;
 
     const edges = [
@@ -226,7 +251,7 @@ function ruleZeroSize(elements) {
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
     if (el.type === 'connector') continue;
-    const b = boundsOf(el);
+    const b = localBoundsOf(el);
     if (!b) continue;
     if (b.w <= 0 || b.h <= 0) {
       findings.push({
@@ -258,7 +283,7 @@ function siblingGroups(elements) {
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
     if (normLayer(el) === 'bg') continue;
-    const b = boundsOf(el);
+    const b = localBoundsOf(el);
     if (!b || b.w <= 0 || b.h <= 0) continue;
     const key = el.parentId ?? '__root__';
     if (!groups.has(key)) groups.set(key, []);
@@ -286,7 +311,7 @@ function ruleGapTooSmall(elements) {
     for (let i = 0; i < siblings.length; i++) {
       for (let j = i + 1; j < siblings.length; j++) {
         const a = siblings[i], b = siblings[j];
-        const ba = boundsOf(a), bb = boundsOf(b);
+        const ba = localBoundsOf(a), bb = localBoundsOf(b);
         const { gap, axis } = rectGap(ba, bb);
         if (gap > 0 && gap < THRESHOLDS.minGap) {
           findings.push({
@@ -311,7 +336,7 @@ function ruleNearMisalignment(elements) {
     for (let i = 0; i < siblings.length; i++) {
       for (let j = i + 1; j < siblings.length; j++) {
         const a = siblings[i], b = siblings[j];
-        const ba = boundsOf(a), bb = boundsOf(b);
+        const ba = localBoundsOf(a), bb = localBoundsOf(b);
         const overlapX = ba.x < bb.x + bb.w && ba.x + ba.w > bb.x;
         const overlapY = ba.y < bb.y + bb.h && ba.y + ba.h > bb.y;
         const edges = [];
@@ -361,7 +386,7 @@ function ruleEdgeCrowding(elements) {
     if (el._internal) continue;
     if (el.parentId != null) continue;
     if (normLayer(el) === 'bg') continue;
-    const b = boundsOf(el);
+    const b = localBoundsOf(el);
     if (!b || b.w <= 0 || b.h <= 0) continue;
 
     const checks = [
@@ -391,7 +416,7 @@ function ruleContentClustering(elements) {
   const roots = Object.values(elements).filter(el =>
     !el._internal && el.parentId == null && normLayer(el) !== 'bg'
   );
-  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  const withBounds = roots.map(el => localBoundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
   if (withBounds.length === 0) return findings;
 
   let covered = 0;
@@ -417,7 +442,7 @@ function ruleLopsidedLayout(elements) {
   const roots = Object.values(elements).filter(el =>
     !el._internal && el.parentId == null && normLayer(el) !== 'bg'
   );
-  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  const withBounds = roots.map(el => localBoundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
   if (withBounds.length === 0) return findings;
 
   let sumX = 0, sumY = 0, sumWeight = 0;
@@ -473,7 +498,7 @@ function ruleContentUnderutilized(elements) {
   const roots = Object.values(elements).filter(el =>
     !el._internal && el.parentId == null && normLayer(el) !== 'bg'
   );
-  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  const withBounds = roots.map(el => localBoundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
   if (withBounds.length === 0) return findings;
 
   const contentBounds = {
@@ -654,26 +679,6 @@ function ruleLineHeightTight(slideEl) {
   return findings;
 }
 
-function ruleEmptyText(slideEl) {
-  const findings = [];
-  if (!slideEl) return findings;
-  const els = slideEl.querySelectorAll('[data-sk-type="el"]');
-  for (const el of els) {
-    // Skip elements containing non-text content
-    if (el.querySelector('img, svg, canvas, video, audio, iframe')) continue;
-    if (!el.textContent || !el.textContent.trim()) {
-      findings.push({
-        rule: 'empty-text',
-        severity: 'warning',
-        elementId: el.getAttribute('data-sk-id'),
-        message: `Element "${el.getAttribute('data-sk-id')}" has no text content`,
-        detail: { content: el.textContent },
-        suggestion: 'Remove empty element or add content',
-      });
-    }
-  }
-  return findings;
-}
 
 // ---------------------------------------------------------------------------
 // Color helpers (for contrast checking)
@@ -854,9 +859,9 @@ function ruleTitlePositionDrift(slides) {
     for (const el of Object.values(elements)) {
       if (el._internal) continue;
       if (!el.id || !el.id.toLowerCase().includes('title')) continue;
-      const r = el.resolved;
-      if (!r) continue;
-      positions.push({ slideId: slide.id, x: r.x, y: r.y });
+      const abs = absoluteBoundsOf(el, elements);
+      if (!abs) continue;
+      positions.push({ slideId: slide.id, x: abs.x, y: abs.y });
     }
   }
   if (positions.length < 2) return findings;
@@ -1023,7 +1028,6 @@ export function lintSlide(slideData, slideElement = null) {
       ...ruleFontTooLarge(slideElement),
       ...ruleLineTooLong(slideElement),
       ...ruleLineHeightTight(slideElement),
-      ...ruleEmptyText(slideElement),
       // Image + Visual Hierarchy
       ...ruleImageUpscaled(slideElement),
       ...ruleAspectRatioDistortion(slideElement),
