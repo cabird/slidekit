@@ -790,7 +790,7 @@ export async function run() {
           ], {
             id: 's9-card-c1',
             w: 350,
-            padding: 'md', gap: 'xs',
+            padding: 'md', gap: 'sm',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -819,7 +819,7 @@ export async function run() {
           ], {
             id: 's9-card-c2',
             w: 350,
-            padding: 'md', gap: 'xs',
+            padding: 'md', gap: 'sm',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
@@ -848,7 +848,7 @@ export async function run() {
           ], {
             id: 's9-card-c3',
             w: 350,
-            padding: 'md', gap: 'xs',
+            padding: 'md', gap: 'sm',
             fill: C.surface,
             radius: 10,
             border: `1px solid ${C.border}`,
