@@ -4,8 +4,9 @@
 import { state } from './state.js';
 import { resolveSpacing } from './spacing.js';
 import { group } from './elements.js';
+import type { SlideElement, Rect, GroupElement } from './types.js';
 
-function deepClone(obj) {
+function deepClone<T>(obj: T): T {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
   }
@@ -16,30 +17,50 @@ function deepClone(obj) {
 // Grid System (M8.2)
 // =============================================================================
 
+/** Grid configuration options. */
+interface GridConfig {
+  cols?: number;
+  gutter?: number;
+  margin?: { left?: number; right?: number };
+}
+
+/** The grid object returned by grid(). */
+interface Grid {
+  cols: number;
+  gutter: number;
+  colWidth: number;
+  marginLeft: number;
+  marginRight: number;
+  totalWidth: number;
+  col(n: number): number;
+  spanW(from: number, to: number): number;
+}
+
 /**
  * Create a grid system for consistent alignment across slides.
  *
- * @param {Object} [config={}] - Grid configuration
- * @returns {{ col: function, spanW: function, colWidth: number, cols: number, gutter: number, marginLeft: number, marginRight: number, totalWidth: number }}
+ * @param config - Grid configuration
+ * @returns A grid object with col() and spanW() helpers
  */
-export function grid(config = {}) {
+export function grid(config: GridConfig = {}): Grid {
   const cols = config.cols || 12;
   const gutter = config.gutter ?? 30;
 
   // Use provided margins or fall back to safe zone or defaults
-  let marginLeft, marginRight;
+  let marginLeft: number;
+  let marginRight: number;
   if (config.margin) {
     marginLeft = config.margin.left ?? 120;
     marginRight = config.margin.right ?? 120;
   } else if (state.safeRectCache) {
-    marginLeft = state.safeRectCache.x;
-    marginRight = (state.config?.slide?.w ?? 1920) - (state.safeRectCache.x + state.safeRectCache.w);
+    marginLeft = (state.safeRectCache as Rect).x;
+    marginRight = ((state as any).config?.slide?.w ?? 1920) - ((state.safeRectCache as Rect).x + (state.safeRectCache as Rect).w);
   } else {
     marginLeft = 120;
     marginRight = 120;
   }
 
-  const totalWidth = (state.config?.slide?.w ?? 1920) - marginLeft - marginRight;
+  const totalWidth = ((state as any).config?.slide?.w ?? 1920) - marginLeft - marginRight;
   const totalGutters = (cols - 1) * gutter;
   const colWidth = (totalWidth - totalGutters) / cols;
 
@@ -61,10 +82,10 @@ export function grid(config = {}) {
     /**
      * Get the x position of column n's left edge (1-indexed).
      *
-     * @param {number} n - Column number (1-based)
-     * @returns {number} X position in pixels
+     * @param n - Column number (1-based)
+     * @returns X position in pixels
      */
-    col(n) {
+    col(n: number): number {
       if (n < 1 || n > cols) {
         throw new Error(`grid.col(${n}): column must be between 1 and ${cols}`);
       }
@@ -75,11 +96,11 @@ export function grid(config = {}) {
      * Get the width spanning columns from..to (inclusive, 1-indexed).
      * Includes gutters between the columns.
      *
-     * @param {number} from - Start column (1-based, inclusive)
-     * @param {number} to - End column (1-based, inclusive)
-     * @returns {number} Width in pixels
+     * @param from - Start column (1-based, inclusive)
+     * @param to - End column (1-based, inclusive)
+     * @returns Width in pixels
      */
-    spanW(from, to) {
+    spanW(from: number, to: number): number {
       if (from < 1 || to > cols || from > to) {
         throw new Error(`grid.spanW(${from}, ${to}): invalid range for ${cols}-column grid`);
       }
@@ -92,11 +113,11 @@ export function grid(config = {}) {
 /**
  * Snap a value to the nearest multiple of gridSize.
  *
- * @param {number} value - The value to snap
- * @param {number} gridSize - The grid size to snap to
- * @returns {number} The snapped value
+ * @param value - The value to snap
+ * @param gridSize - The grid size to snap to
+ * @returns The snapped value
  */
-export function snap(value, gridSize) {
+export function snap(value: number, gridSize: number): number {
   if (gridSize <= 0) return value;
   return Math.round(value / gridSize) * gridSize;
 }
@@ -113,16 +134,16 @@ export function snap(value, gridSize) {
  *
  * Always slide-relative. Never parent-relative. For parent-relative, use "fill".
  *
- * @param {*} value - The value to resolve (may be string percentage or number)
- * @param {string} axis - "x", "y", "w", or "h"
- * @returns {number|*} Resolved pixel value, or the original value if not a percentage string
+ * @param value - The value to resolve (may be string percentage or number)
+ * @param axis - "x", "y", "w", or "h"
+ * @returns Resolved pixel value, or the original value if not a percentage string
  */
-export function resolvePercentage(value, axis) {
+export function resolvePercentage(value: unknown, axis: "x" | "y" | "w" | "h"): unknown {
   if (typeof value !== "string") return value;
 
-  const slideW = state.config?.slide?.w ?? 1920;
-  const slideH = state.config?.slide?.h ?? 1080;
-  const sr = state.safeRectCache || { x: 120, y: 90, w: 1680, h: 900 };
+  const slideW = (state as any).config?.slide?.w ?? 1920;
+  const slideH = (state as any).config?.slide?.h ?? 1080;
+  const sr: Rect = (state.safeRectCache as Rect) || { x: 120, y: 90, w: 1680, h: 900 };
 
   // Check for safe-zone-relative: "safe:N%"
   const safeMatch = value.match(/^safe:\s*([0-9.]+)%$/);
@@ -154,30 +175,34 @@ export function resolvePercentage(value, axis) {
 // Repeat / Duplicate (M8.5)
 // =============================================================================
 
-function _reIdChildren(el, suffix) {
-  if (!el.children) return;
+function _reIdChildren(el: SlideElement, suffix: string): void {
+  if (!('children' in el) || !el.children) return;
   for (const child of el.children) {
     if (child.id) {
-      child.id = `${child.id}${suffix}`;
+      (child as any).id = `${child.id}${suffix}`;
     }
     _reIdChildren(child, suffix);
   }
 }
 
+/** Repeat configuration. */
+interface RepeatConfig {
+  count?: number;
+  cols?: number;
+  gapX?: number | string;
+  gapY?: number | string;
+  startX?: number;
+  startY?: number;
+}
+
 /**
  * Create copies of an element laid out in a grid pattern.
  *
- * @param {object} element - A SlideKit element to duplicate
- * @param {object} config - Repeat configuration
- * @param {number} [config.count] - Number of copies to create
- * @param {number} [config.cols] - Number of columns (default = count, single row)
- * @param {number} [config.gapX=0] - Horizontal gap between copies
- * @param {number} [config.gapY=0] - Vertical gap between copies
- * @param {number} [config.startX=0] - Starting X position
- * @param {number} [config.startY=0] - Starting Y position
- * @returns {{ id: string, type: string, children: Array, props: object }} A group containing all copies
+ * @param element - A SlideKit element to duplicate
+ * @param config - Repeat configuration
+ * @returns A group containing all copies
  */
-export function repeat(element, config = {}) {
+export function repeat(element: SlideElement, config: RepeatConfig = {}): GroupElement {
   const count = config.count || 1;
   const cols = config.cols ?? count; // default: single row
   const gapX = resolveSpacing(config.gapX ?? 0);
@@ -186,10 +211,10 @@ export function repeat(element, config = {}) {
   const startY = config.startY ?? 0;
 
   const baseId = element.id || "repeat";
-  const elemW = element.props?.w || 0;
-  const elemH = element.props?.h || 0;
+  const elemW = (element.props?.w as number) || 0;
+  const elemH = (element.props?.h as number) || 0;
 
-  const children = [];
+  const children: SlideElement[] = [];
   for (let i = 0; i < count; i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -200,10 +225,10 @@ export function repeat(element, config = {}) {
     // Deep clone the element and recursively re-ID all nested children
     const copy = deepClone(element);
     const suffix = `-${i + 1}`;
-    copy.id = `${baseId}${suffix}`;
+    (copy as any).id = `${baseId}${suffix}`;
     _reIdChildren(copy, suffix);
-    copy.props.x = x;
-    copy.props.y = y;
+    (copy as any).props.x = x;
+    (copy as any).props.y = y;
 
     children.push(copy);
   }
@@ -232,12 +257,12 @@ export function repeat(element, config = {}) {
  *   AABB width  = |w * cos(theta)| + |h * sin(theta)|
  *   AABB height = |w * sin(theta)| + |h * cos(theta)|
  *
- * @param {number} w - Original width
- * @param {number} h - Original height
- * @param {number} degrees - Rotation angle in degrees
- * @returns {{ w: number, h: number }} AABB dimensions
+ * @param w - Original width
+ * @param h - Original height
+ * @param degrees - Rotation angle in degrees
+ * @returns AABB dimensions { w, h }
  */
-export function rotatedAABB(w, h, degrees) {
+export function rotatedAABB(w: number, h: number, degrees: number): { w: number; h: number } {
   const rad = (degrees * Math.PI) / 180;
   const cosA = Math.abs(Math.cos(rad));
   const sinA = Math.abs(Math.sin(rad));

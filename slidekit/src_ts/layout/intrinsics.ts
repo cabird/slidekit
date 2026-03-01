@@ -6,7 +6,7 @@ import { measure } from '../measure.js';
 import { resolvePercentage } from '../utilities.js';
 import { isRelMarker, deepClone } from './helpers.js';
 import { mustGet } from '../assertions.js';
-import type { SlideElement, ResolvedSize } from '../types.js';
+import type { SlideElement, ResolvedSize, PositionValue } from '../types.js';
 
 /**
  * Compute the effective width and height for an element.
@@ -26,7 +26,7 @@ export async function getEffectiveDimensions(element: SlideElement) {
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
       return { w: props.w || 0, h: 0, _autoHeight: true };
     }
-    const metrics = await measure(html, props);
+    const metrics = await measure(html, { w: props.w as number | undefined, style: props.style as Record<string, unknown> | undefined, className: props.className });
     return { w: props.w || metrics.w, h: metrics.h, _autoHeight: true };
   }
 
@@ -75,10 +75,10 @@ export async function resolveIntrinsicSizes(
   // M8.3: Resolve percentage sugar on x, y, w, h before validation
   for (const [id, el] of flatMap) {
     if (typeof el.props.x === "string" && !isRelMarker(el.props.x)) {
-      el.props.x = resolvePercentage(el.props.x, "x");
+      el.props.x = resolvePercentage(el.props.x, "x") as PositionValue;
     }
     if (typeof el.props.y === "string" && !isRelMarker(el.props.y)) {
-      el.props.y = resolvePercentage(el.props.y, "y");
+      el.props.y = resolvePercentage(el.props.y, "y") as PositionValue;
     }
     if (typeof el.props.w === "string" && el.props.w !== "fill") {
       el.props.w = resolvePercentage(el.props.w, "w");

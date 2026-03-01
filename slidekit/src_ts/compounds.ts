@@ -8,6 +8,8 @@ import type {
   SlideElement,
   ConnectorElement,
   ConnectorProps,
+  ConnectorType,
+  ArrowType,
   PanelElement,
   PanelConfig,
   FigureElement,
@@ -59,8 +61,8 @@ export function connect(fromId: string, toId: string, props: ConnectorInputProps
   const id = customId || nextId();
 
   const resolved: ConnectorProps = {
-    connectorType: rest.type || "straight",
-    arrow: rest.arrow ?? "end",
+    connectorType: (rest.type as ConnectorType) || "straight",
+    arrow: (rest.arrow as ArrowType) ?? "end",
     color: rest.color || "#ffffff",
     thickness: rest.thickness ?? 2,
     dash: rest.dash || null,

@@ -1,5 +1,7 @@
 // SlideKit — Style utilities (CSS filtering, baseline CSS, shadow presets)
 
+import type { StyleFilterResult } from './types.js';
+
 // =============================================================================
 // CSS Property Filtering (M1.3)
 // =============================================================================
@@ -12,7 +14,7 @@
  *       "-ms-transform" -> "msTransform"
  *       "--custom-prop" -> "--custom-prop" (preserved as-is)
  */
-function toCamelCase(name) {
+function toCamelCase(name: string): string {
   // Preserve CSS custom properties (variables) as-is
   if (name.startsWith("--")) return name;
   // If already camelCase or single word, return as-is
@@ -30,7 +32,7 @@ function toCamelCase(name) {
     normalized = "O-" + normalized.slice(3);
   }
 
-  return normalized.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return normalized.replace(/-([a-z])/g, (_: string, letter: string) => letter.toUpperCase());
 }
 
 /**
@@ -40,7 +42,7 @@ function toCamelCase(name) {
  *       "MozTransition" -> "transition"
  *       "backgroundColor" -> "backgroundColor" (no change)
  */
-function stripVendorPrefix(camelName) {
+function stripVendorPrefix(camelName: string): string {
   // Match common vendor prefixes in camelCase form
   const prefixes = ["Webkit", "Moz", "ms", "O"];
   for (const prefix of prefixes) {
@@ -63,7 +65,7 @@ function stripVendorPrefix(camelName) {
  * or sizing if applied. All other CSS (fonts, padding, colors, etc.)
  * is allowed because measurement renders full HTML including all styles.
  */
-const BLOCKED_PROPERTIES = new Set([
+const BLOCKED_PROPERTIES: ReadonlySet<string> = new Set([
   // Layout position — library owns absolute positioning
   "position",
   "top", "left", "right", "bottom",
@@ -93,12 +95,12 @@ const BLOCKED_PROPERTIES = new Set([
 
   // Containment — can suppress layout/paint
   "contain", "contentVisibility",
-]);
+] as const);
 
 /**
  * Suggestion messages for blocked properties.
  */
-const BLOCKED_SUGGESTIONS = {
+const BLOCKED_SUGGESTIONS: Readonly<Record<string, string>> = {
   position: "SlideKit uses absolute positioning; use x/y/anchor props",
   top: "Use the y prop instead",
   left: "Use the x prop instead",
@@ -115,20 +117,23 @@ const BLOCKED_SUGGESTIONS = {
   scale: "Scaling is not supported; use w/h to control size",
   contain: "contain can suppress layout/paint and conflict with measurement",
   contentVisibility: "contentVisibility can suppress rendering and conflict with measurement",
-};
+} as const;
 
 /**
  * Filter a container style object, removing blocked layout properties.
  *
  * Normalizes keys to camelCase and checks against the blocklist.
  *
- * @param {object} style - The user-provided style object (may use kebab-case or camelCase)
- * @param {string} elementType - The element type (for context in warnings)
- * @returns {{ filtered: object, warnings: Array }}
+ * @param style - The user-provided style object (may use kebab-case or camelCase)
+ * @param elementType - The element type (for context in warnings)
+ * @returns { filtered, warnings }
  */
-export function filterStyle(style = {}, elementType = "unknown") {
-  const warnings = [];
-  const filtered = {};
+export function filterStyle(
+  style: Record<string, unknown> = {},
+  elementType: string = "unknown",
+): StyleFilterResult {
+  const warnings: Array<Record<string, unknown>> = [];
+  const filtered: Record<string, unknown> = {};
 
   for (const [rawKey, value] of Object.entries(style)) {
     const camelKey = toCamelCase(rawKey);
@@ -178,21 +183,21 @@ export function filterStyle(style = {}, elementType = "unknown") {
  * SPECIFICITY STRATEGY
  * --------------------
  * Reveal.js applies aggressive element styles via selectors like:
- *   .reveal img       (0,1,1) — margin, max-width, max-height
- *   .reveal p         (0,1,1) — margin, line-height
- *   .reveal h1        (0,1,1) — margin, font-size, text-transform, etc.
- *   .reveal ul ul     (0,1,2) — display, margin-left
- *   .reveal pre code  (0,1,2) — padding, max-height
- *   .reveal table th  (0,1,2) — font-weight, padding, border
- *   .reveal blockquote p:first-child  (0,2,2) — display
- *   .reveal table tbody tr:last-child th  (0,2,4) — border
+ *   .reveal img       (0,1,1) -- margin, max-width, max-height
+ *   .reveal p         (0,1,1) -- margin, line-height
+ *   .reveal h1        (0,1,1) -- margin, font-size, text-transform, etc.
+ *   .reveal ul ul     (0,1,2) -- display, margin-left
+ *   .reveal pre code  (0,1,2) -- padding, max-height
+ *   .reveal table th  (0,1,2) -- font-weight, padding, border
+ *   .reveal blockquote p:first-child  (0,2,2) -- display
+ *   .reveal table tbody tr:last-child th  (0,2,4) -- border
  *
  * A single attribute selector [data-sk-type="el"] gives (0,1,0), which
  * ties or loses against these.  We TRIPLE the attribute selector to reach
  * (0,3,0).  Descendant rules like  PPP img  then score (0,3,1), beating
  * every Reveal selector without resorting to !important.
  */
-export function _baselineCSS(prefix) {
+export function _baselineCSS(prefix: string): string {
   const p = prefix.trim();
   if (p.includes(',')) {
     throw new Error(`_baselineCSS prefix must be a single selector, got: ${p}`);
@@ -202,7 +207,7 @@ export function _baselineCSS(prefix) {
   return `
 /* ===================================================================
  * SlideKit Baseline CSS Reset
- * Tripled attribute selector → specificity (0,3,0+), always beats
+ * Tripled attribute selector -> specificity (0,3,0+), always beats
  * Reveal.js selectors (max ~0,2,4).  User inline styles still win
  * because inline specificity (1,0,0) > any selector.
  * =================================================================== */
@@ -400,6 +405,9 @@ ${P} a, ${P} a:hover {
 // Shadow Presets (M8.6)
 // =============================================================================
 
+/** Named shadow preset key. */
+export type ShadowPreset = keyof typeof SHADOWS;
+
 /**
  * Named shadow presets mapped to CSS box-shadow values.
  */
@@ -409,26 +417,26 @@ export const SHADOWS = {
   lg:   "0 8px 32px rgba(0,0,0,0.4)",
   xl:   "0 16px 48px rgba(0,0,0,0.5)",
   glow: "0 0 40px rgba(124,92,191,0.3)",
-};
+} as const;
 
 /**
  * Resolve a shadow value: if it's a named preset key, return the CSS value.
  * If it's already a CSS value (contains "px"), pass through.
  *
- * @param {string} value - Shadow preset name or CSS value
- * @returns {string} CSS box-shadow value
+ * @param value - Shadow preset name or CSS value
+ * @returns CSS box-shadow value
  */
-export function resolveShadow(value) {
+export function resolveShadow(value: string): string {
   if (!value) return "";
-  if (SHADOWS[value]) return SHADOWS[value];
+  if (value in SHADOWS) return SHADOWS[value as ShadowPreset];
   return value; // pass through CSS values
 }
 
 /**
  * Get the shadow presets map (for testing/introspection).
  *
- * @returns {object} Copy of the shadow presets
+ * @returns Copy of the shadow presets
  */
-export function getShadowPresets() {
+export function getShadowPresets(): Record<string, string> {
   return { ...SHADOWS };
 }

@@ -6,6 +6,13 @@ import { _baselineCSS } from './style.js';
 import { filterStyle } from './style.js';
 import { applyStyleToDOM } from './dom-helpers.js';
 
+/** Props accepted by measure(). */
+interface MeasureProps {
+  w?: number;
+  style?: Record<string, unknown>;
+  className?: string;
+}
+
 // =============================================================================
 // Measurement Container (M2.2, M2.3)
 // =============================================================================
@@ -17,8 +24,8 @@ import { applyStyleToDOM } from './dom-helpers.js';
  * The container is a hidden div positioned off-screen, styled identically
  * to the slidekit-layer base settings so measurements match rendering.
  */
-export function _ensureMeasureContainer() {
-  if (state.measureContainer && state.measureContainer.parentNode) return;
+export function _ensureMeasureContainer(): void {
+  if (state.measureContainer && (state.measureContainer as HTMLDivElement).parentNode) return;
 
   if (typeof document === "undefined" || !document.body) {
     throw new Error(
@@ -26,29 +33,30 @@ export function _ensureMeasureContainer() {
     );
   }
 
-  state.measureContainer = document.createElement("div");
-  state.measureContainer.style.position = "absolute";
-  state.measureContainer.style.left = "-9999px";
-  state.measureContainer.style.top = "-9999px";
-  state.measureContainer.style.visibility = "hidden";
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.top = "-9999px";
+  container.style.visibility = "hidden";
   // Prevent scrolling or interaction
-  state.measureContainer.style.overflow = "hidden";
-  state.measureContainer.style.pointerEvents = "none";
+  container.style.overflow = "hidden";
+  container.style.pointerEvents = "none";
   // No max dimensions — let content determine size
-  state.measureContainer.setAttribute("data-sk-role", "measure-container");
+  container.setAttribute("data-sk-role", "measure-container");
 
   // Baseline CSS for measurement — identical to render-time baseline
   const baselineStyle = document.createElement("style");
   baselineStyle.textContent = _baselineCSS("[data-sk-measure]");
-  state.measureContainer.appendChild(baselineStyle);
+  container.appendChild(baselineStyle);
 
-  document.body.appendChild(state.measureContainer);
+  document.body.appendChild(container);
+  state.measureContainer = container as any;
 }
 
 /**
  * Clear the measurement cache. Useful when fonts are loaded or for testing.
  */
-export function clearMeasureCache() {
+export function clearMeasureCache(): void {
   state.measureCache.clear();
 }
 
@@ -60,7 +68,7 @@ export function clearMeasureCache() {
  * Build a cache key for measure() results.
  * Uses sorted style keys for deterministic output.
  */
-function _elMeasureCacheKey(html, props) {
+function _elMeasureCacheKey(html: string, props: MeasureProps): string {
   const styleKey = props.style
     ? JSON.stringify(props.style, Object.keys(props.style).sort())
     : null;
@@ -74,15 +82,18 @@ function _elMeasureCacheKey(html, props) {
  * constraints and styling that render will apply, waits for any images to load,
  * then reads offsetWidth / scrollHeight.
  *
- * @param {string} html - HTML content string
- * @param {object} props - Container properties (w, style, className)
- * @returns {Promise<{ w: number, h: number }>}
+ * @param html - HTML content string
+ * @param props - Container properties (w, style, className)
+ * @returns The measured { w, h }
  */
-export async function measure(html, props = {}) {
+export async function measure(
+  html: string,
+  props: MeasureProps = {},
+): Promise<{ w: number; h: number }> {
   // Check cache first
   const cacheKey = _elMeasureCacheKey(html, props);
   if (state.measureCache.has(cacheKey)) {
-    return state.measureCache.get(cacheKey);
+    return state.measureCache.get(cacheKey)!;
   }
 
   _ensureMeasureContainer();
@@ -103,15 +114,15 @@ export async function measure(html, props = {}) {
   div.innerHTML = html;
 
   // Append to DOM (required for images to start loading and layout to compute)
-  state.measureContainer.appendChild(div);
+  (state.measureContainer as HTMLDivElement).appendChild(div);
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
     const IMAGE_TIMEOUT_MS = 3000;
-    await Promise.all([...imgs].map(img => {
+    await Promise.all([...imgs].map((img: HTMLImageElement) => {
       if (img.complete) return Promise.resolve();
-      return new Promise(resolve => {
+      return new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, IMAGE_TIMEOUT_MS);
         const done = () => { clearTimeout(timer); resolve(); };
         img.addEventListener("load", done, { once: true });
@@ -122,7 +133,7 @@ export async function measure(html, props = {}) {
 
   // Read dimensions
   const result = { w: div.offsetWidth, h: div.scrollHeight };
-  state.measureContainer.removeChild(div);
+  (state.measureContainer as HTMLDivElement).removeChild(div);
 
   // Cache result
   state.measureCache.set(cacheKey, result);

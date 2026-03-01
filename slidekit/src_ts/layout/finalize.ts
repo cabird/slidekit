@@ -342,13 +342,13 @@ export function finalize({
         const elA = flatMap.get(idA);
         const elB = flatMap.get(idB);
         if (elA?.props?.rotate) {
-          const aabb = rotatedAABB(boundsA.w, boundsA.h, elA.props.rotate);
+          const aabb = rotatedAABB(boundsA.w, boundsA.h, elA.props.rotate as number);
           const cx = boundsA.x + boundsA.w / 2;
           const cy = boundsA.y + boundsA.h / 2;
           boundsA = { x: cx - aabb.w / 2, y: cy - aabb.h / 2, w: aabb.w, h: aabb.h };
         }
         if (elB?.props?.rotate) {
-          const aabb = rotatedAABB(boundsB.w, boundsB.h, elB.props.rotate);
+          const aabb = rotatedAABB(boundsB.w, boundsB.h, elB.props.rotate as number);
           const cx = boundsB.x + boundsB.w / 2;
           const cy = boundsB.y + boundsB.h / 2;
           boundsB = { x: cx - aabb.w / 2, y: cy - aabb.h / 2, w: aabb.w, h: aabb.h };

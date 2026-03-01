@@ -10,6 +10,12 @@ import { checkOverflowPolicies } from './overflow.js';
 import { resolveIntrinsicSizes } from './intrinsics.js';
 import { resolvePositions } from './positions.js';
 import { finalize } from './finalize.js';
+import type { SlideDefinition, LayoutResult, TransformMarker, SlideElement, Rect, ResolvedSize } from '../types.js';
+
+/** Options for the layout pipeline. */
+interface LayoutOptions {
+  collisionThreshold?: number;
+}
 
 /**
  * Layout solve pipeline — 4-phase resolution.
@@ -19,14 +25,13 @@ import { finalize } from './finalize.js';
  * Phase 3: Apply transforms (placeholder for M6)
  * Phase 4: Finalize (collision detection, provenance, validation, scene graph)
  *
- * @param {object} slideDefinition - A slide definition { elements, transforms, ... }
- * @param {object} [options={}] - Layout options
- * @param {number} [options.collisionThreshold=0] - Minimum overlap area to report
- * @returns {Promise<object>} Scene graph: { elements, transforms, warnings, errors, collisions }
+ * @param slideDefinition - A slide definition { elements, transforms, ... }
+ * @param options - Layout options
+ * @returns Scene graph: { elements, transforms, warnings, errors, collisions }
  */
-export async function layout(slideDefinition, options = {}) {
-  const errors = [];
-  const warnings = [];
+export async function layout(slideDefinition: SlideDefinition, options: LayoutOptions = {}): Promise<LayoutResult> {
+  const errors: Array<Record<string, unknown>> = [];
+  const warnings: Array<Record<string, unknown>> = [];
   const elements = slideDefinition.elements || [];
   const transforms = slideDefinition.transforms || [];
   const collisionThreshold = options.collisionThreshold ?? 0;
@@ -80,10 +85,10 @@ export async function layout(slideDefinition, options = {}) {
   // Process each transform in order, modifying resolved positions/sizes.
   // After applying a transform, update provenance to source: "transform".
   // Reset the transform ID counter for deterministic IDs.
-  state.transformIdCounter = 0;
+  (state as any).transformIdCounter = 0;
 
   // Re-assign transform IDs deterministically for this layout call
-  const resolvedTransforms = [];
+  const resolvedTransforms: unknown[] = [];
   for (const t of transforms) {
     // Pass through null/invalid entries as-is — they'll be caught by validation below
     if (!t || typeof t !== "object") {
@@ -100,14 +105,14 @@ export async function layout(slideDefinition, options = {}) {
   }
 
   // Capture bounds before any transforms for per-axis provenance comparison
-  const preTransformBounds = new Map();
+  const preTransformBounds = new Map<string, Rect>();
   for (const [id, b] of resolvedBounds) {
     preTransformBounds.set(id, { x: b.x, y: b.y, w: b.w, h: b.h });
   }
 
   for (const t of resolvedTransforms) {
     // Validate transform object shape
-    if (!t || typeof t._transform !== "string") {
+    if (!t || typeof (t as any)._transform !== "string") {
       warnings.push({
         type: "invalid_transform_object",
         transform: t,
@@ -116,7 +121,7 @@ export async function layout(slideDefinition, options = {}) {
       continue;
     }
 
-    const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
+    const transformWarnings = applyTransform(t as TransformMarker, resolvedBounds, flatMap);
     for (const w of transformWarnings) {
       warnings.push(w);
     }

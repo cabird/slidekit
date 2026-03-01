@@ -18,7 +18,7 @@ export function _setLayoutFn(fn: (slide: SlideDefinition) => Promise<LayoutResul
  * Layer ordering for z-index computation.
  * Elements in earlier layers render behind elements in later layers.
  */
-const LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
+const LAYER_ORDER = { bg: 0, content: 1, overlay: 2 } as const;
 
 /**
  * Compute z-index values for a flat array of elements.
@@ -280,7 +280,7 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
     w = props.w || 0;
     h = props.h || 0;
     const anchor = props.anchor || "tl";
-    const anchorResult = resolveAnchor(props.x ?? 0, props.y ?? 0, w, h, anchor);
+    const anchorResult = resolveAnchor((props.x ?? 0) as number, (props.y ?? 0) as number, w as number, h as number, anchor);
     left = anchorResult.left;
     top = anchorResult.top;
   }

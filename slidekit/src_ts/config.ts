@@ -5,11 +5,25 @@ import { state } from './state.js';
 
 import { DEFAULT_SPACING, resolveSpacing } from './spacing.js';
 import { resetIdCounter } from './id.js';
+import type { SlideKitConfig, FontDef, Rect, SpacingScale } from './types.js';
+
+/**
+ * Partial init configuration accepted by init().
+ * All fields are optional; unspecified fields get defaults.
+ */
+interface InitConfig {
+  slide?: { w?: number; h?: number };
+  safeZone?: { left?: number; right?: number; top?: number; bottom?: number };
+  strict?: boolean;
+  minFontSize?: number;
+  fonts?: FontDef[];
+  spacing?: Record<string, number>;
+}
 
 /**
  * Default configuration values.
  */
-export const DEFAULT_CONFIG = {
+export const DEFAULT_CONFIG: SlideKitConfig = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
   strict: false,
@@ -21,17 +35,11 @@ export const DEFAULT_CONFIG = {
 /**
  * Initialize SlideKit with configuration.
  *
- * @param {object} config - Configuration object
- * @param {object} [config.slide] - Slide dimensions { w, h } (default 1920x1080)
- * @param {object} [config.safeZone] - Safe zone margins { left, right, top, bottom }
- * @param {boolean} [config.strict] - Validation mode (strict vs lenient)
- * @param {number} [config.minFontSize] - Minimum font size for projection warnings
- * @param {Array} [config.fonts] - Fonts to preload: [{ family, weights, source }]
- * @param {object} [config.spacing] - Custom spacing tokens merged with defaults (xs/sm/md/lg/xl/section)
- * @returns {Promise<object>} Resolves with the config when ready
+ * @param config - Configuration object
+ * @returns Resolves with the config when ready
  */
-export async function init(config = {}) {
-  state.config = {
+export async function init(config: InitConfig = {}): Promise<SlideKitConfig> {
+  (state as any).config = {
     slide: { ...DEFAULT_CONFIG.slide, ...(config.slide || {}) },
     safeZone: { ...DEFAULT_CONFIG.safeZone, ...(config.safeZone || {}) },
     strict: config.strict !== undefined ? config.strict : DEFAULT_CONFIG.strict,
@@ -41,8 +49,8 @@ export async function init(config = {}) {
   };
 
   // Compute and cache the safe rectangle
-  const sz = state.config.safeZone;
-  const sl = state.config.slide;
+  const sz = (state as any).config.safeZone;
+  const sl = (state as any).config.slide;
   const safeW = sl.w - sz.left - sz.right;
   const safeH = sl.h - sz.top - sz.bottom;
   if (safeW <= 0 || safeH <= 0) {
@@ -56,19 +64,19 @@ export async function init(config = {}) {
     y: sz.top,
     w: safeW,
     h: safeH,
-  };
+  } as any;
 
   // Reset font state
   state.loadedFonts = new Set();
-  state.fontWarnings = [];
+  (state as any).fontWarnings = [];
   state.measureCache = new Map();
 
   // M2.1: Font Preloading
-  if (state.config.fonts.length > 0) {
-    await _loadFonts(state.config.fonts);
+  if ((state as any).config.fonts.length > 0) {
+    await _loadFonts((state as any).config.fonts);
   }
 
-  return state.config;
+  return (state as any).config;
 }
 
 /**
@@ -77,11 +85,11 @@ export async function init(config = {}) {
  * For Google Fonts: dynamically inject <link> elements.
  * For each font/weight combo: call document.fonts.load().
  * Wait for document.fonts.ready.
- * Timeout: 5s per font — emit warning and fall back on failure.
+ * Timeout: 5s per font -- emit warning and fall back on failure.
  *
- * @param {Array} fonts - Array of { family, weights, source }
+ * @param fonts - Array of { family, weights, source }
  */
-async function _loadFonts(fonts) {
+async function _loadFonts(fonts: FontDef[]): Promise<void> {
   const FONT_TIMEOUT_MS = 5000;
   const testString = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -93,7 +101,7 @@ async function _loadFonts(fonts) {
   }
 
   // Step 2: For each font/weight combination, try to load it with a timeout
-  const loadPromises = [];
+  const loadPromises: Promise<void>[] = [];
   for (const fontDef of fonts) {
     const family = fontDef.family;
     const weights = fontDef.weights || [400];
@@ -107,7 +115,7 @@ async function _loadFonts(fonts) {
     }
   }
 
-  // Wait for all font load attempts to complete (they won't reject — failures are warnings)
+  // Wait for all font load attempts to complete (they won't reject -- failures are warnings)
   await Promise.all(loadPromises);
 
   // Step 3: Also wait for document.fonts.ready for any other fonts
@@ -121,16 +129,21 @@ async function _loadFonts(fonts) {
 /**
  * Attempt to load a single font with a timeout.
  *
- * @param {string} fontString - CSS font shorthand, e.g. "700 16px \"Space Grotesk\""
- * @param {string} key - Font tracking key, e.g. "Space Grotesk:700"
- * @param {string} testString - String to use for font loading test
- * @param {number} timeoutMs - Timeout in milliseconds
+ * @param fontString - CSS font shorthand, e.g. "700 16px \"Space Grotesk\""
+ * @param key - Font tracking key, e.g. "Space Grotesk:700"
+ * @param testString - String to use for font loading test
+ * @param timeoutMs - Timeout in milliseconds
  */
-async function _loadSingleFont(fontString, key, testString, timeoutMs) {
+async function _loadSingleFont(
+  fontString: string,
+  key: string,
+  testString: string,
+  timeoutMs: number,
+): Promise<void> {
   try {
     const loadResult = await Promise.race([
       document.fonts.load(fontString, testString),
-      new Promise((_, reject) =>
+      new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timeout")), timeoutMs)
       ),
     ]);
@@ -139,12 +152,12 @@ async function _loadSingleFont(fontString, key, testString, timeoutMs) {
     if (Array.isArray(loadResult) && loadResult.length > 0) {
       state.loadedFonts.add(key);
     } else {
-      // Font load returned empty — the font may not exist or hasn't been registered
+      // Font load returned empty -- the font may not exist or hasn't been registered
       // Still add it if document.fonts.check passes
       if (document.fonts.check(fontString, testString)) {
         state.loadedFonts.add(key);
       } else {
-        state.fontWarnings.push({
+        (state as any).fontWarnings.push({
           type: "font_load_failed",
           font: key,
           message: `Font "${key}" could not be loaded. Falling back to system font.`,
@@ -153,7 +166,7 @@ async function _loadSingleFont(fontString, key, testString, timeoutMs) {
     }
   } catch (err) {
     // Timeout or other error
-    state.fontWarnings.push({
+    (state as any).fontWarnings.push({
       type: "font_load_timeout",
       font: key,
       message: `Font "${key}" failed to load within timeout. Falling back to system font.`,
@@ -164,9 +177,9 @@ async function _loadSingleFont(fontString, key, testString, timeoutMs) {
 /**
  * Inject a Google Fonts <link> element into the document head.
  *
- * @param {{ family: string, weights: number[] }} fontDef
+ * @param fontDef - Font definition with family and optional weights
  */
-function _injectGoogleFontLink(fontDef) {
+function _injectGoogleFontLink(fontDef: FontDef): void {
   const family = fontDef.family.replace(/ /g, "+");
   const weights = (fontDef.weights || [400]).join(";");
   const href = `https://fonts.googleapis.com/css2?family=${family}:wght@${weights}&display=swap`;
@@ -185,33 +198,33 @@ function _injectGoogleFontLink(fontDef) {
 /**
  * Check if a specific font+weight is loaded.
  *
- * @param {string} family - Font family name
- * @param {number} weight - Font weight
- * @returns {boolean}
+ * @param family - Font family name
+ * @param weight - Font weight
+ * @returns Whether the font is loaded
  */
-export function isFontLoaded(family, weight = 400) {
+export function isFontLoaded(family: string, weight: number = 400): boolean {
   return state.loadedFonts.has(`${family}:${weight}`);
 }
 
 /**
  * Get font loading warnings from the most recent init() call.
  *
- * @returns {Array} Array of warning objects
+ * @returns Array of warning objects
  */
-export function getFontWarnings() {
-  return [...state.fontWarnings];
+export function getFontWarnings(): Array<Record<string, unknown>> {
+  return [...(state as any).fontWarnings];
 }
 
 /**
  * Get the current safe rectangle.
  *
- * @returns {{ x: number, y: number, w: number, h: number }}
+ * @returns The safe rectangle { x, y, w, h }
  */
-export function safeRect() {
+export function safeRect(): Rect {
   if (!state.safeRectCache) {
     throw new Error("SlideKit.init() must be called before safeRect()");
   }
-  return { ...state.safeRectCache };
+  return { ...(state.safeRectCache as any) };
 }
 
 /**
@@ -221,11 +234,14 @@ export function safeRect() {
  * right). The `gap` parameter accepts a raw pixel number or a spacing token
  * string (e.g. 'xl').
  *
- * @param {{ x: number, y: number, w: number, h: number }} rect
- * @param {{ ratio?: number, gap?: number|string }} [options]
- * @returns {{ left: { x: number, y: number, w: number, h: number }, right: { x: number, y: number, w: number, h: number } }}
+ * @param rect - The rectangle to split
+ * @param options - Split options
+ * @returns { left, right } sub-rectangles
  */
-export function splitRect(rect, { ratio = 0.5, gap = 0 } = {}) {
+export function splitRect(
+  rect: Rect,
+  { ratio = 0.5, gap = 0 as number | string }: { ratio?: number; gap?: number | string } = {},
+): { left: Rect; right: Rect } {
   const gapPx = resolveSpacing(gap);
   const leftW = Math.round((rect.w - gapPx) * ratio);
   const rightW = rect.w - gapPx - leftW;
@@ -238,34 +254,34 @@ export function splitRect(rect, { ratio = 0.5, gap = 0 } = {}) {
 /**
  * Get the current configuration. Returns null if init() hasn't been called.
  *
- * @returns {object|null}
+ * @returns The current config or null
  */
-export function getConfig() {
-  if (!state.config) return null;
+export function getConfig(): SlideKitConfig | null {
+  if (!(state as any).config) return null;
   // Deep copy to prevent external mutation of internal state
-  return JSON.parse(JSON.stringify(state.config));
+  return JSON.parse(JSON.stringify((state as any).config));
 }
 
 /**
- * Reset all internal state. For testing only — allows tests to verify
+ * Reset all internal state. For testing only -- allows tests to verify
  * pre-init behavior and ensures test isolation.
  */
-export function _resetForTests() {
-  state.config = null;
+export function _resetForTests(): void {
+  (state as any).config = null;
   state.safeRectCache = null;
   resetIdCounter();
-  state.transformIdCounter = 0;
+  (state as any).transformIdCounter = 0;
   state.loadedFonts = new Set();
-  state.fontWarnings = [];
+  (state as any).fontWarnings = [];
   state.measureCache = new Map();
   // Remove measurement container from DOM if it exists
-  if (state.measureContainer && state.measureContainer.parentNode) {
-    state.measureContainer.parentNode.removeChild(state.measureContainer);
+  if (state.measureContainer && (state.measureContainer as HTMLDivElement).parentNode) {
+    (state.measureContainer as HTMLDivElement).parentNode!.removeChild(state.measureContainer as HTMLDivElement);
   }
   state.measureContainer = null;
   // Remove injected Google Font link elements
   for (const link of state.injectedFontLinks) {
-    if (link.parentNode) link.parentNode.removeChild(link);
+    if ((link as HTMLLinkElement).parentNode) (link as HTMLLinkElement).parentNode!.removeChild(link as HTMLLinkElement);
   }
   state.injectedFontLinks = new Set();
 }

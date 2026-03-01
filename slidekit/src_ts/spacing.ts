@@ -2,9 +2,10 @@
 // Extracted from slidekit.js
 
 import { state } from './state.js';
+import type { SpacingScale } from './types.js';
 
 /**
- * Built-in spacing scale (named tokens → pixel values).
+ * Built-in spacing scale (named tokens -> pixel values).
  * Users can extend or override via init({ spacing: { ... } }).
  */
 export const DEFAULT_SPACING = {
@@ -14,11 +15,11 @@ export const DEFAULT_SPACING = {
   lg: 32,
   xl: 48,
   section: 80,
-};
+} as const;
 
 /**
- * Resolve a spacing value — either a named token (string) or a raw pixel
- * number — to a concrete pixel number.
+ * Resolve a spacing value -- either a named token (string) or a raw pixel
+ * number -- to a concrete pixel number.
  *
  * - Numbers pass through unchanged (including 0).
  * - Strings are looked up in the active spacing scale (_config.spacing),
@@ -26,18 +27,20 @@ export const DEFAULT_SPACING = {
  * - Unknown token names throw with a list of available tokens.
  * - undefined/null pass through (callers handle their own defaults).
  *
- * @param {number|string|undefined|null} value
- * @returns {number|undefined|null}
+ * @param value - A spacing token name, pixel number, or undefined/null
+ * @returns Resolved pixel number, or the original undefined/null
  */
-export function resolveSpacing(value) {
+export function resolveSpacing(value: number | string | undefined | null): number;
+export function resolveSpacing(value: number | string): number;
+export function resolveSpacing(value: unknown): number | undefined | null {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
-    const scale = state.config?.spacing || DEFAULT_SPACING;
-    if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value];
+    const scale: SpacingScale = (state.config as any)?.spacing || DEFAULT_SPACING;
+    if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value]!;
     const available = Object.keys(scale).join(', ');
     throw new Error(`Unknown spacing token "${value}". Available tokens: ${available}`);
   }
-  return value; // pass through undefined/null
+  return value as undefined | null; // pass through undefined/null
 }
 
 /**
@@ -45,9 +48,9 @@ export function resolveSpacing(value) {
  * Useful for user-land calculations that need to stay in sync with the
  * configured spacing scale.
  *
- * @param {number|string} token - A spacing token name or a pixel number
- * @returns {number}
+ * @param token - A spacing token name or a pixel number
+ * @returns Resolved pixel number
  */
-export function getSpacing(token) {
+export function getSpacing(token: number | string): number {
   return resolveSpacing(token);
 }

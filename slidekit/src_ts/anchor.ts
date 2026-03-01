@@ -2,6 +2,8 @@
 // Anchor Resolution (M1.2)
 // =============================================================================
 
+import type { AnchorPoint } from './types.js';
+
 /**
  * Resolve an anchor point to CSS left/top values.
  *
@@ -16,16 +18,22 @@
  *   |                |
  *   bl ---- bc ---- br
  *
- * @param {number} x - User-specified x coordinate
- * @param {number} y - User-specified y coordinate
- * @param {number} w - Element width
- * @param {number} h - Element height
- * @param {string} anchor - Anchor point string (tl, tc, tr, cl, cc, cr, bl, bc, br)
- * @returns {{ left: number, top: number }}
+ * @param x - User-specified x coordinate
+ * @param y - User-specified y coordinate
+ * @param w - Element width
+ * @param h - Element height
+ * @param anchor - Anchor point string (tl, tc, tr, cl, cc, cr, bl, bc, br)
+ * @returns { left, top }
  */
-export const VALID_ANCHORS = new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
+export const VALID_ANCHORS: ReadonlySet<string> = new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"] as const);
 
-export function resolveAnchor(x, y, w, h, anchor) {
+export function resolveAnchor(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  anchor: AnchorPoint,
+): { left: number; top: number } {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
     throw new Error(
       `Invalid anchor "${anchor}". Must be one of: ${Array.from(VALID_ANCHORS).join(", ")}`
@@ -33,7 +41,7 @@ export function resolveAnchor(x, y, w, h, anchor) {
   }
 
   // Horizontal offset based on anchor column
-  let left;
+  let left: number;
   const col = anchor[1]; // second character: l, c, r
   if (col === "l") {
     left = x;
@@ -46,7 +54,7 @@ export function resolveAnchor(x, y, w, h, anchor) {
   }
 
   // Vertical offset based on anchor row
-  let top;
+  let top: number;
   const row = anchor[0]; // first character: t, c, b
   if (row === "t") {
     top = y;

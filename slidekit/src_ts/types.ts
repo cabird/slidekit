@@ -27,6 +27,33 @@ export interface Point {
 }
 
 // =============================================================================
+// String Literal Union Types — discriminators and constrained values
+// =============================================================================
+
+/** All possible _rel marker types. */
+export type RelMarkerKind =
+  | "below" | "above" | "rightOf" | "leftOf"
+  | "centerV" | "centerH"
+  | "alignTop" | "alignBottom" | "alignLeft" | "alignRight"
+  | "centerIn" | "between";
+
+/** Provenance source values. */
+export type ProvenanceSource =
+  | "authored" | "measured" | "stack" | "constraint" | "transform" | "default";
+
+/** Connector line types. */
+export type ConnectorType = "straight" | "curved" | "elbow";
+
+/** Arrow placement. */
+export type ArrowType = "none" | "end" | "start" | "both";
+
+/** Element type discriminator. */
+export type ElementType = "el" | "group" | "vstack" | "hstack" | "connector";
+
+/** Compound type discriminator. */
+export type CompoundType = "panel" | "figure";
+
+// =============================================================================
 // Element Props — all properties that can appear in an element's `props` bag
 // =============================================================================
 
@@ -144,9 +171,9 @@ export interface LayoutFlags {
 export interface ConnectorProps {
   // -- Connector-specific --
   /** Connector routing type (e.g., "straight", "elbow"). */
-  connectorType?: string;
+  connectorType?: ConnectorType;
   /** Arrow placement: "start", "end", "both", or "none". */
-  arrow?: string;
+  arrow?: ArrowType;
   /** Line color. */
   color?: string;
   /** Line thickness in px. */
@@ -393,7 +420,7 @@ export interface SlideKitState {
 /** A relative positioning marker. */
 export interface RelMarker {
   /** Relationship type (e.g., "below", "rightOf", "centerH"). */
-  _rel: string;
+  _rel: RelMarkerKind;
   /** Referenced element ID. */
   ref?: string;
   /** Secondary reference (element ID or numeric value). */
@@ -432,8 +459,8 @@ export interface ResolvedSize {
 
 /** Provenance metadata describing how a resolved value was determined. */
 export interface Provenance {
-  /** How the value was determined ("authored", "constraint", "measured"). */
-  source: string;
+  /** How the value was determined ("authored", "constraint", "measured", etc.). */
+  source: ProvenanceSource;
   /** The original authored value (for source="authored"). */
   value?: unknown;
   /** Constraint type (for source="constraint", e.g., "below", "centerH"). */
@@ -461,7 +488,7 @@ export interface SceneElement {
   /** Unique element identifier. */
   id: string;
   /** Element type. */
-  type: string;
+  type: ElementType;
   /** Original authored properties. */
   authored: Record<string, unknown>;
   /** Resolved absolute bounds. */
@@ -553,4 +580,23 @@ export interface FlattenResult {
   groupChildren: Map<string, string[]>;
   /** IDs of synthetic panel-internal elements. */
   panelInternals: Set<string>;
+}
+
+// =============================================================================
+// Compound Element Type Guards
+// =============================================================================
+
+/** Narrow a SlideElement to a PanelElement. */
+export function isPanelElement(el: SlideElement): el is PanelElement {
+  return el.type === "group" && '_compound' in el && (el as any)._compound === "panel";
+}
+
+/** Narrow a SlideElement to a FigureElement. */
+export function isFigureElement(el: SlideElement): el is FigureElement {
+  return el.type === "group" && '_compound' in el && (el as any)._compound === "figure";
+}
+
+/** Narrow a SlideElement to any compound element (Panel or Figure). */
+export function isCompoundElement(el: SlideElement): el is PanelElement | FigureElement {
+  return el.type === "group" && '_compound' in el;
 }
