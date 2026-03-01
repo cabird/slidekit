@@ -1531,15 +1531,9 @@ w: 800, h: 400`,
               el('<div style="width:100%;height:100%;background:rgba(0,212,255,0.15);border-radius:12px;border:1px solid rgba(0,212,255,0.2);"></div>', {
                 id: 's13-glass-bg', w: 'fill', h: 100,
               }),
-              panel([
-                el(`<p style="font-family:${FONT};font-size:16px;color:${C.text};">Glass panel overlay</p>`, {
-                  id: 's13-glass-text', w: 'fill',
-                }),
-              ], {
-                id: 's13-glass-overlay',
-                w: 'fill', padding: 'sm',
-                fill: C.glassEmph, radius: 10,
-                border: `1px solid ${C.glassEmphBorder}`,
+              // Use el instead of nested panel to avoid w:'fill' resolution bug in nested panels
+              el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:10px;border:1px solid ${C.glassEmphBorder};display:flex;align-items:center;padding:0 16px;"><p style="font-family:${FONT};font-size:16px;color:${C.text};margin:0;">Glass panel overlay</p></div>`, {
+                id: 's13-glass-overlay', w: 'fill', h: 44,
               }),
             ], {
               id: 's13-card-glass',
@@ -1559,7 +1553,7 @@ w: 800, h: 400`,
               el(`<div style="width:100%;height:100%;border:2px dashed ${C.accent2};border-radius:8px;display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:14px;color:${C.accent2};">dashed border</span></div>`, {
                 id: 's13-border-dashed', w: 'fill', h: 40,
               }),
-              el(`<div style="width:100%;height:100%;background:rgba(180,60,100,0.5);border-radius:8px;overflow:hidden;position:relative;"><div style="position:absolute;top:-10px;left:-10px;width:120%;height:120%;background:linear-gradient(45deg,rgba(255,107,157,0.3),transparent);"></div><span style="font-family:${MONO};font-size:14px;color:#ffffff;position:relative;padding:8px;">overflow: clip</span></div>`, {
+              el(`<div style="width:100%;height:100%;background:rgba(180,60,100,0.5);border-radius:8px;overflow:hidden;position:relative;display:flex;align-items:center;"><div style="position:absolute;top:-10px;left:-10px;width:120%;height:120%;background:linear-gradient(45deg,rgba(255,107,157,0.3),transparent);"></div><span style="font-family:${MONO};font-size:14px;color:#ffffff;position:relative;padding:0 8px;text-shadow:0 1px 3px rgba(0,0,0,0.5);">overflow: clip</span></div>`, {
                 id: 's13-border-clip', w: 'fill', h: 40,
                 overflow: 'clip',
                 className: 'sk-overflow-demo',
