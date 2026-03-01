@@ -577,7 +577,7 @@ export async function run() {
             </div>`, { id: 's7-val-row', w: 'fill' }),
           ], {
             id: 's7-card-value',
-            w: 580,
+            w: 700,
             padding: 18, gap: 0,
             fill: C.surface,
             radius: 10,
@@ -601,7 +601,7 @@ export async function run() {
             </div>`, { id: 's7-id-row', w: 'fill' }),
           ], {
             id: 's7-card-identity',
-            w: 580,
+            w: 700,
             padding: 18, gap: 0,
             fill: C.surface,
             radius: 10,
@@ -625,7 +625,7 @@ export async function run() {
             </div>`, { id: 's7-acc-row', w: 'fill' }),
           ], {
             id: 's7-card-accountability',
-            w: 580,
+            w: 700,
             padding: 18, gap: 0,
             fill: C.surface,
             radius: 10,
@@ -649,7 +649,7 @@ export async function run() {
             </div>`, { id: 's7-dem-row', w: 'fill' }),
           ], {
             id: 's7-card-demands',
-            w: 580,
+            w: 700,
             padding: 18, gap: 0,
             fill: C.surface,
             radius: 10,
@@ -658,7 +658,7 @@ export async function run() {
           }),
         ], {
           id: 's7-cards',
-          x: 880, y: 240,
+          x: right.x, y: 240,
           gap: 14,
         }),
       ],
