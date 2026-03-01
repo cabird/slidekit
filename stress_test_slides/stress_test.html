@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideKit Stress Test</title>
+
+  <!-- Reveal.js CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+
+  <style>
+    body { margin: 0; background: #0a0a1a; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+      <!-- SlideKit renders slides here -->
+    </div>
+  </div>
+
+  <!-- Reveal.js -->
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <!--
+    Build command (from project root):
+    npx esbuild stress_test_slides/stress_test.ts --bundle --format=esm --outfile=stress_test_slides/stress_test_bundle.js --sourcemap
+  -->
+  <script type="module">
+    import { run } from './stress_test_bundle.js';
+
+    try {
+      await run();
+
+      Reveal.initialize({
+        width: 1920,
+        height: 1080,
+        center: false,
+        hash: true,
+        slideNumber: true,
+        transition: 'none',
+        controls: false,
+        progress: false,
+        margin: 0,
+      });
+
+      console.log('Stress test presentation loaded.');
+    } catch (err) {
+      console.error('Failed to load presentation:', err);
+      document.querySelector('.slides').innerHTML = `
+        <section>
+          <div style="color:red;padding:2rem;font-family:monospace;">
+            <h2>Load Error</h2>
+            <pre>${err.message}\n${err.stack}</pre>
+          </div>
+        </section>`;
+      Reveal.initialize({ width: 1920, height: 1080 });
+    }
+  </script>
+</body>
+</html>
