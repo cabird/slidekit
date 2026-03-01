@@ -194,9 +194,11 @@ export function filterStyle(style = {}, elementType = "unknown") {
  * every Reveal selector without resorting to !important.
  */
 export function _baselineCSS(prefix) {
-  // Triple the prefix: [attr][attr][attr] → specificity (0,3,0).
-  // Descendant selectors add element specificity on top, e.g. PPP img = (0,3,1).
-  const P = `${prefix}${prefix}${prefix}`;
+  const p = prefix.trim();
+  if (p.includes(',')) {
+    throw new Error(`_baselineCSS prefix must be a single selector, got: ${p}`);
+  }
+  const P = `${p}${p}${p}`;
 
   return `
 /* ===================================================================
@@ -345,7 +347,7 @@ ${P} code {
   font-size: 1em;
   line-height: inherit;
   text-transform: none;
-  white-space: pre;
+  white-space: normal;
 }
 ${P} pre code {
   display: block;
@@ -353,6 +355,7 @@ ${P} pre code {
   overflow: visible;
   max-height: none;
   word-wrap: normal;
+  white-space: pre;
 }
 
 /* --- Tables ---
@@ -388,10 +391,8 @@ ${P} small {
 ${P} a, ${P} a:hover {
   color: inherit;
   text-decoration: inherit;
-  text-shadow: inherit;
-  border: none;
-  transition: none;
-  position: static;
+  background: none;
+  text-shadow: none;
 }
 `;
 }
