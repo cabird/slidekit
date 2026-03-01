@@ -1,218 +1,217 @@
-# SlideKit Development Workflow
+# SlideKit Slide-Authoring Workflow
 
-This document describes the exact process for implementing SlideKit. It is designed so that an AI agent can pick up this document, the design doc (`SLIDEKIT_DESIGN.md`), and the implementation plan (`SLIDEKIT_IMPLEMENTATION_PLAN.md`) with **zero prior context** and begin (or resume) implementation.
+A practical guide for AI agents (and humans) creating slides with SlideKit. Focused on preventing common layout issues through a disciplined render → inspect → correct loop.
 
----
+## Context
 
-## Roles
+SlideKit is a JavaScript presentation library that renders elements on a **1920×1080** canvas with a **safe zone** (120px inset from edges). It runs on top of Reveal.js. Elements are positioned with `x`/`y`/`w`/`h` props. The layout engine computes resolved bounds for every element and exposes warnings via `window.sk`.
 
-### Orchestrator (outer agent)
-
-The orchestrator manages the overall progress:
-
-1. Reads the implementation plan to determine the next incomplete subtask
-2. Spawns a sub-agent to execute that subtask (one at a time, sequentially)
-3. When the sub-agent finishes, verifies all changes are committed
-4. Updates the implementation plan to mark the subtask as done (add a `[DONE]` marker)
-5. Commits the plan update
-6. After all subtasks in a milestone are done, creates a git tag: `m1-done`, `m2-done`, etc.
-7. Moves to the next subtask
-
-### Sub-Agent (inner agent)
-
-The sub-agent implements one subtask. It follows the pipeline described below **exactly**.
+**Key insight:** When writing slide code, you don't know exact rendered dimensions (text wrapping, image sizes, etc.) until after the browser renders. You must always follow a render → inspect → correct loop.
 
 ---
 
-## Sub-Agent Pipeline (per subtask)
+## 1. Layout Invariants
 
-Every subtask follows these steps in order. Do not skip steps.
+These rules must hold for every slide. Violations are layout bugs.
 
-### Step 0: Orient
+### Rule 1: Containment
 
-1. Read `SLIDEKIT_DESIGN.md` — understand what we're building and why
-2. Read `SLIDEKIT_IMPLEMENTATION_PLAN.md` — find your assigned subtask, understand its requirements, dependencies, and deliverables
-3. Read `SLIDEKIT_WORKFLOW.md` (this file) — understand the process you must follow
-4. Read existing source code in `slidekit/` — understand what's already been built by previous subtasks. You are building on top of existing work. Do not duplicate or conflict with it.
-5. If this is the first subtask (M1.1), there is no existing code yet — skip step 4.
+Every child element must be fully contained within its parent's bounding box. No child should ever extend beyond its parent's bounds. This applies recursively: nested HTML inside an `el()` must also stay within the el's box.
 
-### Step 1: Implement
+**Why it matters:** Overflow that escapes a parent breaks visual grouping and can collide with unrelated elements. It also means your size calculations are wrong.
 
-Write the code for your subtask. Follow the implementation plan's specification closely.
+### Rule 2: No Unintended Overlap
 
-Guidelines:
-- Write clean, well-structured JavaScript (ES modules)
-- Follow existing code conventions from previous subtasks
-- Add clear section comments in the source for your additions
-- Do NOT write tests yet (that comes in Step 5)
-- Do NOT implement more than your assigned subtask
+Sibling elements (or elements not in the same parent-child hierarchy) should not overlap unless explicitly intended (e.g., a background image behind content). If two unrelated elements overlap, it's a layout bug.
 
-### Step 2: Commit implementation
+**Why it matters:** Overlapping elements hide content and indicate incorrect positioning or sizing.
 
-```
-git add <files>
-git commit -m "M{X}.{Y}: <brief description of what was implemented>"
-```
+### Rule 3: Safe Zone
 
-Example: `M1.1: Implement core element model with creation functions`
+All content-layer elements must stay within the safe zone:
 
-### Step 3: Get reviews
+| Edge   | Min | Max  |
+|--------|-----|------|
+| x      | 120 | 1800 |
+| y      | 90  | 990  |
 
-Get code reviews from **Gemini Pro 3** and **GPT 5.2** using the PAL MCP `codereview` or `consensus` tool.
+The SlideKit layout engine warns about safe zone violations via `window.sk.slides[i].layout.warnings`. These warnings are authoritative — if the engine says you're outside the safe zone, you are.
 
-Send them:
-- The files you changed (via `relevant_files` parameter)
-- A description of what you implemented and what subtask it corresponds to
-- Ask them to review for: correctness, edge cases, API design, compatibility with the rest of the design doc
+---
 
-**Exception:** For trivially simple subtasks (a single pure function with < 20 lines, like anchor resolution), you may do a thorough self-review instead of external review. Document that you self-reviewed and why.
+## 2. Programmatic Validation
 
-### Step 4: Address review feedback
+After rendering, run these checks. Do not rely on visual inspection alone.
 
-Read the review feedback. For each issue raised:
-- **Fix it** if you agree it's a real problem
-- **Note and skip** if you disagree, but document why (in a comment or commit message)
-- **Defer** if it's a valid concern but belongs to a later milestone — note this
+### Checking Layout Warnings
 
-Commit the fixes:
-```
-git commit -m "M{X}.{Y}: Address review feedback — <brief summary of changes>"
+```javascript
+const slide = window.sk.slides.find(s => s.id === 'slide-id');
+console.log(slide.layout.warnings); // safe zone violations, overflow, etc.
 ```
 
-If there were no issues to fix, skip this commit.
+If `warnings` is non-empty, fix every warning before proceeding.
 
-### Step 5: Write or update tests
+### Checking Containment (Rule 1)
 
-Write tests for your subtask following the testing strategy in the implementation plan:
-- Tests go in the appropriate `test/test-*.js` file
-- Follow the existing test structure (describe/it blocks)
-- Cover: happy path, edge cases, error conditions
-- For text measurement tests: use tolerance-based assertions
-- Tests must be async-compatible (use async it() where needed)
+Use DOM inspection to verify every child fits inside its parent:
 
-Also run ALL existing tests (not just yours) to verify no regressions. If any existing tests break due to your changes, fix them.
-
-**Test execution:** Load `test/test.html` in a browser (via Playwright or local server). The test runner outputs results to a DOM element. Check that all tests pass.
-
-If you cannot run the tests in-browser (no Playwright available), verify that:
-- Test files parse without syntax errors (load them as modules)
-- Test assertions are logically correct by reading them
-- Note in your commit message that browser execution was not verified
-
-### Step 6: Commit tests
-
-```
-git commit -m "M{X}.{Y}: Add tests for <what was tested>"
-```
-
-### Step 7: Get test reviews
-
-Get the tests reviewed by **Gemini Pro 3** and **GPT 5.2**:
-- Send the test files
-- Ask them to review for: coverage gaps, missing edge cases, assertion correctness, test isolation
-
-**Exception:** Same as Step 3 — skip external review for trivially simple test suites.
-
-### Step 8: Address test review feedback
-
-Fix any issues raised. Commit:
-```
-git commit -m "M{X}.{Y}: Address test review feedback — <brief summary>"
+```javascript
+function checkContainment(parentEl) {
+  const parentRect = parentEl.getBoundingClientRect();
+  for (const child of parentEl.children) {
+    const childRect = child.getBoundingClientRect();
+    if (childRect.top < parentRect.top || childRect.bottom > parentRect.bottom ||
+        childRect.left < parentRect.left || childRect.right > parentRect.right) {
+      console.warn(`Child overflows parent`, { parent: parentEl, child, overflow: {
+        top: parentRect.top - childRect.top,
+        bottom: childRect.bottom - parentRect.bottom,
+        left: parentRect.left - childRect.left,
+        right: childRect.right - parentRect.right
+      }});
+    }
+    checkContainment(child); // recurse
+  }
+}
 ```
 
-### Step 9: Run tests (final verification)
+Run this on every SlideKit element container. Any logged warning is a Rule 1 violation.
 
-Run the full test suite one final time. If anything fails:
-1. Diagnose the failure
-2. Fix the code (not the test, unless the test is wrong)
-3. Commit the fix:
+### Checking Overlap (Rule 2)
+
+Check all top-level SlideKit elements on a slide for unintended overlap:
+
+```javascript
+function checkOverlap(elements) {
+  for (let i = 0; i < elements.length; i++) {
+    for (let j = i + 1; j < elements.length; j++) {
+      const a = elements[i].getBoundingClientRect();
+      const b = elements[j].getBoundingClientRect();
+      if (a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom) {
+        console.warn(`Overlap detected`, { el1: elements[i], el2: elements[j] });
+      }
+    }
+  }
+}
+```
+
+If overlap is detected, determine whether it's intentional (layered backgrounds, decorative elements) or a bug. If it's a bug, fix positioning or sizing.
+
+---
+
+## 3. Image Sizing
+
+Getting image dimensions right requires a render-first approach. Do not guess.
+
+### Process
+
+1. **First render** the slide to get the image's natural dimensions:
+   ```javascript
+   const img = document.querySelector('img'); // target image
+   const naturalW = img.naturalWidth;
+   const naturalH = img.naturalHeight;
    ```
-   git commit -m "M{X}.{Y}: Fix test failure — <what broke and why>"
+
+2. **Calculate exact container size** from the image's aspect ratio:
+   ```javascript
+   const innerW = desiredImageWidth;
+   const innerH = innerW / (naturalW / naturalH);
+   const containerW = innerW + 2 * padding;
+   const containerH = innerH + 2 * padding;
    ```
-4. Re-run all tests. Repeat until all pass.
 
-### Step 10: Return to orchestrator
+3. **Set these exact dimensions** on the `figure()` element so `object-fit: contain` is a no-op — the image fills its container exactly with no letterboxing.
 
-Report back to the orchestrator:
-- What you implemented
-- How many commits you made
-- Any deferred issues or notes for future subtasks
-- Whether all tests pass
-- Any concerns about the design or plan that came up during implementation
+4. **After re-rendering**, verify programmatically that `fits === true` (no content overflow in the figure).
+
+### Why This Matters
+
+If the container aspect ratio doesn't match the image aspect ratio, `object-fit: contain` will letterbox the image, leaving dead space. Or worse, if the container is too small, the image overflows. Neither is acceptable.
 
 ---
 
-## Commit Message Convention
+## 4. The Render-Inspect-Correct Workflow
 
-Format: `M{milestone}.{subtask}: <description>`
+Follow this process for every slide. No exceptions.
 
-Examples:
-```
-M1.1: Implement core element model with creation functions
-M1.1: Address review feedback — add input validation for props
-M1.1: Add tests for element creation and default values
-M1.1: Address test review feedback — add edge case for empty content
-M1.1: Fix test failure — text() with null content should throw
-M1.3: Implement CSS property filtering with camelCase normalization
-M2.3: Implement measureText using div-based DOM measurement
-```
+### Step 1: Write Slide Code
 
-For orchestrator commits:
-```
-Progress: Mark M1.1 as done in implementation plan
-Progress: Mark M1 milestone complete
-```
+Write slide code with best-guess dimensions. Use the safe zone bounds as constraints. Estimate text heights conservatively (overestimate rather than underestimate).
 
----
+### Step 2: Render in Browser
 
-## Git Tags
+Load the presentation in a browser. Navigate to the target slide.
 
-After all subtasks in a milestone are complete:
+### Step 3: Run Programmatic Checks
 
-```
-git tag m1-done -m "Milestone 1: Foundation — complete"
-git tag m2-done -m "Milestone 2: Text Measurement — complete"
-```
+Execute all validation checks in the browser console:
 
----
+1. **Safe zone:** `window.sk.slides[i].layout.warnings` — must be empty
+2. **Containment:** Run `checkContainment()` on every element — must produce zero warnings
+3. **Overlap:** Run `checkOverlap()` on sibling elements — must produce zero unintended overlaps
+4. **Image fit:** For all `figure()` elements, verify image dimensions match container dimensions
 
-## Resuming From Cold Start
+### Step 4: Fix Violations
 
-To resume implementation with no prior context:
+For each violation found:
+- **Safe zone violation:** Adjust `x`/`y`/`w`/`h` to stay within 120–1800 (x) and 90–990 (y)
+- **Containment violation:** Increase parent size or decrease child size — do NOT use `overflow: 'hidden'`
+- **Overlap:** Adjust positions so elements don't collide
+- **Image misfit:** Recalculate container dimensions from actual `naturalWidth`/`naturalHeight`
 
-1. Read `SLIDEKIT_DESIGN.md` — the full specification
-2. Read `SLIDEKIT_IMPLEMENTATION_PLAN.md` — find the first subtask not marked `[DONE]`
-3. Read `SLIDEKIT_WORKFLOW.md` (this file) — follow the sub-agent pipeline
-4. Read existing source code in `slidekit/` — understand what's built so far
-5. Check `git log --oneline` — see recent commits for context
-6. Begin the sub-agent pipeline for the next incomplete subtask
+### Step 5: Re-render and Repeat
+
+Re-render the slide with fixes applied. Run all checks again. Repeat until **zero violations** across all checks.
+
+### Step 6: Visual Inspection
+
+Only after all programmatic checks pass, do a final visual inspection:
+- Does the slide look balanced?
+- Is text readable?
+- Are margins and spacing consistent?
+
+Visual inspection is the **last** step, not the first. Programmatic checks catch the bugs; visual inspection catches the aesthetics.
 
 ---
 
-## File Structure Reference
+## 5. CSS Specificity
 
-```
-presentation_maker/
-├── SLIDEKIT_DESIGN.md              # What to build (specification)
-├── SLIDEKIT_IMPLEMENTATION_PLAN.md # How to build it (milestones + subtasks)
-├── SLIDEKIT_WORKFLOW.md            # This file (process)
-├── SLIDEKIT_IDEAS.md               # Future ideas (not in current scope)
-└── slidekit/                       # The library (created during M1)
-    ├── slidekit.js
-    ├── slidekit-debug.js
-    ├── test/
-    │   ├── test.html
-    │   ├── test-runner.js
-    │   └── test-*.js
-    └── examples/
-```
+SlideKit uses a triple-attribute-selector strategy (`[data-sk-type="el"]×3`) to override Reveal.js styles with high specificity. This is by design.
+
+### When You See Unexpected Styles
+
+If elements have unexpected margins, padding, font sizes, or other style changes, the cause is almost always a Reveal.js CSS rule leaking through.
+
+**The fix goes in `slidekit/src/style.js` `_baselineCSS()`**, NOT in individual slide code.
+
+Do not add inline style overrides to individual elements to fight Reveal CSS. That creates a whack-a-mole situation. Instead, add a targeted reset rule in `_baselineCSS()` that neutralizes the Reveal rule for all SlideKit elements.
 
 ---
 
-## Notes
+## 6. Common Pitfalls
 
-- **One sub-agent per subtask.** Never combine subtasks. Each gets its own agent invocation and its own set of commits.
-- **Reviews are non-negotiable** (except for trivially simple code as noted). The two-model review catches issues that single-model implementation misses.
-- **Tests run after every subtask.** Not just the new tests — the full suite. Regressions caught early are easy to fix.
-- **The implementation plan is the source of truth** for what to build next. The `[DONE]` markers in the plan are how we track progress.
-- **If a sub-agent discovers a design issue** (something in the plan that won't work, or a conflict with the design doc), it should note it in its return message. The orchestrator decides whether to update the plan before proceeding.
+### Don't hide overflow to fix containment
+
+```javascript
+// WRONG — hides the symptom, doesn't fix the bug
+el({ style: { overflow: 'hidden' }, ... })
+
+// RIGHT — fix the actual dimensions
+el({ w: actualNeededWidth, h: actualNeededHeight, ... })
+```
+
+### Don't guess image dimensions
+
+Always render first, read `naturalWidth`/`naturalHeight`, then calculate exact container sizes. Guessing leads to letterboxing or overflow.
+
+### `object-fit: contain` does not prevent overflow
+
+When an element has CSS margin injected by external stylesheets (e.g., Reveal.js), `object-fit: contain` constrains the image but the margin still pushes the element outside its parent. Check for leaked margins.
+
+### `below()` chains accumulate gaps
+
+When chaining elements with `below()`, each gap adds to the total height. After building a vertical chain, check that the bottom of the last element is still within the safe zone (y ≤ 990).
+
+### `w: 'fill'` behaves differently in containers
+
+`w: 'fill'` inside panels and stacks computes differently than explicit pixel widths. It fills the remaining space in the parent, which depends on siblings. Always verify the resolved width after rendering — don't assume it equals the parent width.
