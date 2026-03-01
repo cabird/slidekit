@@ -1030,3 +1030,78 @@ describe('lint: low-contrast (DOM)', () => {
     document.body.removeChild(container);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cross-slide: title-position-drift (Rule 23)
+// ---------------------------------------------------------------------------
+
+describe('lint: title-position-drift', () => {
+  it('detects title position drift across slides', () => {
+    const slide1 = mockSlide('s1', {
+      title1: mockElement('title1', { x: 100, y: 50, w: 400, h: 60 }),
+    });
+    const slide2 = mockSlide('s2', {
+      title2: mockElement('title2', { x: 100, y: 80, w: 400, h: 60 }),
+    });
+    const findings = lintDeck({ slides: [slide1, slide2] });
+    const drift = findings.filter(f => f.rule === 'title-position-drift');
+    assert.equal(drift.length, 1, 'should detect title position drift > 20px');
+    assert.equal(drift[0].severity, 'info');
+    assert.equal(drift[0].detail.driftY, 30);
+  });
+
+  it('does not flag consistent title positions', () => {
+    const slide1 = mockSlide('s1', {
+      title1: mockElement('title1', { x: 100, y: 50, w: 400, h: 60 }),
+    });
+    const slide2 = mockSlide('s2', {
+      title2: mockElement('title2', { x: 100, y: 55, w: 400, h: 60 }),
+    });
+    const findings = lintDeck({ slides: [slide1, slide2] });
+    const drift = findings.filter(f => f.rule === 'title-position-drift');
+    assert.equal(drift.length, 0, 'no drift when positions within threshold');
+  });
+
+  it('title-position-drift works without sections (no crash)', () => {
+    const slide1 = mockSlide('s1', {
+      'my-title': mockElement('my-title', { x: 100, y: 50, w: 400, h: 60 }),
+    });
+    const slide2 = mockSlide('s2', {
+      'slide-title': mockElement('slide-title', { x: 200, y: 50, w: 400, h: 60 }),
+    });
+    const findings = lintDeck({ slides: [slide1, slide2] });
+    const drift = findings.filter(f => f.rule === 'title-position-drift');
+    assert.equal(drift.length, 1, 'should detect x drift of 100px');
+    assert.equal(drift[0].detail.driftX, 100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-slide: font-count (Rule 24) — scene-only safe (no crash without DOM)
+// ---------------------------------------------------------------------------
+
+describe('lint: font-count', () => {
+  it('does not crash without sections', () => {
+    const slide1 = mockSlide('s1', {
+      el1: mockElement('el1', { x: 100, y: 100, w: 200, h: 100 }),
+    });
+    const findings = lintDeck({ slides: [slide1] });
+    const fc = findings.filter(f => f.rule === 'font-count');
+    assert.equal(fc.length, 0, 'no font-count findings without DOM');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cross-slide: style-drift (Rule 25) — scene-only safe (no crash without DOM)
+// ---------------------------------------------------------------------------
+
+describe('lint: style-drift', () => {
+  it('does not crash without sections', () => {
+    const slide1 = mockSlide('s1', {
+      el1: mockElement('el1', { x: 100, y: 100, w: 200, h: 100 }),
+    });
+    const findings = lintDeck({ slides: [slide1] });
+    const sd = findings.filter(f => f.rule === 'style-drift');
+    assert.equal(sd.length, 0, 'no style-drift findings without DOM');
+  });
+});

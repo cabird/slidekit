@@ -787,6 +787,149 @@ function ruleLowContrast(slideEl) {
 }
 
 // ---------------------------------------------------------------------------
+// Cross-slide consistency rules (23–25) — deck-level only
+// ---------------------------------------------------------------------------
+
+function ruleTitlePositionDrift(slides) {
+  const findings = [];
+  const positions = [];
+  for (const slide of slides) {
+    const elements = slide.layout?.elements;
+    if (!elements) continue;
+    for (const el of Object.values(elements)) {
+      if (el._internal) continue;
+      if (!el.id || !el.id.toLowerCase().includes('title')) continue;
+      const r = el.resolved;
+      if (!r) continue;
+      positions.push({ slideId: slide.id, x: r.x, y: r.y });
+    }
+  }
+  if (positions.length < 2) return findings;
+
+  const xs = positions.map(p => p.x);
+  const ys = positions.map(p => p.y);
+  const driftX = Math.max(...xs) - Math.min(...xs);
+  const driftY = Math.max(...ys) - Math.min(...ys);
+  const maxDrift = Math.max(driftX, driftY);
+
+  if (maxDrift > THRESHOLDS.titlePositionDrift) {
+    findings.push({
+      rule: 'title-position-drift',
+      severity: 'info',
+      elementId: null,
+      message: `Title position varies by ${maxDrift}px across slides — standardize to consistent position`,
+      detail: { positions, driftX, driftY },
+      suggestion: `Title position varies by ${maxDrift}px across slides — standardize to consistent position`,
+    });
+  }
+  return findings;
+}
+
+function ruleFontCount(sections) {
+  const findings = [];
+  const families = new Set();
+  for (const section of sections) {
+    if (!section) continue;
+    const els = section.querySelectorAll('[data-sk-type="el"]');
+    for (const el of els) {
+      if (!el.textContent || !el.textContent.trim()) continue;
+      const raw = getComputedStyle(el).fontFamily;
+      if (!raw) continue;
+      const first = raw.split(',')[0].trim().toLowerCase().replace(/['"]/g, '');
+      if (first) families.add(first);
+    }
+  }
+  if (families.size > THRESHOLDS.maxFontFamilies) {
+    findings.push({
+      rule: 'font-count',
+      severity: 'info',
+      elementId: null,
+      message: `Deck uses ${families.size} font families — consider limiting to ${THRESHOLDS.maxFontFamilies}`,
+      detail: { families: Array.from(families), count: families.size, threshold: THRESHOLDS.maxFontFamilies },
+      suggestion: `Deck uses ${families.size} font families — consider limiting to ${THRESHOLDS.maxFontFamilies}`,
+    });
+  }
+  return findings;
+}
+
+function ruleStyleDrift(sections, slides) {
+  const findings = [];
+  const bodyFontSizes = [];
+  const headingFontSizes = [];
+
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    if (!section) continue;
+    const slideId = slides[i]?.id ?? `slide-${i}`;
+
+    // Body text: most common font size from [data-sk-type="el"] elements
+    const textEls = section.querySelectorAll('[data-sk-type="el"]');
+    const sizeCounts = new Map();
+    for (const el of textEls) {
+      if (!el.textContent || !el.textContent.trim()) continue;
+      const size = Math.round(parseFloat(getComputedStyle(el).fontSize));
+      sizeCounts.set(size, (sizeCounts.get(size) || 0) + 1);
+    }
+    if (sizeCounts.size > 0) {
+      let mostCommon = 0, bestCount = 0;
+      for (const [size, count] of sizeCounts) {
+        if (count > bestCount) { mostCommon = size; bestCount = count; }
+      }
+      bodyFontSizes.push({ slideId, size: mostCommon });
+    }
+
+    // Heading sizes: most common from h1-h3
+    const headings = section.querySelectorAll('h1, h2, h3');
+    const hSizeCounts = new Map();
+    for (const h of headings) {
+      const size = Math.round(parseFloat(getComputedStyle(h).fontSize));
+      hSizeCounts.set(size, (hSizeCounts.get(size) || 0) + 1);
+    }
+    if (hSizeCounts.size > 0) {
+      let mostCommon = 0, bestCount = 0;
+      for (const [size, count] of hSizeCounts) {
+        if (count > bestCount) { mostCommon = size; bestCount = count; }
+      }
+      headingFontSizes.push({ slideId, size: mostCommon });
+    }
+  }
+
+  if (bodyFontSizes.length >= 2) {
+    const sizes = bodyFontSizes.map(e => e.size);
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
+    if (max - min > 4) {
+      findings.push({
+        rule: 'style-drift',
+        severity: 'info',
+        elementId: null,
+        message: `Body text size varies from ${min}px to ${max}px across slides — standardize`,
+        detail: { bodyFontSizes, headingFontSizes },
+        suggestion: `Body text size varies from ${min}px to ${max}px across slides — standardize`,
+      });
+    }
+  }
+
+  if (headingFontSizes.length >= 2) {
+    const sizes = headingFontSizes.map(e => e.size);
+    const min = Math.min(...sizes);
+    const max = Math.max(...sizes);
+    if (max - min > 4) {
+      findings.push({
+        rule: 'style-drift',
+        severity: 'info',
+        elementId: null,
+        message: `Heading size varies from ${min}px to ${max}px across slides — standardize`,
+        detail: { bodyFontSizes, headingFontSizes },
+        suggestion: `Heading size varies from ${min}px to ${max}px across slides — standardize`,
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -846,6 +989,8 @@ export function lintDeck(skData, sections = null) {
   const slides = skData?.slides;
   if (!Array.isArray(slides)) return [];
   const findings = [];
+
+  // Per-slide rules
   for (let i = 0; i < slides.length; i++) {
     const slide = slides[i];
     const slideEl = sections ? (sections[i] || null) : null;
@@ -854,5 +999,19 @@ export function lintDeck(skData, sections = null) {
       findings.push({ ...f, slideId: slide.id });
     }
   }
+
+  // Cross-slide consistency rules
+  findings.push(
+    ...ruleTitlePositionDrift(slides),
+  );
+
+  // DOM-based cross-slide rules
+  if (sections) {
+    findings.push(
+      ...ruleFontCount(sections),
+      ...ruleStyleDrift(sections, slides),
+    );
+  }
+
   return findings;
 }
