@@ -675,18 +675,91 @@ Each element in the scene graph has:
 - [`examples/full-deck.html`](examples/full-deck.html) -- 5-slide deck with panels, bullets, connectors, and theme CSS
 - [`examples/theme.css`](examples/theme.css) -- Dark theme CSS (styling only, no layout)
 
+## Project Architecture
+
+SlideKit's source is organized as ES modules under `slidekit/src/`. Users import from the barrel file (`slidekit.js`), which re-exports the public API — the internal module structure is an implementation detail.
+
+### Module Structure
+
+```
+slidekit/
+├── slidekit.js          # Barrel file — re-exports public API from src/
+├── slidekit-debug.js    # Debug overlay (separate import)
+├── dist/                # esbuild output (bundle + sourcemap)
+└── src/                 # Internal modules
+    ├── state.js         # Centralized mutable state (single exported object)
+    ├── config.js        # init(), safeRect(), font loading
+    ├── elements.js      # el(), group(), vstack(), hstack(), cardGrid()
+    ├── anchor.js        # Anchor resolution (9-point system)
+    ├── style.js         # CSS property filtering, shadow presets
+    ├── spacing.js       # Spacing token scale (xs → section)
+    ├── id.js            # Auto-incrementing element IDs
+    ├── relative.js      # Relative positioning helpers (below, rightOf, etc.)
+    ├── measure.js       # DOM-based text measurement + caching
+    ├── transforms.js    # Alignment, distribution, size matching
+    ├── renderer.js      # DOM rendering into Reveal.js sections
+    ├── compounds.js     # connect(), panel(), figure()
+    ├── utilities.js     # grid(), snap(), repeat(), percentage resolution
+    ├── dom-helpers.js   # Shared DOM utilities
+    ├── types.js         # JSDoc type definitions
+    └── layout/          # Layout solve pipeline (6 sub-modules)
+        ├── index.js     # Pipeline orchestrator
+        ├── helpers.js   # Deep clone, element flattening
+        ├── intrinsics.js# Phase 1: resolve sizes (text measurement, stacks)
+        ├── positions.js # Phase 2: topological sort + position resolution
+        ├── overflow.js  # Phase 2.5: overflow policy checks
+        └── finalize.js  # Phase 4: collision detection, validation
+```
+
+All source files use `// @ts-check` for JSDoc-based type checking via TypeScript (`tsconfig.json` at repo root).
+
+### Import Convention
+
+```js
+// Users always import from the barrel file:
+import { init, render, el, below } from './slidekit.js';
+
+// Internal modules import from each other directly:
+// (e.g., renderer.js imports from state.js, config.js, etc.)
+```
+
+## Development
+
+### Prerequisites
+
+```bash
+npm install   # Install esbuild, eslint, typescript, playwright
+```
+
+### NPM Scripts
+
+| Script             | Command                | Description |
+|--------------------|------------------------|-------------|
+| `npm run dev`      | esbuild (watch mode)   | Rebuild bundle on file changes |
+| `npm run build`    | esbuild (minified)     | Production bundle → `dist/slidekit.bundle.js` |
+| `npm run typecheck`| `tsc --noEmit`         | JSDoc type checking across all `src/` files |
+| `npm run lint`     | `eslint slidekit/src/` | Lint with `import/no-cycle` rule to prevent circular dependencies |
+
+### Type Safety
+
+SlideKit uses JSDoc annotations with `@ts-check` instead of TypeScript source files. Type definitions live in `src/types.js`. The `tsconfig.json` at the repo root configures `allowJs` + `checkJs` so `tsc --noEmit` validates types across all modules without a compilation step.
+
 ## Running Tests
+
+```bash
+# Run the full test suite (688 tests, Playwright-based browser runner)
+node run-tests.js
+```
+
+Tests use Playwright to run in a real browser since SlideKit requires a DOM for text measurement and rendering. The test runner starts a local server automatically.
+
+To run examples manually:
 
 ```bash
 # Start a local server
 python -m http.server 8000 --directory slidekit/
 
-# Open test page
-# http://localhost:8000/test/test.html
-
 # Open examples
 # http://localhost:8000/examples/basic.html
 # http://localhost:8000/examples/full-deck.html
 ```
-
-Tests run in-browser since SlideKit requires a DOM for text measurement and rendering.

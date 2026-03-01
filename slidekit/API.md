@@ -236,6 +236,17 @@ el('<p style="font:20px Inter;color:rgba(255,255,255,0.5)">Footer</p>',
   { x: 960, y: 1050, anchor: 'bc' });
 ```
 
+#### `VALID_ANCHORS`
+
+A `Set` containing all valid anchor strings: `"tl"`, `"tc"`, `"tr"`, `"cl"`, `"cc"`, `"cr"`, `"bl"`, `"bc"`, `"br"`.
+
+```js
+import { VALID_ANCHORS } from './slidekit.js';
+
+VALID_ANCHORS.has('tc');  // true
+VALID_ANCHORS.has('xx');  // false
+```
+
 #### `resolveAnchor(x, y, w, h, anchor)`
 
 Converts anchor-relative coordinates to CSS top-left position.
@@ -243,6 +254,8 @@ Converts anchor-relative coordinates to CSS top-left position.
 **Parameters:** `x`, `y` (number), `w`, `h` (number), `anchor` (string)
 
 **Returns:** `{ left, top }` — CSS pixel position for the element's top-left corner.
+
+**Throws** if `anchor` is not a valid anchor string.
 
 ---
 
@@ -907,6 +920,14 @@ Collision detection operates per-layer — elements on different layers don't co
 3. **Phase 3 — Transforms:** Applies alignment/distribution/sizing transforms in declaration order
 4. **Phase 4 — Finalize:** Builds hierarchical scene model (parentId, children, localResolved, rootIds), resolves connector endpoints, AABB collision detection, safe zone/bounds/clustering validation, panel overflow checks
 
+### `getEffectiveDimensions(element)` — async
+
+Computes the effective width and height of an element. For `el()` elements without an explicit `h`, measures the HTML content via `measure()` and returns the measured height. For elements with explicit dimensions, returns those directly.
+
+**Parameters:** `element` (object) — a SlideKit element object.
+
+**Returns:** `Promise<{ w: number, h: number, _autoHeight: boolean }>` — `_autoHeight` is `true` when the height was computed via measurement rather than explicitly authored.
+
 ### Configuration Helpers
 
 #### `safeRect()`
@@ -1036,6 +1057,48 @@ Warning types:
 ```
 
 These warnings appear in `result.layouts[i].warnings` alongside the layout-phase warnings. A 1px tolerance is used to avoid sub-pixel false positives.
+
+### Renderer Helpers
+
+#### `computeZOrder(elements)`
+
+Sorts an array of elements by render order: layer (`bg` < `content` < `overlay`), then explicit `z` value (default `0`), then declaration order. Used internally by `render()` but available for custom rendering pipelines.
+
+**Parameters:** `elements` (Array) — array of SlideKit element objects.
+
+**Returns:** `Map<string, number>` — maps element IDs to their z-index values.
+
+#### `applyStyleToDOM(domEl, styleObj)`
+
+Applies a CSS style object to a DOM element. Handles CSS custom properties (`--*`) via `setProperty()` and standard properties via direct assignment.
+
+**Parameters:** `domEl` (HTMLElement), `styleObj` (object — camelCase CSS properties).
+
+#### `applySlideBackground(section, background)`
+
+Sets Reveal.js background attributes on a `<section>` element based on the background value.
+
+**Parameters:** `section` (HTMLElement), `background` (string).
+
+**Behavior:**
+- Solid colors / gradients → `data-background-color`
+- Image paths → `data-background-image` + `data-background-size="cover"`
+
+#### `renderElementFromScene(element, zIndex, sceneElements, offsetX?, offsetY?)`
+
+Renders a single element from the scene graph into a DOM node. Handles `el`, `group`, `vstack`, `hstack`, and `connector` types. Used internally by `render()` but available for custom rendering.
+
+**Parameters:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `element` | object | — | SlideKit element object |
+| `zIndex` | number | — | CSS z-index to apply |
+| `sceneElements` | object | — | The `elements` map from `layout()` result |
+| `offsetX` | number | `0` | X offset for nested rendering |
+| `offsetY` | number | `0` | Y offset for nested rendering |
+
+**Returns:** `HTMLElement` — the rendered DOM element.
 
 ---
 

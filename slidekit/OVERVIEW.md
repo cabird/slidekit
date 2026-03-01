@@ -28,10 +28,10 @@ A small set of CSS properties are blocked from the style pass-through — only t
 
 SlideKit also injects a **baseline stylesheet** inside every `el()` container that neutralises inherited styles from the host framework (Reveal.js). This ensures `measure()` and `render()` always agree — the baseline is applied identically in both contexts. The defaults (e.g., `text-align: left`, `margin: 0`, `line-height: 1.2`) are predictable and documented. Override any baseline property with inline styles in your HTML content. See [API.md § Baseline CSS](API.md) for the full list.
 
-### Three-Phase Pipeline
+### Pipeline
 
 1. **Specification** — You define slides as arrays of element objects with positions, sizes, and styles.
-2. **Layout Solve** — The library resolves relative positions, measures elements, detects collisions, checks bounds, and produces a complete scene graph with every element's final bounding box.
+2. **Layout Solve** — A 4-phase pipeline resolves sizes, positions, transforms, and validation (see Internal Architecture below for the phase breakdown).
 3. **Render** — The library renders the resolved layout into the DOM as absolutely-positioned elements.
 
 The key insight is that you can inspect the resolved layout *between* solve and render. You get structured, machine-readable data about every element's final position, plus warnings (text too small, element near edge) and errors (element off-slide, unresolvable overlap). This means you can catch and fix problems without visual inspection.
@@ -121,6 +121,86 @@ PowerPoint-style alignment and distribution operations work on arrays of element
 After rendering, the scene model persists in the browser and is queryable and mutable through a console API. You can inspect any element's resolved position, test for overlaps, nudge elements, change properties, and then export the updated layout back to a SlideKit specification. Constraints (like "subtitle is 24px below title") survive through edits — moving the title automatically moves the subtitle.
 
 This enables a closed loop: generate a slide, view it in a browser, make targeted corrections programmatically, and export the corrected layout. The scene model tracks provenance for every resolved value, so export is deterministic — no tolerance-based inference about whether constraints still hold.
+
+## Internal Architecture
+
+### Module Structure
+
+SlideKit is decomposed into 15 focused ES modules under `src/`, plus a 6-module layout pipeline under `src/layout/`. The top-level `slidekit.js` is a barrel file that re-exports the public API — users always import from the barrel, never from `src/` directly.
+
+| Module | Responsibility |
+|--------|---------------|
+| `state.js` | Single exported `state` object holding all mutable state (config, caches, counters) |
+| `config.js` | `init()`, `safeRect()`, font loading, configuration |
+| `elements.js` | Core element constructors: `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
+| `anchor.js` | 9-point anchor resolution |
+| `style.js` | CSS property filtering (block layout props), shadow presets |
+| `spacing.js` | Semantic spacing scale (`xs` through `section`) |
+| `id.js` | Auto-incrementing element IDs |
+| `relative.js` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, etc.) |
+| `measure.js` | DOM-based text measurement with caching |
+| `transforms.js` | Post-solve alignment, distribution, size matching |
+| `renderer.js` | DOM rendering into Reveal.js `<section>` elements |
+| `compounds.js` | Higher-level primitives: `connect()`, `panel()`, `figure()` |
+| `utilities.js` | `grid()`, `snap()`, `repeat()`, percentage resolution |
+| `dom-helpers.js` | Shared DOM utilities |
+| `types.js` | JSDoc type definitions |
+
+### Layout Pipeline Decomposition
+
+The layout solve pipeline (`src/layout/`) is split into 6 sub-modules, orchestrated by `index.js`:
+
+```
+index.js (orchestrator)
+  ├── helpers.js      — deepClone(), flattenElements()
+  ├── intrinsics.js   — Phase 1: resolve intrinsic sizes (text measurement, stack dimensions)
+  ├── positions.js    — Phase 2: topological sort of dependency graph, resolve positions
+  ├── overflow.js     — Phase 2.5: overflow policy checks
+  ├── (transforms)    — Phase 3: alignment/distribution transforms (delegates to ../transforms.js)
+  └── finalize.js     — Phase 4: collision detection, validation, provenance tracking
+```
+
+The `src/layout.js` file is a 6-line re-export barrel that forwards `layout()` from `layout/index.js` and `getEffectiveDimensions()` from `layout/intrinsics.js`.
+
+### State Management
+
+All mutable state is centralized in a single exported object in `state.js`:
+
+```js
+export const state = {
+  idCounter: 0,
+  config: null,
+  safeRectCache: null,
+  loadedFonts: new Set(),
+  measureContainer: null,
+  measureCache: new Map(),
+  fontWarnings: [],
+  injectedFontLinks: new Set(),
+  transformIdCounter: 0,
+};
+```
+
+Modules import `state` and read/write its properties directly. This replaces scattered `let` variables with a single, inspectable object. There is no event system or reactivity — state is mutated imperatively during `init()`, `measure()`, and `layout()`.
+
+### Dependency Rules
+
+- **No circular imports.** ESLint's `import/no-cycle` rule (max depth 5) enforces this at lint time.
+- **Fan-in to the barrel.** The barrel file (`slidekit.js`) imports from all `src/` modules; `src/` modules import from each other but never from the barrel.
+- **Renderer ↔ Layout decoupling.** The renderer needs the layout function, but importing it directly would create a cycle. Instead, the barrel file injects it via `_setLayoutFn(layout)` at initialization.
+- **State is a leaf dependency.** `state.js` imports nothing from the project — other modules depend on it, not the other way around.
+
+### Type Safety
+
+All source files use `// @ts-check` for JSDoc-based type checking. Type definitions are centralized in `src/types.js`. The `tsconfig.json` at the repo root configures `allowJs` + `checkJs` so running `tsc --noEmit` validates types across all modules without a TypeScript compilation step.
+
+### Build Tooling
+
+- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM format, ~94.5kb minified).
+- **`npm run dev`** runs esbuild in watch mode for development.
+- **`npm run build`** produces a minified production bundle with sourcemap.
+- **`npm run typecheck`** runs `tsc --noEmit` for type validation.
+- **`npm run lint`** runs ESLint on `src/` to enforce no-cycle and import hygiene rules.
+- **`node run-tests.js`** runs the test suite (688 tests) via a Playwright-based browser runner.
 
 ## What SlideKit Does Not Do
 
