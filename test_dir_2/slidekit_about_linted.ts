@@ -709,16 +709,16 @@ w: 800, h: 400`,
 
           // Code labels next to each box
           codeLabel('below(\'A\', {gap:150})', 's6-labelB', C.accent2, {
-            x: leftOf('s6-boxB', { gap: 16 }), y: alignTopWith('s6-boxB'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxB', { gap: 16 }), y: centerVWith('s6-boxB'), style: { textAlign: 'right' },
           }),
           codeLabel('rightOf(\'A\') + alignTopWith(\'A\')', 's6-labelC', C.accent3, {
-            x: rightOf('s6-boxC', { gap: 16 }), y: alignTopWith('s6-boxC'),
+            x: rightOf('s6-boxC', { gap: 16 }), y: centerVWith('s6-boxC'),
           }),
           codeLabel('leftOf(\'A\') + above(\'A\')', 's6-labelD', C.accent4, {
-            x: leftOf('s6-boxD', { gap: 16 }), y: alignTopWith('s6-boxD'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxD', { gap: 16 }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
           }),
           codeLabel('placeBetween(\'A\', \'B\')', 's6-labelE', C.textSec, {
-            x: rightOf('s6-boxE', { gap: 16 }), y: alignTopWith('s6-boxE'),
+            x: rightOf('s6-boxE', { gap: 16 }), y: centerVWith('s6-boxE'),
           }),
 
           // centerIn() demo — outlined rect with centered label
