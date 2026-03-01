@@ -1245,18 +1245,31 @@ export async function run() {
         figure({
           id: 's15-fig',
           src: 'assets/images/paper_fig_p8_1.png',
-          x: 960, y: below('s15-headline', { gap: 'md' }), w: 1100, h: 580,
+          x: 960, y: below('s15-headline', { gap: 'sm' }), w: 1100, h: 670,
           anchor: 'tc',
           containerFill: '#f8f9fa',
           containerRadius: 10,
           containerPadding: 10,
           fit: 'contain',
+          style: { overflow: 'hidden', borderRadius: '10px' },
+        }),
+
+        // Legend
+        el(`<div style="display:flex;justify-content:center;gap:24px;font-family:${FONT_BODY};font-size:18px;color:${C.muted};">
+          <span><span style="display:inline-block;width:14px;height:14px;background:#F59E0B;border-radius:2px;vertical-align:middle;margin-right:5px;"></span>Development</span>
+          <span><span style="display:inline-block;width:14px;height:14px;background:${C.accent2};border-radius:2px;vertical-align:middle;margin-right:5px;"></span>Design &amp; Planning</span>
+          <span><span style="display:inline-block;width:14px;height:14px;background:${C.accent3};border-radius:2px;vertical-align:middle;margin-right:5px;"></span>Quality &amp; Risk</span>
+          <span><span style="display:inline-block;width:14px;height:14px;background:${C.accent4};border-radius:2px;vertical-align:middle;margin-right:5px;"></span>Infra &amp; Ops</span>
+          <span><span style="display:inline-block;width:14px;height:14px;background:#67E8F9;border-radius:2px;vertical-align:middle;margin-right:5px;"></span>Meta-work</span>
+        </div>`, {
+          id: 's15-legend',
+          x: 960, y: below('s15-fig', { gap: 'sm' }), w: 1200, anchor: 'tc',
         }),
 
         // Caption
         el(`<p style="font-family:${FONT_BODY};font-size:28px;color:${C.muted};line-height:1.5;text-align:center;"><strong style="color:${C.accent1};font-weight:600;">Systems-facing:</strong> Reliability &amp; Safety (85%), Privacy (77%) &nbsp;\u2502&nbsp; <strong style="color:${C.accent2};font-weight:600;">Human-facing:</strong> Fairness elevated</p>`, {
           id: 's15-caption',
-          x: 960, y: below('s15-fig', { gap: 'xl' }), w: 1400, anchor: 'tc',
+          x: 960, y: below('s15-legend', { gap: 'xs' }), w: 1400, anchor: 'tc',
         }),
       ],
     },
