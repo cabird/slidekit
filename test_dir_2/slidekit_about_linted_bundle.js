@@ -411,6 +411,7 @@ function _baselineCSS(prefix) {
 /* --- Container boundary: establish a clean context --- */
 ${P} {
   text-align: left;
+  font-size: initial;
   font-style: normal;
   font-weight: 400;
   font-stretch: normal;
@@ -2501,8 +2502,6 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
   div.style.height = `${h}px`;
   div.style.boxSizing = "border-box";
   div.style.zIndex = String(zIndex);
-  div.style.fontSize = "0";
-  div.style.lineHeight = "0";
   if (props.opacity !== void 0 && props.opacity !== 1) {
     div.style.opacity = String(props.opacity);
   }
