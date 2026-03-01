@@ -15,6 +15,7 @@ export { render, computeZOrder, applyStyleToDOM, applySlideBackground, renderEle
 export { connect, panel, figure } from './src/compounds.js';
 export { grid, snap, resolvePercentage, repeat, rotatedAABB } from './src/utilities.js';
 export { layout, getEffectiveDimensions } from './src/layout.js';
+export { lintSlide, lintDeck } from './src/lint.js';
 
 // Local imports for namespace object and renderer wiring
 import { layout } from './src/layout.js';
@@ -30,6 +31,7 @@ import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenter
 import { render } from './src/renderer.js';
 import { connect, panel, figure } from './src/compounds.js';
 import { grid, snap, repeat, resolvePercentage, rotatedAABB } from './src/utilities.js';
+import { lintSlide, lintDeck } from './src/lint.js';
 
 // Inject layout function into renderer (avoids circular import)
 _setLayoutFn(layout);
@@ -94,6 +96,8 @@ const SlideKit = {
   resolveShadow,
   getShadowPresets,
   rotatedAABB,
+  lintSlide,
+  lintDeck,
 };
 
 export default SlideKit;

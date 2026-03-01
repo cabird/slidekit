@@ -9,6 +9,7 @@ import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
+import { lintSlide, lintDeck } from './lint.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
 let _layoutFn;
@@ -565,6 +566,12 @@ export async function render(slides, options = {}) {
       })),
       // M8.1: Expose config for debug overlay to read safe zone info
       _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
+      lint: (slideId) => {
+        const slide = window.sk.slides.find(s => s.id === slideId);
+        if (!slide) throw new Error(`Slide not found: ${slideId}`);
+        return lintSlide(slide);
+      },
+      lintDeck: () => lintDeck(window.sk),
     };
   }
 
