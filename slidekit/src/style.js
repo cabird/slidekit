@@ -175,11 +175,39 @@ export function filterStyle(style = {}, elementType = "unknown") {
  * The selector prefix is parameterised so the same rules apply in both the
  * measurement container ([data-sk-measure]) and the render container
  * ([data-sk-type="el"]).
+ *
+ * SPECIFICITY STRATEGY
+ * --------------------
+ * Reveal.js applies aggressive element styles via selectors like:
+ *   .reveal img       (0,1,1) — margin, max-width, max-height
+ *   .reveal p         (0,1,1) — margin, line-height
+ *   .reveal h1        (0,1,1) — margin, font-size, text-transform, etc.
+ *   .reveal ul ul     (0,1,2) — display, margin-left
+ *   .reveal pre code  (0,1,2) — padding, max-height
+ *   .reveal table th  (0,1,2) — font-weight, padding, border
+ *   .reveal blockquote p:first-child  (0,2,2) — display
+ *   .reveal table tbody tr:last-child th  (0,2,4) — border
+ *
+ * A single attribute selector [data-sk-type="el"] gives (0,1,0), which
+ * ties or loses against these.  We TRIPLE the attribute selector to reach
+ * (0,3,0).  Descendant rules like  PPP img  then score (0,3,1), beating
+ * every Reveal selector without resorting to !important.
  */
 export function _baselineCSS(prefix) {
+  // Triple the prefix: [attr][attr][attr] → specificity (0,3,0).
+  // Descendant selectors add element specificity on top, e.g. PPP img = (0,3,1).
+  const P = `${prefix}${prefix}${prefix}`;
+
   return `
-/* Root boundary — neutralise inherited host-framework styles */
-${prefix} {
+/* ===================================================================
+ * SlideKit Baseline CSS Reset
+ * Tripled attribute selector → specificity (0,3,0+), always beats
+ * Reveal.js selectors (max ~0,2,4).  User inline styles still win
+ * because inline specificity (1,0,0) > any selector.
+ * =================================================================== */
+
+/* --- Container boundary: establish a clean context --- */
+${P} {
   text-align: left;
   font-style: normal;
   font-weight: 400;
@@ -188,60 +216,182 @@ ${prefix} {
   letter-spacing: normal;
   text-transform: none;
   text-decoration: none;
+  text-shadow: none;
   white-space: normal;
   word-break: normal;
+  word-wrap: normal;
   overflow-wrap: normal;
   hyphens: manual;
   box-sizing: border-box;
+  color: inherit;
 }
-${prefix} *, ${prefix} *::before, ${prefix} *::after {
+${P} *, ${P} *::before, ${P} *::after {
   box-sizing: inherit;
 }
-/* Direct children — margin/padding reset */
-${prefix} > * {
+
+/* --- Direct children reset --- */
+${P} > * {
   margin: 0;
   padding: 0;
   text-align: inherit;
   line-height: inherit;
 }
-/* Block elements — kill framework margins even when nested */
-${prefix} p,
-${prefix} h1, ${prefix} h2, ${prefix} h3,
-${prefix} h4, ${prefix} h5, ${prefix} h6 {
+
+/* --- Paragraphs ---
+ * Counters: .reveal p { margin: 20px 0; line-height: 1.3 } */
+${P} p {
+  margin: 0;
+  padding: 0;
+  line-height: inherit;
+}
+
+/* --- Headings ---
+ * Counters: .reveal h1-h6 { margin: 0 0 20px 0; font-weight: 600;
+ *   text-transform: uppercase; text-shadow; color; font-size: 2.5em/etc;
+ *   font-family; line-height: 1.2; letter-spacing } */
+${P} h1, ${P} h2, ${P} h3,
+${P} h4, ${P} h5, ${P} h6 {
   margin: 0;
   padding: 0;
   font: inherit;
+  color: inherit;
   text-transform: none;
+  text-shadow: none;
+  letter-spacing: inherit;
+  word-wrap: normal;
 }
-${prefix} ul, ${prefix} ol {
+
+/* --- Lists ---
+ * Counters: .reveal ol/ul/dl { display: inline-block; margin: 0 0 0 1em }
+ *           .reveal ul ul   { display: block; margin-left: 40px }
+ *           .reveal ul ul ul { list-style-type: circle } */
+${P} ul, ${P} ol, ${P} dl {
   margin: 0;
   padding: 0;
+  display: block;
+  text-align: inherit;
   list-style-position: outside;
 }
-${prefix} li {
+${P} li {
   margin: 0;
   padding: 0;
 }
-/* Media — prevent framework responsive rules from changing measured size */
-${prefix} img, ${prefix} svg, ${prefix} video, ${prefix} canvas {
+
+/* --- Definition lists ---
+ * Counters: .reveal dt { font-weight: bold }
+ *           .reveal dd { margin-left: 40px } */
+${P} dt {
+  font-weight: inherit;
+}
+${P} dd {
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Media: prevent Reveal's responsive constraints ---
+ * Counters: .reveal img/video/iframe { max-width: 95%; max-height: 95% }
+ *           .reveal img { margin: 20px 0 }
+ *           .reveal iframe { z-index: 1 } */
+${P} img, ${P} svg, ${P} video,
+${P} canvas, ${P} iframe {
   max-width: none;
   max-height: none;
+  margin: 0;
 }
-${prefix} img, ${prefix} svg {
+${P} iframe {
+  z-index: auto;
+}
+${P} img, ${P} svg {
   vertical-align: baseline;
 }
-/* Pre/code — frameworks often restyle these heavily */
-${prefix} pre, ${prefix} code {
+
+/* --- Blockquote ---
+ * Counters: .reveal blockquote { width: 70%; margin: 20px auto; padding: 5px;
+ *   font-style: italic; background: rgba(...); box-shadow; position: relative }
+ *           .reveal blockquote p:first/last-child { display: inline-block } */
+${P} blockquote {
   margin: 0;
   padding: 0;
+  width: auto;
+  position: static;
+  font-style: inherit;
+  background: none;
+  box-shadow: none;
+}
+${P} q {
+  font-style: inherit;
+}
+
+/* --- Pre/Code ---
+ * Counters: .reveal pre { width: 90%; margin: 20px auto; font-size: 0.55em;
+ *   position: relative; box-shadow; line-height: 1.2em }
+ *           .reveal code { font-family: monospace; text-transform: none }
+ *           .reveal pre code { padding: 5px; max-height: 400px } */
+${P} pre {
+  margin: 0;
+  padding: 0;
+  width: auto;
+  position: static;
   font-size: 1em;
   line-height: 1.2;
   white-space: pre;
+  word-wrap: normal;
+  box-shadow: none;
+  text-align: inherit;
 }
-/* Tables */
-${prefix} table {
+${P} code {
+  margin: 0;
+  padding: 0;
+  font-size: 1em;
+  line-height: inherit;
+  text-transform: none;
+  white-space: pre;
+}
+${P} pre code {
+  display: block;
+  padding: 0;
+  overflow: visible;
+  max-height: none;
+  word-wrap: normal;
+}
+
+/* --- Tables ---
+ * Counters: .reveal table { margin: auto }
+ *           .reveal table th/td { padding: 0.2em 0.5em; border-bottom: 1px solid }
+ *           .reveal table th { font-weight: bold } */
+${P} table {
+  margin: 0;
   border-collapse: collapse;
   border-spacing: 0;
+}
+${P} th, ${P} td {
+  padding: 0;
+  border: none;
+  text-align: inherit;
+  font-weight: inherit;
+}
+
+/* --- Small ---
+ * Counters: .reveal small { display: inline-block; font-size: 0.6em;
+ *   line-height: 1.2em; vertical-align: top } */
+${P} small {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+
+/* --- Links ---
+ * Counters: .reveal a { color: var(--r-link-color); text-decoration: none;
+ *   transition: color .15s; position: relative }
+ *           .reveal a:hover { color: var(--r-link-color-hover) } */
+${P} a, ${P} a:hover {
+  color: inherit;
+  text-decoration: inherit;
+  text-shadow: inherit;
+  border: none;
+  transition: none;
+  position: static;
 }
 `;
 }
