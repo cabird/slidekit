@@ -26,27 +26,267 @@ export interface Point {
   y: number;
 }
 
-/** An element in the slide tree (authored representation). */
-export interface SlideElement {
+// =============================================================================
+// Element Props — all properties that can appear in an element's `props` bag
+// =============================================================================
+
+/** Position value: a number in px, a percentage string, or a RelMarker. */
+export type PositionValue = number | string | RelMarker;
+
+/** Size value: a number in px, a percentage string, or "fill". */
+export type SizeValue = number | string;
+
+/** Anchor point identifier (two-character: row + col). */
+export type AnchorPoint = "tl" | "tc" | "tr" | "cl" | "cc" | "cr" | "bl" | "bc" | "br" | string;
+
+/** Layer determines rendering/z-index ordering. */
+export type LayerName = "bg" | "content" | "overlay";
+
+/** Vertical alignment for el() content. */
+export type VAlign = "top" | "center" | "bottom";
+
+/** Overflow policy for el() elements with explicit height. */
+export type OverflowPolicy = "visible" | "warn" | "clip" | "error";
+
+/** Horizontal alignment for vstack children. */
+export type HAlign = "left" | "center" | "right" | "stretch";
+
+/** Vertical alignment for hstack children. */
+export type HStackAlign = "top" | "middle" | "bottom" | "stretch";
+
+/** Group bounds mode. */
+export type BoundsMode = "hug" | undefined;
+
+/**
+ * Common element properties shared by all element types.
+ *
+ * These are the "authored" properties that users pass to factory functions.
+ * During layout, some of these may be mutated (e.g. percentage strings
+ * resolved to numbers). The layout pipeline reads from this bag extensively.
+ */
+export interface ElementProps {
+  // -- Position --
+  /** Horizontal position (px, percentage string, or RelMarker). */
+  x?: PositionValue;
+  /** Vertical position (px, percentage string, or RelMarker). */
+  y?: PositionValue;
+
+  // -- Size --
+  /** Width (px, percentage string, or "fill"). */
+  w?: SizeValue;
+  /** Height (px, percentage string, or "fill"). */
+  h?: SizeValue;
+  /** Maximum width constraint. */
+  maxW?: number;
+  /** Maximum height constraint. */
+  maxH?: number;
+
+  // -- Layout --
+  /** Anchor point for position interpretation. */
+  anchor?: AnchorPoint;
+  /** Rendering layer. */
+  layer?: LayerName;
+  /** Vertical alignment for el() content within its box. */
+  valign?: VAlign;
+  /** Overflow policy for el() elements with explicit height. */
+  overflow?: OverflowPolicy;
+
+  // -- Visual --
+  /** CSS style object (subset filtered by filterStyle). */
+  style?: Record<string, unknown>;
+  /** Opacity (0-1). */
+  opacity?: number;
+  /** Rotation in degrees. */
+  rotate?: number;
+  /** CSS class name(s). */
+  className?: string;
+  /** Shadow (CSS box-shadow string or object). */
+  shadow?: string;
+
+  // -- Z-order --
+  /** Explicit z-order within the same layer. */
+  z?: number;
+
+  // -- Stack-specific --
+  /** Gap between stack children (px or spacing token). */
+  gap?: number | string;
+  /** Alignment of children within a stack. */
+  align?: HAlign | HStackAlign | string;
+
+  // -- Group-specific --
+  /** Group bounds mode ("hug" = shrink-wrap to children). */
+  bounds?: BoundsMode;
+  /** Scale factor for group contents. */
+  scale?: number;
+  /** Whether to clip children to group bounds. */
+  clip?: boolean;
+
+  // -- Internal / layout pipeline --
+  /** Layout flags set by the overflow/layout pipeline. */
+  _layoutFlags?: LayoutFlags;
+
+  /** Allow additional user-defined properties to pass through. */
+  [key: string]: unknown;
+}
+
+/** Layout flags set during layout processing. */
+export interface LayoutFlags {
+  /** Whether content should be clipped (overflow: "clip"). */
+  clip?: boolean;
+  /** Allow additional flags. */
+  [key: string]: unknown;
+}
+
+/**
+ * Connector-specific properties stored in `props`.
+ * Connectors do not use all common props — they have their own set.
+ */
+export interface ConnectorProps {
+  // -- Connector-specific --
+  /** Connector routing type (e.g., "straight", "elbow"). */
+  connectorType?: string;
+  /** Arrow placement: "start", "end", "both", or "none". */
+  arrow?: string;
+  /** Line color. */
+  color?: string;
+  /** Line thickness in px. */
+  thickness?: number;
+  /** Dash pattern (e.g., "4 2") or null for solid. */
+  dash?: string | null;
+  /** Anchor point on the source element. */
+  fromAnchor?: AnchorPoint;
+  /** Anchor point on the target element. */
+  toAnchor?: AnchorPoint;
+  /** Optional text label on the connector. */
+  label?: string | null;
+  /** Style for the label text. */
+  labelStyle?: Record<string, unknown>;
+  /** Source element ID. */
+  fromId: string;
+  /** Target element ID. */
+  toId: string;
+
+  // -- Common positional props (connectors set these to defaults) --
+  x?: number;
+  y?: number;
+  layer?: LayerName;
+  opacity?: number;
+  style?: Record<string, unknown>;
+  className?: string;
+  anchor?: AnchorPoint;
+
+  /** Allow additional properties. */
+  [key: string]: unknown;
+}
+
+// =============================================================================
+// Discriminated Union — Element Types
+// =============================================================================
+
+/** Base fields shared by every element node in the slide tree. */
+interface BaseElement {
   /** Unique element identifier. */
   id: string;
-  /** Element type (e.g., "text", "rect", "group", "vstack"). */
-  type: string;
-  /** Text or HTML content for text-like elements. */
-  content?: string;
-  /** Authored properties (position, size, styling, etc.). */
-  props: Record<string, unknown>;
-  /** Child elements for groups and stacks. */
-  children?: SlideElement[];
-  /** Compound element type (e.g., "panel", "figure"). */
-  _compound?: string;
-  /** Panel-specific configuration. */
-  _panelConfig?: PanelConfig;
-  /** Figure-specific configuration. */
-  _figureConfig?: FigureConfig;
   /** Internal layout flags set during layout processing. */
-  _layoutFlags?: Record<string, unknown>;
+  _layoutFlags?: LayoutFlags;
 }
+
+/** A positioned HTML element on the canvas. */
+export interface ElElement extends BaseElement {
+  type: "el";
+  /** HTML content rendered via innerHTML. */
+  content: string;
+  /** Authored properties. */
+  props: ElementProps;
+}
+
+/** A group element containing child elements (plain, non-compound). */
+export interface GroupElement extends BaseElement {
+  type: "group";
+  /** Child elements. */
+  children: SlideElement[];
+  /** Authored properties. */
+  props: ElementProps;
+  /** Plain groups are never compounds. Use _compound narrowing to distinguish. */
+  _compound?: never;
+  _panelConfig?: never;
+  _figureConfig?: never;
+}
+
+/** A vertical stack element. Children are laid out top-to-bottom. */
+export interface VStackElement extends BaseElement {
+  type: "vstack";
+  /** Child elements. */
+  children: SlideElement[];
+  /** Authored properties. */
+  props: ElementProps;
+}
+
+/** A horizontal stack element. Children are laid out left-to-right. */
+export interface HStackElement extends BaseElement {
+  type: "hstack";
+  /** Child elements. */
+  children: SlideElement[];
+  /** Authored properties. */
+  props: ElementProps;
+}
+
+/** A connector element between two elements (rendered as SVG). */
+export interface ConnectorElement extends BaseElement {
+  type: "connector";
+  /** Connector-specific properties. */
+  props: ConnectorProps;
+}
+
+/**
+ * A panel compound element — a visual container with background,
+ * padding, and children laid out vertically inside.
+ *
+ * Under the hood, panels ARE groups with compound metadata attached.
+ */
+export interface PanelElement extends BaseElement {
+  type: "group";
+  /** Child elements (typically [bgRect, childVStack]). */
+  children: SlideElement[];
+  /** Authored properties. */
+  props: ElementProps;
+  /** Compound type marker. */
+  _compound: "panel";
+  /** Panel-specific configuration. */
+  _panelConfig: PanelConfig;
+}
+
+/**
+ * A figure compound element — a container with image + optional caption.
+ *
+ * Under the hood, figures ARE groups with compound metadata attached.
+ */
+export interface FigureElement extends BaseElement {
+  type: "group";
+  /** Child elements (typically [bgRect, imgEl, ?captionEl]). */
+  children: SlideElement[];
+  /** Authored properties. */
+  props: ElementProps;
+  /** Compound type marker. */
+  _compound: "figure";
+  /** Figure-specific configuration. */
+  _figureConfig: FigureConfig;
+}
+
+/**
+ * Discriminated union of all element types in the slide tree.
+ *
+ * Use `element.type` to narrow. For compound elements (Panel, Figure),
+ * further narrow with `element._compound`.
+ */
+export type SlideElement =
+  | ElElement
+  | GroupElement
+  | VStackElement
+  | HStackElement
+  | ConnectorElement
+  | PanelElement
+  | FigureElement;
 
 /** Configuration for panel compound elements. */
 export interface PanelConfig {

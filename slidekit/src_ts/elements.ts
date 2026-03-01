@@ -4,13 +4,39 @@
 
 import { nextId } from './id.js';
 import { resolveSpacing } from './spacing.js';
+import type {
+  SlideElement,
+  ElElement,
+  GroupElement,
+  VStackElement,
+  HStackElement,
+  ElementProps,
+  AnchorPoint,
+  LayerName,
+  SizeValue,
+  PositionValue,
+} from './types.js';
+
+/**
+ * Props with an optional user-specified `id` field.
+ * Factory functions extract `id` and pass the rest to applyDefaults.
+ */
+export interface InputProps extends ElementProps {
+  id?: string;
+}
+
+/** Grid-specific options for cardGrid(). */
+export interface CardGridOptions extends InputProps {
+  /** Number of columns. */
+  cols?: number;
+}
 
 /**
  * Default values for common element properties.
  * Note: style is null here; applyDefaults creates a fresh {} for each element
  * to avoid shared-reference mutation bugs.
  */
-export const COMMON_DEFAULTS = {
+export const COMMON_DEFAULTS: Record<string, unknown> = {
   x: 0,
   y: 0,
   anchor: "tl",
@@ -26,9 +52,12 @@ export const COMMON_DEFAULTS = {
  * The `id` key is excluded from the result (it lives on the element, not in props).
  * The `style` default is always a fresh {} to prevent cross-element mutation.
  */
-export function applyDefaults(props, extraDefaults = {}) {
-  const merged = { ...COMMON_DEFAULTS, ...extraDefaults };
-  const result = {};
+export function applyDefaults(
+  props: Record<string, unknown>,
+  extraDefaults: Record<string, unknown> = {},
+): ElementProps {
+  const merged: Record<string, unknown> = { ...COMMON_DEFAULTS, ...extraDefaults };
+  const result: Record<string, unknown> = {};
   for (const key of Object.keys(merged)) {
     if (key === "id") continue; // id is stored at the element level, not in props
     if (key === "style") {
@@ -45,20 +74,20 @@ export function applyDefaults(props, extraDefaults = {}) {
       result[key] = props[key];
     }
   }
-  return result;
+  return result as ElementProps;
 }
 
 /**
  * Create a positioned HTML element on the canvas.
  *
- * @param {string} html - HTML string rendered via innerHTML
- * @param {object} props - Layout props: x, y, w, h, id, anchor, layer, rotate, opacity, style, className, overflow
- * @returns {{ id: string, type: string, content: string, props: object }}
+ * @param html - HTML string rendered via innerHTML
+ * @param props - Layout props: x, y, w, h, id, anchor, layer, rotate, opacity, style, className, overflow
+ * @returns An ElElement node
  */
-export function el(html, props = {}) {
+export function el(html: string, props: InputProps = {}): ElElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
+  const resolved = applyDefaults(rest as Record<string, unknown>, {
     overflow: "visible",
   });
   return { id, type: "el", content: html, props: resolved };
@@ -67,14 +96,14 @@ export function el(html, props = {}) {
 /**
  * Create a group element containing child elements.
  *
- * @param {Array} children - Array of SlideKit elements
- * @param {object} props - Positioning and styling properties
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param children - Array of SlideKit elements
+ * @param props - Positioning and styling properties
+ * @returns A GroupElement node
  */
-export function group(children, props = {}) {
+export function group(children: SlideElement[], props: InputProps = {}): GroupElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
+  const resolved = applyDefaults(rest as Record<string, unknown>, {
     scale: 1,
     clip: false,
   });
@@ -93,14 +122,14 @@ export function group(children, props = {}) {
  * During layout solve, the stack computes absolute positions for each child
  * based on the stack's origin and the children's measured sizes.
  *
- * @param {Array} items - Array of SlideKit elements (children)
- * @param {Object} [props={}] - Positioning and layout properties
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param items - Array of SlideKit elements (children)
+ * @param props - Positioning and layout properties
+ * @returns A VStackElement node
  */
-export function vstack(items, props = {}) {
+export function vstack(items: SlideElement[], props: InputProps = {}): VStackElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
+  const resolved = applyDefaults(rest as Record<string, unknown>, {
     gap: 0,
     align: "left",
   });
@@ -114,14 +143,14 @@ export function vstack(items, props = {}) {
  * During layout solve, the stack computes absolute positions for each child
  * based on the stack's origin and the children's measured sizes.
  *
- * @param {Array} items - Array of SlideKit elements (children)
- * @param {Object} [props={}] - Positioning and layout properties
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param items - Array of SlideKit elements (children)
+ * @param props - Positioning and layout properties
+ * @returns An HStackElement node
  */
-export function hstack(items, props = {}) {
+export function hstack(items: SlideElement[], props: InputProps = {}): HStackElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
-  const resolved = applyDefaults(rest, {
+  const resolved = applyDefaults(rest as Record<string, unknown>, {
     gap: 0,
     align: "top",
   });
@@ -134,16 +163,19 @@ export function hstack(items, props = {}) {
  * Each row is an hstack with align:'stretch' so cards in the same row share
  * equal height.  Rows are stacked vertically with the same gap.
  *
- * @param {Array} items - Array of SlideKit elements
- * @param {Object} [opts={}] - Grid options
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param items - Array of SlideKit elements
+ * @param opts - Grid options
+ * @returns A VStackElement node containing row HStacks
  */
-export function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer, style } = {}) {
+export function cardGrid(
+  items: SlideElement[],
+  { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer, style }: CardGridOptions = {},
+): VStackElement {
   const safeCols = Math.max(1, Math.floor(cols || 2));
   const resolvedGap = resolveSpacing(typeof gap === 'string' || typeof gap === 'number' ? gap : 0);
 
   // Split items into rows
-  const rows = [];
+  const rows: SlideElement[][] = [];
   for (let i = 0; i < items.length; i += safeCols) {
     rows.push(items.slice(i, i + safeCols));
   }

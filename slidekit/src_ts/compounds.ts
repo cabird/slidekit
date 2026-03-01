@@ -2,11 +2,44 @@
 
 import { nextId } from './id.js';
 import { el, group, vstack } from './elements.js';
+import type { InputProps } from './elements.js';
 import { resolveSpacing } from './spacing.js';
+import type {
+  SlideElement,
+  ConnectorElement,
+  ConnectorProps,
+  PanelElement,
+  PanelConfig,
+  FigureElement,
+  FigureConfig,
+  Rect,
+  Point,
+  AnchorPoint,
+  LayerName,
+} from './types.js';
 
 // =============================================================================
 // Compound Primitives — connect, panel (M7)
 // =============================================================================
+
+/** Input properties for connector creation. */
+export interface ConnectorInputProps {
+  id?: string;
+  /** Connector routing type (overrides "type" to avoid collision). */
+  type?: string;
+  arrow?: string;
+  color?: string;
+  thickness?: number;
+  dash?: string | null;
+  fromAnchor?: string;
+  toAnchor?: string;
+  label?: string | null;
+  labelStyle?: Record<string, unknown>;
+  layer?: string;
+  opacity?: number;
+  style?: Record<string, unknown>;
+  className?: string;
+}
 
 /**
  * Create a connector element between two elements.
@@ -16,16 +49,16 @@ import { resolveSpacing } from './spacing.js';
  * The connector computes endpoints based on anchor points on the source
  * and target elements, then renders as SVG.
  *
- * @param {string} fromId - ID of the source element
- * @param {string} toId - ID of the target element
- * @param {Object} [props={}] - Connector properties
- * @returns {{ id: string, type: string, props: object }}
+ * @param fromId - ID of the source element
+ * @param toId - ID of the target element
+ * @param props - Connector properties
+ * @returns A ConnectorElement node
  */
-export function connect(fromId, toId, props = {}) {
+export function connect(fromId: string, toId: string, props: ConnectorInputProps = {}): ConnectorElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
 
-  const resolved = {
+  const resolved: ConnectorProps = {
     connectorType: rest.type || "straight",
     arrow: rest.arrow ?? "end",
     color: rest.color || "#ffffff",
@@ -40,7 +73,7 @@ export function connect(fromId, toId, props = {}) {
     // Common props
     x: 0,
     y: 0,
-    layer: rest.layer || "content",
+    layer: (rest.layer as ConnectorProps["layer"]) || "content",
     opacity: rest.opacity ?? 1,
     style: rest.style || {},
     className: rest.className || "",
@@ -53,15 +86,15 @@ export function connect(fromId, toId, props = {}) {
 /**
  * Compute pixel coordinates for an anchor point on an element's bounding box.
  *
- * @param {{ x: number, y: number, w: number, h: number }} bounds
- * @param {string} anchor - Anchor point (tl, tc, tr, cl, cc, cr, bl, bc, br)
- * @returns {{ x: number, y: number }}
+ * @param bounds - The element's bounding rectangle
+ * @param anchor - Anchor point (tl, tc, tr, cl, cc, cr, bl, bc, br)
+ * @returns The computed point
  */
-export function getAnchorPoint(bounds, anchor) {
+export function getAnchorPoint(bounds: Rect, anchor: string): Point {
   const row = anchor[0]; // t, c, b
   const col = anchor[1]; // l, c, r
 
-  let px, py;
+  let px: number, py: number;
 
   if (col === "l") px = bounds.x;
   else if (col === "c") px = bounds.x + bounds.w / 2;
@@ -75,6 +108,18 @@ export function getAnchorPoint(bounds, anchor) {
 }
 
 
+/** Input properties for panel creation. */
+export interface PanelInputProps extends InputProps {
+  /** Panel padding (px or spacing token). */
+  padding?: number | string;
+  /** Background fill color. */
+  fill?: string;
+  /** Border radius (number in px or CSS string). */
+  radius?: number | string;
+  /** Border CSS string. */
+  border?: string;
+}
+
 /**
  * Create a panel element — a visual container with background, padding, and
  * children laid out vertically inside.
@@ -83,18 +128,18 @@ export function getAnchorPoint(bounds, anchor) {
  * a vstack of children, with padding applied as coordinate offsets.
  * Children with w: "fill" resolve to panel.w - 2 * padding.
  *
- * @param {Array} children - Array of SlideKit elements
- * @param {Object} [props={}] - Panel properties
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param children - Array of SlideKit elements
+ * @param props - Panel properties
+ * @returns A PanelElement node
  */
-export function panel(children, props = {}) {
+export function panel(children: SlideElement[], props: PanelInputProps = {}): PanelElement {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
 
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = rest.w;
-  const panelH = rest.h;
+  const panelW = rest.w as number | undefined;
+  const panelH = rest.h as number | undefined;
 
   // Resolve "fill" width on children: fill = panelW - 2 * padding
   // Clamp to 0 to prevent negative widths when panel is narrower than 2*padding
@@ -102,10 +147,10 @@ export function panel(children, props = {}) {
   // as panelW is a concrete number at panel() call time. If panelW is not known
   // until layout, wrap the panel creation after layout resolves the parent's width.
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : undefined;
-  const resolvedChildren = children.map(child => {
+  const resolvedChildren = children.map((child: SlideElement) => {
     if (child.props && child.props.w === "fill" && contentW !== undefined) {
       // Clone the child with resolved width
-      return { ...child, props: { ...child.props, w: contentW } };
+      return { ...child, props: { ...child.props, w: contentW } } as SlideElement;
     }
     return child;
   });
@@ -119,7 +164,7 @@ export function panel(children, props = {}) {
   });
 
   // Build the background element
-  const bgStyle = { ...(rest.style || {}) };
+  const bgStyle: Record<string, unknown> = { ...(rest.style || {}) };
   if (rest.fill) bgStyle.background = rest.fill;
   if (rest.radius !== undefined) bgStyle.borderRadius = typeof rest.radius === "number" ? `${rest.radius}px` : rest.radius;
   if (rest.border !== undefined) bgStyle.border = rest.border;
@@ -136,7 +181,7 @@ export function panel(children, props = {}) {
   // Pass w/h to the group so the layout pipeline knows the panel's intrinsic
   // size during Phase 1.  Without this, getEffectiveDimensions returns {w:0,h:0}
   // for the group, causing parent stacks to compute wrong totals.
-  const groupProps = {
+  const groupProps: InputProps = {
     id,
     x: rest.x ?? 0,
     y: rest.y ?? 0,
@@ -146,13 +191,16 @@ export function panel(children, props = {}) {
   };
   if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
-  const result = group([bgRect, childStack], groupProps);
 
-  // Tag as a panel compound for layout pipeline integration
-  // @ts-ignore — extended properties on group return
-  result._compound = "panel";
-  // @ts-ignore — extended properties on group return
-  result._panelConfig = { padding, gap, panelW, panelH };
+  const panelConfig: PanelConfig = { padding, gap, panelW, panelH };
+
+  // Construct the PanelElement directly — avoids @ts-ignore on group return
+  const groupBase = group([bgRect, childStack], groupProps);
+  const result: PanelElement = {
+    ...groupBase,
+    _compound: "panel",
+    _panelConfig: panelConfig,
+  };
 
   return result;
 }
@@ -160,6 +208,33 @@ export function panel(children, props = {}) {
 // =============================================================================
 // Figure Compound (P2.3)
 // =============================================================================
+
+/** Input properties for figure creation. */
+export interface FigureInputProps {
+  id?: string;
+  /** Image source URL or path. */
+  src?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  anchor?: string;
+  layer?: LayerName;
+  /** Background fill for the container. */
+  containerFill?: string;
+  /** Border radius for the container. */
+  containerRadius?: number | string;
+  /** Padding inside the container. */
+  containerPadding?: number | string;
+  /** Caption text (HTML string). */
+  caption?: string;
+  /** Gap between image and caption. */
+  captionGap?: number | string;
+  /** Object-fit for the image. */
+  fit?: string;
+  /** CSS style object. */
+  style?: Record<string, unknown>;
+}
 
 /**
  * Create a figure element: background container + image + optional caption.
@@ -169,12 +244,12 @@ export function panel(children, props = {}) {
  *   2. Image element (el with <img>, inset by containerPadding)
  *   3. Caption (optional el, positioned below the container)
  *
- * @param {Object} [opts={}] - Figure configuration
- * @returns {{ id: string, type: string, children: Array, props: object }}
+ * @param opts - Figure configuration
+ * @returns A FigureElement node
  */
-export function figure(opts = {}) {
+export function figure(opts: FigureInputProps = {}): FigureElement {
   const {
-    id: customId, src, x = 0, y = 0, w, h,
+    id: customId, src = '', x = 0, y = 0, w = 0, h = 0,
     anchor = 'tl', layer = 'content',
     containerFill = 'transparent', containerRadius = 0,
     containerPadding = 0,
@@ -210,7 +285,7 @@ export function figure(opts = {}) {
     h: innerH,
   });
 
-  const children = [bgRect, img];
+  const children: SlideElement[] = [bgRect, img];
 
   // Optional caption
   if (caption) {
@@ -222,9 +297,17 @@ export function figure(opts = {}) {
     children.push(cap);
   }
 
-  // Pass w and h to the group so the layout pipeline knows the figure's
-  // intrinsic size during Phase 1 (same pattern as panel).
-  const result = group(children, {
+  const figureConfig: FigureConfig = {
+    src,
+    containerFill,
+    containerRadius,
+    containerPadding: padPx,
+    captionGap: gapPx,
+    fit,
+  };
+
+  // Construct the FigureElement directly — avoids @ts-ignore on group return
+  const groupBase = group(children, {
     id: figId,
     x, y, w, h,
     anchor,
@@ -232,11 +315,11 @@ export function figure(opts = {}) {
     style,
   });
 
-  // Tag as a figure compound for layout pipeline integration
-  // @ts-ignore — extended properties on group return
-  result._compound = 'figure';
-  // @ts-ignore — extended properties on group return
-  result._figureConfig = { src, containerFill, containerRadius, containerPadding: padPx, captionGap: gapPx, fit };
+  const result: FigureElement = {
+    ...groupBase,
+    _compound: 'figure',
+    _figureConfig: figureConfig,
+  };
 
   return result;
 }
