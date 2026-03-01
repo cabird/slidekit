@@ -1,4 +1,6 @@
-# SlideKit Lint System
+# SlideKit Lint — Design Proposal
+
+> **Status**: DRAFT — awaiting review before implementation
 
 ## Overview
 
@@ -10,34 +12,50 @@ SlideKit uses a two-phase approach to catching layout and design issues:
 
 Both phases produce the same kind of output: a list of issues with element IDs, descriptions, and severity. The fix cycle is the same: read issues → rewrite the SlideKit spec → re-render → re-check.
 
+## Naming
+
+| Option | Assessment |
+|--------|-----------|
+| **Linter** (GPT 5.2) | Rule-based, non-blocking guidance. Familiar to devs. Matches `npm run lint`. |
+| **Auditor** (Gemini 3 Pro) | Qualitative review with severity levels, not binary pass/fail. |
+| Validator | Too binary (pass/fail). |
+| Inspector | Implies interactive UI tool. |
+| Checker | Generic, undersells extensibility. |
+
+**Recommendation**: `lint` — matches existing `npm run lint` convention. Module at `slidekit/src/lint.js`. API: `lintSlide(slideId)` and `lintDeck()`. Exposed on `window.sk.lint('slide-id')` for console use.
+
 ---
 
 ## Phase 1: Programmatic Linter
 
-### Interface
+### Architecture
 
-After `render()`, call from the browser console:
+**Hybrid approach** (both models agree):
+- **Scene model** (`window.sk`) for geometry, bounds, positions — fast, deterministic
+- **DOM inspection** for rendered reality — font sizes, text overflow, image natural sizes, contrast
+
+Each rule has a `source` tag: `scene`, `dom`, or `hybrid`.
+
+### API
 
 ```js
-let issues = sk.lint()
-```
+// Per-slide
+const findings = sk.lint('rai-priorities');
 
-Returns an array of structured issue objects:
+// All slides
+const allFindings = sk.lintDeck();
 
-```js
-[
-  { rule: "font-too-small", severity: "error", element: "footnote",
-    detail: { fontSize: 16, min: 24 },
-    message: "Font size 16px on 'footnote' is below projection minimum (24px)" },
-
-  { rule: "collision", severity: "warning", elements: ["card1", "card2"],
-    detail: { overlapArea: 1200 },
-    message: "Elements 'card1' and 'card2' overlap by 1200px²" },
-
-  { rule: "outside-safe-zone", severity: "warning", element: "sidebar",
-    detail: { edge: "right", overshoot: 30 },
-    message: "Element 'sidebar' extends 30px beyond right safe zone boundary" },
-]
+// Finding shape:
+{
+  rule: 'child-overflow',
+  severity: 'error',              // error | warning | info
+  elementId: 's15-fig-img',
+  message: 'Image extends 6px below its container',
+  detail: { overshoot: 6, edge: 'bottom' },   // rule-specific structured data
+  bounds: { x: 10, y: 10, w: 1000, h: 600 },
+  parentBounds: { x: 0, y: 0, w: 1020, h: 610 },
+  suggestion: 'Reduce image height or increase container height to 620'
+}
 ```
 
 ### Configuration
@@ -54,20 +72,104 @@ sk.lint({
 })
 ```
 
-### Programmatic Rules
+Per-rule objects support:
+- **Threshold overrides** — adjust numeric limits per rule (e.g., `min`, `threshold`, `tolerance`)
+- **Severity overrides** — promote or demote any rule (e.g., make `outside-safe-zone` an error instead of warning)
+- **`ignore`** — array of element IDs to exclude from all checks
 
-These are mechanical checks with no ambiguity:
+### Severity Levels
 
-| Rule | What it checks | Default severity |
-|---|---|---|
-| `font-too-small` | Font size below `minFontSize` (default 24px for projection) | error |
-| `collision` | Same-layer bounding box overlap exceeding threshold | warning |
-| `outside-safe-zone` | Element extends beyond safe zone margins | warning |
-| `outside-slide` | Element extends beyond 1920×1080 canvas | error |
-| `text-overflow` | Text content exceeds its bounding box | warning |
-| `alignment-drift` | Elements nearly aligned (within N pixels) but not exactly | warning |
-| `orphaned-element` | Element fully occluded by another element on the same layer | warning |
-| `empty-text` | Text element with empty or whitespace-only content | warning |
+| Level | Meaning | Example |
+|-------|---------|---------|
+| **error** | Objectively broken — content hidden, cropped, unreadable | Child overflows parent, text clipped, off-canvas |
+| **warning** | Likely problematic — won't crash but looks bad | Font too small, image upscaled, tight gap |
+| **info** | Design guidance — might be intentional | Near-misalignment, content clustering, hierarchy hint |
+
+---
+
+### Proposed Rules
+
+#### A) Structural — Hard Rules (Scene Model)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 1 | `child-overflow` | Child element extends beyond parent bounds | error | scene |
+| 2 | `sibling-overlap` | Non-layered sibling elements overlap | error | scene |
+| 3 | `canvas-overflow` | Element extends beyond 1920×1080 | error | scene |
+| 4 | `safe-zone-violation` | Content-layer element outside safe zone (120px inset) | warning | scene |
+| 5 | `zero-size` | Element has 0 or negative width/height after layout | error | scene |
+| 6 | `orphaned-element` | Element fully occluded by another element on the same layer | warning | scene |
+
+**Note**: Rules 3–4 already exist in the layout engine's warning system. The lint API surfaces those plus adds the remaining rules.
+
+#### B) Typography — Readability (DOM)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 7 | `text-overflow` | scrollHeight > clientHeight or scrollWidth > clientWidth | error | dom |
+| 8 | `font-too-small` | Computed font-size below 18px (unreadable on projector) | warning | dom |
+| 9 | `font-too-large` | Computed font-size above 120px (excessive) | info | dom |
+| 10 | `line-too-long` | Text line exceeds ~80 characters | info | dom |
+| 11 | `line-height-tight` | line-height / font-size ratio below 1.15 | warning | dom |
+| 12 | `empty-text` | Text element with empty or whitespace-only content | warning | dom |
+
+#### C) Spacing & Alignment (Scene Model)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 13 | `gap-too-small` | Adjacent elements closer than 8px but not touching | warning | scene |
+| 14 | `near-misalignment` | Elements within 4px of being aligned but aren't | info | scene |
+| 15 | `edge-crowding` | Element within 8px of safe zone boundary | info | scene |
+| 16 | `collision` | Same-layer bounding box overlap exceeding area threshold | warning | scene |
+
+#### D) Content Distribution — Heuristic (Scene Model)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 17 | `content-clustering` | All content uses less than 40% of safe zone area | warning | scene |
+| 18 | `lopsided-layout` | Content centroid far from slide center | info | scene |
+| 19 | `too-many-elements` | More than 15 root-level visual groups | info | scene |
+
+#### E) Images (Hybrid — DOM + Scene)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 20 | `image-upscaled` | Rendered size exceeds natural dimensions by >10% | warning | hybrid |
+| 21 | `aspect-ratio-distortion` | Rendered aspect ratio differs from natural by >1% | warning | hybrid |
+
+#### F) Visual Hierarchy (DOM)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 22 | `heading-size-inversion` | h3 font-size > h2 font-size on same slide | warning | dom |
+| 23 | `low-contrast` | Text/background contrast ratio below 3:1 | warning | dom |
+
+#### G) Cross-Slide Consistency (`lintDeck()` only)
+
+| # | Rule ID | What it checks | Severity | Source |
+|---|---------|---------------|----------|--------|
+| 24 | `title-position-drift` | Title x/y varies >20px across slides | info | scene |
+| 25 | `font-count` | More than 3 font families across deck | info | dom |
+| 26 | `style-drift` | Body or heading font size varies across slides | info | dom |
+
+---
+
+### What NOT to check (intentionally excluded)
+
+- **Color palette consistency** — too subjective, varies by design intent
+- **Animation/transition quality** — out of scope for static layout lint
+- **Content quality** (grammar, spelling) — not a layout concern
+- **Accessibility (ARIA, alt text)** — could add later, different concern
+
+### Implementation Notes
+
+- Run **on-demand only**, not in render loop (DOM queries cause reflow)
+- Each rule is a function: `(sceneData, slideElement?) => Finding[]`
+- Rules can be enabled/disabled via options
+- `lintSlide()` calls scene-model rules first, then DOM rules
+- `lintDeck()` runs all per-slide rules + cross-slide consistency rules
+- Return format is JSON, optimized for AI agent consumption
+- Exposed on `window.sk` so agents can call via Chrome DevTools MCP
 
 ### What the programmatic linter does NOT check
 
@@ -89,7 +191,7 @@ An AI agent (Claude Code, GitHub Copilot, or similar) connects to the browser wh
 
 The agent does NOT need screenshots for most checks — the scene graph provides every element's position, size, type, content, layer, and style. Screenshots may supplement for visual-spatial judgments that are hard to reason about from coordinates alone.
 
-### Connecting to the scene graph
+### Scene Graph Data Model
 
 The agent runs these in the browser console via Playwright:
 
@@ -228,5 +330,13 @@ The agent should focus on actionable issues. Don't flag things that are clearly 
 
 ## Implementation Status
 
-- **Phase 1 (Programmatic):** Not yet implemented. The validation warnings in `layout()` cover some of these checks (safe zone, collisions, font size), but a dedicated `sk.lint()` API with configurable rules doesn't exist yet.
+- **Phase 1 (Programmatic):** Not yet implemented. The validation warnings in `layout()` cover some of these checks (safe zone, collisions, font size), but a dedicated `sk.lint()` API with configurable rules doesn't exist yet. 26 rules defined across 7 categories.
 - **Phase 2 (AI-Guided):** This document serves as the guidelines. An AI agent can use these guidelines today by connecting to the browser and reading `window.sk` — no SlideKit code changes required.
+
+## Open Questions
+
+1. Should findings include fix **suggestions** with specific values (e.g., "increase container height to 620px")?
+2. Threshold values (min font 18px vs 24px, max line length 80 vs 85, etc.) — make configurable via profiles?
+3. Should we support per-element rule suppression (e.g., `lint: { ignore: ['sibling-overlap'] }` in element props)?
+4. Should `lintDeck()` be separate from `lintSlide()`, or should there be a single `lint()` that does both?
+5. Priority order for implementation — start with structural rules (1-5) and text-overflow (7)?
