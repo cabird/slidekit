@@ -312,43 +312,6 @@ function classifyCase(
 // U-route computation
 // =============================================================================
 
-function computeURoute(
-  p1: Point,
-  d1: { dx: number; dy: number },
-  q1: Point,
-  d2: { dx: number; dy: number },
-  obstacles: Rect[],
-  clearance: number,
-): Point[] {
-  const routes = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
-
-  let best: Point[] = [];
-  let bestDist = Infinity;
-  for (const route of routes) {
-    const full = [p1, ...route, q1];
-    const dist = manhattanLength(full);
-    if (dist < bestDist && !polylineIntersectsObstacles(full, obstacles, clearance)) {
-      bestDist = dist;
-      best = route;
-    }
-  }
-
-  // Fallback: pick shortest even if it intersects
-  if (bestDist === Infinity && routes.length > 0) {
-    let fallbackDist = Infinity;
-    for (const route of routes) {
-      const full = [p1, ...route, q1];
-      const dist = manhattanLength(full);
-      if (dist < fallbackDist) {
-        fallbackDist = dist;
-        best = route;
-      }
-    }
-  }
-
-  return best;
-}
-
 /**
  * Generate U-route candidates through channels above, below, left, and right
  * of the combined bounding box of all relevant geometry.
@@ -376,20 +339,27 @@ function computeAllChannelRoutes(
 
   const routes: Point[][] = [];
 
+  // Offset must be large enough for U-routes to visually clear the elements.
+  // Use 30% of the span between endpoints, with a minimum of 60px.
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const offsetY = Math.max(60, spanY * 0.3, clearance);
+  const offsetX = Math.max(60, spanX * 0.3, clearance);
+
   // Channel above (top)
-  const topY = minY - clearance;
+  const topY = minY - offsetY;
   routes.push(buildChannelRoute(p1, q1, d1, 'y', topY));
 
   // Channel below (bottom)
-  const bottomY = maxY + clearance;
+  const bottomY = maxY + offsetY;
   routes.push(buildChannelRoute(p1, q1, d1, 'y', bottomY));
 
   // Channel left
-  const leftX = minX - clearance;
+  const leftX = minX - offsetX;
   routes.push(buildChannelRoute(p1, q1, d1, 'x', leftX));
 
   // Channel right
-  const rightX = maxX + clearance;
+  const rightX = maxX + offsetX;
   routes.push(buildChannelRoute(p1, q1, d1, 'x', rightX));
 
   return routes;

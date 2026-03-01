@@ -4,7 +4,7 @@
 
 import { resetIdCounter } from './id.js';
 import { state } from './state.js';
-import { filterStyle, _baselineCSS } from './style.js';
+import { filterStyle, _baselineCSS, detectMisplacedCssProps } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
@@ -297,7 +297,8 @@ function buildConnectorSVG(
  * @returns {HTMLElement} The rendered DOM element
  */
 export function renderElementFromScene(element: SlideElement, zIndex: number, sceneElements: Record<string, any>, offsetX: number = 0, offsetY: number = 0): HTMLElement {
-  const { type, props } = element;
+  const { type } = element;
+  let { props } = element;
   const resolved = sceneElements[element.id]?.resolved;
 
   // Use resolved bounds from the scene graph if available, otherwise fall back
@@ -320,18 +321,29 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
     top = anchorResult.top;
   }
 
+  // Auto-promote misplaced CSS props into style before filtering
+  const { cssProps, warnings: cssWarnings } = detectMisplacedCssProps(props as Record<string, unknown>);
+  if (Object.keys(cssProps).length > 0) {
+    const promotedStyle = { ...cssProps, ...((props.style as Record<string, unknown>) || {}) };
+    props = { ...props, style: promotedStyle };
+    for (const warn of cssWarnings) {
+      console.warn(`[SlideKit] Element "${element.id}": ${warn.message}`);
+    }
+  }
+
   // Build the merged CSS from convenience props + user style
   const { filtered: mergedStyle, warnings: styleWarnings } = filterStyle(props.style || {}, type);
 
   // Surface blocked-property warnings via console and scene graph
-  if (styleWarnings.length > 0) {
+  const allWarnings = [...cssWarnings, ...styleWarnings];
+  if (allWarnings.length > 0) {
     for (const warn of styleWarnings) {
       console.warn(`[SlideKit] Element "${element.id}": style.${warn.property} is blocked. ${warn.suggestion}`);
     }
     // Attach to scene graph so getLayout() / inspection can see them
     const sceneEntry = sceneElements[element.id];
     if (sceneEntry) {
-      sceneEntry.styleWarnings = styleWarnings;
+      sceneEntry.styleWarnings = allWarnings;
     }
   }
 

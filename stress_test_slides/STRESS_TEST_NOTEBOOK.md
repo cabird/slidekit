@@ -42,3 +42,43 @@ This notebook logs findings from reviewing each stress test slide — visual ins
 - **Library issue**: Yes — `connectorRouting.ts` and `connectorRouting.js` in slidekit
 - **Linter rule**: N/A (runtime rendering bug, not a static analysis issue)
 
+### Follow-up Fix: U-route channel offset too small
+- **Symptom**: The backward U-route technically worked but the channel was only ~15px (the `clearance` value) above/below the endpoints, making it visually indistinguishable from a flat line through both boxes.
+- **Root cause**: `computeAllChannelRoutes()` used the raw `clearance` (15px) as the channel offset from the bounding box of endpoints/obstacles. For a U-route to visually clear the elements it routes around, the offset needs to be proportional to the element span.
+- **Fix**: Replaced the fixed `clearance` offset with a proportional calculation: `Math.max(60, span * 0.3, clearance)` where `span` is the bounding-box extent along the relevant axis. This ensures the channel is at least 60px away, or 30% of the span between endpoints — whichever is larger. Applied to both `.ts` and `.js` files.
+
+---
+
+## Slide-by-Slide Review Summary
+
+Slides 1–18 were reviewed both visually (screenshot) and programmatically (DOM layout dump).
+
+- **Title width bug (systemic)**: All 18 titles had `w: 0` — fixed by adding `w: 1680` to the title helper.
+- **Slide 2 group bug**: Group lacked explicit dimensions — fixed by adding `w: safe.w`.
+- **Backward routing flat-line bug (Slide 7)**: `findBestRoute()` let simple candidates (direct/L/Z) win for backward cases — fixed by skipping them when case is backward or same-direction.
+- **U-route channel offset too small**: Was using clearance (15px) as offset — fixed to `max(60, span*0.3, clearance)`.
+- **Unused `computeURoute`**: Removed after refactoring made it dead code.
+- **No bugs found in slides 1, 3, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18.**
+- All 809 tests pass after fixes.
+
+---
+
+## Potential Linter Rules
+
+- **Elements should have explicit dimensions (w, h)** — catches the title `w: 0` bug.
+- **Zero-size elements warning** — already caught by existing lint rules.
+
+---
+
+## Anti-Patterns to Add to Pitfalls
+
+- Always specify explicit `w` on elements that contain text — relying on auto-sizing may result in 0 width.
+- Groups should have explicit `w`/`h` if they serve as layout containers.
+
+---
+
+## Library Issues Found
+
+- **Router backward case classification**: Simple candidates (direct/L-bend/Z-bend) degenerate for backward routes, producing flat lines that win on Manhattan distance.
+- **U-route channel offset needs proportional sizing**: A fixed clearance value is too small for visually correct U-routes.
+- **Obstacle bounds not yet wired into routing calls** (future work).
