@@ -128,6 +128,18 @@ export function finalize({
       provenance,
     };
 
+    // Export panel child positions in scene model
+    if (el._compound === 'panel' && el.children) {
+      sceneElements[id].panelChildren = el.children.map(child => {
+        const bounds = resolvedBounds.get(child.id);
+        return {
+          id: child.id,
+          type: child.type,
+          ...(bounds || {})
+        };
+      });
+    }
+
     // Store layout flags for rendering
     if (el._layoutFlags) {
       sceneElements[id]._layoutFlags = { ...el._layoutFlags };

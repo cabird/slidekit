@@ -340,6 +340,13 @@ export function renderElementFromScene(element, zIndex, sceneElements, offsetX =
     case "el": {
       // v2: Render arbitrary HTML content via innerHTML
       div.setAttribute("data-sk-type", "el");
+      // Vertical alignment via flexbox when valign is set and element has explicit height
+      const valign = props.valign;
+      if (valign && valign !== 'top' && props.h != null) {
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.justifyContent = valign === 'center' ? 'center' : valign === 'bottom' ? 'flex-end' : 'flex-start';
+      }
       div.innerHTML = element.content || "";
       break;
     }

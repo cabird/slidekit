@@ -19,6 +19,7 @@ export const COMMON_DEFAULTS = {
   opacity: 1,
   style: null,  // sentinel — applyDefaults creates fresh {} per element
   className: "",
+  valign: "top",
 };
 
 /**
