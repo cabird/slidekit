@@ -22,6 +22,7 @@ function mockElement(id, resolved, opts = {}) {
     id,
     type: opts.type || 'el',
     resolved: { x: resolved.x, y: resolved.y, w: resolved.w, h: resolved.h },
+    localResolved: opts.localResolved || { x: resolved.x, y: resolved.y, w: resolved.w, h: resolved.h },
     parentId: opts.parentId !== undefined ? opts.parentId : null,
     children: opts.children || [],
     authored: { props: opts.props || {} },
@@ -133,14 +134,14 @@ describe('lint: non-ancestor-overlap', () => {
   });
 
   it('detects overlapping cousins', () => {
-    // Coords are LOCAL to parent; absoluteBoundsOf sums up the chain
-    // c1 absolute: (100+350, 100+0) = (450, 100), w=500 → ends at 950
-    // c2 absolute: (600+0, 100+0) = (600, 100), w=200 → starts at 600
+    // Parents are groups — absoluteBoundsOf adds group offsets to children's resolved
+    // c1 absolute: 350 + group p1 offset 100 = 450, w=500 → ends at 950
+    // c2 absolute: 0 + group p2 offset 600 = 600, w=200 → starts at 600
     // Overlap: 600..950 on x → 350px overlap
     const elements = {
-      gp: mockElement('gp', { x: 0, y: 0, w: 1920, h: 1080 }, { children: ['p1', 'p2'] }),
-      p1: mockElement('p1', { x: 100, y: 100, w: 400, h: 400 }, { parentId: 'gp', children: ['c1'] }),
-      p2: mockElement('p2', { x: 600, y: 100, w: 400, h: 400 }, { parentId: 'gp', children: ['c2'] }),
+      gp: mockElement('gp', { x: 0, y: 0, w: 1920, h: 1080 }, { type: 'group', children: ['p1', 'p2'] }),
+      p1: mockElement('p1', { x: 100, y: 100, w: 400, h: 400 }, { type: 'group', parentId: 'gp', children: ['c1'] }),
+      p2: mockElement('p2', { x: 600, y: 100, w: 400, h: 400 }, { type: 'group', parentId: 'gp', children: ['c2'] }),
       c1: mockElement('c1', { x: 350, y: 0, w: 500, h: 100 }, { parentId: 'p1' }),
       c2: mockElement('c2', { x: 0, y: 0, w: 200, h: 100 }, { parentId: 'p2' }),
     };

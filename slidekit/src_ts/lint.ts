@@ -94,13 +94,15 @@ function isAncestor(elements: Record<string, SceneElement>, elementId: string, a
 
 /** Return local bounds (relative to parent) for parent–child comparisons. */
 function localBoundsOf(el: SceneElement): Rect | null {
-  const r = el.resolved;
+  const r = el.localResolved;
   return r ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
 }
 
 /**
- * Return absolute bounds by walking the parentId chain and summing offsets.
- * resolved coords are local (relative to parent); this converts to canvas-absolute.
+ * Return absolute canvas bounds by walking the parentId chain.
+ * Stack children have absolute coords in resolved; group children have
+ * group-relative coords. Only group parent offsets are added (matching
+ * the absoluteBounds() logic in finalize.ts).
  */
 function absoluteBoundsOf(el: SceneElement, elements: Record<string, SceneElement>): Rect | null {
   const r = el.resolved;
@@ -108,15 +110,20 @@ function absoluteBoundsOf(el: SceneElement, elements: Record<string, SceneElemen
   let absX = r.x;
   let absY = r.y;
   const visited = new Set<string>();
-  let cur = el;
-  while (cur.parentId) {
-    if (visited.has(cur.id)) return null; // cycle — can't resolve
-    visited.add(cur.id);
-    const parent = elements[cur.parentId];
+  let currentId = el.parentId;
+  while (currentId) {
+    if (visited.has(currentId)) return null; // cycle — can't resolve
+    visited.add(currentId);
+    const parent = elements[currentId];
     if (!parent?.resolved) return null; // broken chain — can't resolve
-    absX += parent.resolved.x;
-    absY += parent.resolved.y;
-    cur = parent;
+    // Only add offset for group parents — stack children's resolved
+    // already includes the stack's absolute position
+    const skipOffsetTypes = ['hstack', 'vstack'];
+    if (!skipOffsetTypes.includes(parent.type as string)) {
+      absX += parent.resolved.x;
+      absY += parent.resolved.y;
+    }
+    currentId = parent.parentId;
   }
   return { x: absX, y: absY, w: r.w, h: r.h };
 }

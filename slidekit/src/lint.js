@@ -58,7 +58,7 @@ function isAncestor(elements, elementId, ancestorId) {
 }
 
 function localBoundsOf(el) {
-  const r = el.resolved;
+  const r = el.localResolved;
   return r ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
 }
 
@@ -68,15 +68,20 @@ function absoluteBoundsOf(el, elements) {
   let absX = r.x;
   let absY = r.y;
   const visited = new Set();
-  let cur = el;
-  while (cur.parentId) {
-    if (visited.has(cur.id)) return null; // cycle — can't resolve
-    visited.add(cur.id);
-    const parent = elements[cur.parentId];
+  let currentId = el.parentId;
+  while (currentId) {
+    if (visited.has(currentId)) return null; // cycle — can't resolve
+    visited.add(currentId);
+    const parent = elements[currentId];
     if (!parent?.resolved) return null; // broken chain — can't resolve
-    absX += parent.resolved.x;
-    absY += parent.resolved.y;
-    cur = parent;
+    // Only skip offset for stack parents — their children's resolved
+    // already includes the stack's absolute position
+    const skipOffsetTypes = ['hstack', 'vstack'];
+    if (!skipOffsetTypes.includes(parent.type)) {
+      absX += parent.resolved.x;
+      absY += parent.resolved.y;
+    }
+    currentId = parent.parentId;
   }
   return { x: absX, y: absY, w: r.w, h: r.h };
 }
