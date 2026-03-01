@@ -3,6 +3,8 @@
     "dev": "esbuild slidekit/slidekit.js --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap --watch",
     "build": "esbuild slidekit/slidekit.js --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap --minify",
     "typecheck": "tsc --noEmit",
+    "build:ts": "esbuild slidekit/slidekit_ts.ts --bundle --format=esm --outfile=slidekit/dist/slidekit_ts.bundle.js --sourcemap",
+    "typecheck:ts": "tsc -p tsconfig.ts.json --noEmit",
     "lint": "eslint slidekit/src/"
   },
   "dependencies": {
