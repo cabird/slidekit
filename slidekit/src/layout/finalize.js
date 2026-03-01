@@ -7,6 +7,7 @@ import { state } from '../state.js';
 import { getAnchorPoint } from '../compounds.js';
 import { rotatedAABB } from '../utilities.js';
 import { buildProvenance, computeAABBIntersection } from './helpers.js';
+import { routeConnector } from '../connectorRouting.js';
 
 /**
  * Phase 4: Finalize the layout pipeline.
@@ -165,6 +166,15 @@ export function finalize({
 
     const fromId = el.props.fromId;
     const toId = el.props.toId;
+    if (fromId === toId) {
+      warnings.push({
+        type: "connector_self_reference",
+        elementId: id,
+        message: `Connector "${id}": fromId and toId are the same element ("${fromId}")`,
+      });
+      continue;
+    }
+
     const fromBounds = resolvedBounds.get(fromId);
     const toBounds = resolvedBounds.get(toId);
 
@@ -183,11 +193,36 @@ export function finalize({
     const fromPt = getAnchorPoint(fromBounds, fromAnchor);
     const toPt = getAnchorPoint(toBounds, toAnchor);
 
-    // Compute the bounding box for the connector line so resolvedBounds is meaningful
-    const connMinX = Math.min(fromPt.x, toPt.x);
-    const connMinY = Math.min(fromPt.y, toPt.y);
-    const connMaxX = Math.max(fromPt.x, toPt.x);
-    const connMaxY = Math.max(fromPt.y, toPt.y);
+    // For center anchors, compute direction toward the other endpoint
+    if (fromPt.dx === 0 && fromPt.dy === 0) {
+      const tdx = toPt.x - fromPt.x;
+      const tdy = toPt.y - fromPt.y;
+      if (Math.abs(tdx) >= Math.abs(tdy)) {
+        fromPt.dx = tdx >= 0 ? 1 : -1;
+      } else {
+        fromPt.dy = tdy >= 0 ? 1 : -1;
+      }
+    }
+    if (toPt.dx === 0 && toPt.dy === 0) {
+      const tdx = fromPt.x - toPt.x;
+      const tdy = fromPt.y - toPt.y;
+      if (Math.abs(tdx) >= Math.abs(tdy)) {
+        toPt.dx = tdx >= 0 ? 1 : -1;
+      } else {
+        toPt.dy = tdy >= 0 ? 1 : -1;
+      }
+    }
+
+    // Compute routing to get accurate connector bounds
+    const route = routeConnector({ from: fromPt, to: toPt });
+    let connMinX = Infinity, connMinY = Infinity;
+    let connMaxX = -Infinity, connMaxY = -Infinity;
+    for (const wp of route.waypoints) {
+      if (wp.x < connMinX) connMinX = wp.x;
+      if (wp.y < connMinY) connMinY = wp.y;
+      if (wp.x > connMaxX) connMaxX = wp.x;
+      if (wp.y > connMaxY) connMaxY = wp.y;
+    }
     resolvedBounds.set(id, {
       x: connMinX,
       y: connMinY,

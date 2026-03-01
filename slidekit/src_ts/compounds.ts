@@ -15,7 +15,7 @@ import type {
   FigureElement,
   FigureConfig,
   Rect,
-  Point,
+  AnchorPointResult,
   LayerName,
 } from './types.js';
 
@@ -91,21 +91,30 @@ export function connect(fromId: string, toId: string, props: ConnectorInputProps
  * @param anchor - Anchor point (tl, tc, tr, cl, cc, cr, bl, bc, br)
  * @returns The computed point
  */
-export function getAnchorPoint(bounds: Rect, anchor: string): Point {
+export function getAnchorPoint(bounds: Rect, anchor: string): AnchorPointResult {
   const row = anchor[0]; // t, c, b
   const col = anchor[1]; // l, c, r
 
   let px: number, py: number;
+  let dx = 0, dy = 0;
 
-  if (col === "l") px = bounds.x;
-  else if (col === "c") px = bounds.x + bounds.w / 2;
-  else px = bounds.x + bounds.w; // "r"
+  if (col === "l") { px = bounds.x; dx = -1; }
+  else if (col === "c") { px = bounds.x + bounds.w / 2; }
+  else { px = bounds.x + bounds.w; dx = 1; } // "r"
 
-  if (row === "t") py = bounds.y;
-  else if (row === "c") py = bounds.y + bounds.h / 2;
-  else py = bounds.y + bounds.h; // "b"
+  if (row === "t") { py = bounds.y; dy = -1; }
+  else if (row === "c") { py = bounds.y + bounds.h / 2; }
+  else { py = bounds.y + bounds.h; dy = 1; } // "b"
 
-  return { x: px, y: py };
+  // Normalize corner directions to unit length
+  if (dx !== 0 && dy !== 0) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    dx /= len;
+    dy /= len;
+  }
+
+  // Center anchor: no inherent direction, will be computed based on target
+  return { x: px, y: py, dx, dy };
 }
 
 

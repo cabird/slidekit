@@ -63,16 +63,24 @@ export function getAnchorPoint(bounds, anchor) {
   const col = anchor[1]; // l, c, r
 
   let px, py;
+  let dx = 0, dy = 0;
 
-  if (col === "l") px = bounds.x;
-  else if (col === "c") px = bounds.x + bounds.w / 2;
-  else px = bounds.x + bounds.w; // "r"
+  if (col === "l") { px = bounds.x; dx = -1; }
+  else if (col === "c") { px = bounds.x + bounds.w / 2; }
+  else { px = bounds.x + bounds.w; dx = 1; } // "r"
 
-  if (row === "t") py = bounds.y;
-  else if (row === "c") py = bounds.y + bounds.h / 2;
-  else py = bounds.y + bounds.h; // "b"
+  if (row === "t") { py = bounds.y; dy = -1; }
+  else if (row === "c") { py = bounds.y + bounds.h / 2; }
+  else { py = bounds.y + bounds.h; dy = 1; } // "b"
 
-  return { x: px, y: py };
+  // Normalize corner directions
+  if (dx !== 0 && dy !== 0) {
+    const len = Math.sqrt(dx * dx + dy * dy);
+    dx /= len;
+    dy /= len;
+  }
+
+  return { x: px, y: py, dx, dy };
 }
 
 

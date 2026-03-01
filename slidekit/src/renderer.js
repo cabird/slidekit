@@ -10,6 +10,7 @@ import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
 import { lintSlide, lintDeck } from './lint.js';
+import { routeConnector } from './connectorRouting.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
 let _layoutFn;
@@ -83,8 +84,8 @@ export function applySlideBackground(section, background) {
 /**
  * Build an SVG element for a connector between two points.
  *
- * @param {object} from - { x, y } start point
- * @param {object} to - { x, y } end point
+ * @param {{x: number, y: number, dx: number, dy: number}} from - Start point with direction
+ * @param {{x: number, y: number, dx: number, dy: number}} to - End point with direction
  * @param {object} connProps - Connector properties from the element
  * @returns {HTMLElement} An absolutely positioned div containing the SVG
  */
@@ -93,10 +94,40 @@ function buildConnectorSVG(from, to, connProps) {
   const thickness = connProps.thickness ?? 2;
   const markerSize = 8; // matches marker markerWidth/markerHeight
   const padding = Math.max(20, markerSize + thickness * 2);
-  const minX = Math.min(from.x, to.x) - padding;
-  const minY = Math.min(from.y, to.y) - padding;
-  const maxX = Math.max(from.x, to.x) + padding;
-  const maxY = Math.max(from.y, to.y) + padding;
+  const connType = connProps.connectorType || "straight";
+  let minX = Math.min(from.x, to.x) - padding;
+  let minY = Math.min(from.y, to.y) - padding;
+  let maxX = Math.max(from.x, to.x) + padding;
+  let maxY = Math.max(from.y, to.y) + padding;
+
+  // Pre-compute route for elbow to get proper SVG bounds
+  let elbowWaypoints = null;
+  if (connType === "elbow") {
+    // TODO: Pass obstacle bounding boxes for obstacle-aware routing
+    // const obstacles = collectObstacleBounds(sceneElements, element.id);
+    const route = routeConnector({ from, to });
+    elbowWaypoints = route.waypoints;
+    for (const wp of elbowWaypoints) {
+      if (wp.x < minX) minX = wp.x;
+      if (wp.y < minY) minY = wp.y;
+      if (wp.x > maxX) maxX = wp.x;
+      if (wp.y > maxY) maxY = wp.y;
+    }
+  }
+
+  // Pre-compute control points for curved to get proper SVG bounds
+  if (connType === "curved") {
+    const dist = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
+    const cpOff = dist * 0.4;
+    const cx1 = from.x + from.dx * cpOff;
+    const cy1 = from.y + from.dy * cpOff;
+    const cx2 = to.x + to.dx * cpOff;
+    const cy2 = to.y + to.dy * cpOff;
+    minX = Math.min(minX, cx1, cx2);
+    minY = Math.min(minY, cy1, cy2);
+    maxX = Math.max(maxX, cx1, cx2);
+    maxY = Math.max(maxY, cy1, cy2);
+  }
   const svgW = maxX - minX;
   const svgH = maxY - minY;
 
@@ -117,7 +148,6 @@ function buildConnectorSVG(from, to, connProps) {
   // thickness already declared above for padding calculation
   const dash = connProps.dash;
   const arrow = connProps.arrow || "end";
-  const connType = connProps.connectorType || "straight";
 
   // Create marker definitions for arrow heads
   // Use a unique marker ID per connector to prevent cross-connector collisions
@@ -157,33 +187,33 @@ function buildConnectorSVG(from, to, connProps) {
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      // Cubic bezier with control points that produce a natural curve.
-      // The control points extend along the dominant axis of travel,
-      // which works for both horizontal and vertical connections.
-      const dx = lx2 - lx1;
-      const dy = ly2 - ly1;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-      const cpOffset = Math.max(absDx, absDy) * 0.4;
-      let cx1, cy1, cx2, cy2;
-      if (absDx >= absDy) {
-        // Predominantly horizontal: extend control points horizontally
-        cx1 = lx1 + cpOffset;
-        cy1 = ly1;
-        cx2 = lx2 - cpOffset;
-        cy2 = ly2;
-      } else {
-        // Predominantly vertical: extend control points vertically
-        cx1 = lx1;
-        cy1 = ly1 + (dy > 0 ? cpOffset : -cpOffset);
-        cx2 = lx2;
-        cy2 = ly2 - (dy > 0 ? cpOffset : -cpOffset);
-      }
+      // Use anchor directions for control point placement
+      const dist = Math.sqrt((lx2 - lx1) ** 2 + (ly2 - ly1) ** 2);
+      const cpOffset = dist * 0.4;
+      // Control points extend in the anchor's exit/entry direction
+      const cx1 = lx1 + from.dx * cpOffset;
+      const cy1 = ly1 + from.dy * cpOffset;
+      // Control point extends outward from target, so curve arrives from outside
+      const cx2 = lx2 + to.dx * cpOffset;
+      const cy2 = ly2 + to.dy * cpOffset;
       d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
     } else if (connType === "elbow") {
-      // Right-angle elbow: horizontal out -> vertical -> horizontal in
-      const midX = (lx1 + lx2) / 2;
-      d = `M ${lx1} ${ly1} L ${midX} ${ly1} L ${midX} ${ly2} L ${lx2} ${ly2}`;
+      // Use orthogonal routing with direction-aware waypoints
+      const waypoints = elbowWaypoints;
+      // Convert waypoints to SVG-local coordinates
+      const localWaypoints = waypoints.map(p => ({
+        x: p.x - minX,
+        y: p.y - minY
+      }));
+      if (localWaypoints.length >= 2) {
+        d = `M ${localWaypoints[0].x} ${localWaypoints[0].y}`;
+        for (let i = 1; i < localWaypoints.length; i++) {
+          d += ` L ${localWaypoints[i].x} ${localWaypoints[i].y}`;
+        }
+      } else {
+        // Fallback to simple line
+        d = `M ${lx1} ${ly1} L ${lx2} ${ly2}`;
+      }
     }
     pathEl.setAttribute("d", d);
     pathEl.setAttribute("fill", "none");
@@ -193,7 +223,7 @@ function buildConnectorSVG(from, to, connProps) {
   pathEl.setAttribute("stroke-width", String(thickness));
 
   if (dash) {
-    pathEl.setAttribute("stroke-dasharray", dash.join(","));
+    pathEl.setAttribute("stroke-dasharray", dash);
   }
 
   // Apply arrow markers

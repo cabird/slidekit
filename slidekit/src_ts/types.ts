@@ -26,6 +26,14 @@ export interface Point {
   y: number;
 }
 
+/** A 2D point with an associated direction vector. */
+export interface AnchorPointResult {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+}
+
 // =============================================================================
 // String Literal Union Types — discriminators and constrained values
 // =============================================================================
@@ -511,7 +519,14 @@ export interface SceneElement {
   /** Internal layout flags. */
   _layoutFlags?: Record<string, unknown>;
   /** Resolved connector geometry. */
-  _connectorResolved?: Record<string, unknown>;
+  _connectorResolved?: {
+    from: AnchorPointResult;
+    to: AnchorPointResult;
+    fromId: string;
+    toId: string;
+    fromAnchor: string;
+    toAnchor: string;
+  };
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
   /** Panel child positions — present only on panel compound elements. */
