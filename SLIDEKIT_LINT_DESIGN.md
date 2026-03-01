@@ -339,7 +339,7 @@ The agent should focus on actionable issues. Don't flag things that are clearly 
 
 ## Implementation Status
 
-- **Phase 1 (Programmatic):** Not yet implemented. The validation warnings in `layout()` cover some of these checks (safe zone, collisions, font size), but a dedicated `sk.lint()` API with fixed rules doesn't exist yet. 25 rules defined across 7 categories.
+- **Phase 1 (Programmatic):** Implemented. All 25 rules across 7 categories are implemented in `slidekit/src/lint.js` and exposed via `sk.lint('slide-id')` and `sk.lintDeck()`. The module is registered on `window.sk` during initialization.
 - **Phase 2 (AI-Guided):** This document serves as the guidelines. An AI agent can use these guidelines today by connecting to the browser and reading `window.sk` — no SlideKit code changes required.
 
 ## Resolved Design Decisions

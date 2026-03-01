@@ -172,6 +172,27 @@ Only after all programmatic checks pass, do a final visual inspection:
 
 Visual inspection is the **last** step, not the first. Programmatic checks catch the bugs; visual inspection catches the aesthetics.
 
+### Using the Lint API
+
+After programmatic checks pass, use the lint API for deeper analysis:
+
+1. **Per-slide lint** — after rendering each slide:
+   ```javascript
+   const findings = sk.lint('slide-id');
+   // Review errors and warnings; fix before moving on
+   findings.filter(f => f.severity !== 'info').forEach(f => console.warn(f.message));
+   ```
+
+2. **Fix issues** — address any `error` or `warning` findings by updating the slide spec, then re-render and re-lint until clean.
+
+3. **Deck-wide lint** — after all slides are assembled:
+   ```javascript
+   const deckFindings = sk.lintDeck();
+   // Check cross-slide consistency (title drift, font count, style drift)
+   ```
+
+The lint API checks 25 rules covering structure, typography, spacing, content distribution, images, visual hierarchy, and cross-slide consistency. See `SLIDEKIT_LINT_DESIGN.md` for the full rule list.
+
 ---
 
 ## 5. CSS Specificity
