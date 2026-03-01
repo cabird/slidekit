@@ -1105,3 +1105,48 @@ describe('lint: style-drift', () => {
     assert.equal(sd.length, 0, 'no style-drift findings without DOM');
   });
 });
+
+// ---------------------------------------------------------------------------
+// content-underutilized (Rule – scene-model)
+// ---------------------------------------------------------------------------
+
+describe('lint: content-underutilized', () => {
+  it('detects content narrow in both dimensions', () => {
+    const elements = {
+      a: mockElement('a', { x: 700, y: 400, w: 200, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'content-underutilized');
+    assert.equal(f.length, 1);
+    assert.equal(f[0].detail.underutilized, 'both');
+  });
+
+  it('detects content narrow horizontally only', () => {
+    const elements = {
+      a: mockElement('a', { x: 700, y: 100, w: 200, h: 800 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'content-underutilized');
+    assert.equal(f.length, 1);
+    assert.equal(f[0].detail.underutilized, 'horizontal');
+  });
+
+  it('detects content narrow vertically only', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 400, w: 1400, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'content-underutilized');
+    assert.equal(f.length, 1);
+    assert.equal(f[0].detail.underutilized, 'vertical');
+  });
+
+  it('reports no finding when content uses space well', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 150, w: 1400, h: 700 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'content-underutilized');
+    assert.equal(f.length, 0);
+  });
+});

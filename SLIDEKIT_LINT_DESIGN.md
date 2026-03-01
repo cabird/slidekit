@@ -138,6 +138,7 @@ No per-element rule suppression. If the AI agent is building a slide and a lint 
 | 16 | `content-clustering` | All content uses less than 40% of safe zone area | warning | scene |
 | 17 | `lopsided-layout` | Content centroid far from slide center | info | scene |
 | 18 | `too-many-elements` | More than 15 root-level visual groups | info | scene |
+| 18b | `content-underutilized` | Large margins on one or both axes (>25% of safe zone dimension) | info | scene |
 
 #### E) Images (Hybrid — DOM + Scene)
 
@@ -339,7 +340,7 @@ The agent should focus on actionable issues. Don't flag things that are clearly 
 
 ## Implementation Status
 
-- **Phase 1 (Programmatic):** Implemented. All 25 rules across 7 categories are implemented in `slidekit/src/lint.js` and exposed via `sk.lint('slide-id')` and `sk.lintDeck()`. The module is registered on `window.sk` during initialization.
+- **Phase 1 (Programmatic):** Implemented. All 26 rules across 7 categories are implemented in `slidekit/src/lint.js` and exposed via `sk.lint('slide-id')` and `sk.lintDeck()`. The module is registered on `window.sk` during initialization.
 - **Phase 2 (AI-Guided):** This document serves as the guidelines. An AI agent can use these guidelines today by connecting to the browser and reading `window.sk` — no SlideKit code changes required.
 
 ## Resolved Design Decisions

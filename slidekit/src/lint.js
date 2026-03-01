@@ -20,6 +20,7 @@ const THRESHOLDS = {
   contrastMin: 3.0,
   titlePositionDrift: 20,
   maxFontFamilies: 3,
+  marginRatioMax: 0.25,
 };
 
 const CANVAS = { x: 0, y: 0, w: 1920, h: 1080 };
@@ -464,6 +465,60 @@ function ruleTooManyElements(elements) {
       suggestion: `Consider simplifying slide — ${count} root elements exceeds guideline of ${THRESHOLDS.maxRootElements}`,
     });
   }
+  return findings;
+}
+
+function ruleContentUnderutilized(elements) {
+  const findings = [];
+  const roots = Object.values(elements).filter(el =>
+    !el._internal && el.parentId == null && normLayer(el) !== 'bg'
+  );
+  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  if (withBounds.length === 0) return findings;
+
+  const contentBounds = {
+    x: Math.min(...withBounds.map(b => b.x)),
+    y: Math.min(...withBounds.map(b => b.y)),
+  };
+  contentBounds.w = Math.max(...withBounds.map(b => b.x + b.w)) - contentBounds.x;
+  contentBounds.h = Math.max(...withBounds.map(b => b.y + b.h)) - contentBounds.y;
+
+  const leftMargin = contentBounds.x - SAFE_ZONE.x;
+  const rightMargin = (SAFE_ZONE.x + SAFE_ZONE.w) - (contentBounds.x + contentBounds.w);
+  const topMargin = contentBounds.y - SAFE_ZONE.y;
+  const bottomMargin = (SAFE_ZONE.y + SAFE_ZONE.h) - (contentBounds.y + contentBounds.h);
+
+  const hThreshold = SAFE_ZONE.w * THRESHOLDS.marginRatioMax;
+  const vThreshold = SAFE_ZONE.h * THRESHOLDS.marginRatioMax;
+
+  const narrowH = leftMargin > hThreshold && rightMargin > hThreshold;
+  const narrowV = topMargin > vThreshold && bottomMargin > vThreshold;
+
+  if (!narrowH && !narrowV) return findings;
+
+  const underutilized = narrowH && narrowV ? 'both' : narrowH ? 'horizontal' : 'vertical';
+  const margins = { left: leftMargin, right: rightMargin, top: topMargin, bottom: bottomMargin };
+
+  let message, suggestion;
+  if (underutilized === 'both') {
+    message = 'Content is small — large margins on all sides';
+    suggestion = 'Enlarge content elements or reduce margins on all sides';
+  } else if (underutilized === 'horizontal') {
+    message = 'Content is narrow — consider using more horizontal space';
+    suggestion = 'Widen content elements or reduce horizontal margins';
+  } else {
+    message = 'Content is short — consider using more vertical space';
+    suggestion = 'Increase content height or reduce vertical margins';
+  }
+
+  findings.push({
+    rule: 'content-underutilized',
+    severity: 'info',
+    elementId: 'slide',
+    message,
+    detail: { contentBounds, margins, underutilized, safeZone: SAFE_ZONE },
+    suggestion,
+  });
   return findings;
 }
 
@@ -957,6 +1012,7 @@ export function lintSlide(slideData, slideElement = null) {
     ...ruleContentClustering(elements),
     ...ruleLopsidedLayout(elements),
     ...ruleTooManyElements(elements),
+    ...ruleContentUnderutilized(elements),
   ];
 
   // DOM-based rules only run when a slide DOM element is provided
