@@ -202,29 +202,33 @@ function findBestRoute(p1, d1, q1, d2, obstacles, clearance) {
   /** @type {Point[][]} */
   const candidates = [];
 
-  // Direct segment
-  candidates.push([]);
-
-  // L-bend variants
-  candidates.push([{ x: q1.x, y: p1.y }]);
-  candidates.push([{ x: p1.x, y: q1.y }]);
-
-  // Z-bend
-  const midX = (p1.x + q1.x) / 2;
-  const midY = (p1.y + q1.y) / 2;
-  candidates.push([
-    { x: midX, y: p1.y },
-    { x: midX, y: q1.y },
-  ]);
-  candidates.push([
-    { x: p1.x, y: midY },
-    { x: q1.x, y: midY },
-  ]);
-
+  // Classify the routing case first to decide which candidates are valid
   const caseType = classifyCase(p1, d1, q1, d2);
+
   if (caseType === 'backward' || caseType === 'same-direction') {
-    const uRoutes = computeURoute(p1, d1, q1, d2, obstacles, clearance);
-    candidates.push(uRoutes);
+    // Only U-route candidates are valid; direct/L-bend/Z-bend would create
+    // paths that double back through elements
+    const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
+    candidates.push(...uCandidates);
+  } else {
+    // Direct segment
+    candidates.push([]);
+
+    // L-bend variants
+    candidates.push([{ x: q1.x, y: p1.y }]);
+    candidates.push([{ x: p1.x, y: q1.y }]);
+
+    // Z-bend
+    const midX = (p1.x + q1.x) / 2;
+    const midY = (p1.y + q1.y) / 2;
+    candidates.push([
+      { x: midX, y: p1.y },
+      { x: midX, y: q1.y },
+    ]);
+    candidates.push([
+      { x: p1.x, y: midY },
+      { x: q1.x, y: midY },
+    ]);
   }
 
   let bestRoute = /** @type {Point[]} */ ([]);
