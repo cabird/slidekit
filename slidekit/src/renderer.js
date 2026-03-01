@@ -568,11 +568,16 @@ export async function render(slides, options = {}) {
       _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
     };
     skObj.lint = (slideId) => {
-      const slide = skObj.slides.find(s => s.id === slideId);
-      if (!slide) throw new Error(`Slide not found: ${slideId}`);
-      return lintSlide(slide);
+      const slideIdx = skObj.slides.findIndex(s => s.id === slideId);
+      if (slideIdx === -1) throw new Error(`Slide not found: ${slideId}`);
+      const slide = skObj.slides[slideIdx];
+      const slideEl = document.querySelectorAll('.reveal .slides > section')[slideIdx] || null;
+      return lintSlide(slide, slideEl);
     };
-    skObj.lintDeck = () => lintDeck(skObj);
+    skObj.lintDeck = () => {
+      const sectionEls = document.querySelectorAll('.reveal .slides > section');
+      return lintDeck(skObj, sectionEls);
+    };
     window.sk = skObj;
   }
 

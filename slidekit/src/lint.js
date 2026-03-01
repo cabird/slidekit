@@ -248,38 +248,209 @@ function ruleZeroSize(elements) {
 // in the scene model.
 
 // ---------------------------------------------------------------------------
+// DOM helpers
+// ---------------------------------------------------------------------------
+
+function findSkElements(slideEl) {
+  if (!slideEl) return [];
+  return Array.from(slideEl.querySelectorAll('[data-sk-id]'));
+}
+
+function findSkTextElements(slideEl) {
+  if (!slideEl) return [];
+  return Array.from(slideEl.querySelectorAll('[data-sk-type="el"][data-sk-id]'));
+}
+
+// ---------------------------------------------------------------------------
+// DOM-based rule implementations (Rules 7–12)
+// ---------------------------------------------------------------------------
+
+function ruleTextOverflow(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const els = slideEl.querySelectorAll('[data-sk-type="el"]');
+  for (const el of els) {
+    const overflowY = el.scrollHeight > el.clientHeight + 1;
+    const overflowX = el.scrollWidth > el.clientWidth + 1;
+    if (overflowY || overflowX) {
+      findings.push({
+        rule: 'text-overflow',
+        severity: 'error',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Element "${el.getAttribute('data-sk-id')}" has content overflow`,
+        detail: {
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+          overflowY,
+          overflowX,
+        },
+        suggestion: 'Reduce content or increase element height/width',
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleFontTooSmall(slideEl) {
+  const findings = [];
+  for (const el of findSkTextElements(slideEl)) {
+    if (!el.textContent || !el.textContent.trim()) continue;
+    const fontSize = parseFloat(getComputedStyle(el).fontSize);
+    if (fontSize < THRESHOLDS.minFontSize) {
+      findings.push({
+        rule: 'font-too-small',
+        severity: 'warning',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Font size ${fontSize}px is below minimum ${THRESHOLDS.minFontSize}px`,
+        detail: { fontSize, threshold: THRESHOLDS.minFontSize },
+        suggestion: `Increase font size to at least ${THRESHOLDS.minFontSize}px`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleFontTooLarge(slideEl) {
+  const findings = [];
+  for (const el of findSkTextElements(slideEl)) {
+    if (!el.textContent || !el.textContent.trim()) continue;
+    const fontSize = parseFloat(getComputedStyle(el).fontSize);
+    if (fontSize > THRESHOLDS.maxFontSize) {
+      findings.push({
+        rule: 'font-too-large',
+        severity: 'info',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Font size ${fontSize}px exceeds maximum ${THRESHOLDS.maxFontSize}px`,
+        detail: { fontSize, threshold: THRESHOLDS.maxFontSize },
+        suggestion: `Decrease font size to at most ${THRESHOLDS.maxFontSize}px`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleLineTooLong(slideEl) {
+  const findings = [];
+  for (const el of findSkTextElements(slideEl)) {
+    if (!el.textContent || !el.textContent.trim()) continue;
+    const fontSize = parseFloat(getComputedStyle(el).fontSize);
+    const elementWidth = el.clientWidth;
+    const estimatedCharsPerLine = elementWidth / (fontSize * 0.6);
+    if (estimatedCharsPerLine > THRESHOLDS.maxLineLength) {
+      findings.push({
+        rule: 'line-too-long',
+        severity: 'info',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Estimated ${Math.round(estimatedCharsPerLine)} chars/line exceeds ${THRESHOLDS.maxLineLength}`,
+        detail: { estimatedCharsPerLine: Math.round(estimatedCharsPerLine), threshold: THRESHOLDS.maxLineLength, elementWidth },
+        suggestion: 'Reduce element width or increase font size',
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleLineHeightTight(slideEl) {
+  const findings = [];
+  for (const el of findSkTextElements(slideEl)) {
+    if (!el.textContent || !el.textContent.trim()) continue;
+    const style = getComputedStyle(el);
+    const lineHeight = style.lineHeight;
+    if (lineHeight === 'normal') continue;
+    const fontSize = parseFloat(style.fontSize);
+    const lhNum = parseFloat(lineHeight);
+    // Detect unitless values (e.g., "1.2" vs "24px")
+    const isPixels = lineHeight.endsWith('px');
+    const lhPx = isPixels ? lhNum : lhNum * fontSize;
+    const ratio = lhPx / fontSize;
+    if (ratio < THRESHOLDS.minLineHeightRatio) {
+      findings.push({
+        rule: 'line-height-tight',
+        severity: 'warning',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Line-height ratio ${ratio.toFixed(2)} is below minimum ${THRESHOLDS.minLineHeightRatio}`,
+        detail: { lineHeight, fontSize, ratio, threshold: THRESHOLDS.minLineHeightRatio },
+        suggestion: `Increase line-height to at least ${(fontSize * THRESHOLDS.minLineHeightRatio).toFixed(0)}px`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleEmptyText(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const els = slideEl.querySelectorAll('[data-sk-type="el"]');
+  for (const el of els) {
+    // Skip elements containing non-text content
+    if (el.querySelector('img, svg, canvas, video, audio, iframe')) continue;
+    if (!el.textContent || !el.textContent.trim()) {
+      findings.push({
+        rule: 'empty-text',
+        severity: 'warning',
+        elementId: el.getAttribute('data-sk-id'),
+        message: `Element "${el.getAttribute('data-sk-id')}" has no text content`,
+        detail: { content: el.textContent },
+        suggestion: 'Remove empty element or add content',
+      });
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
  * Lint a single slide.
  * @param {{ id: string, layout: { elements: Object, warnings: any[], errors: any[], collisions: any[] } }} slideData
+ * @param {HTMLElement} [slideElement=null] - Optional DOM element for the slide section (enables DOM-based rules)
  * @returns {Array} Array of finding objects
  */
-export function lintSlide(slideData) {
+export function lintSlide(slideData, slideElement = null) {
   const elements = slideData.layout.elements;
   if (!elements || typeof elements !== 'object') return [];
 
-  return [
+  const findings = [
     ...ruleChildOverflow(elements),
     ...ruleNonAncestorOverlap(elements),
     ...ruleCanvasOverflow(elements),
     ...ruleSafeZoneViolation(elements),
     ...ruleZeroSize(elements),
   ];
+
+  // DOM-based rules only run when a slide DOM element is provided
+  if (slideElement) {
+    findings.push(
+      ...ruleTextOverflow(slideElement),
+      ...ruleFontTooSmall(slideElement),
+      ...ruleFontTooLarge(slideElement),
+      ...ruleLineTooLong(slideElement),
+      ...ruleLineHeightTight(slideElement),
+      ...ruleEmptyText(slideElement),
+    );
+  }
+
+  return findings;
 }
 
 /**
  * Lint an entire deck.
  * @param {{ slides: Array<{ id: string, layout: Object }> }} skData — the window.sk object
+ * @param {NodeListOf<HTMLElement>} [sections=null] - Optional slide section DOM elements
  * @returns {Array} Array of finding objects (with slideId added)
  */
-export function lintDeck(skData) {
+export function lintDeck(skData, sections = null) {
   const slides = skData?.slides;
   if (!Array.isArray(slides)) return [];
   const findings = [];
-  for (const slide of slides) {
-    const slideFindings = lintSlide(slide);
+  for (let i = 0; i < slides.length; i++) {
+    const slide = slides[i];
+    const slideEl = sections ? (sections[i] || null) : null;
+    const slideFindings = lintSlide(slide, slideEl);
     for (const f of slideFindings) {
       findings.push({ ...f, slideId: slide.id });
     }

@@ -326,3 +326,274 @@ describe('lint: lintDeck', () => {
     assert.equal(fromS2.length > 0, true, 'should have findings from slide 2');
   });
 });
+
+// ---------------------------------------------------------------------------
+// lintSlide with optional slideElement parameter
+// ---------------------------------------------------------------------------
+
+describe('lint: lintSlide with slideElement', () => {
+  it('accepts optional slideElement without error', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 400 }),
+    };
+    const slide = mockSlide('s1', elements);
+    // Should not throw when called with null
+    const f1 = lintSlide(slide, null);
+    assert.equal(Array.isArray(f1), true);
+    // Should not throw when called without second arg
+    const f2 = lintSlide(slide);
+    assert.equal(Array.isArray(f2), true);
+  });
+
+  it('returns only scene-model findings when no slideElement provided', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 400 }),
+    };
+    const slide = mockSlide('s1', elements);
+    const findings = lintSlide(slide);
+    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'empty-text'];
+    const domFindings = findings.filter(f => domRules.includes(f.rule));
+    assert.equal(domFindings.length, 0, 'DOM rules should not run without slideElement');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DOM-based rules (Rules 7–12)
+// ---------------------------------------------------------------------------
+
+describe('lint: text-overflow (DOM)', () => {
+  it('detects text overflow in DOM element', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-type', 'el');
+    el.setAttribute('data-sk-id', 'overflow-el');
+    el.style.width = '100px';
+    el.style.height = '20px';
+    el.style.overflow = 'hidden';
+    el.style.fontSize = '16px';
+    el.style.position = 'absolute';
+    el.textContent = 'This is a very long text that should overflow the container element and cause a finding to be reported by the lint rule';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const overflows = findings.filter(f => f.rule === 'text-overflow');
+    assert.equal(overflows.length, 1);
+    assert.equal(overflows[0].elementId, 'overflow-el');
+    assert.equal(overflows[0].severity, 'error');
+
+    document.body.removeChild(container);
+  });
+
+  it('reports no finding when content fits', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-type', 'el');
+    el.setAttribute('data-sk-id', 'fits-el');
+    el.style.width = '500px';
+    el.style.height = '200px';
+    el.style.fontSize = '16px';
+    el.style.position = 'absolute';
+    el.textContent = 'Short';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const overflows = findings.filter(f => f.rule === 'text-overflow');
+    assert.equal(overflows.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: font-too-small (DOM)', () => {
+  it('detects font below minimum threshold', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'small-font');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '12px';
+    el.style.position = 'absolute';
+    el.textContent = 'Tiny text';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const small = findings.filter(f => f.rule === 'font-too-small');
+    assert.equal(small.length, 1);
+    assert.equal(small[0].severity, 'warning');
+    assert.equal(small[0].detail.threshold, 18);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag font above threshold', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'ok-font');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '24px';
+    el.style.position = 'absolute';
+    el.textContent = 'Normal text';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const small = findings.filter(f => f.rule === 'font-too-small');
+    assert.equal(small.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: font-too-large (DOM)', () => {
+  it('detects font above maximum threshold', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'big-font');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '150px';
+    el.style.position = 'absolute';
+    el.textContent = 'Huge';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const large = findings.filter(f => f.rule === 'font-too-large');
+    assert.equal(large.length, 1);
+    assert.equal(large[0].severity, 'info');
+    assert.equal(large[0].detail.threshold, 120);
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: line-too-long (DOM)', () => {
+  it('detects wide element with small font', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'wide-el');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.width = '1600px';
+    el.style.fontSize = '16px';
+    el.style.position = 'absolute';
+    el.textContent = 'Some text content that could be very long per line';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const long = findings.filter(f => f.rule === 'line-too-long');
+    assert.equal(long.length, 1);
+    assert.equal(long[0].severity, 'info');
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: line-height-tight (DOM)', () => {
+  it('detects tight line-height', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'tight-lh');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '20px';
+    el.style.lineHeight = '20px';
+    el.style.position = 'absolute';
+    el.textContent = 'Cramped text';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const tight = findings.filter(f => f.rule === 'line-height-tight');
+    assert.equal(tight.length, 1);
+    assert.equal(tight[0].severity, 'warning');
+    assert.equal(tight[0].detail.ratio, 1.0);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag normal line-height', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'normal-lh');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '20px';
+    el.style.position = 'absolute';
+    el.textContent = 'Normal text';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const tight = findings.filter(f => f.rule === 'line-height-tight');
+    assert.equal(tight.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: empty-text (DOM)', () => {
+  it('detects empty el-type element', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-type', 'el');
+    el.setAttribute('data-sk-id', 'empty-el');
+    el.style.position = 'absolute';
+    el.textContent = '';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const empty = findings.filter(f => f.rule === 'empty-text');
+    assert.equal(empty.length, 1);
+    assert.equal(empty[0].severity, 'warning');
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag element with text content', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-type', 'el');
+    el.setAttribute('data-sk-id', 'has-text');
+    el.style.position = 'absolute';
+    el.textContent = 'Hello world';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const empty = findings.filter(f => f.rule === 'empty-text');
+    assert.equal(empty.length, 0);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag element containing an image', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-type', 'el');
+    el.setAttribute('data-sk-id', 'img-el');
+    el.style.position = 'absolute';
+    const img = document.createElement('img');
+    img.src = 'test.png';
+    el.appendChild(img);
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const empty = findings.filter(f => f.rule === 'empty-text');
+    assert.equal(empty.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
