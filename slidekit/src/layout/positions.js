@@ -411,6 +411,19 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
               });
             }
             resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
+            // Propagate stretch height into panel compound internals
+            const childEl = flatMap.get(cid);
+            if (childEl && childEl._compound === 'panel' && childEl.children && childEl.children.length >= 1) {
+              const bgRect = childEl.children[0];
+              const bgSizes = resolvedSizes.get(bgRect.id);
+              if (bgSizes) {
+                bgSizes.h = stretchH;
+              }
+              const bgBounds = resolvedBounds.get(bgRect.id);
+              if (bgBounds) {
+                bgBounds.h = stretchH;
+              }
+            }
             curX += cs.w + gap;
           }
         } else {
