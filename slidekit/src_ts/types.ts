@@ -480,7 +480,7 @@ export interface Provenance {
   /** Measurement context when source="measured". */
   measuredAt?: Record<string, unknown>;
   /** Original authored values before resolution. */
-  original?: Record<string, unknown>;
+  original?: Record<string, unknown> | Provenance;
 }
 
 /** A fully resolved element in the scene graph. */
@@ -489,8 +489,8 @@ export interface SceneElement {
   id: string;
   /** Element type. */
   type: ElementType;
-  /** Original authored properties. */
-  authored: Record<string, unknown>;
+  /** Original authored properties (snapshot taken before layout mutation). */
+  authored: AuthoredSpec;
   /** Resolved absolute bounds. */
   resolved: Rect;
   /** Resolved bounds relative to parent. */
@@ -514,6 +514,8 @@ export interface SceneElement {
   _connectorResolved?: Record<string, unknown>;
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
+  /** Panel child positions — present only on panel compound elements. */
+  panelChildren?: Array<{ id: string; type: ElementType; x?: number; y?: number; w?: number; h?: number }>;
 }
 
 /** Result of the layout pass. */
@@ -523,7 +525,7 @@ export interface LayoutResult {
   /** IDs of root-level elements. */
   rootIds?: string[];
   /** Resolved transforms. */
-  transforms?: Array<unknown>;
+  transforms?: TransformMarker[];
   /** Warnings generated during layout. */
   warnings: Array<Record<string, unknown>>;
   /** Errors encountered during layout. */
@@ -566,6 +568,70 @@ export interface StyleFilterResult {
   warnings: Array<Record<string, unknown>>;
 }
 
+// =============================================================================
+// Pipeline Phase Types — data flowing between layout phases
+// =============================================================================
+
+/**
+ * Authored element spec — a deep-cloned snapshot of the element's original
+ * properties captured before any mutation by the layout pipeline.
+ * Built at the start of Phase 1 (intrinsics).
+ */
+export interface AuthoredSpec {
+  /** Element type discriminator. */
+  type: ElementType;
+  /** HTML content (for el() elements). */
+  content?: string;
+  /** Image source (for figure compound elements). */
+  src?: string;
+  /** Deep-cloned copy of the element's original props. */
+  props: ElementProps | ConnectorProps;
+  /** Ordered child element IDs (for containers). */
+  children?: string[];
+}
+
+/**
+ * Maps and data that flow between the 4 layout pipeline phases.
+ *
+ * Phase 1 (intrinsics) populates: flatMap, authoredSpecs, resolvedSizes
+ * Phase 2 (positions) populates: resolvedBounds, sortedOrder
+ * Phase 2.5 (overflow) reads resolvedBounds, may mutate _layoutFlags
+ * Phase 3 (transforms) mutates resolvedBounds
+ * Phase 4 (finalize) reads everything, produces the scene graph
+ */
+export interface PipelineState {
+  /** Element ID -> flat element, built during flatten. */
+  flatMap: Map<string, SlideElement>;
+  /** Element ID -> deep-cloned authored spec, built at start of Phase 1. */
+  authoredSpecs: Map<string, AuthoredSpec>;
+  /** Element ID -> intrinsic size data, built in Phase 1. */
+  resolvedSizes: Map<string, ResolvedSize>;
+  /** Element ID -> resolved position/size, built in Phase 2. */
+  resolvedBounds: Map<string, Rect>;
+  /** Ordered element IDs from topological sort (Phase 2). */
+  sortedOrder: string[];
+  /** Child ID -> group parent ID. */
+  groupParent: Map<string, string>;
+  /** Child ID -> stack parent ID. */
+  stackParent: Map<string, string>;
+  /** Stack ID -> ordered child IDs. */
+  stackChildren: Map<string, string[]>;
+  /** Group ID -> child IDs. */
+  groupChildren: Map<string, string[]>;
+  /** IDs of synthetic panel-internal elements. */
+  panelInternals: Set<string>;
+  /** Element ID -> bounds before transforms (for provenance). */
+  preTransformBounds: Map<string, Rect>;
+  /** Resolved transform markers (deep-cloned and ID-assigned). */
+  resolvedTransforms: TransformMarker[];
+  /** Errors accumulated during pipeline. */
+  errors: Array<Record<string, unknown>>;
+  /** Warnings accumulated during pipeline. */
+  warnings: Array<Record<string, unknown>>;
+  /** Collision detection threshold (px^2). */
+  collisionThreshold: number;
+}
+
 /** Result of flattening the slide element tree. */
 export interface FlattenResult {
   /** All elements keyed by ID. */
@@ -588,12 +654,12 @@ export interface FlattenResult {
 
 /** Narrow a SlideElement to a PanelElement. */
 export function isPanelElement(el: SlideElement): el is PanelElement {
-  return el.type === "group" && '_compound' in el && (el as any)._compound === "panel";
+  return el.type === "group" && '_compound' in el && (el as unknown as PanelElement)._compound === "panel";
 }
 
 /** Narrow a SlideElement to a FigureElement. */
 export function isFigureElement(el: SlideElement): el is FigureElement {
-  return el.type === "group" && '_compound' in el && (el as any)._compound === "figure";
+  return el.type === "group" && '_compound' in el && (el as unknown as FigureElement)._compound === "figure";
 }
 
 /** Narrow a SlideElement to any compound element (Panel or Figure). */

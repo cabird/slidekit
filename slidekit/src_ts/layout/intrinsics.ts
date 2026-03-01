@@ -6,7 +6,8 @@ import { measure } from '../measure.js';
 import { resolvePercentage } from '../utilities.js';
 import { isRelMarker, deepClone } from './helpers.js';
 import { mustGet } from '../assertions.js';
-import type { SlideElement, ResolvedSize, PositionValue } from '../types.js';
+import { isPanelElement } from '../types.js';
+import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec } from '../types.js';
 
 /**
  * Compute the effective width and height for an element.
@@ -17,20 +18,20 @@ import type { SlideElement, ResolvedSize, PositionValue } from '../types.js';
  * @param {object} element - SlideKit element
  * @returns {Promise<{ w: number, h: number, _autoHeight: boolean }>}
  */
-export async function getEffectiveDimensions(element: SlideElement) {
+export async function getEffectiveDimensions(element: SlideElement): Promise<{ w: number; h: number; _autoHeight: boolean }> {
   const { props, type } = element;
 
   // Auto-height for el() elements
   if (type === "el" && (props.h === undefined || props.h === null)) {
     const html = element.content || "";
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: props.w || 0, h: 0, _autoHeight: true };
+      return { w: (props.w as number) || 0, h: 0, _autoHeight: true };
     }
     const metrics = await measure(html, { w: props.w as number | undefined, style: props.style as Record<string, unknown> | undefined, className: props.className });
-    return { w: props.w || metrics.w, h: metrics.h, _autoHeight: true };
+    return { w: (props.w as number) || metrics.w, h: metrics.h, _autoHeight: true };
   }
 
-  return { w: props.w || 0, h: props.h || 0, _autoHeight: false };
+  return { w: (props.w as number) || 0, h: (props.h as number) || 0, _autoHeight: false };
 }
 
 /**
@@ -52,28 +53,38 @@ export async function getEffectiveDimensions(element: SlideElement) {
  * @param {Array} warnings - warning accumulator (mutated)
  * @returns {Promise<{ authoredSpecs: Map, resolvedSizes: Map, hasErrors: boolean }>}
  */
+/** Result of Phase 1: intrinsic size resolution. */
+export interface IntrinsicSizeResult {
+  authoredSpecs: Map<string, AuthoredSpec>;
+  resolvedSizes: Map<string, ResolvedSize>;
+  hasErrors: boolean;
+}
+
 export async function resolveIntrinsicSizes(
   flatMap: Map<string, SlideElement>,
   stackChildren: Map<string, string[]>,
   groupChildren: Map<string, string[]>,
   errors: Array<Record<string, unknown>>,
-  warnings: Array<Record<string, unknown>>,
-) {
+  _warnings: Array<Record<string, unknown>>,
+): Promise<IntrinsicSizeResult> {
   // Store authored specs (deep clone before any modification)
-  const authoredSpecs = new Map();
+  const authoredSpecs = new Map<string, AuthoredSpec>();
   for (const [id, el] of flatMap) {
-    const elAny = el as any;
-    authoredSpecs.set(id, {
+    const spec: AuthoredSpec = {
       type: el.type,
-      content: elAny.content,
-      src: elAny.src,
       props: deepClone(el.props),
-      children: elAny.children ? elAny.children.map((c: SlideElement) => c.id) : undefined,
-    });
+    };
+    if (el.type === "el") {
+      spec.content = el.content;
+    }
+    if ('children' in el && el.children) {
+      spec.children = el.children.map((c: SlideElement) => c.id);
+    }
+    authoredSpecs.set(id, spec);
   }
 
   // M8.3: Resolve percentage sugar on x, y, w, h before validation
-  for (const [id, el] of flatMap) {
+  for (const [_id, el] of flatMap) {
     if (typeof el.props.x === "string" && !isRelMarker(el.props.x)) {
       el.props.x = resolvePercentage(el.props.x, "x") as PositionValue;
     }
@@ -108,7 +119,7 @@ export async function resolveIntrinsicSizes(
     }
   }
 
-  const resolvedSizes = new Map();
+  const resolvedSizes = new Map<string, ResolvedSize>();
 
   // If there are errors from validation, return early
   if (errors.length > 0) {
@@ -155,8 +166,8 @@ export async function resolveIntrinsicSizes(
           allChildrenSized = false;
           break;
         }
-        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`) as any;
-        if (childEl && childEl._compound === "panel") {
+        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
+        if (isPanelElement(childEl)) {
           const config = childEl._panelConfig;
           if (!config) continue;
           const panelChildren = childEl.children || [];
@@ -168,7 +179,7 @@ export async function resolveIntrinsicSizes(
           }
           // Update panel group size from inner vstack (auto-height/width)
           if (childStack && resolvedSizes.has(childStack.id)) {
-            const stackSizes = resolvedSizes.get(childStack.id);
+            const stackSizes = resolvedSizes.get(childStack.id)!;
             const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
             const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
             panelSizes.h = autoH;
@@ -176,7 +187,7 @@ export async function resolveIntrinsicSizes(
             // Also update bgRect height
             const bgRect = panelChildren[0];
             if (bgRect && resolvedSizes.has(bgRect.id)) {
-              resolvedSizes.get(bgRect.id).h = autoH;
+              resolvedSizes.get(bgRect.id)!.h = autoH;
             }
           }
         }
@@ -217,7 +228,7 @@ export async function resolveIntrinsicSizes(
           maxW = Math.max(maxW, cs.w);
         }
         const finalW = stackW || maxW;
-        const finalH = (el.props.h !== undefined && el.props.h !== null) ? el.props.h : totalH;
+        const finalH = (el.props.h !== undefined && el.props.h !== null) ? (el.props.h as number) : totalH;
 
         resolvedSizes.set(stackId, {
           w: finalW,
@@ -227,7 +238,7 @@ export async function resolveIntrinsicSizes(
         });
       } else {
         // hstack
-        const stackH = el.props.h ?? 0;
+        const stackH = (el.props.h as number) ?? 0;
 
         // For hstack children without explicit h, default to stack's h (if provided)
         // hstack children can have their own w; if not provided, they stay as measured
@@ -239,7 +250,7 @@ export async function resolveIntrinsicSizes(
           if (i > 0) totalW += gap;
           maxH = Math.max(maxH, cs.h);
         }
-        const finalW = (el.props.w !== undefined && el.props.w !== null) ? el.props.w : totalW;
+        const finalW = (el.props.w !== undefined && el.props.w !== null) ? (el.props.w as number) : totalW;
         const finalH = stackH || maxH;
 
         resolvedSizes.set(stackId, {
@@ -269,12 +280,11 @@ export async function resolveIntrinsicSizes(
   // For panel compounds: set the background rect height from the vstack height + 2*padding.
   // Also set the group's height so it participates correctly in other layouts.
   for (const [id, el] of flatMap) {
-    const elAny2 = el as any;
-    if (elAny2._compound !== "panel") continue;
-    const config = elAny2._panelConfig;
+    if (!isPanelElement(el)) continue;
+    const config = el._panelConfig;
     if (!config) continue;
 
-    const panelChildren = elAny2.children || [];
+    const panelChildren = el.children || [];
     // Panel children: [bgRect, childStack]
     const bgRect = panelChildren[0];
     const childStack = panelChildren[1];
@@ -287,12 +297,12 @@ export async function resolveIntrinsicSizes(
 
     // Update bg rect height
     if (resolvedSizes.has(bgRect.id)) {
-      resolvedSizes.get(bgRect.id).h = autoH;
+      resolvedSizes.get(bgRect.id)!.h = autoH;
     }
 
     // Update group (panel) width and height
     if (resolvedSizes.has(id)) {
-      const groupSizes = resolvedSizes.get(id);
+      const groupSizes = resolvedSizes.get(id)!;
       groupSizes.h = autoH;
       if (config.panelW) groupSizes.w = config.panelW;
     } else {
@@ -334,7 +344,7 @@ export async function resolveIntrinsicSizes(
     const hugH = maxY - minY;
 
     if (resolvedSizes.has(id)) {
-      const gs = resolvedSizes.get(id);
+      const gs = resolvedSizes.get(id)!;
       gs.w = hugW;
       gs.h = hugH;
     } else {

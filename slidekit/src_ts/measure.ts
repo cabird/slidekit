@@ -25,7 +25,7 @@ interface MeasureProps {
  * to the slidekit-layer base settings so measurements match rendering.
  */
 export function _ensureMeasureContainer(): void {
-  if (state.measureContainer && (state.measureContainer as HTMLDivElement).parentNode) return;
+  if (state.measureContainer && state.measureContainer!.parentNode) return;
 
   if (typeof document === "undefined" || !document.body) {
     throw new Error(
@@ -50,7 +50,7 @@ export function _ensureMeasureContainer(): void {
   container.appendChild(baselineStyle);
 
   document.body.appendChild(container);
-  state.measureContainer = container as any;
+  state.measureContainer = container;
 }
 
 /**
@@ -114,7 +114,7 @@ export async function measure(
   div.innerHTML = html;
 
   // Append to DOM (required for images to start loading and layout to compute)
-  (state.measureContainer as HTMLDivElement).appendChild(div);
+  state.measureContainer!.appendChild(div);
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");
@@ -133,7 +133,7 @@ export async function measure(
 
   // Read dimensions
   const result = { w: div.offsetWidth, h: div.scrollHeight };
-  (state.measureContainer as HTMLDivElement).removeChild(div);
+  state.measureContainer!.removeChild(div);
 
   // Cache result
   state.measureCache.set(cacheKey, result);

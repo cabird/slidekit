@@ -24,26 +24,33 @@ import { mustGet } from '../assertions.js';
  * @returns {Promise<{resolvedBounds: Map, sortedOrder: string[]}|null>}
  *   Returns null if errors prevent position resolution.
  */
-import type { SlideElement, Rect, ResolvedSize, RelMarker } from '../types.js';
+import { isPanelElement } from '../types.js';
+import type { SlideElement, Rect, ResolvedSize, RelMarker, AuthoredSpec } from '../types.js';
+
+/** Result of Phase 2: position resolution. */
+export interface PositionResult {
+  resolvedBounds: Map<string, Rect>;
+  sortedOrder: string[];
+}
 
 export async function resolvePositions(
   flatMap: Map<string, SlideElement>,
   stackParent: Map<string, string>,
   stackChildren: Map<string, string[]>,
   resolvedSizes: Map<string, ResolvedSize>,
-  authoredSpecs: Map<string, Record<string, any>>,
+  authoredSpecs: Map<string, AuthoredSpec>,
   warnings: Array<Record<string, unknown>>,
   errors: Array<Record<string, unknown>>,
-) {
+): Promise<PositionResult | null> {
   const initialErrorCount = errors.length;
 
   // Build dependency graph
   // For each element, find what elements it depends on (via _rel markers on x and y)
   // Stack children depend on their parent stack (not on _rel markers — their position
   // is computed by the stack layout algorithm after the stack is positioned).
-  const deps = new Map(); // id -> Set<refId>
+  const deps = new Map<string, Set<string>>(); // id -> Set<refId>
   for (const [id, el] of flatMap) {
-    const depSet = new Set();
+    const depSet = new Set<string>();
 
     // Stack children depend on their parent stack
     if (stackParent.has(id)) {
@@ -149,7 +156,7 @@ export async function resolvePositions(
 
   // Kahn's algorithm (BFS-based topological sort)
   // Compute in-degree for each node
-  const inDegree = new Map();
+  const inDegree = new Map<string, number>();
   for (const [id] of flatMap) {
     inDegree.set(id, 0);
   }
@@ -160,7 +167,7 @@ export async function resolvePositions(
   }
 
   // Queue starts with nodes that have in-degree 0
-  const queue = [];
+  const queue: string[] = [];
   for (const [id, deg] of inDegree) {
     if (deg === 0) {
       queue.push(id);
@@ -168,7 +175,7 @@ export async function resolvePositions(
   }
 
   // Build reverse adjacency: for each node, who depends on it
-  const reverseDeps = new Map();
+  const reverseDeps = new Map<string, string[]>();
   for (const [id] of flatMap) {
     reverseDeps.set(id, []);
   }
@@ -178,9 +185,9 @@ export async function resolvePositions(
     }
   }
 
-  const sortedOrder = [];
+  const sortedOrder: string[] = [];
   while (queue.length > 0) {
-    const nodeId = queue.shift();
+    const nodeId = queue.shift()!;
     sortedOrder.push(nodeId);
     // For each node that depends on this one, decrement its in-degree
     for (const dependent of mustGet(reverseDeps, nodeId, `reverseDeps missing node: ${nodeId}`)) {
@@ -211,7 +218,7 @@ export async function resolvePositions(
 
   // Resolve positions in topological order
   // resolvedBounds: id -> { x, y, w, h } (top-left corner + dimensions)
-  const resolvedBounds = new Map();
+  const resolvedBounds = new Map<string, Rect>();
 
   for (const id of sortedOrder) {
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
@@ -224,7 +231,7 @@ export async function resolvePositions(
     // when we process their parent stack. However, if this child is
     // itself a stack (nested stack), we still need to let it position
     // its own children below, so we only skip the x/y resolution.
-    let finalX, finalY;
+    let finalX: number, finalY: number;
 
     if (stackParent.has(id)) {
       if (resolvedBounds.has(id)) {
@@ -247,7 +254,7 @@ export async function resolvePositions(
     } else {
       // Resolve x
       const xIsRel = isRelMarker(el.props.x);
-      let x;
+      let x: number;
       if (xIsRel) {
         const marker = el.props.x as RelMarker;
         if (marker._rel === "centerIn") {
@@ -279,12 +286,12 @@ export async function resolvePositions(
           x = resolveRelMarker(marker, "x", refBounds, w, h);
         }
       } else {
-        x = el.props.x ?? 0;
+        x = (el.props.x ?? 0) as number;
       }
 
       // Resolve y
       const yIsRel = isRelMarker(el.props.y);
-      let y;
+      let y: number;
       if (yIsRel) {
         const marker = el.props.y as RelMarker;
         if (marker._rel === "centerIn") {
@@ -316,12 +323,13 @@ export async function resolvePositions(
           y = resolveRelMarker(marker, "y", refBounds, w, h);
         }
       } else {
-        y = el.props.y ?? 0;
+        y = (el.props.y ?? 0) as number;
       }
 
       // Apply anchor resolution ONLY to authored (non-_rel) coordinates.
+      // By this point, percentages have been resolved to numbers in Phase 1.
       const anchor = el.props.anchor || "tl";
-      const { left: anchoredX, top: anchoredY } = resolveAnchor(x, y, w, h, anchor);
+      const { left: anchoredX, top: anchoredY } = resolveAnchor(x as number, y as number, w, h, anchor);
       finalX = xIsRel ? x : anchoredX;
       finalY = yIsRel ? y : anchoredY;
 
@@ -424,8 +432,8 @@ export async function resolvePositions(
             }
             resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
             // Propagate stretch height into panel compound internals
-            const childEl = mustGet(flatMap, cid, `flatMap missing hstack child: ${cid}`) as any;
-            if (childEl && childEl._compound === 'panel' && childEl.children && childEl.children.length >= 1) {
+            const childEl = mustGet(flatMap, cid, `flatMap missing hstack child: ${cid}`);
+            if (isPanelElement(childEl) && childEl.children && childEl.children.length >= 1) {
               const bgRect = childEl.children[0];
               const bgSizes = resolvedSizes.get(bgRect.id);
               if (bgSizes) {

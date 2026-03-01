@@ -8,7 +8,7 @@ import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
-import type { SlideElement, SlideDefinition, LayoutResult, SceneElement, Point } from './types.js';
+import type { SlideElement, SlideDefinition, LayoutResult, Point } from './types.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
 let _layoutFn: ((slide: SlideDefinition) => Promise<LayoutResult>) | undefined;
@@ -558,8 +558,7 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
 
   // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
   if (typeof window !== "undefined") {
-    // @ts-ignore — custom property on window for debugging
-    window.sk = {
+    (window as unknown as Record<string, unknown>).sk = {
       layouts,
       slides: slides.map((s: SlideDefinition, i: number) => ({
         id: s.id || `slide-${i}`,

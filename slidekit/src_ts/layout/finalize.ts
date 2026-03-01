@@ -7,13 +7,14 @@ import { getAnchorPoint } from '../compounds.js';
 import { rotatedAABB } from '../utilities.js';
 import { buildProvenance, computeAABBIntersection } from './helpers.js';
 import { mustGet } from '../assertions.js';
-import type { SlideElement, Rect, ResolvedSize, TransformMarker } from '../types.js';
+import { isPanelElement } from '../types.js';
+import type { SlideElement, Rect, ResolvedSize, TransformMarker, AuthoredSpec, LayoutResult, SceneElement, Provenance, ElementType } from '../types.js';
 
 /** Context passed from earlier layout phases into finalize. */
 interface FinalizeContext {
   sortedOrder: string[];
   flatMap: Map<string, SlideElement>;
-  authoredSpecs: Map<string, Record<string, any>>;
+  authoredSpecs: Map<string, AuthoredSpec>;
   resolvedBounds: Map<string, Rect>;
   resolvedSizes: Map<string, ResolvedSize>;
   stackParent: Map<string, string>;
@@ -22,7 +23,7 @@ interface FinalizeContext {
   groupChildren: Map<string, string[]>;
   panelInternals: Set<string>;
   preTransformBounds: Map<string, Rect>;
-  resolvedTransforms: unknown[];
+  resolvedTransforms: TransformMarker[];
   warnings: Array<Record<string, unknown>>;
   errors: Array<Record<string, unknown>>;
   collisionThreshold: number;
@@ -53,9 +54,9 @@ export function finalize({
   warnings,
   errors,
   collisionThreshold,
-}: FinalizeContext) {
+}: FinalizeContext): LayoutResult {
   // Build provenance metadata and scene graph
-  const sceneElements: Record<string, any> = {};
+  const sceneElements: Record<string, SceneElement> = {};
 
   for (const id of sortedOrder) {
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
@@ -65,12 +66,12 @@ export function finalize({
 
     // Build provenance for each dimension
     // Stack children get provenance source: "stack"
-    let provenance;
+    let provenance: { x: Provenance; y: Provenance; w: Provenance; h: Provenance };
     if (stackParent.has(id)) {
       const parentStackId = mustGet(stackParent, id, `stackParent missing child: ${id}`);
       provenance = {
-        x: { source: "stack", stackId: parentStackId },
-        y: { source: "stack", stackId: parentStackId },
+        x: { source: "stack", stackId: parentStackId } as Provenance,
+        y: { source: "stack", stackId: parentStackId } as Provenance,
         w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
         h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
       };
@@ -88,16 +89,16 @@ export function finalize({
     const preBounds = preTransformBounds.get(id);
     if (preBounds) {
       if (bounds.x !== preBounds.x) {
-        provenance.x = { source: "transform", original: provenance.x };
+        provenance.x = { source: "transform", original: provenance.x } as Provenance;
       }
       if (bounds.y !== preBounds.y) {
-        provenance.y = { source: "transform", original: provenance.y };
+        provenance.y = { source: "transform", original: provenance.y } as Provenance;
       }
       if (bounds.w !== preBounds.w) {
-        provenance.w = { source: "transform", original: provenance.w };
+        provenance.w = { source: "transform", original: provenance.w } as Provenance;
       }
       if (bounds.h !== preBounds.h) {
-        provenance.h = { source: "transform", original: provenance.h };
+        provenance.h = { source: "transform", original: provenance.h } as Provenance;
       }
     }
 
@@ -149,13 +150,13 @@ export function finalize({
     };
 
     // Export panel child positions in scene model
-    if ((el as any)._compound === 'panel' && (el as any).children) {
-      sceneElements[id].panelChildren = (el as any).children.map((child: any) => {
-        const bounds = resolvedBounds.get(child.id);
+    if ('_compound' in el && el._compound === 'panel' && 'children' in el && el.children) {
+      sceneElements[id].panelChildren = el.children.map((child: SlideElement) => {
+        const childBounds = resolvedBounds.get(child.id);
         return {
           id: child.id,
-          type: child.type,
-          ...(bounds || {})
+          type: child.type as ElementType,
+          ...(childBounds || {})
         };
       });
     }
@@ -374,14 +375,13 @@ export function finalize({
   // Presentation-Specific Validations (M4.3)
   // =========================================================================
 
-  const cfg: any = state.config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
-  const slideW = cfg.slide?.w ?? 1920;
-  const slideH = cfg.slide?.h ?? 1080;
-  const isStrict = cfg.strict === true;
-  const minFontSizeThreshold = cfg.minFontSize ?? 24;
+  const cfg = state.config;
+  const slideW = cfg?.slide?.w ?? 1920;
+  const slideH = cfg?.slide?.h ?? 1080;
+  const isStrict = cfg?.strict === true;
 
   // Safe zone check
-  const sr = state.safeRectCache as Rect | null;
+  const sr = state.safeRectCache;
   if (sr) {
     for (const id of sortedOrder) {
       const el = mustGet(flatMap, id, `flatMap missing element in safe-zone check: ${id}`);
@@ -508,12 +508,11 @@ export function finalize({
 
   // Panel overflow warnings (P2.4)
   for (const [id, el] of flatMap) {
-    const elAny = el as any;
-    if (elAny._compound !== "panel") continue;
-    const config = elAny._panelConfig;
+    if (!isPanelElement(el)) continue;
+    const config = el._panelConfig;
     if (!config || config.panelH == null) continue; // skip auto-height panels
 
-    const childStack = (elAny.children || [])[1];
+    const childStack = (el.children || [])[1];
     if (!childStack) continue;
     const stackSizes = resolvedSizes.get(childStack.id);
     if (!stackSizes) continue;

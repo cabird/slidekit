@@ -8,7 +8,7 @@ import type { RelMarker, Rect, SlideElement, FlattenResult, Provenance } from ".
  * Acts as a TypeScript type guard, narrowing to `RelMarker`.
  */
 export function isRelMarker(value: unknown): value is RelMarker {
-  return value !== null && typeof value === "object" && typeof (value as any)._rel === "string";
+  return value !== null && typeof value === "object" && typeof (value as Record<string, unknown>)._rel === "string";
 }
 
 /**
@@ -189,9 +189,9 @@ export function resolveRelMarker(marker: RelMarker, axis: "x" | "y", refBounds: 
  * @param {boolean} wasMeasured - Whether this dimension was measured
  * @returns {object} Provenance metadata
  */
-export function buildProvenance(authoredValue: unknown, prop: string, element: SlideElement, wasMeasured: boolean): Record<string, unknown> {
+export function buildProvenance(authoredValue: unknown, prop: string, element: SlideElement, wasMeasured: boolean): Provenance {
   if (isRelMarker(authoredValue)) {
-    const prov: Record<string, unknown> = { source: "constraint", type: authoredValue._rel };
+    const prov: Provenance = { source: "constraint", type: authoredValue._rel };
     if (authoredValue.ref) prov.ref = authoredValue.ref;
     if (authoredValue.ref2 !== undefined) prov.ref2 = authoredValue.ref2;
     if (authoredValue.gap !== undefined) prov.gap = authoredValue.gap;

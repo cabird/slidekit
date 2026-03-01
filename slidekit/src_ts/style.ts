@@ -130,7 +130,7 @@ const BLOCKED_SUGGESTIONS: Readonly<Record<string, string>> = {
  */
 export function filterStyle(
   style: Record<string, unknown> = {},
-  elementType: string = "unknown",
+  _elementType: string = "unknown",
 ): StyleFilterResult {
   const warnings: Array<Record<string, unknown>> = [];
   const filtered: Record<string, unknown> = {};

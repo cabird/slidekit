@@ -3,7 +3,7 @@
 
 import { measure } from '../measure.js';
 import { mustGet } from '../assertions.js';
-import type { SlideElement, Rect } from '../types.js';
+import type { SlideElement, Rect, AuthoredSpec } from '../types.js';
 
 /**
  * Check overflow policies for elements with explicit height.
@@ -21,7 +21,7 @@ import type { SlideElement, Rect } from '../types.js';
 export async function checkOverflowPolicies(
   sortedOrder: string[],
   flatMap: Map<string, SlideElement>,
-  authoredSpecs: Map<string, Record<string, any>>,
+  authoredSpecs: Map<string, AuthoredSpec>,
   resolvedBounds: Map<string, Rect>,
   warnings: Array<Record<string, unknown>>,
   errors: Array<Record<string, unknown>>,

@@ -11,10 +11,6 @@ import type {
   VStackElement,
   HStackElement,
   ElementProps,
-  AnchorPoint,
-  LayerName,
-  SizeValue,
-  PositionValue,
 } from './types.js';
 
 /**

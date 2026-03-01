@@ -53,14 +53,14 @@ export function grid(config: GridConfig = {}): Grid {
     marginLeft = config.margin.left ?? 120;
     marginRight = config.margin.right ?? 120;
   } else if (state.safeRectCache) {
-    marginLeft = (state.safeRectCache as Rect).x;
-    marginRight = ((state as any).config?.slide?.w ?? 1920) - ((state.safeRectCache as Rect).x + (state.safeRectCache as Rect).w);
+    marginLeft = state.safeRectCache.x;
+    marginRight = (state.config?.slide?.w ?? 1920) - (state.safeRectCache.x + state.safeRectCache.w);
   } else {
     marginLeft = 120;
     marginRight = 120;
   }
 
-  const totalWidth = ((state as any).config?.slide?.w ?? 1920) - marginLeft - marginRight;
+  const totalWidth = (state.config?.slide?.w ?? 1920) - marginLeft - marginRight;
   const totalGutters = (cols - 1) * gutter;
   const colWidth = (totalWidth - totalGutters) / cols;
 
@@ -141,8 +141,8 @@ export function snap(value: number, gridSize: number): number {
 export function resolvePercentage(value: unknown, axis: "x" | "y" | "w" | "h"): unknown {
   if (typeof value !== "string") return value;
 
-  const slideW = (state as any).config?.slide?.w ?? 1920;
-  const slideH = (state as any).config?.slide?.h ?? 1080;
+  const slideW = state.config?.slide?.w ?? 1920;
+  const slideH = state.config?.slide?.h ?? 1080;
   const sr: Rect = (state.safeRectCache as Rect) || { x: 120, y: 90, w: 1680, h: 900 };
 
   // Check for safe-zone-relative: "safe:N%"

@@ -35,7 +35,7 @@ export function resolveSpacing(value: number | string): number;
 export function resolveSpacing(value: unknown): number | undefined | null {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
-    const scale: SpacingScale = (state.config as any)?.spacing || DEFAULT_SPACING;
+    const scale: SpacingScale = state.config?.spacing || DEFAULT_SPACING;
     if (Object.prototype.hasOwnProperty.call(scale, value)) return scale[value]!;
     const available = Object.keys(scale).join(', ');
     throw new Error(`Unknown spacing token "${value}". Available tokens: ${available}`);

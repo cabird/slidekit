@@ -16,7 +16,6 @@ import type {
   FigureConfig,
   Rect,
   Point,
-  AnchorPoint,
   LayerName,
 } from './types.js';
 

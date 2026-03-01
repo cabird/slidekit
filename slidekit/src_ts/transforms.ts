@@ -182,7 +182,7 @@ export function fitToRect(ids: string[], rectParam: Rect): TransformMarker {
  * @param {Map<string, object>} flatMap - Element map for existence checking
  * @returns {Array} warnings
  */
-export function applyTransform(transform: TransformMarker, resolvedBounds: Map<string, Rect>, flatMap: Map<string, SlideElement>): Array<Record<string, unknown>> {
+export function applyTransform(transform: TransformMarker, resolvedBounds: Map<string, Rect>, _flatMap: Map<string, SlideElement>): Array<Record<string, unknown>> {
   const transformWarnings = [];
   const type = transform._transform;
   const ids = transform.ids || [];

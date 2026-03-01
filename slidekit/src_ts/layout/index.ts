@@ -10,7 +10,7 @@ import { checkOverflowPolicies } from './overflow.js';
 import { resolveIntrinsicSizes } from './intrinsics.js';
 import { resolvePositions } from './positions.js';
 import { finalize } from './finalize.js';
-import type { SlideDefinition, LayoutResult, TransformMarker, SlideElement, Rect, ResolvedSize } from '../types.js';
+import type { SlideDefinition, LayoutResult, TransformMarker, Rect } from '../types.js';
 
 /** Options for the layout pipeline. */
 interface LayoutOptions {
@@ -85,14 +85,14 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
   // Process each transform in order, modifying resolved positions/sizes.
   // After applying a transform, update provenance to source: "transform".
   // Reset the transform ID counter for deterministic IDs.
-  (state as any).transformIdCounter = 0;
+  state.transformIdCounter = 0;
 
   // Re-assign transform IDs deterministically for this layout call
-  const resolvedTransforms: unknown[] = [];
+  const resolvedTransforms: TransformMarker[] = [];
   for (const t of transforms) {
     // Pass through null/invalid entries as-is — they'll be caught by validation below
     if (!t || typeof t !== "object") {
-      resolvedTransforms.push(t);
+      resolvedTransforms.push(t as TransformMarker);
       continue;
     }
     // If the transform already has a _transformId, preserve it;
@@ -112,7 +112,7 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
 
   for (const t of resolvedTransforms) {
     // Validate transform object shape
-    if (!t || typeof (t as any)._transform !== "string") {
+    if (!t || typeof t._transform !== "string") {
       warnings.push({
         type: "invalid_transform_object",
         transform: t,
@@ -121,7 +121,7 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
       continue;
     }
 
-    const transformWarnings = applyTransform(t as TransformMarker, resolvedBounds, flatMap);
+    const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
     for (const w of transformWarnings) {
       warnings.push(w);
     }
