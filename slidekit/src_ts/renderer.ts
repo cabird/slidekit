@@ -8,6 +8,7 @@ import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
+import { lintSlide, lintDeck } from './lint.js';
 import type { SlideElement, SlideDefinition, LayoutResult, Point } from './types.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
@@ -558,7 +559,7 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
 
   // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
   if (typeof window !== "undefined") {
-    (window as unknown as Record<string, unknown>).sk = {
+    const skObj: Record<string, unknown> = {
       layouts,
       slides: slides.map((s: SlideDefinition, i: number) => ({
         id: s.id || `slide-${i}`,
@@ -567,6 +568,18 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
       // M8.1: Expose config for debug overlay to read safe zone info
       _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
     };
+    (skObj as any).lint = (slideId: string) => {
+      const slideIdx = (skObj.slides as any[]).findIndex((s: any) => s.id === slideId);
+      if (slideIdx === -1) throw new Error(`Slide not found: ${slideId}`);
+      const slide = (skObj.slides as any[])[slideIdx];
+      const slideEl = document.querySelectorAll('.reveal .slides > section')[slideIdx] || null;
+      return lintSlide(slide, slideEl as HTMLElement | null);
+    };
+    (skObj as any).lintDeck = () => {
+      const sectionEls = document.querySelectorAll('.reveal .slides > section') as NodeListOf<HTMLElement>;
+      return lintDeck(skObj as any, sectionEls);
+    };
+    (window as unknown as Record<string, unknown>).sk = skObj;
   }
 
   return { sections, layouts };
