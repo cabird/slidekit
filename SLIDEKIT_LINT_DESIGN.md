@@ -60,22 +60,30 @@ const allFindings = sk.lintDeck();
 
 ### Configuration
 
+The linter uses fixed thresholds — general rules of thumb that apply to all presentations. These are not meant to be varied per-project or per-profile. The thresholds live in a config object inside the lint module:
+
 ```js
-sk.lint({
-  rules: {
-    "font-too-small": { min: 24, severity: "error" },
-    "collision": { threshold: 100, severity: "warning" },
-    "outside-safe-zone": { severity: "error" },
-    "alignment-drift": { tolerance: 3, severity: "warning" },
-  },
-  ignore: ["bg-image", "bg-glow"],  // element IDs to skip
-})
+// Internal defaults (not user-facing profiles)
+const THRESHOLDS = {
+  minFontSize: 18,        // px — below this is unreadable on projector
+  warnFontSize: 24,       // px — below this warrants a warning
+  maxFontSize: 120,       // px — above this is excessive
+  maxLineLength: 80,      // characters
+  minLineHeightRatio: 1.15,
+  minGap: 8,              // px — adjacent elements closer than this
+  alignmentTolerance: 4,  // px — near-misalignment detection
+  edgeCrowding: 8,        // px — distance from safe zone edge
+  contentAreaMin: 0.40,   // fraction of safe zone used
+  maxRootElements: 15,
+  imageUpscaleMax: 1.10,  // 10% above natural size
+  aspectRatioTolerance: 0.01,
+  contrastMin: 3.0,       // contrast ratio
+  titlePositionDrift: 20, // px — across slides
+  maxFontFamilies: 3,
+};
 ```
 
-Per-rule objects support:
-- **Threshold overrides** — adjust numeric limits per rule (e.g., `min`, `threshold`, `tolerance`)
-- **Severity overrides** — promote or demote any rule (e.g., make `outside-safe-zone` an error instead of warning)
-- **`ignore`** — array of element IDs to exclude from all checks
+No per-element rule suppression. If the AI agent is building a slide and a lint warning doesn't apply (e.g., intentional overlap for a layered design effect), the agent is told contextually to ignore that specific finding. This avoids stale ignore annotations that mask real problems after layout changes.
 
 ### Severity Levels
 
@@ -94,13 +102,15 @@ Per-rule objects support:
 | # | Rule ID | What it checks | Severity | Source |
 |---|---------|---------------|----------|--------|
 | 1 | `child-overflow` | Child element extends beyond parent bounds | error | scene |
-| 2 | `sibling-overlap` | Non-layered sibling elements overlap | error | scene |
+| 2 | `non-ancestor-overlap` | Two elements overlap but neither is a direct ancestor of the other | error | scene |
 | 3 | `canvas-overflow` | Element extends beyond 1920×1080 | error | scene |
 | 4 | `safe-zone-violation` | Content-layer element outside safe zone (120px inset) | warning | scene |
 | 5 | `zero-size` | Element has 0 or negative width/height after layout | error | scene |
 | 6 | `orphaned-element` | Element fully occluded by another element on the same layer | warning | scene |
 
 **Note**: Rules 3–4 already exist in the layout engine's warning system. The lint API surfaces those plus adds the remaining rules.
+
+**Note on `non-ancestor-overlap` (rule 2)**: Two elements may only overlap if one is a direct ancestor of the other (i.e., containment). This covers siblings, cousins, uncle/nephew — any pair not in a direct ancestor-descendant chain. The rationale: the only valid "overlapping" is containment (parent wraps child). Any other overlap is a layout error. Combined with `child-overflow` (rule 1), these two rules enforce that every element is fully inside its parent and doesn't touch anything outside its own ancestry path.
 
 #### B) Typography — Readability (DOM)
 
@@ -120,37 +130,36 @@ Per-rule objects support:
 | 13 | `gap-too-small` | Adjacent elements closer than 8px but not touching | warning | scene |
 | 14 | `near-misalignment` | Elements within 4px of being aligned but aren't | info | scene |
 | 15 | `edge-crowding` | Element within 8px of safe zone boundary | info | scene |
-| 16 | `collision` | Same-layer bounding box overlap exceeding area threshold | warning | scene |
 
 #### D) Content Distribution — Heuristic (Scene Model)
 
 | # | Rule ID | What it checks | Severity | Source |
 |---|---------|---------------|----------|--------|
-| 17 | `content-clustering` | All content uses less than 40% of safe zone area | warning | scene |
-| 18 | `lopsided-layout` | Content centroid far from slide center | info | scene |
-| 19 | `too-many-elements` | More than 15 root-level visual groups | info | scene |
+| 16 | `content-clustering` | All content uses less than 40% of safe zone area | warning | scene |
+| 17 | `lopsided-layout` | Content centroid far from slide center | info | scene |
+| 18 | `too-many-elements` | More than 15 root-level visual groups | info | scene |
 
 #### E) Images (Hybrid — DOM + Scene)
 
 | # | Rule ID | What it checks | Severity | Source |
 |---|---------|---------------|----------|--------|
-| 20 | `image-upscaled` | Rendered size exceeds natural dimensions by >10% | warning | hybrid |
-| 21 | `aspect-ratio-distortion` | Rendered aspect ratio differs from natural by >1% | warning | hybrid |
+| 19 | `image-upscaled` | Rendered size exceeds natural dimensions by >10% | warning | hybrid |
+| 20 | `aspect-ratio-distortion` | Rendered aspect ratio differs from natural by >1% | warning | hybrid |
 
 #### F) Visual Hierarchy (DOM)
 
 | # | Rule ID | What it checks | Severity | Source |
 |---|---------|---------------|----------|--------|
-| 22 | `heading-size-inversion` | h3 font-size > h2 font-size on same slide | warning | dom |
-| 23 | `low-contrast` | Text/background contrast ratio below 3:1 | warning | dom |
+| 21 | `heading-size-inversion` | h3 font-size > h2 font-size on same slide | warning | dom |
+| 22 | `low-contrast` | Text/background contrast ratio below 3:1 | warning | dom |
 
 #### G) Cross-Slide Consistency (`lintDeck()` only)
 
 | # | Rule ID | What it checks | Severity | Source |
 |---|---------|---------------|----------|--------|
-| 24 | `title-position-drift` | Title x/y varies >20px across slides | info | scene |
-| 25 | `font-count` | More than 3 font families across deck | info | dom |
-| 26 | `style-drift` | Body or heading font size varies across slides | info | dom |
+| 23 | `title-position-drift` | Title x/y varies >20px across slides | info | scene |
+| 24 | `font-count` | More than 3 font families across deck | info | dom |
+| 25 | `style-drift` | Body or heading font size varies across slides | info | dom |
 
 ---
 
@@ -330,13 +339,13 @@ The agent should focus on actionable issues. Don't flag things that are clearly 
 
 ## Implementation Status
 
-- **Phase 1 (Programmatic):** Not yet implemented. The validation warnings in `layout()` cover some of these checks (safe zone, collisions, font size), but a dedicated `sk.lint()` API with configurable rules doesn't exist yet. 26 rules defined across 7 categories.
+- **Phase 1 (Programmatic):** Not yet implemented. The validation warnings in `layout()` cover some of these checks (safe zone, collisions, font size), but a dedicated `sk.lint()` API with fixed rules doesn't exist yet. 25 rules defined across 7 categories.
 - **Phase 2 (AI-Guided):** This document serves as the guidelines. An AI agent can use these guidelines today by connecting to the browser and reading `window.sk` — no SlideKit code changes required.
 
-## Open Questions
+## Resolved Design Decisions
 
-1. Should findings include fix **suggestions** with specific values (e.g., "increase container height to 620px")?
-2. Threshold values (min font 18px vs 24px, max line length 80 vs 85, etc.) — make configurable via profiles?
-3. Should we support per-element rule suppression (e.g., `lint: { ignore: ['sibling-overlap'] }` in element props)?
-4. Should `lintDeck()` be separate from `lintSlide()`, or should there be a single `lint()` that does both?
-5. Priority order for implementation — start with structural rules (1-5) and text-overflow (7)?
+1. **Findings always include fix suggestions** with specific values (e.g., "increase container height to 620px"). This is essential for the automated fix workflow.
+2. **Fixed thresholds, no profiles** — general rules of thumb that apply universally. Thresholds live in a config object inside the module but are not meant to be varied per-project.
+3. **No per-element rule suppression** — avoids stale ignore annotations. The AI agent is told contextually when a specific warning is intentional.
+4. **`lintSlide()` and `lintDeck()` are separate** — `lintSlide` checks within a single slide, `lintDeck` checks cross-slide consistency only. During the build workflow, the AI calls `lintSlide` after each slide, and `lintDeck` once everything is assembled.
+5. **Implementation starts with structural rules** (1–5) and `text-overflow` (7) — highest value, most deterministic.

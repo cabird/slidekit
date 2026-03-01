@@ -558,7 +558,7 @@ export async function render(slides, options = {}) {
   // Persist scene model on window.sk (M3.3 — Phase 2 requirement)
   if (typeof window !== "undefined") {
     // @ts-ignore — custom property on window for debugging
-    window.sk = {
+    const skObj = {
       layouts,
       slides: slides.map((s, i) => ({
         id: s.id || `slide-${i}`,
@@ -566,13 +566,14 @@ export async function render(slides, options = {}) {
       })),
       // M8.1: Expose config for debug overlay to read safe zone info
       _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
-      lint: (slideId) => {
-        const slide = window.sk.slides.find(s => s.id === slideId);
-        if (!slide) throw new Error(`Slide not found: ${slideId}`);
-        return lintSlide(slide);
-      },
-      lintDeck: () => lintDeck(window.sk),
     };
+    skObj.lint = (slideId) => {
+      const slide = skObj.slides.find(s => s.id === slideId);
+      if (!slide) throw new Error(`Slide not found: ${slideId}`);
+      return lintSlide(slide);
+    };
+    skObj.lintDeck = () => lintDeck(skObj);
+    window.sk = skObj;
   }
 
   return { sections, layouts };

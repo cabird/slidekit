@@ -45,8 +45,11 @@ function rectIntersection(a, b) {
 
 /** Walk parentId chain to determine if `ancestorId` is an ancestor of `elementId`. */
 function isAncestor(elements, elementId, ancestorId) {
+  const visited = new Set();
   let current = elements[elementId];
   while (current && current.parentId) {
+    if (visited.has(current.id)) return false;
+    visited.add(current.id);
     if (current.parentId === ancestorId) return true;
     current = elements[current.parentId];
   }
@@ -56,6 +59,11 @@ function isAncestor(elements, elementId, ancestorId) {
 function boundsOf(el) {
   const r = el.resolved;
   return r ? { x: r.x, y: r.y, w: r.w, h: r.h } : null;
+}
+
+function normLayer(el) {
+  const layer = el?.authored?.props?.layer;
+  return (layer === 'bg' || layer === 'overlay' || layer === 'content') ? layer : 'content';
 }
 
 // ---------------------------------------------------------------------------
@@ -113,8 +121,8 @@ function ruleNonAncestorOverlap(elements) {
       const a = withSize[i];
       const b = withSize[j];
       // Skip elements on different layers — they intentionally stack
-      const layerA = (a.authored && a.authored.props && a.authored.props.layer) || 'content';
-      const layerB = (b.authored && b.authored.props && b.authored.props.layer) || 'content';
+      const layerA = normLayer(a);
+      const layerB = normLayer(b);
       if (layerA !== layerB) continue;
 
       if (isAncestor(elements, a.id, b.id) || isAncestor(elements, b.id, a.id)) continue;
@@ -149,7 +157,7 @@ function ruleCanvasOverflow(elements) {
   const findings = [];
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
-    if (el.authored && el.authored.props && el.authored.props.layer === 'bg') continue;
+    if (normLayer(el) === 'bg') continue;
     const b = boundsOf(el);
     if (!b) continue;
 
@@ -182,8 +190,8 @@ function ruleSafeZoneViolation(elements) {
   const findings = [];
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
-    if (el.parentId !== null) continue;
-    if (el.authored && el.authored.props && el.authored.props.layer === 'bg') continue;
+    if (el.parentId != null) continue;
+    if (normLayer(el) === 'bg') continue;
     const b = boundsOf(el);
     if (!b) continue;
 
@@ -267,8 +275,10 @@ export function lintSlide(slideData) {
  * @returns {Array} Array of finding objects (with slideId added)
  */
 export function lintDeck(skData) {
+  const slides = skData?.slides;
+  if (!Array.isArray(slides)) return [];
   const findings = [];
-  for (const slide of skData.slides) {
+  for (const slide of slides) {
     const slideFindings = lintSlide(slide);
     for (const f of slideFindings) {
       findings.push({ ...f, slideId: slide.id });
