@@ -1494,34 +1494,34 @@ w: 800, h: 400`,
 
             // Card 2: Shadow presets
             panel([
-              el(`<p style="font-family:${FONT};font-size:22px;font-weight:600;color:${C.text};margin-bottom:12px;">Shadow Presets</p>`, {
+              el(`<p style="font-family:${FONT};font-size:22px;font-weight:600;color:#333;margin-bottom:12px;">Shadow Presets</p>`, {
                 id: 's13-shadow-label', w: 'fill',
               }),
               hstack([
-                el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:6px;box-shadow:${resolveShadow('sm')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:${C.textSec};">sm</span></div>`, {
-                  id: 's13-sh-sm', w: 56, h: 56,
+                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('sm')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">sm</span></div>`, {
+                  id: 's13-sh-sm', w: 72, h: 72,
                 }),
-                el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:6px;box-shadow:${resolveShadow('md')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:${C.textSec};">md</span></div>`, {
-                  id: 's13-sh-md', w: 56, h: 56,
+                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('md')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">md</span></div>`, {
+                  id: 's13-sh-md', w: 72, h: 72,
                 }),
-                el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:6px;box-shadow:${resolveShadow('lg')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:${C.textSec};">lg</span></div>`, {
-                  id: 's13-sh-lg', w: 56, h: 56,
+                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('lg')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">lg</span></div>`, {
+                  id: 's13-sh-lg', w: 72, h: 72,
                 }),
-                el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:6px;box-shadow:${resolveShadow('xl')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:${C.textSec};">xl</span></div>`, {
-                  id: 's13-sh-xl', w: 56, h: 56,
+                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('xl')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">xl</span></div>`, {
+                  id: 's13-sh-xl', w: 72, h: 72,
                 }),
-                el(`<div style="width:100%;height:100%;background:${C.glassEmph};border-radius:6px;box-shadow:${resolveShadow('glow')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:${C.accent1};">glow</span></div>`, {
-                  id: 's13-sh-glow', w: 56, h: 56,
+                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('glow')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#6a4dab;">glow</span></div>`, {
+                  id: 's13-sh-glow', w: 72, h: 72,
                 }),
               ], {
                 id: 's13-shadow-row',
-                w: 'fill', gap: 'sm', align: 'middle',
+                w: 'fill', gap: 'lg', align: 'middle',
               }),
             ], {
               id: 's13-card-shadow',
-              w: cardW, padding: 'md', gap: 'sm',
-              fill: C.glass, radius: 16,
-              border: `1px solid ${C.glassBorder}`,
+              w: cardW, padding: 'lg', gap: 'sm',
+              fill: '#d8dae8', radius: 16,
+              border: `1px solid #c0c2d0`,
             }),
 
             // Card 3: Glass-morphism
