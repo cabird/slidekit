@@ -310,6 +310,173 @@ describe('lint: zero-size', () => {
 // lintDeck
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// gap-too-small
+// ---------------------------------------------------------------------------
+
+describe('lint: gap-too-small', () => {
+  it('detects siblings 4px apart', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 100, h: 100 }),
+      b: mockElement('b', { x: 304, y: 200, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gaps = findings.filter(f => f.rule === 'gap-too-small');
+    assert.equal(gaps.length, 1);
+    assert.equal(gaps[0].detail.gap, 4);
+    assert.equal(gaps[0].severity, 'warning');
+  });
+
+  it('reports no finding when siblings are 10px apart', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 100, h: 100 }),
+      b: mockElement('b', { x: 310, y: 200, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gaps = findings.filter(f => f.rule === 'gap-too-small');
+    assert.equal(gaps.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// near-misalignment
+// ---------------------------------------------------------------------------
+
+describe('lint: near-misalignment', () => {
+  it('detects elements with x=100 and x=103', () => {
+    const elements = {
+      a: mockElement('a', { x: 100, y: 200, w: 100, h: 100 }),
+      b: mockElement('b', { x: 103, y: 250, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const mis = findings.filter(f => f.rule === 'near-misalignment');
+    assert.equal(mis.length, 1);
+    assert.equal(mis[0].severity, 'info');
+    assert.equal(mis[0].detail.drift, 3);
+  });
+
+  it('reports no finding when edges are exactly aligned', () => {
+    const elements = {
+      a: mockElement('a', { x: 100, y: 200, w: 100, h: 100 }),
+      b: mockElement('b', { x: 100, y: 400, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const mis = findings.filter(f => f.rule === 'near-misalignment');
+    assert.equal(mis.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// edge-crowding
+// ---------------------------------------------------------------------------
+
+describe('lint: edge-crowding', () => {
+  it('detects element 5px from safe zone left edge', () => {
+    const elements = {
+      a: mockElement('a', { x: 125, y: 200, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const crowd = findings.filter(f => f.rule === 'edge-crowding');
+    assert.equal(crowd.length, 1);
+    assert.equal(crowd[0].detail.edge, 'left');
+    assert.equal(crowd[0].detail.distance, 5);
+    assert.equal(crowd[0].severity, 'info');
+  });
+
+  it('reports no finding for element well inside safe zone', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 100, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const crowd = findings.filter(f => f.rule === 'edge-crowding');
+    assert.equal(crowd.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// content-clustering
+// ---------------------------------------------------------------------------
+
+describe('lint: content-clustering', () => {
+  it('detects single small element in huge safe zone', () => {
+    const elements = {
+      a: mockElement('a', { x: 500, y: 400, w: 50, h: 50 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const cluster = findings.filter(f => f.rule === 'content-clustering');
+    assert.equal(cluster.length, 1);
+    assert.equal(cluster[0].severity, 'warning');
+  });
+
+  it('reports no finding when elements use most of safe zone', () => {
+    const elements = {
+      a: mockElement('a', { x: 120, y: 90, w: 840, h: 450 }),
+      b: mockElement('b', { x: 960, y: 540, w: 840, h: 450 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const cluster = findings.filter(f => f.rule === 'content-clustering');
+    assert.equal(cluster.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lopsided-layout
+// ---------------------------------------------------------------------------
+
+describe('lint: lopsided-layout', () => {
+  it('detects all content in top-left corner', () => {
+    const elements = {
+      a: mockElement('a', { x: 130, y: 100, w: 200, h: 100 }),
+      b: mockElement('b', { x: 130, y: 210, w: 200, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const lopsided = findings.filter(f => f.rule === 'lopsided-layout');
+    assert.equal(lopsided.length, 1);
+    assert.equal(lopsided[0].severity, 'info');
+  });
+
+  it('reports no finding when content is centered', () => {
+    const elements = {
+      a: mockElement('a', { x: 760, y: 390, w: 400, h: 300 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const lopsided = findings.filter(f => f.rule === 'lopsided-layout');
+    assert.equal(lopsided.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// too-many-elements
+// ---------------------------------------------------------------------------
+
+describe('lint: too-many-elements', () => {
+  it('detects 16 root elements', () => {
+    const elements = {};
+    for (let i = 0; i < 16; i++) {
+      elements[`e${i}`] = mockElement(`e${i}`, { x: 200 + i * 50, y: 200, w: 40, h: 40 });
+    }
+    const findings = lintSlide(mockSlide('s1', elements));
+    const tme = findings.filter(f => f.rule === 'too-many-elements');
+    assert.equal(tme.length, 1);
+    assert.equal(tme[0].detail.count, 16);
+    assert.equal(tme[0].severity, 'info');
+  });
+
+  it('reports no finding for 10 root elements', () => {
+    const elements = {};
+    for (let i = 0; i < 10; i++) {
+      elements[`e${i}`] = mockElement(`e${i}`, { x: 200 + i * 80, y: 200, w: 60, h: 60 });
+    }
+    const findings = lintSlide(mockSlide('s1', elements));
+    const tme = findings.filter(f => f.rule === 'too-many-elements');
+    assert.equal(tme.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// lintDeck
+// ---------------------------------------------------------------------------
+
 describe('lint: lintDeck', () => {
   it('runs lintSlide on all slides and adds slideId', () => {
     const slide1 = mockSlide('s1', {

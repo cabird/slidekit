@@ -248,6 +248,226 @@ function ruleZeroSize(elements) {
 // in the scene model.
 
 // ---------------------------------------------------------------------------
+// Spacing, alignment & content distribution rules (13–18)
+// ---------------------------------------------------------------------------
+
+/** Collect sibling groups: root-level elements and children sharing a parentId. */
+function siblingGroups(elements) {
+  const groups = new Map();
+  for (const el of Object.values(elements)) {
+    if (el._internal) continue;
+    if (normLayer(el) === 'bg') continue;
+    const b = boundsOf(el);
+    if (!b || b.w <= 0 || b.h <= 0) continue;
+    const key = el.parentId ?? '__root__';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(el);
+  }
+  return groups;
+}
+
+/** Minimum gap between two axis-aligned rects (0 if overlapping/touching). */
+function rectGap(a, b) {
+  const overlapX = a.x < b.x + b.w && a.x + a.w > b.x;
+  const overlapY = a.y < b.y + b.h && a.y + a.h > b.y;
+
+  const hGap = Math.max(0, Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w)));
+  const vGap = Math.max(0, Math.max(b.y - (a.y + a.h), a.y - (b.y + b.h)));
+
+  if (hGap > 0 && overlapY) return { gap: hGap, axis: 'horizontal' };
+  if (vGap > 0 && overlapX) return { gap: vGap, axis: 'vertical' };
+  return { gap: 0, axis: 'none' };
+}
+
+function ruleGapTooSmall(elements) {
+  const findings = [];
+  for (const siblings of siblingGroups(elements).values()) {
+    for (let i = 0; i < siblings.length; i++) {
+      for (let j = i + 1; j < siblings.length; j++) {
+        const a = siblings[i], b = siblings[j];
+        const ba = boundsOf(a), bb = boundsOf(b);
+        const { gap, axis } = rectGap(ba, bb);
+        if (gap > 0 && gap < THRESHOLDS.minGap) {
+          findings.push({
+            rule: 'gap-too-small',
+            severity: 'warning',
+            elementId: a.id,
+            message: `Gap between "${a.id}" and "${b.id}" is only ${gap}px`,
+            detail: { elementA: a.id, elementB: b.id, gap, axis },
+            suggestion: `Increase gap between elements to at least ${THRESHOLDS.minGap}px`,
+          });
+        }
+      }
+    }
+  }
+  return findings;
+}
+
+function ruleNearMisalignment(elements) {
+  const findings = [];
+  const EXACT = 0.5;
+  for (const siblings of siblingGroups(elements).values()) {
+    for (let i = 0; i < siblings.length; i++) {
+      for (let j = i + 1; j < siblings.length; j++) {
+        const a = siblings[i], b = siblings[j];
+        const ba = boundsOf(a), bb = boundsOf(b);
+        const overlapX = ba.x < bb.x + bb.w && ba.x + ba.w > bb.x;
+        const overlapY = ba.y < bb.y + bb.h && ba.y + ba.h > bb.y;
+        const edges = [];
+        if (overlapY) {
+          edges.push(
+            { type: 'left',   vA: ba.x, vB: bb.x },
+            { type: 'right',  vA: ba.x + ba.w, vB: bb.x + bb.w },
+            { type: 'center-x', vA: ba.x + ba.w / 2, vB: bb.x + bb.w / 2 },
+          );
+        }
+        if (overlapX) {
+          edges.push(
+            { type: 'top',    vA: ba.y, vB: bb.y },
+            { type: 'bottom', vA: ba.y + ba.h, vB: bb.y + bb.h },
+            { type: 'center-y', vA: ba.y + ba.h / 2, vB: bb.y + bb.h / 2 },
+          );
+        }
+        let best = null;
+        for (const { type, vA, vB } of edges) {
+          const drift = Math.abs(vA - vB);
+          if (drift > EXACT && drift <= THRESHOLDS.alignmentTolerance) {
+            if (!best || drift < best.drift) {
+              best = { edgeType: type, valueA: vA, valueB: vB, drift };
+            }
+          }
+        }
+        if (best) {
+          findings.push({
+            rule: 'near-misalignment',
+            severity: 'info',
+            elementId: a.id,
+            message: `"${a.id}" and "${b.id}" are nearly aligned on ${best.edgeType} (drift: ${best.drift}px)`,
+            detail: { elementA: a.id, elementB: b.id, ...best },
+            suggestion: `Align ${best.edgeType} of ${a.id} with ${b.id} (drift: ${best.drift}px)`,
+          });
+        }
+      }
+    }
+  }
+  return findings;
+}
+
+function ruleEdgeCrowding(elements) {
+  const findings = [];
+  const sz = SAFE_ZONE;
+  for (const el of Object.values(elements)) {
+    if (el._internal) continue;
+    if (el.parentId != null) continue;
+    if (normLayer(el) === 'bg') continue;
+    const b = boundsOf(el);
+    if (!b || b.w <= 0 || b.h <= 0) continue;
+
+    const checks = [
+      { edge: 'left',   distance: b.x - sz.x },
+      { edge: 'top',    distance: b.y - sz.y },
+      { edge: 'right',  distance: (sz.x + sz.w) - (b.x + b.w) },
+      { edge: 'bottom', distance: (sz.y + sz.h) - (b.y + b.h) },
+    ];
+    for (const { edge, distance } of checks) {
+      if (distance > 0 && distance < THRESHOLDS.edgeCrowding) {
+        findings.push({
+          rule: 'edge-crowding',
+          severity: 'info',
+          elementId: el.id,
+          message: `"${el.id}" is only ${distance}px from safe zone ${edge}`,
+          detail: { edge, distance, threshold: THRESHOLDS.edgeCrowding },
+          suggestion: `Move element ${distance}px away from safe zone ${edge}`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+function ruleContentClustering(elements) {
+  const findings = [];
+  const roots = Object.values(elements).filter(el =>
+    !el._internal && el.parentId == null && normLayer(el) !== 'bg'
+  );
+  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  if (withBounds.length === 0) return findings;
+
+  let covered = 0;
+  for (const b of withBounds) covered += b.w * b.h;
+  const safeZoneArea = SAFE_ZONE.w * SAFE_ZONE.h;
+  const usageRatio = covered / safeZoneArea;
+
+  if (usageRatio < THRESHOLDS.contentAreaMin) {
+    findings.push({
+      rule: 'content-clustering',
+      severity: 'warning',
+      elementId: 'slide',
+      message: `Content uses only ${(usageRatio * 100).toFixed(0)}% of the safe zone`,
+      detail: { usageRatio, covered, safeZoneArea },
+      suggestion: `Content uses only ${(usageRatio * 100).toFixed(0)}% of the safe zone — consider using more of the available space`,
+    });
+  }
+  return findings;
+}
+
+function ruleLopsidedLayout(elements) {
+  const findings = [];
+  const roots = Object.values(elements).filter(el =>
+    !el._internal && el.parentId == null && normLayer(el) !== 'bg'
+  );
+  const withBounds = roots.map(el => boundsOf(el)).filter(b => b && b.w > 0 && b.h > 0);
+  if (withBounds.length === 0) return findings;
+
+  let sumX = 0, sumY = 0, sumWeight = 0;
+  for (const b of withBounds) {
+    const weight = b.w * b.h;
+    sumX += (b.x + b.w / 2) * weight;
+    sumY += (b.y + b.h / 2) * weight;
+    sumWeight += weight;
+  }
+  if (sumWeight === 0) return findings;
+  const centroid = { x: sumX / sumWeight, y: sumY / sumWeight };
+  const slideCenter = { x: 960, y: 540 };
+  const drift = { x: centroid.x - slideCenter.x, y: centroid.y - slideCenter.y };
+
+  if (Math.abs(drift.x) > 200 || Math.abs(drift.y) > 200) {
+    const dirs = [];
+    if (drift.y < -200) dirs.push('upward');
+    if (drift.y > 200) dirs.push('downward');
+    if (drift.x < -200) dirs.push('left');
+    if (drift.x > 200) dirs.push('right');
+    findings.push({
+      rule: 'lopsided-layout',
+      severity: 'info',
+      elementId: 'slide',
+      message: `Content centroid is shifted ${dirs.join(' and ')} from slide center`,
+      detail: { centroid, slideCenter, drift },
+      suggestion: `Content is shifted ${dirs.join(' and ')} — consider recentering`,
+    });
+  }
+  return findings;
+}
+
+function ruleTooManyElements(elements) {
+  const findings = [];
+  const count = Object.values(elements).filter(el =>
+    !el._internal && el.parentId == null && normLayer(el) !== 'bg'
+  ).length;
+  if (count > THRESHOLDS.maxRootElements) {
+    findings.push({
+      rule: 'too-many-elements',
+      severity: 'info',
+      elementId: 'slide',
+      message: `Slide has ${count} root elements (guideline: ${THRESHOLDS.maxRootElements})`,
+      detail: { count, threshold: THRESHOLDS.maxRootElements },
+      suggestion: `Consider simplifying slide — ${count} root elements exceeds guideline of ${THRESHOLDS.maxRootElements}`,
+    });
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // DOM helpers
 // ---------------------------------------------------------------------------
 
@@ -420,6 +640,14 @@ export function lintSlide(slideData, slideElement = null) {
     ...ruleCanvasOverflow(elements),
     ...ruleSafeZoneViolation(elements),
     ...ruleZeroSize(elements),
+    // Spacing & alignment
+    ...ruleGapTooSmall(elements),
+    ...ruleNearMisalignment(elements),
+    ...ruleEdgeCrowding(elements),
+    // Content distribution
+    ...ruleContentClustering(elements),
+    ...ruleLopsidedLayout(elements),
+    ...ruleTooManyElements(elements),
   ];
 
   // DOM-based rules only run when a slide DOM element is provided
