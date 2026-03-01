@@ -518,7 +518,7 @@ describe('lint: lintSlide with slideElement', () => {
     };
     const slide = mockSlide('s1', elements);
     const findings = lintSlide(slide);
-    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'empty-text'];
+    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'empty-text', 'image-upscaled', 'aspect-ratio-distortion', 'heading-size-inversion', 'low-contrast'];
     const domFindings = findings.filter(f => domRules.includes(f.rule));
     assert.equal(domFindings.length, 0, 'DOM rules should not run without slideElement');
   });
@@ -760,6 +760,272 @@ describe('lint: empty-text (DOM)', () => {
     const findings = lintSlide(slide, container);
     const empty = findings.filter(f => f.rule === 'empty-text');
     assert.equal(empty.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Image & Visual Hierarchy rules (Rules 19–22)
+// ---------------------------------------------------------------------------
+
+describe('lint: image-upscaled (DOM)', () => {
+  const dataUri = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+  it('detects image rendered larger than natural size', () => {
+    const container = document.createElement('section');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-sk-id', 'img-wrapper');
+    const img = document.createElement('img');
+    img.src = dataUri;
+    // naturalWidth/Height = 1x1 for this GIF
+    img.style.width = '200px';
+    img.style.height = '200px';
+    img.style.position = 'absolute';
+    wrapper.appendChild(img);
+    container.appendChild(wrapper);
+    document.body.appendChild(container);
+
+    // Force load for natural dimensions
+    return new Promise(resolve => {
+      img.onload = () => {
+        const slide = mockSlide('s1', {});
+        const findings = lintSlide(slide, container);
+        const upscaled = findings.filter(f => f.rule === 'image-upscaled');
+        assert.equal(upscaled.length, 1);
+        assert.equal(upscaled[0].severity, 'warning');
+        assert.equal(upscaled[0].elementId, 'img-wrapper');
+        assert.equal(upscaled[0].detail.naturalWidth, 1);
+        assert.equal(upscaled[0].detail.naturalHeight, 1);
+        document.body.removeChild(container);
+        resolve();
+      };
+      // trigger load if already cached
+      if (img.naturalWidth > 0) img.onload();
+    });
+  });
+
+  it('does not flag image at natural size', () => {
+    const container = document.createElement('section');
+    const img = document.createElement('img');
+    img.src = dataUri;
+    img.style.width = '1px';
+    img.style.height = '1px';
+    img.style.position = 'absolute';
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    return new Promise(resolve => {
+      img.onload = () => {
+        const slide = mockSlide('s1', {});
+        const findings = lintSlide(slide, container);
+        const upscaled = findings.filter(f => f.rule === 'image-upscaled');
+        assert.equal(upscaled.length, 0);
+        document.body.removeChild(container);
+        resolve();
+      };
+      if (img.naturalWidth > 0) img.onload();
+    });
+  });
+});
+
+describe('lint: aspect-ratio-distortion (DOM)', () => {
+  it('detects distorted aspect ratio', () => {
+    const container = document.createElement('section');
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-sk-id', 'distorted-img');
+    // Use a 10x10 canvas to create a known-size image
+    const canvas = document.createElement('canvas');
+    canvas.width = 10;
+    canvas.height = 10;
+    const imgSrc = canvas.toDataURL();
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    // Render at 200x100 (2:1) but natural is 1:1 — that's distorted
+    img.style.width = '200px';
+    img.style.height = '100px';
+    img.style.position = 'absolute';
+    wrapper.appendChild(img);
+    container.appendChild(wrapper);
+    document.body.appendChild(container);
+
+    return new Promise(resolve => {
+      img.onload = () => {
+        const slide = mockSlide('s1', {});
+        const findings = lintSlide(slide, container);
+        const distorted = findings.filter(f => f.rule === 'aspect-ratio-distortion');
+        assert.equal(distorted.length, 1);
+        assert.equal(distorted[0].severity, 'warning');
+        assert.equal(distorted[0].elementId, 'distorted-img');
+        document.body.removeChild(container);
+        resolve();
+      };
+      if (img.naturalWidth > 0) img.onload();
+    });
+  });
+
+  it('does not flag image with correct aspect ratio', () => {
+    const container = document.createElement('section');
+    const canvas = document.createElement('canvas');
+    canvas.width = 10;
+    canvas.height = 10;
+    const imgSrc = canvas.toDataURL();
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    img.style.width = '100px';
+    img.style.height = '100px';
+    img.style.position = 'absolute';
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    return new Promise(resolve => {
+      img.onload = () => {
+        const slide = mockSlide('s1', {});
+        const findings = lintSlide(slide, container);
+        const distorted = findings.filter(f => f.rule === 'aspect-ratio-distortion');
+        assert.equal(distorted.length, 0);
+        document.body.removeChild(container);
+        resolve();
+      };
+      if (img.naturalWidth > 0) img.onload();
+    });
+  });
+});
+
+describe('lint: heading-size-inversion (DOM)', () => {
+  it('detects h3 larger than h2', () => {
+    const container = document.createElement('section');
+    const h2 = document.createElement('h2');
+    h2.style.fontSize = '20px';
+    h2.textContent = 'Heading 2';
+    const h3 = document.createElement('h3');
+    h3.style.fontSize = '28px';
+    h3.textContent = 'Heading 3';
+    container.appendChild(h2);
+    container.appendChild(h3);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const inversions = findings.filter(f => f.rule === 'heading-size-inversion');
+    assert.equal(inversions.length, 1);
+    assert.equal(inversions[0].severity, 'warning');
+    assert.equal(inversions[0].detail.largerHeading, 'h2');
+    assert.equal(inversions[0].detail.largerSize, 20);
+    assert.equal(inversions[0].detail.smallerHeading, 'h3');
+    assert.equal(inversions[0].detail.smallerSize, 28);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag proper heading hierarchy', () => {
+    const container = document.createElement('section');
+    const h1 = document.createElement('h1');
+    h1.style.fontSize = '36px';
+    h1.textContent = 'Title';
+    const h2 = document.createElement('h2');
+    h2.style.fontSize = '28px';
+    h2.textContent = 'Subtitle';
+    const h3 = document.createElement('h3');
+    h3.style.fontSize = '20px';
+    h3.textContent = 'Section';
+    container.appendChild(h1);
+    container.appendChild(h2);
+    container.appendChild(h3);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const inversions = findings.filter(f => f.rule === 'heading-size-inversion');
+    assert.equal(inversions.length, 0);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag when same level headings have different sizes (uses max)', () => {
+    const container = document.createElement('section');
+    const h2a = document.createElement('h2');
+    h2a.style.fontSize = '20px';
+    h2a.textContent = 'Heading A';
+    const h2b = document.createElement('h2');
+    h2b.style.fontSize = '30px';
+    h2b.textContent = 'Heading B';
+    const h3 = document.createElement('h3');
+    h3.style.fontSize = '24px';
+    h3.textContent = 'Sub';
+    container.appendChild(h2a);
+    container.appendChild(h2b);
+    container.appendChild(h3);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const inversions = findings.filter(f => f.rule === 'heading-size-inversion');
+    // max h2 = 30px > h3 = 24px, so no inversion
+    assert.equal(inversions.length, 0);
+
+    document.body.removeChild(container);
+  });
+});
+
+describe('lint: low-contrast (DOM)', () => {
+  it('detects low contrast text', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'low-con');
+    el.style.color = 'rgb(200, 200, 200)';
+    el.style.backgroundColor = 'rgb(210, 210, 210)';
+    el.style.position = 'absolute';
+    el.textContent = 'Hard to read';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const lowCon = findings.filter(f => f.rule === 'low-contrast');
+    assert.equal(lowCon.length >= 1, true, 'should detect low contrast');
+    assert.equal(lowCon[0].severity, 'warning');
+    assert.equal(lowCon[0].elementId, 'low-con');
+    assert.equal(lowCon[0].detail.threshold, 3.0);
+
+    document.body.removeChild(container);
+  });
+
+  it('does not flag high contrast text', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'high-con');
+    el.style.color = 'rgb(0, 0, 0)';
+    el.style.backgroundColor = 'rgb(255, 255, 255)';
+    el.style.position = 'absolute';
+    el.textContent = 'Easy to read';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const lowCon = findings.filter(f => f.rule === 'low-contrast');
+    assert.equal(lowCon.length, 0);
+
+    document.body.removeChild(container);
+  });
+
+  it('walks up parent chain for transparent backgrounds', () => {
+    const container = document.createElement('section');
+    container.style.backgroundColor = 'rgb(200, 200, 200)';
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'transparent-bg');
+    el.style.color = 'rgb(190, 190, 190)';
+    el.style.backgroundColor = 'transparent';
+    el.style.position = 'absolute';
+    el.textContent = 'Low contrast against parent';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const lowCon = findings.filter(f => f.rule === 'low-contrast');
+    assert.equal(lowCon.length >= 1, true, 'should detect low contrast via parent bg');
 
     document.body.removeChild(container);
   });

@@ -376,8 +376,8 @@ function ruleEdgeCrowding(elements) {
           severity: 'info',
           elementId: el.id,
           message: `"${el.id}" is only ${distance}px from safe zone ${edge}`,
-          detail: { edge, distance, threshold: THRESHOLDS.edgeCrowding },
-          suggestion: `Move element ${distance}px away from safe zone ${edge}`,
+          detail: { edge, distance, needed: THRESHOLDS.edgeCrowding - distance, threshold: THRESHOLDS.edgeCrowding },
+          suggestion: `Move element ${THRESHOLDS.edgeCrowding - distance}px away from safe zone ${edge}`,
         });
       }
     }
@@ -621,6 +621,172 @@ function ruleEmptyText(slideEl) {
 }
 
 // ---------------------------------------------------------------------------
+// Color helpers (for contrast checking)
+// ---------------------------------------------------------------------------
+
+function parseColor(str) {
+  if (!str || str === 'transparent') return null;
+  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  if (!m) return null;
+  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+  if (a < 0.1) return null;
+  return { r: parseInt(m[1]) / 255, g: parseInt(m[2]) / 255, b: parseInt(m[3]) / 255 };
+}
+
+function relativeLuminance(c) {
+  const sRGB = [c.r, c.g, c.b].map(v =>
+    v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  );
+  return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+}
+
+function contrastRatio(c1, c2) {
+  const l1 = relativeLuminance(c1);
+  const l2 = relativeLuminance(c2);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// ---------------------------------------------------------------------------
+// Image & Visual Hierarchy rules (Rules 19–22)
+// ---------------------------------------------------------------------------
+
+function ruleImageUpscaled(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const imgs = slideEl.querySelectorAll('img');
+  for (const img of imgs) {
+    if (img.naturalWidth === 0) continue;
+    const rw = img.clientWidth;
+    const rh = img.clientHeight;
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    const scaleX = rw / nw;
+    const scaleY = rh / nh;
+    if (rw > nw * THRESHOLDS.imageUpscaleMax || rh > nh * THRESHOLDS.imageUpscaleMax) {
+      const maxScale = Math.max(scaleX, scaleY);
+      const pct = Math.round((maxScale - 1) * 100);
+      const ancestor = img.closest('[data-sk-id]');
+      findings.push({
+        rule: 'image-upscaled',
+        severity: 'warning',
+        elementId: ancestor ? ancestor.getAttribute('data-sk-id') : null,
+        message: `Image is upscaled ${pct}% beyond natural size`,
+        detail: { renderedWidth: rw, renderedHeight: rh, naturalWidth: nw, naturalHeight: nh, scaleX, scaleY },
+        suggestion: `Image is upscaled ${pct}% beyond natural size — use a higher resolution source`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleAspectRatioDistortion(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const imgs = slideEl.querySelectorAll('img');
+  for (const img of imgs) {
+    if (img.naturalWidth === 0 || img.naturalHeight === 0) continue;
+    const naturalRatio = img.naturalWidth / img.naturalHeight;
+    const renderedRatio = img.clientWidth / img.clientHeight;
+    const distortion = Math.abs(renderedRatio - naturalRatio) / naturalRatio;
+    if (distortion > THRESHOLDS.aspectRatioTolerance) {
+      const ancestor = img.closest('[data-sk-id]');
+      findings.push({
+        rule: 'aspect-ratio-distortion',
+        severity: 'warning',
+        elementId: ancestor ? ancestor.getAttribute('data-sk-id') : null,
+        message: `Image aspect ratio distorted by ${(distortion * 100).toFixed(1)}%`,
+        detail: { naturalRatio, renderedRatio, distortion },
+        suggestion: 'Image aspect ratio distorted — use object-fit: contain or adjust container',
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleHeadingSizeInversion(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const headings = slideEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
+  if (headings.length === 0) return findings;
+
+  // Group by heading level, track max font-size per level
+  const levelSizes = new Map();
+  for (const h of headings) {
+    const level = parseInt(h.tagName[1]);
+    const fontSize = parseFloat(getComputedStyle(h).fontSize);
+    if (!levelSizes.has(level) || fontSize > levelSizes.get(level)) {
+      levelSizes.set(level, fontSize);
+    }
+  }
+
+  const levels = Array.from(levelSizes.keys()).sort((a, b) => a - b);
+  for (let i = 0; i < levels.length - 1; i++) {
+    const higher = levels[i]; // e.g. h2 (smaller number = higher rank)
+    const lower = levels[i + 1]; // e.g. h3
+    const higherSize = levelSizes.get(higher);
+    const lowerSize = levelSizes.get(lower);
+    if (higherSize < lowerSize) {
+      findings.push({
+        rule: 'heading-size-inversion',
+        severity: 'warning',
+        elementId: null,
+        message: `h${higher} (${higherSize}px) should be larger than h${lower} (${lowerSize}px)`,
+        detail: { largerHeading: `h${higher}`, largerSize: higherSize, smallerHeading: `h${lower}`, smallerSize: lowerSize },
+        suggestion: `h${higher} (${higherSize}px) should be larger than h${lower} (${lowerSize}px)`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleLowContrast(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const els = slideEl.querySelectorAll('*');
+  for (const el of els) {
+    if (!el.textContent || !el.textContent.trim()) continue;
+    // Only check leaf text nodes — skip containers whose text comes from children
+    if (el.children.length > 0) {
+      let hasDirectText = false;
+      for (const node of el.childNodes) {
+        if (node.nodeType === 3 && node.textContent.trim()) { hasDirectText = true; break; }
+      }
+      if (!hasDirectText) continue;
+    }
+
+    const style = getComputedStyle(el);
+    const textColor = parseColor(style.color);
+    if (!textColor) continue;
+
+    // Walk up to find actual background
+    let bgColor = null;
+    let current = el;
+    while (current && current !== document.documentElement) {
+      bgColor = parseColor(getComputedStyle(current).backgroundColor);
+      if (bgColor) break;
+      current = current.parentElement;
+    }
+    if (!bgColor) continue;
+
+    const ratio = contrastRatio(textColor, bgColor);
+    if (ratio < THRESHOLDS.contrastMin) {
+      const ancestor = el.closest('[data-sk-id]');
+      findings.push({
+        rule: 'low-contrast',
+        severity: 'warning',
+        elementId: ancestor ? ancestor.getAttribute('data-sk-id') : null,
+        message: `Low contrast ratio ${ratio.toFixed(2)}:1 (minimum: ${THRESHOLDS.contrastMin}:1)`,
+        detail: { textColor: style.color, bgColor: getComputedStyle(current).backgroundColor, contrastRatio: ratio, threshold: THRESHOLDS.contrastMin },
+        suggestion: `Increase contrast between text and background (current: ${ratio.toFixed(2)}:1, minimum: ${THRESHOLDS.contrastMin}:1)`,
+      });
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -659,6 +825,11 @@ export function lintSlide(slideData, slideElement = null) {
       ...ruleLineTooLong(slideElement),
       ...ruleLineHeightTight(slideElement),
       ...ruleEmptyText(slideElement),
+      // Image + Visual Hierarchy
+      ...ruleImageUpscaled(slideElement),
+      ...ruleAspectRatioDistortion(slideElement),
+      ...ruleHeadingSizeInversion(slideElement),
+      ...ruleLowContrast(slideElement),
     );
   }
 
