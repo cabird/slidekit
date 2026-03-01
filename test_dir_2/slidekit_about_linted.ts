@@ -1097,7 +1097,7 @@ w: 800, h: 400`,
             x: safe.x + safe.w / 2, y: below('s10-title-stack', { gap: 'xl' }),
             w: safe.w * 0.85,
             anchor: 'tc',
-            gap: 80,
+            gap: 120,
             align: 'middle',
           }),
 
@@ -1121,6 +1121,8 @@ w: 800, h: 400`,
             thickness: 2,
             label: 'curved',
             labelStyle: { fontFamily: MONO, fontSize: '13px', color: C.textTer },
+            fromAnchor: 'tr',
+            toAnchor: 'tl',
           }),
 
           // Sub-boxes below Layout
