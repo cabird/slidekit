@@ -5,6 +5,7 @@ import { isRelMarker, getRelRef, resolveRelMarker } from './helpers.js';
 import { resolveSpacing } from '../spacing.js';
 import { resolveAnchor } from '../anchor.js';
 import { measure } from '../measure.js';
+import { mustGet } from '../assertions.js';
 
 /**
  * Resolve element positions via unified topological sort.
@@ -23,7 +24,17 @@ import { measure } from '../measure.js';
  * @returns {Promise<{resolvedBounds: Map, sortedOrder: string[]}|null>}
  *   Returns null if errors prevent position resolution.
  */
-export async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
+import type { SlideElement, Rect, ResolvedSize, RelMarker } from '../types.js';
+
+export async function resolvePositions(
+  flatMap: Map<string, SlideElement>,
+  stackParent: Map<string, string>,
+  stackChildren: Map<string, string[]>,
+  resolvedSizes: Map<string, ResolvedSize>,
+  authoredSpecs: Map<string, Record<string, any>>,
+  warnings: Array<Record<string, unknown>>,
+  errors: Array<Record<string, unknown>>,
+) {
   const initialErrorCount = errors.length;
 
   // Build dependency graph
@@ -36,15 +47,16 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
 
     // Stack children depend on their parent stack
     if (stackParent.has(id)) {
-      depSet.add(stackParent.get(id));
+      const parentStackId = mustGet(stackParent, id, `stackParent missing child: ${id}`);
+      depSet.add(parentStackId);
       // Warn if stack children have _rel markers on x/y — these are ignored
       // because stack layout determines children's positions.
       if (isRelMarker(el.props.x) || isRelMarker(el.props.y)) {
         warnings.push({
           type: "ignored_rel_on_stack_child",
           elementId: id,
-          stackId: stackParent.get(id),
-          message: `Element "${id}" is a child of stack "${stackParent.get(id)}", so its relative positioning markers on x/y are ignored. Use gap/align on the stack instead.`,
+          stackId: parentStackId,
+          message: `Element "${id}" is a child of stack "${parentStackId}", so its relative positioning markers on x/y are ignored. Use gap/align on the stack instead.`,
         });
       }
     } else {
@@ -162,7 +174,7 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
   }
   for (const [id, depSet] of deps) {
     for (const ref of depSet) {
-      reverseDeps.get(ref).push(id);
+      mustGet(reverseDeps, ref, `reverseDeps missing element: ${ref}`).push(id);
     }
   }
 
@@ -171,8 +183,8 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
     const nodeId = queue.shift();
     sortedOrder.push(nodeId);
     // For each node that depends on this one, decrement its in-degree
-    for (const dependent of reverseDeps.get(nodeId)) {
-      const newDeg = inDegree.get(dependent) - 1;
+    for (const dependent of mustGet(reverseDeps, nodeId, `reverseDeps missing node: ${nodeId}`)) {
+      const newDeg = mustGet(inDegree, dependent, `inDegree missing element: ${dependent}`) - 1;
       inDegree.set(dependent, newDeg);
       if (newDeg === 0) {
         queue.push(dependent);
@@ -202,8 +214,8 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
   const resolvedBounds = new Map();
 
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
-    const sizes = resolvedSizes.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
+    const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
     const w = sizes.w;
     const h = sizes.h;
 
@@ -217,8 +229,9 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
     if (stackParent.has(id)) {
       if (resolvedBounds.has(id)) {
         // Already positioned by parent stack — use those coords
-        finalX = resolvedBounds.get(id).x;
-        finalY = resolvedBounds.get(id).y;
+        const existingBounds = mustGet(resolvedBounds, id, `resolvedBounds missing stack child: ${id}`);
+        finalX = existingBounds.x;
+        finalY = existingBounds.y;
       } else {
         // Parent hasn't positioned us yet (shouldn't happen with topo sort).
         // Fallback: position at (0, 0)
@@ -236,18 +249,18 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
       const xIsRel = isRelMarker(el.props.x);
       let x;
       if (xIsRel) {
-        const marker = el.props.x;
+        const marker = el.props.x as RelMarker;
         if (marker._rel === "centerIn") {
-          const r = marker.rect;
+          const r = marker.rect!;
           x = r.x + r.w / 2 - w / 2;
         } else if (marker._rel === "between") {
           // P2.2: placeBetween on x-axis (left/right references)
-          const leftBounds = resolvedBounds.get(marker.ref);
+          const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
           const leftEdge = leftBounds.x + leftBounds.w;
           const rightEdge = typeof marker.ref2 === "string"
-            ? resolvedBounds.get(marker.ref2).x
+            ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x
             : marker.ref2;
-          const availableSlack = rightEdge - leftEdge - w;
+          const availableSlack = (rightEdge as number) - leftEdge - w;
           if (availableSlack < 0) {
             warnings.push({
               type: "between_no_fit",
@@ -258,11 +271,11 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
             });
             x = leftEdge + resolveSpacing("xs");
           } else {
-            x = leftEdge + availableSlack * marker.bias;
+            x = leftEdge + availableSlack * (marker.bias ?? 0.5);
           }
         } else {
           const refId = marker.ref;
-          const refBounds = resolvedBounds.get(refId);
+          const refBounds = mustGet(resolvedBounds, refId, `resolvedBounds missing ref for x: ${refId}`);
           x = resolveRelMarker(marker, "x", refBounds, w, h);
         }
       } else {
@@ -273,18 +286,18 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
       const yIsRel = isRelMarker(el.props.y);
       let y;
       if (yIsRel) {
-        const marker = el.props.y;
+        const marker = el.props.y as RelMarker;
         if (marker._rel === "centerIn") {
-          const r = marker.rect;
+          const r = marker.rect!;
           y = r.y + r.h / 2 - h / 2;
         } else if (marker._rel === "between") {
           // P2.2: placeBetween — position between two vertical references
-          const topBounds = resolvedBounds.get(marker.ref);
+          const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
           const topEdge = topBounds.y + topBounds.h;
           const bottomEdge = typeof marker.ref2 === "string"
-            ? resolvedBounds.get(marker.ref2).y
+            ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y
             : marker.ref2;
-          const availableSlack = bottomEdge - topEdge - h;
+          const availableSlack = (bottomEdge as number) - topEdge - h;
           if (availableSlack < 0) {
             warnings.push({
               type: "between_no_fit",
@@ -295,11 +308,11 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
             });
             y = topEdge + resolveSpacing("xs");
           } else {
-            y = topEdge + availableSlack * marker.bias;
+            y = topEdge + availableSlack * (marker.bias ?? 0.5);
           }
         } else {
           const refId = marker.ref;
-          const refBounds = resolvedBounds.get(refId);
+          const refBounds = mustGet(resolvedBounds, refId, `resolvedBounds missing ref for y: ${refId}`);
           y = resolveRelMarker(marker, "y", refBounds, w, h);
         }
       } else {
@@ -330,16 +343,16 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
           // All children get the same width — the max measured width
           // (or the stack's own authored w if present)
           const maxW = childIds.length > 0
-            ? Math.max(...childIds.map(cid => resolvedSizes.get(cid).w))
+            ? Math.max(...childIds.map(cid => mustGet(resolvedSizes, cid, `resolvedSizes missing stack child: ${cid}`).w))
             : 0;
           const stackAuthW = authoredSpecs.get(id)?.props?.w;
           const stretchW = (stackAuthW !== undefined && stackAuthW !== null) ? w : maxW;
 
           for (let i = 0; i < childIds.length; i++) {
             const cid = childIds[i];
-            const cs = resolvedSizes.get(cid);
+            const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             // Warn if child had explicit w that differs
-            const authoredW = authoredSpecs.get(cid).props.w;
+            const authoredW = mustGet(authoredSpecs, cid, `authoredSpecs missing vstack child: ${cid}`).props.w;
             if (authoredW !== undefined && authoredW !== null && authoredW !== stretchW) {
               warnings.push({
                 type: "stretch_override",
@@ -351,7 +364,7 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
               });
             }
             // Re-measure auto-height el() children when width changes
-            const childEl = flatMap.get(cid);
+            const childEl = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
             const childAuth = authoredSpecs.get(cid)?.props || {};
             let childH = cs.h;
             if (childEl?.type === "el" && stretchW !== cs.w &&
@@ -366,7 +379,7 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
         } else {
           for (let i = 0; i < childIds.length; i++) {
             const cid = childIds[i];
-            const cs = resolvedSizes.get(cid);
+            const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             let childX;
             if (align === "center") {
               childX = stackX + (w - cs.w) / 2;
@@ -389,16 +402,16 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
           // All children get the same height — the max measured height
           // (or the stack's own authored h if present)
           const maxH = childIds.length > 0
-            ? Math.max(...childIds.map(cid => resolvedSizes.get(cid).h))
+            ? Math.max(...childIds.map(cid => mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`).h))
             : 0;
           const stackAuthH = authoredSpecs.get(id)?.props?.h;
           const stretchH = (stackAuthH !== undefined && stackAuthH !== null) ? h : maxH;
 
           for (let i = 0; i < childIds.length; i++) {
             const cid = childIds[i];
-            const cs = resolvedSizes.get(cid);
+            const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
             // Warn if child had explicit h that differs
-            const authoredH = authoredSpecs.get(cid).props.h;
+            const authoredH = mustGet(authoredSpecs, cid, `authoredSpecs missing hstack child: ${cid}`).props.h;
             if (authoredH !== undefined && authoredH !== null && authoredH !== stretchH) {
               warnings.push({
                 type: "stretch_override",
@@ -411,7 +424,7 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
             }
             resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
             // Propagate stretch height into panel compound internals
-            const childEl = flatMap.get(cid);
+            const childEl = mustGet(flatMap, cid, `flatMap missing hstack child: ${cid}`) as any;
             if (childEl && childEl._compound === 'panel' && childEl.children && childEl.children.length >= 1) {
               const bgRect = childEl.children[0];
               const bgSizes = resolvedSizes.get(bgRect.id);
@@ -428,7 +441,7 @@ export async function resolvePositions(flatMap, stackParent, stackChildren, reso
         } else {
           for (let i = 0; i < childIds.length; i++) {
             const cid = childIds[i];
-            const cs = resolvedSizes.get(cid);
+            const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
             let childY;
             if (align === "middle") {
               childY = stackY + (h - cs.h) / 2;

@@ -8,10 +8,11 @@ import { filterStyle, _baselineCSS } from './style.js';
 import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
+import type { SlideElement, SlideDefinition, LayoutResult, SceneElement, Point } from './types.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
-let _layoutFn;
-export function _setLayoutFn(fn) { _layoutFn = fn; }
+let _layoutFn: ((slide: SlideDefinition) => Promise<LayoutResult>) | undefined;
+export function _setLayoutFn(fn: (slide: SlideDefinition) => Promise<LayoutResult>): void { _layoutFn = fn; }
 
 /**
  * Layer ordering for z-index computation.
@@ -29,19 +30,21 @@ const LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
  * @param {Array} elements - Flat array of SlideKit elements
  * @returns {Map<string, number>} Map of element id to z-index value
  */
-export function computeZOrder(elements) {
+export function computeZOrder(elements: SlideElement[]): Map<string, number> {
   // Build an array of { element, originalIndex } for stable sort
-  const indexed = elements.map((el, i) => ({ el, idx: i }));
+  const indexed = elements.map((el: SlideElement, i: number) => ({ el, idx: i }));
 
   // Sort: layer first, then explicit z (missing = 0), then declaration order
-  indexed.sort((a, b) => {
-    const layerA = LAYER_ORDER[a.el.props.layer] ?? LAYER_ORDER.content;
-    const layerB = LAYER_ORDER[b.el.props.layer] ?? LAYER_ORDER.content;
+  indexed.sort((a: { el: SlideElement; idx: number }, b: { el: SlideElement; idx: number }) => {
+    const layerKeyA = (a.el.props.layer || "content") as keyof typeof LAYER_ORDER;
+    const layerKeyB = (b.el.props.layer || "content") as keyof typeof LAYER_ORDER;
+    const layerA = LAYER_ORDER[layerKeyA] ?? LAYER_ORDER.content;
+    const layerB = LAYER_ORDER[layerKeyB] ?? LAYER_ORDER.content;
     if (layerA !== layerB) return layerA - layerB;
 
     // Within same layer: sort by z value (missing z treated as 0)
-    const zA = a.el.props.z ?? 0;
-    const zB = b.el.props.z ?? 0;
+    const zA = (a.el.props as Record<string, any>).z ?? 0;
+    const zB = (b.el.props as Record<string, any>).z ?? 0;
     if (zA !== zB) return zA - zB;
 
     // Same z (or both default) — use declaration order as tiebreaker
@@ -49,7 +52,7 @@ export function computeZOrder(elements) {
   });
 
   const zMap = new Map();
-  indexed.forEach((item, sortedIdx) => {
+  indexed.forEach((item: { el: SlideElement; idx: number }, sortedIdx: number) => {
     zMap.set(item.el.id, sortedIdx + 1);
   });
   return zMap;
@@ -63,7 +66,7 @@ export { applyStyleToDOM } from './dom-helpers.js';
  * @param {HTMLElement} section - The <section> element
  * @param {string} background - Background value (color, gradient, or image path/URL)
  */
-export function applySlideBackground(section, background) {
+export function applySlideBackground(section: HTMLElement, background: string): void {
   if (!background) return;
 
   const trimmed = background.trim();
@@ -86,7 +89,7 @@ export function applySlideBackground(section, background) {
  * @param {object} connProps - Connector properties from the element
  * @returns {HTMLElement} An absolutely positioned div containing the SVG
  */
-function buildConnectorSVG(from, to, connProps) {
+function buildConnectorSVG(from: Point, to: Point, connProps: Record<string, any>): HTMLElement {
   // Dynamic padding: enough room for arrowhead markers + stroke width
   const thickness = connProps.thickness ?? 2;
   const markerSize = 8; // matches marker markerWidth/markerHeight
@@ -183,7 +186,7 @@ function buildConnectorSVG(from, to, connProps) {
       const midX = (lx1 + lx2) / 2;
       d = `M ${lx1} ${ly1} L ${midX} ${ly1} L ${midX} ${ly2} L ${lx2} ${ly2}`;
     }
-    pathEl.setAttribute("d", d);
+    pathEl.setAttribute("d", d as string);
     pathEl.setAttribute("fill", "none");
   }
 
@@ -258,7 +261,7 @@ function buildConnectorSVG(from, to, connProps) {
  * @param {number} [offsetY=0] - Offset to subtract from resolved y (for stack children)
  * @returns {HTMLElement} The rendered DOM element
  */
-export function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, offsetY = 0) {
+export function renderElementFromScene(element: SlideElement, zIndex: number, sceneElements: Record<string, any>, offsetX: number = 0, offsetY: number = 0): HTMLElement {
   const { type, props } = element;
   const resolved = sceneElements[element.id]?.resolved;
 
@@ -430,7 +433,7 @@ export function renderElementFromScene(element, zIndex, sceneElements, offsetX =
  * @param {HTMLElement} [options.container] - Target container element
  * @returns {Promise<{ sections: Array<HTMLElement>, layouts: Array<object> }>}
  */
-export async function render(slides, options = {}) {
+export async function render(slides: SlideDefinition[], options: Record<string, any> = {}) {
   // Reset ID counter at start of render for deterministic IDs
   resetIdCounter();
 
@@ -444,8 +447,8 @@ export async function render(slides, options = {}) {
     );
   }
 
-  const sections = [];
-  const layouts = [];
+  const sections: HTMLElement[] = [];
+  const layouts: LayoutResult[] = [];
 
   // Inject baseline CSS for el() elements once per render
   if (!container.querySelector("style[data-sk-baseline]")) {
@@ -462,7 +465,7 @@ export async function render(slides, options = {}) {
 
   for (const slide of slides) {
     // Run layout solve for this slide
-    const layoutResult = await _layoutFn(slide);
+    const layoutResult = await _layoutFn!(slide);
     layouts.push(layoutResult);
 
     // Create the <section> for this slide
@@ -558,7 +561,7 @@ export async function render(slides, options = {}) {
     // @ts-ignore — custom property on window for debugging
     window.sk = {
       layouts,
-      slides: slides.map((s, i) => ({
+      slides: slides.map((s: SlideDefinition, i: number) => ({
         id: s.id || `slide-${i}`,
         layout: layouts[i],
       })),

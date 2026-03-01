@@ -187,8 +187,8 @@ export interface ConnectorProps {
 interface BaseElement {
   /** Unique element identifier. */
   id: string;
-  /** Internal layout flags set during layout processing. */
-  _layoutFlags?: LayoutFlags;
+  /** Internal layout flags set during layout processing (always initialized as {}). */
+  _layoutFlags: LayoutFlags;
 }
 
 /** A positioned HTML element on the canvas. */

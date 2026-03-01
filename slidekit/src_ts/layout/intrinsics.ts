@@ -5,6 +5,8 @@ import { resolveSpacing } from '../spacing.js';
 import { measure } from '../measure.js';
 import { resolvePercentage } from '../utilities.js';
 import { isRelMarker, deepClone } from './helpers.js';
+import { mustGet } from '../assertions.js';
+import type { SlideElement, ResolvedSize } from '../types.js';
 
 /**
  * Compute the effective width and height for an element.
@@ -15,7 +17,7 @@ import { isRelMarker, deepClone } from './helpers.js';
  * @param {object} element - SlideKit element
  * @returns {Promise<{ w: number, h: number, _autoHeight: boolean }>}
  */
-export async function getEffectiveDimensions(element) {
+export async function getEffectiveDimensions(element: SlideElement) {
   const { props, type } = element;
 
   // Auto-height for el() elements
@@ -50,16 +52,23 @@ export async function getEffectiveDimensions(element) {
  * @param {Array} warnings - warning accumulator (mutated)
  * @returns {Promise<{ authoredSpecs: Map, resolvedSizes: Map, hasErrors: boolean }>}
  */
-export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, warnings) {
+export async function resolveIntrinsicSizes(
+  flatMap: Map<string, SlideElement>,
+  stackChildren: Map<string, string[]>,
+  groupChildren: Map<string, string[]>,
+  errors: Array<Record<string, unknown>>,
+  warnings: Array<Record<string, unknown>>,
+) {
   // Store authored specs (deep clone before any modification)
   const authoredSpecs = new Map();
   for (const [id, el] of flatMap) {
+    const elAny = el as any;
     authoredSpecs.set(id, {
       type: el.type,
-      content: el.content,
-      src: el.src,
+      content: elAny.content,
+      src: elAny.src,
       props: deepClone(el.props),
-      children: el.children ? el.children.map(c => c.id) : undefined,
+      children: elAny.children ? elAny.children.map((c: SlideElement) => c.id) : undefined,
     });
   }
 
@@ -121,7 +130,7 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
   // Compute stack sizes from children + gaps
   // Must handle nested stacks bottom-up. We do a simple iterative approach:
   // repeatedly process stacks whose children all have known sizes.
-  const pendingStacks = new Set();
+  const pendingStacks = new Set<string>();
   for (const [id, el] of flatMap) {
     if (el.type === "vstack" || el.type === "hstack") {
       pendingStacks.add(id);
@@ -132,10 +141,10 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
   while (pendingStacks.size > 0 && progress) {
     progress = false;
     for (const stackId of pendingStacks) {
-      const el = flatMap.get(stackId);
+      const el = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
       const childIds = stackChildren.get(stackId) || [];
-      const gap = resolveSpacing(el.props.gap ?? 0);
-      const stackW = el.props.w ?? 0;
+      const gap = resolveSpacing(el.props.gap as string | number ?? 0);
+      const stackW = (el.props.w ?? 0) as number;
 
       // Check all children have resolved sizes.
       // For panel compounds, also ensure the inner vstack has resolved so that
@@ -146,7 +155,7 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
           allChildrenSized = false;
           break;
         }
-        const childEl = flatMap.get(cid);
+        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`) as any;
         if (childEl && childEl._compound === "panel") {
           const config = childEl._panelConfig;
           if (!config) continue;
@@ -161,7 +170,7 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
           if (childStack && resolvedSizes.has(childStack.id)) {
             const stackSizes = resolvedSizes.get(childStack.id);
             const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
-            const panelSizes = resolvedSizes.get(cid);
+            const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
             panelSizes.h = autoH;
             if (config.panelW != null) panelSizes.w = config.panelW;
             // Also update bgRect height
@@ -177,10 +186,10 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
       if (el.type === "vstack") {
         // For vstack children without explicit w, default to stack's w
         for (const cid of childIds) {
-          const child = flatMap.get(cid);
+          const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
           if ((child.props.w === undefined || child.props.w === null) && stackW > 0) {
             // Update child's resolved size width to use stack width
-            const childSize = resolvedSizes.get(cid);
+            const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             if (child.type === "el") {
               // Re-measure el() with the stack width constraint
               const html = child.content || "";
@@ -202,7 +211,7 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
         let totalH = 0;
         let maxW = 0;
         for (let i = 0; i < childIds.length; i++) {
-          const cs = resolvedSizes.get(childIds[i]);
+          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
           totalH += cs.h;
           if (i > 0) totalH += gap;
           maxW = Math.max(maxW, cs.w);
@@ -225,7 +234,7 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
         let totalW = 0;
         let maxH = 0;
         for (let i = 0; i < childIds.length; i++) {
-          const cs = resolvedSizes.get(childIds[i]);
+          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing hstack child: ${childIds[i]}`);
           totalW += cs.w;
           if (i > 0) totalW += gap;
           maxH = Math.max(maxH, cs.h);
@@ -260,11 +269,12 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
   // For panel compounds: set the background rect height from the vstack height + 2*padding.
   // Also set the group's height so it participates correctly in other layouts.
   for (const [id, el] of flatMap) {
-    if (el._compound !== "panel") continue;
-    const config = el._panelConfig;
+    const elAny2 = el as any;
+    if (elAny2._compound !== "panel") continue;
+    const config = elAny2._panelConfig;
     if (!config) continue;
 
-    const panelChildren = el.children || [];
+    const panelChildren = elAny2.children || [];
     // Panel children: [bgRect, childStack]
     const bgRect = panelChildren[0];
     const childStack = panelChildren[1];
@@ -306,11 +316,11 @@ export async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildre
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let validChildren = 0;
     for (const cid of childIds) {
-      const child = flatMap.get(cid);
+      const child = mustGet(flatMap, cid, `flatMap missing group child: ${cid}`);
       const cs = resolvedSizes.get(cid);
       if (!cs) continue;
-      const cx = child.props.x ?? 0;
-      const cy = child.props.y ?? 0;
+      const cx = (child.props.x ?? 0) as number;
+      const cy = (child.props.y ?? 0) as number;
       // Skip children with _rel markers (unresolved at this phase)
       if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
       minX = Math.min(minX, cx);

@@ -1,7 +1,7 @@
 // Pure helper functions extracted from layout.js
 // This is a leaf module — only imports types from the parent module.
 
-import type { RelMarker } from "../types.js";
+import type { RelMarker, Rect, SlideElement, FlattenResult, Provenance } from "../types.js";
 
 /**
  * Check if a value is a relative positioning marker object.
@@ -18,7 +18,7 @@ export function isRelMarker(value: unknown): value is RelMarker {
  * @param {*} obj
  * @returns {*}
  */
-export function deepClone(obj) {
+export function deepClone<T>(obj: T): T {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
   }
@@ -40,22 +40,22 @@ export function deepClone(obj) {
  *   panelInternals: Set<string>
  * }}
  */
-export function flattenElements(elements) {
-  const flatMap = new Map();
-  const groupParent = new Map();
-  const stackParent = new Map();   // childId -> stackId
-  const stackChildren = new Map(); // stackId -> [childId, ...]
-  const groupChildren = new Map(); // groupId -> [childId, ...]
-  const panelInternals = new Set(); // IDs of synthetic panel elements (bgRect, childStack)
+export function flattenElements(elements: SlideElement[]): FlattenResult {
+  const flatMap = new Map<string, SlideElement>();
+  const groupParent = new Map<string, string>();
+  const stackParent = new Map<string, string>();   // childId -> stackId
+  const stackChildren = new Map<string, string[]>(); // stackId -> [childId, ...]
+  const groupChildren = new Map<string, string[]>(); // groupId -> [childId, ...]
+  const panelInternals = new Set<string>(); // IDs of synthetic panel elements (bgRect, childStack)
 
-  function walk(els, parentGroupId) {
+  function walk(els: SlideElement[], parentGroupId: string | null): void {
     for (const el of els) {
       flatMap.set(el.id, el);
       if (parentGroupId) {
         groupParent.set(el.id, parentGroupId);
       }
       if (el.type === "group" && el.children) {
-        const childIds = el.children.map(c => c.id);
+        const childIds = el.children.map((c: SlideElement) => c.id);
         groupChildren.set(el.id, childIds);
         // If this group is a panel compound, mark bgRect and childStack as internal
         if (el._compound === "panel" && el.children.length >= 2) {
@@ -79,7 +79,7 @@ export function flattenElements(elements) {
           } else if (child.type === "group" && child.children) {
             // Record group children and panel internals before recursing,
             // since walk(child.children, ...) doesn't re-process the group node itself.
-            const gcIds = child.children.map(c => c.id);
+            const gcIds = child.children.map((c: SlideElement) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
@@ -103,7 +103,7 @@ export function flattenElements(elements) {
  * @param {object} marker - A _rel marker object
  * @returns {string|null} The referenced element ID, or null if none
  */
-export function getRelRef(marker) {
+export function getRelRef(marker: unknown): string | null {
   if (!isRelMarker(marker)) return null;
   // centerIn references a rect, not an element
   if (marker._rel === "centerIn") return null;
@@ -120,7 +120,7 @@ export function getRelRef(marker) {
  * @param {number} ownH - The current element's height
  * @returns {number} The resolved absolute coordinate
  */
-export function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
+export function resolveRelMarker(marker: RelMarker, axis: "x" | "y", refBounds: Rect, ownW: number, ownH: number): number {
   const rel = marker._rel;
   const gap = marker.gap ?? 0;
 
@@ -167,7 +167,7 @@ export function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
 
     case "centerIn": {
       // Center within a rectangle
-      const r = marker.rect;
+      const r = marker.rect!;
       if (axis === "x") {
         return r.x + r.w / 2 - ownW / 2;
       } else {
@@ -189,9 +189,9 @@ export function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
  * @param {boolean} wasMeasured - Whether this dimension was measured
  * @returns {object} Provenance metadata
  */
-export function buildProvenance(authoredValue, prop, element, wasMeasured) {
+export function buildProvenance(authoredValue: unknown, prop: string, element: SlideElement, wasMeasured: boolean): Record<string, unknown> {
   if (isRelMarker(authoredValue)) {
-    const prov = { source: "constraint", type: authoredValue._rel };
+    const prov: Record<string, unknown> = { source: "constraint", type: authoredValue._rel };
     if (authoredValue.ref) prov.ref = authoredValue.ref;
     if (authoredValue.ref2 !== undefined) prov.ref2 = authoredValue.ref2;
     if (authoredValue.gap !== undefined) prov.gap = authoredValue.gap;
@@ -219,7 +219,7 @@ export function buildProvenance(authoredValue, prop, element, wasMeasured) {
  * @param {{ x: number, y: number, w: number, h: number }} b
  * @returns {{ x: number, y: number, w: number, h: number }|null}
  */
-export function computeAABBIntersection(a, b) {
+export function computeAABBIntersection(a: Rect, b: Rect): Rect | null {
   const x1 = Math.max(a.x, b.x);
   const y1 = Math.max(a.y, b.y);
   const x2 = Math.min(a.x + a.w, b.x + b.w);

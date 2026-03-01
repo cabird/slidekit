@@ -6,6 +6,27 @@ import { state } from '../state.js';
 import { getAnchorPoint } from '../compounds.js';
 import { rotatedAABB } from '../utilities.js';
 import { buildProvenance, computeAABBIntersection } from './helpers.js';
+import { mustGet } from '../assertions.js';
+import type { SlideElement, Rect, ResolvedSize, TransformMarker } from '../types.js';
+
+/** Context passed from earlier layout phases into finalize. */
+interface FinalizeContext {
+  sortedOrder: string[];
+  flatMap: Map<string, SlideElement>;
+  authoredSpecs: Map<string, Record<string, any>>;
+  resolvedBounds: Map<string, Rect>;
+  resolvedSizes: Map<string, ResolvedSize>;
+  stackParent: Map<string, string>;
+  stackChildren: Map<string, string[]>;
+  groupParent: Map<string, string>;
+  groupChildren: Map<string, string[]>;
+  panelInternals: Set<string>;
+  preTransformBounds: Map<string, Rect>;
+  resolvedTransforms: unknown[];
+  warnings: Array<Record<string, unknown>>;
+  errors: Array<Record<string, unknown>>;
+  collisionThreshold: number;
+}
 
 /**
  * Phase 4: Finalize the layout pipeline.
@@ -13,8 +34,8 @@ import { buildProvenance, computeAABBIntersection } from './helpers.js';
  * Builds provenance metadata, scene graph, resolves connector endpoints,
  * runs collision detection, and performs presentation-specific validations.
  *
- * @param {object} ctx - Context from earlier phases
- * @returns {object} Final scene: { elements, rootIds, transforms, warnings, errors, collisions }
+ * @param ctx - Context from earlier phases
+ * @returns Final scene: { elements, rootIds, transforms, warnings, errors, collisions }
  */
 export function finalize({
   sortedOrder,
@@ -32,21 +53,21 @@ export function finalize({
   warnings,
   errors,
   collisionThreshold,
-}) {
+}: FinalizeContext) {
   // Build provenance metadata and scene graph
-  const sceneElements = {};
+  const sceneElements: Record<string, any> = {};
 
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
-    const authored = authoredSpecs.get(id);
-    const bounds = resolvedBounds.get(id);
-    const sizes = resolvedSizes.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
+    const authored = mustGet(authoredSpecs, id, `authoredSpecs missing element: ${id}`);
+    const bounds = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
+    const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
 
     // Build provenance for each dimension
     // Stack children get provenance source: "stack"
     let provenance;
     if (stackParent.has(id)) {
-      const parentStackId = stackParent.get(id);
+      const parentStackId = mustGet(stackParent, id, `stackParent missing child: ${id}`);
       provenance = {
         x: { source: "stack", stackId: parentStackId },
         y: { source: "stack", stackId: parentStackId },
@@ -85,11 +106,11 @@ export function finalize({
     const parentId = (groupParent.get(id) ?? stackParent.get(id)) ?? null;
 
     // Determine children array (ordered)
-    let children = [];
+    let children: string[] = [];
     if (el.type === "group" && groupChildren.has(id)) {
-      children = groupChildren.get(id);
+      children = mustGet(groupChildren, id, `groupChildren missing group: ${id}`);
     } else if ((el.type === "vstack" || el.type === "hstack") && stackChildren.has(id)) {
-      children = stackChildren.get(id);
+      children = mustGet(stackChildren, id, `stackChildren missing stack: ${id}`);
     }
 
     // Compute localResolved (position relative to parent)
@@ -128,8 +149,8 @@ export function finalize({
     };
 
     // Export panel child positions in scene model
-    if (el._compound === 'panel' && el.children) {
-      sceneElements[id].panelChildren = el.children.map(child => {
+    if ((el as any)._compound === 'panel' && (el as any).children) {
+      sceneElements[id].panelChildren = (el as any).children.map((child: any) => {
         const bounds = resolvedBounds.get(child.id);
         return {
           id: child.id,
@@ -159,7 +180,7 @@ export function finalize({
   // After all positions are resolved, compute connection points for connectors.
 
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     if (el.type !== "connector") continue;
 
     const fromId = el.props.fromId;
@@ -226,7 +247,7 @@ export function finalize({
   // up the group/stack parent ancestry chain.  Stack children have coords set
   // by their parent stack; if that stack lives inside a group, the coords are
   // group-relative and need the group's offset added.
-  function absoluteBounds(id) {
+  function absoluteBounds(id: string) {
     const bounds = resolvedBounds.get(id);
     if (!bounds) return null;
     let offsetX = 0, offsetY = 0;
@@ -257,7 +278,7 @@ export function finalize({
   // Helper: check if `ancestorId` is an ancestor of `id` by walking the
   // stack-parent / group-parent chains.  Used to skip ancestor-descendant
   // pairs in collision detection.
-  function isAncestorOf(ancestorId, id) {
+  function isAncestorOf(ancestorId: string, id: string): boolean {
     let current = id;
     while (true) {
       const gp = groupParent.get(current);
@@ -280,9 +301,9 @@ export function finalize({
   // Stack children appear as individual elements.
   // Skip: group children (positioned relative to group), stacks themselves
   // (their children are the real elements).
-  const layerElements = { bg: [], content: [], overlay: [] };
+  const layerElements: Record<string, string[]> = { bg: [], content: [], overlay: [] };
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element in collision detection: ${id}`);
     // Skip group children (they use group-relative coordinates)
     if (groupParent.has(id)) continue;
     // Skip stack containers (their children represent the real space)
@@ -353,17 +374,17 @@ export function finalize({
   // Presentation-Specific Validations (M4.3)
   // =========================================================================
 
-  const cfg = state.config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
+  const cfg: any = state.config || { slide: { w: 1920, h: 1080 }, minFontSize: 24, strict: false };
   const slideW = cfg.slide?.w ?? 1920;
   const slideH = cfg.slide?.h ?? 1080;
   const isStrict = cfg.strict === true;
   const minFontSizeThreshold = cfg.minFontSize ?? 24;
 
   // Safe zone check
-  const sr = state.safeRectCache;
+  const sr = state.safeRectCache as Rect | null;
   if (sr) {
     for (const id of sortedOrder) {
-      const el = flatMap.get(id);
+      const el = mustGet(flatMap, id, `flatMap missing element in safe-zone check: ${id}`);
       // Skip bg-layer elements (full-bleed backgrounds are expected to exceed safe zone)
       if (el.props.layer === "bg") continue;
       // Skip group children (they are positioned relative to the group)
@@ -373,7 +394,7 @@ export function finalize({
       // Skip stack containers — validate their children individually instead
       if (el.type === "vstack" || el.type === "hstack") continue;
 
-      const bounds = resolvedBounds.get(id);
+      const bounds = mustGet(resolvedBounds, id, `resolvedBounds missing element in safe-zone check: ${id}`);
       const outsideSafe = bounds.x < sr.x ||
         bounds.y < sr.y ||
         bounds.x + bounds.w > sr.x + sr.w ||
@@ -404,14 +425,14 @@ export function finalize({
 
   // Slide bounds check
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element in slide-bounds check: ${id}`);
     // Skip group children
     if (groupParent.has(id)) continue;
     // Skip stack children and stack containers for this check
     if (stackParent.has(id)) continue;
     if (el.type === "vstack" || el.type === "hstack") continue;
 
-    const bounds = resolvedBounds.get(id);
+    const bounds = mustGet(resolvedBounds, id, `resolvedBounds missing element in slide-bounds check: ${id}`);
     const outsideSlide = bounds.x < 0 ||
       bounds.y < 0 ||
       bounds.x + bounds.w > slideW ||
@@ -445,14 +466,14 @@ export function finalize({
     let hasContentElements = false;
 
     for (const id of sortedOrder) {
-      const el = flatMap.get(id);
+      const el = mustGet(flatMap, id, `flatMap missing element in content-area check: ${id}`);
       // Only check content-layer elements, skip group children
       if (el.props.layer !== "content") continue;
       if (groupParent.has(id)) continue;
       // Skip stack containers — count their children instead
       if (el.type === "vstack" || el.type === "hstack") continue;
 
-      const bounds = resolvedBounds.get(id);
+      const bounds = mustGet(resolvedBounds, id, `resolvedBounds missing element in content-area check: ${id}`);
       hasContentElements = true;
       contentMinX = Math.min(contentMinX, bounds.x);
       contentMinY = Math.min(contentMinY, bounds.y);
@@ -487,11 +508,12 @@ export function finalize({
 
   // Panel overflow warnings (P2.4)
   for (const [id, el] of flatMap) {
-    if (el._compound !== "panel") continue;
-    const config = el._panelConfig;
+    const elAny = el as any;
+    if (elAny._compound !== "panel") continue;
+    const config = elAny._panelConfig;
     if (!config || config.panelH == null) continue; // skip auto-height panels
 
-    const childStack = (el.children || [])[1];
+    const childStack = (elAny.children || [])[1];
     if (!childStack) continue;
     const stackSizes = resolvedSizes.get(childStack.id);
     if (!stackSizes) continue;
@@ -552,7 +574,7 @@ export function finalize({
     const childIds = groupChildren.get(id) || [];
     if (childIds.length === 0) continue;
 
-    const authoredW = el.props.w;
+    const authoredW = el.props.w as number | undefined;
     if (authoredW === undefined || authoredW === null) continue;
 
     // Compute actual children bounding box width from resolvedBounds

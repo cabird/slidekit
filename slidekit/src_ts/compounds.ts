@@ -80,7 +80,7 @@ export function connect(fromId: string, toId: string, props: ConnectorInputProps
     anchor: "tl",
   };
 
-  return { id, type: "connector", props: resolved };
+  return { id, type: "connector", props: resolved, _layoutFlags: {} };
 }
 
 /**

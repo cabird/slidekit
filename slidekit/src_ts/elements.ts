@@ -90,7 +90,7 @@ export function el(html: string, props: InputProps = {}): ElElement {
   const resolved = applyDefaults(rest as Record<string, unknown>, {
     overflow: "visible",
   });
-  return { id, type: "el", content: html, props: resolved };
+  return { id, type: "el", content: html, props: resolved, _layoutFlags: {} };
 }
 
 /**
@@ -108,7 +108,7 @@ export function group(children: SlideElement[], props: InputProps = {}): GroupEl
     clip: false,
   });
   // bounds: 'hug' is passed through via applyDefaults and consumed during layout
-  return { id, type: "group", children, props: resolved };
+  return { id, type: "group", children, props: resolved, _layoutFlags: {} };
 }
 
 // =============================================================================
@@ -133,7 +133,7 @@ export function vstack(items: SlideElement[], props: InputProps = {}): VStackEle
     gap: 0,
     align: "left",
   });
-  return { id, type: "vstack", children: items, props: resolved };
+  return { id, type: "vstack", children: items, props: resolved, _layoutFlags: {} };
 }
 
 /**
@@ -154,7 +154,7 @@ export function hstack(items: SlideElement[], props: InputProps = {}): HStackEle
     gap: 0,
     align: "top",
   });
-  return { id, type: "hstack", children: items, props: resolved };
+  return { id, type: "hstack", children: items, props: resolved, _layoutFlags: {} };
 }
 
 /**

@@ -3,12 +3,12 @@
  * @param {HTMLElement} domEl - The DOM element to style
  * @param {object} styleObj - CSS properties in camelCase form
  */
-export function applyStyleToDOM(domEl, styleObj) {
+export function applyStyleToDOM(domEl: HTMLElement, styleObj: Record<string, any>): void {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
       domEl.style.setProperty(key, value);
     } else {
-      domEl.style[key] = value;
+      (domEl.style as any)[key] = value;
     }
   }
 }

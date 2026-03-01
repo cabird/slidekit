@@ -2,6 +2,8 @@
 // Checks if content overflows elements with explicit height and applies overflow policies.
 
 import { measure } from '../measure.js';
+import { mustGet } from '../assertions.js';
+import type { SlideElement, Rect } from '../types.js';
 
 /**
  * Check overflow policies for elements with explicit height.
@@ -16,15 +18,22 @@ import { measure } from '../measure.js';
  * @param {Array} warnings - Array to push warning objects into
  * @param {Array} errors - Array to push error objects into
  */
-export async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
+export async function checkOverflowPolicies(
+  sortedOrder: string[],
+  flatMap: Map<string, SlideElement>,
+  authoredSpecs: Map<string, Record<string, any>>,
+  resolvedBounds: Map<string, Rect>,
+  warnings: Array<Record<string, unknown>>,
+  errors: Array<Record<string, unknown>>,
+): Promise<void> {
   for (const id of sortedOrder) {
-    const el = flatMap.get(id);
+    const el = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
     if (el.type !== "el") continue;
 
-    const authoredH = authoredSpecs.get(id).props.h;
+    const authoredH = mustGet(authoredSpecs, id, `authoredSpecs missing element in overflow check: ${id}`).props.h;
     if (authoredH === undefined || authoredH === null) continue;
 
-    const bounds = resolvedBounds.get(id);
+    const bounds = mustGet(resolvedBounds, id, `resolvedBounds missing element in overflow check: ${id}`);
     const overflow = el.props.overflow || "visible";
     if (overflow === "visible") continue;
 
@@ -49,7 +58,6 @@ export async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs,
         break;
 
       case "clip":
-        if (!el._layoutFlags) el._layoutFlags = {};
         el._layoutFlags.clip = true;
         break;
 

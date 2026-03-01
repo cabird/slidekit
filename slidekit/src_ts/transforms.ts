@@ -3,6 +3,8 @@
 // =============================================================================
 
 import { state } from './state.js';
+import { mustGet } from './assertions.js';
+import type { Rect, SlideElement, TransformMarker } from './types.js';
 
 /**
  * Transform ID counter — auto-generates unique IDs for transforms.
@@ -23,7 +25,7 @@ export function nextTransformId() {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignLeft(ids, options = {}) {
+export function alignLeft(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignLeft", _transformId: nextTransformId(), ids, options };
 }
 
@@ -37,7 +39,7 @@ export function alignLeft(ids, options = {}) {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignRight(ids, options = {}) {
+export function alignRight(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignRight", _transformId: nextTransformId(), ids, options };
 }
 
@@ -51,7 +53,7 @@ export function alignRight(ids, options = {}) {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignTop(ids, options = {}) {
+export function alignTop(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignTop", _transformId: nextTransformId(), ids, options };
 }
 
@@ -65,7 +67,7 @@ export function alignTop(ids, options = {}) {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignBottom(ids, options = {}) {
+export function alignBottom(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignBottom", _transformId: nextTransformId(), ids, options };
 }
 
@@ -79,7 +81,7 @@ export function alignBottom(ids, options = {}) {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignCenterH(ids, options = {}) {
+export function alignCenterH(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignCenterH", _transformId: nextTransformId(), ids, options };
 }
 
@@ -93,7 +95,7 @@ export function alignCenterH(ids, options = {}) {
  * @param {number} [options.to] - Explicit anchor value for alignment
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function alignCenterV(ids, options = {}) {
+export function alignCenterV(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "alignCenterV", _transformId: nextTransformId(), ids, options };
 }
 
@@ -107,7 +109,7 @@ export function alignCenterV(ids, options = {}) {
  * @param {string} [options.mode="equal-gap"] - Distribution mode: "equal-gap" or "equal-center"
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function distributeH(ids, options = {}) {
+export function distributeH(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "distributeH", _transformId: nextTransformId(), ids, options: { mode: "equal-gap", ...options } };
 }
 
@@ -121,7 +123,7 @@ export function distributeH(ids, options = {}) {
  * @param {string} [options.mode="equal-gap"] - Distribution mode: "equal-gap" or "equal-center"
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function distributeV(ids, options = {}) {
+export function distributeV(ids: string[], options: Record<string, unknown> = {}): TransformMarker {
   return { _transform: "distributeV", _transformId: nextTransformId(), ids, options: { mode: "equal-gap", ...options } };
 }
 
@@ -131,7 +133,7 @@ export function distributeV(ids, options = {}) {
  * @param {string[]} ids - Array of element IDs
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function matchWidth(ids) {
+export function matchWidth(ids: string[]): TransformMarker {
   return { _transform: "matchWidth", _transformId: nextTransformId(), ids, options: {} };
 }
 
@@ -141,7 +143,7 @@ export function matchWidth(ids) {
  * @param {string[]} ids - Array of element IDs
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function matchHeight(ids) {
+export function matchHeight(ids: string[]): TransformMarker {
   return { _transform: "matchHeight", _transformId: nextTransformId(), ids, options: {} };
 }
 
@@ -151,7 +153,7 @@ export function matchHeight(ids) {
  * @param {string[]} ids - Array of element IDs
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function matchSize(ids) {
+export function matchSize(ids: string[]): TransformMarker {
   return { _transform: "matchSize", _transformId: nextTransformId(), ids, options: {} };
 }
 
@@ -166,7 +168,7 @@ export function matchSize(ids) {
  * @param {{ x: number, y: number, w: number, h: number }} rectParam - Target rectangle
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function fitToRect(ids, rectParam) {
+export function fitToRect(ids: string[], rectParam: Rect): TransformMarker {
   return { _transform: "fitToRect", _transformId: nextTransformId(), ids, options: { rect: rectParam } };
 }
 
@@ -180,11 +182,11 @@ export function fitToRect(ids, rectParam) {
  * @param {Map<string, object>} flatMap - Element map for existence checking
  * @returns {Array} warnings
  */
-export function applyTransform(transform, resolvedBounds, flatMap) {
+export function applyTransform(transform: TransformMarker, resolvedBounds: Map<string, Rect>, flatMap: Map<string, SlideElement>): Array<Record<string, unknown>> {
   const transformWarnings = [];
   const type = transform._transform;
   const ids = transform.ids || [];
-  const opts = transform.options || {};
+  const opts = (transform.options || {}) as Record<string, any>;
 
   // Filter to valid IDs, warn about missing ones
   const validIds = [];
@@ -208,9 +210,9 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
     case "alignLeft": {
       const target = opts.to !== undefined
         ? opts.to
-        : Math.min(...validIds.map(id => resolvedBounds.get(id).x));
+        : Math.min(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).x));
       for (const id of validIds) {
-        resolvedBounds.get(id).x = target;
+        mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).x = target;
       }
       break;
     }
@@ -219,11 +221,11 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
       const target = opts.to !== undefined
         ? opts.to
         : Math.max(...validIds.map(id => {
-            const b = resolvedBounds.get(id);
+            const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
             return b.x + b.w;
           }));
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.x = target - b.w;
       }
       break;
@@ -232,9 +234,9 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
     case "alignTop": {
       const target = opts.to !== undefined
         ? opts.to
-        : Math.min(...validIds.map(id => resolvedBounds.get(id).y));
+        : Math.min(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).y));
       for (const id of validIds) {
-        resolvedBounds.get(id).y = target;
+        mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).y = target;
       }
       break;
     }
@@ -243,11 +245,11 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
       const target = opts.to !== undefined
         ? opts.to
         : Math.max(...validIds.map(id => {
-            const b = resolvedBounds.get(id);
+            const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
             return b.y + b.h;
           }));
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.y = target - b.h;
       }
       break;
@@ -257,11 +259,11 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
       const target = opts.to !== undefined
         ? opts.to
         : validIds.reduce((sum, id) => {
-            const b = resolvedBounds.get(id);
+            const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
             return sum + (b.x + b.w / 2);
           }, 0) / validIds.length;
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.x = target - b.w / 2;
       }
       break;
@@ -271,11 +273,11 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
       const target = opts.to !== undefined
         ? opts.to
         : validIds.reduce((sum, id) => {
-            const b = resolvedBounds.get(id);
+            const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
             return sum + (b.y + b.h / 2);
           }, 0) / validIds.length;
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.y = target - b.h / 2;
       }
       break;
@@ -286,26 +288,26 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
 
       // Sort elements by their current x position (left edge)
       const sorted = [...validIds].sort((a, b) =>
-        resolvedBounds.get(a).x - resolvedBounds.get(b).x
+        mustGet(resolvedBounds, a, `resolvedBounds missing element: ${a}`).x - mustGet(resolvedBounds, b, `resolvedBounds missing element: ${b}`).x
       );
 
       const mode = opts.mode || "equal-gap";
 
       // Determine startX and endX — defaults depend on mode
-      const firstBounds = resolvedBounds.get(sorted[0]);
-      const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
+      const firstBounds = mustGet(resolvedBounds, sorted[0], `resolvedBounds missing element: ${sorted[0]}`);
+      const lastBounds = mustGet(resolvedBounds, sorted[sorted.length - 1], `resolvedBounds missing element: ${sorted[sorted.length - 1]}`);
 
       if (mode === "equal-gap") {
         const startX = opts.startX !== undefined ? opts.startX : firstBounds.x;
         const endX = opts.endX !== undefined ? opts.endX : lastBounds.x + lastBounds.w;
         // total gap = (endX - startX) - sum(widths), divide by (n-1)
-        const totalWidth = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).w, 0);
+        const totalWidth = sorted.reduce((sum, id) => sum + mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).w, 0);
         const totalGap = (endX - startX) - totalWidth;
         const gapBetween = totalGap / (sorted.length - 1);
 
         let curX = startX;
         for (const id of sorted) {
-          const b = resolvedBounds.get(id);
+          const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
           b.x = curX;
           curX += b.w + gapBetween;
         }
@@ -321,7 +323,7 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
         // Place each element's center at startX + i * spacing
         const spacing = (endX - startX) / (sorted.length - 1);
         for (let i = 0; i < sorted.length; i++) {
-          const b = resolvedBounds.get(sorted[i]);
+          const b = mustGet(resolvedBounds, sorted[i], `resolvedBounds missing element: ${sorted[i]}`);
           b.x = startX + i * spacing - b.w / 2;
         }
       }
@@ -333,24 +335,24 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
 
       // Sort elements by their current y position (top edge)
       const sorted = [...validIds].sort((a, b) =>
-        resolvedBounds.get(a).y - resolvedBounds.get(b).y
+        mustGet(resolvedBounds, a, `resolvedBounds missing element: ${a}`).y - mustGet(resolvedBounds, b, `resolvedBounds missing element: ${b}`).y
       );
 
       const mode = opts.mode || "equal-gap";
 
-      const firstBounds = resolvedBounds.get(sorted[0]);
-      const lastBounds = resolvedBounds.get(sorted[sorted.length - 1]);
+      const firstBounds = mustGet(resolvedBounds, sorted[0], `resolvedBounds missing element: ${sorted[0]}`);
+      const lastBounds = mustGet(resolvedBounds, sorted[sorted.length - 1], `resolvedBounds missing element: ${sorted[sorted.length - 1]}`);
 
       if (mode === "equal-gap") {
         const startY = opts.startY !== undefined ? opts.startY : firstBounds.y;
         const endY = opts.endY !== undefined ? opts.endY : lastBounds.y + lastBounds.h;
-        const totalHeight = sorted.reduce((sum, id) => sum + resolvedBounds.get(id).h, 0);
+        const totalHeight = sorted.reduce((sum, id) => sum + mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).h, 0);
         const totalGap = (endY - startY) - totalHeight;
         const gapBetween = totalGap / (sorted.length - 1);
 
         let curY = startY;
         for (const id of sorted) {
-          const b = resolvedBounds.get(id);
+          const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
           b.y = curY;
           curY += b.h + gapBetween;
         }
@@ -364,7 +366,7 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
           : lastBounds.y + lastBounds.h / 2;
         const spacing = (endY - startY) / (sorted.length - 1);
         for (let i = 0; i < sorted.length; i++) {
-          const b = resolvedBounds.get(sorted[i]);
+          const b = mustGet(resolvedBounds, sorted[i], `resolvedBounds missing element: ${sorted[i]}`);
           b.y = startY + i * spacing - b.h / 2;
         }
       }
@@ -372,26 +374,26 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
     }
 
     case "matchWidth": {
-      const maxW = Math.max(...validIds.map(id => resolvedBounds.get(id).w));
+      const maxW = Math.max(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).w));
       for (const id of validIds) {
-        resolvedBounds.get(id).w = maxW;
+        mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).w = maxW;
       }
       break;
     }
 
     case "matchHeight": {
-      const maxH = Math.max(...validIds.map(id => resolvedBounds.get(id).h));
+      const maxH = Math.max(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).h));
       for (const id of validIds) {
-        resolvedBounds.get(id).h = maxH;
+        mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).h = maxH;
       }
       break;
     }
 
     case "matchSize": {
-      const maxW = Math.max(...validIds.map(id => resolvedBounds.get(id).w));
-      const maxH = Math.max(...validIds.map(id => resolvedBounds.get(id).h));
+      const maxW = Math.max(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).w));
+      const maxH = Math.max(...validIds.map(id => mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`).h));
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.w = maxW;
         b.h = maxH;
       }
@@ -414,7 +416,7 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
       let minX = Infinity, minY = Infinity;
       let maxX = -Infinity, maxY = -Infinity;
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         minX = Math.min(minX, b.x);
         minY = Math.min(minY, b.y);
         maxX = Math.max(maxX, b.x + b.w);
@@ -438,7 +440,7 @@ export function applyTransform(transform, resolvedBounds, flatMap) {
 
       // 4. Apply scale and translate to all elements
       for (const id of validIds) {
-        const b = resolvedBounds.get(id);
+        const b = mustGet(resolvedBounds, id, `resolvedBounds missing element: ${id}`);
         b.x = offsetX + (b.x - minX) * scale;
         b.y = offsetY + (b.y - minY) * scale;
         b.w = b.w * scale;
