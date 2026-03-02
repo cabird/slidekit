@@ -2,13 +2,13 @@
 
 > **Current as of:** `068e7d3` (2026-03-02)
 
-A coordinate-based slide layout library for AI agents and humans. You place every element at explicit pixel coordinates on a fixed 1920×1080 canvas — no CSS flexbox, no reflow, no surprises. SlideKit handles text measurement, collision detection, layout validation, and structured linting so you can build polished presentations programmatically.
+A coordinate-based slide layout library built on [Reveal.js](https://revealjs.com), designed for AI agents and humans. You place every element at explicit pixel coordinates on a fixed 1920×1080 canvas — no CSS flexbox, no reflow, no surprises. SlideKit handles text measurement, collision detection, layout validation, and structured linting so you can build polished presentations programmatically.
 
 ## Why SlideKit?
 
 CSS auto-layout is the wrong abstraction for slides. Slides are fixed-dimension canvases, not reflowing documents. When AI agents use CSS for slide layout, they get trapped debugging reflow, specificity cascades, and emergent behaviors they can't predict.
 
-SlideKit takes a different approach:
+SlideKit takes a different approach — it uses Reveal.js as its rendering backend and adds a coordinate-based layout system on top:
 
 - **You say where things go, and that's where they go.** No layout engine surprises.
 - **Text is measured in the real DOM** before positioning, so you know exactly how tall a paragraph is.
