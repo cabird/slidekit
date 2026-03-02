@@ -810,3 +810,40 @@ connect('source', 'target', {
 - [ ] Title positions consistent across content slides (hero slides may differ)
 - [ ] Font count reasonable (≤ 4 font families)
 - [ ] Heading sizes consistent within slide types
+
+## 12. Generating PDFs with Decktape
+
+Use [decktape](https://github.com/astefanutti/decktape) to export finished presentations to PDF. This is useful for sharing, archiving, and visual review.
+
+### Setup
+
+```bash
+npm install -g decktape    # or use npx
+```
+
+### Usage
+
+Start a local server (ES modules require one), then run decktape:
+
+```bash
+# Start server from repo root
+python3 -m http.server 8765
+
+# Generate PDF (in another terminal)
+npx decktape reveal --size 1920x1080 --pause 3000 --load-pause 5000 \
+  http://127.0.0.1:8765/examples/my-deck/index.html \
+  examples/my-deck/my-deck.pdf
+```
+
+### Key Options
+
+| Option | Value | Why |
+|--------|-------|-----|
+| `--size` | `1920x1080` | Match the SlideKit canvas dimensions |
+| `--pause` | `3000` | Give each slide time to render (async layout + font loading) |
+| `--load-pause` | `5000` | Wait for initial page load before starting export |
+| Plugin | `reveal` | Use the Reveal.js-specific plugin for proper slide navigation |
+
+> ✅ **Pattern:** Generate the PDF as the final step after all linting and visual validation passes. Place the PDF alongside the presentation's `index.html` in the same directory.
+
+> ⚠️ **Anti-pattern:** Don't use `--pause` values below 2000ms — SlideKit's async text measurement and font loading need time. Slides may render incomplete with shorter pauses.
