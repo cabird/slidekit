@@ -1,13 +1,17 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true,
-    "strict": false,
+    "strict": true,
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["slidekit/src/**/*.js"]
+  "include": ["slidekit/src_ts/**/*.ts", "slidekit/slidekit.ts"]
 }

@@ -2,8 +2,7 @@
 // Tests for orthogonal polyline waypoint computation
 
 import { describe, it, assert } from './test-runner.js';
-import { routeConnector } from '../src/connectorRouting.js';
-import { getAnchorPoint } from '../src/compounds.js';
+import { routeConnector, getAnchorPoint } from '../slidekit.js';
 
 // =============================================================================
 // Helpers
