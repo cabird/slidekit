@@ -2358,8 +2358,18 @@ function routeConnector(options) {
   } = options;
   const fromPt = { x: from.x, y: from.y };
   const toPt = { x: to.x, y: to.y };
-  const fromStub = computeStubEnd(from, stubLength);
-  const toStub = computeStubEnd(to, stubLength);
+  let effectiveStub = stubLength;
+  const dot = from.dx * to.dx + from.dy * to.dy;
+  if (dot < 0) {
+    const gapX = (to.x - from.x) * Math.sign(from.dx);
+    const gapY = (to.y - from.y) * Math.sign(from.dy);
+    const gap = Math.abs(from.dx) > Math.abs(from.dy) ? gapX : gapY;
+    if (gap > 0 && gap < 2 * stubLength) {
+      effectiveStub = Math.max(10, gap / 2 - 2);
+    }
+  }
+  const fromStub = computeStubEnd(from, effectiveStub);
+  const toStub = computeStubEnd(to, effectiveStub);
   const fromDir = normalizeDirection(from.dx, from.dy);
   const toDir = normalizeDirection(to.dx, to.dy);
   const fromSegments = buildStubSegments(fromPt, fromStub, from.dx, from.dy);
