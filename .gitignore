@@ -3,8 +3,7 @@ node_modules/
 screenshots/
 **/screenshots/
 scene-model-data.json
-package.json
-package-lock.json
+
 *.bundle.js
 *.bundle.js.map
 *_bundle.js
