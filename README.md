@@ -23,19 +23,19 @@ You can reference the built bundle directly in your HTML without installing anyt
 
 ```html
 <script type="module">
-  import * as sk from 'https://cdn.jsdelivr.net/gh/CABird/slidekit@main/slidekit/dist/slidekit.bundle.js';
+  import * as sk from 'https://cdn.jsdelivr.net/gh/cabird/slidekit@main/slidekit/dist/slidekit.bundle.js';
 </script>
 ```
 
 Or download it directly:
 ```
-https://raw.githubusercontent.com/CABird/slidekit/main/slidekit/dist/slidekit.bundle.js
+https://raw.githubusercontent.com/cabird/slidekit/main/slidekit/dist/slidekit.bundle.js
 ```
 
 ### Option 2 — Local development
 
 ```bash
-git clone https://github.com/CABird/slidekit.git
+git clone https://github.com/cabird/slidekit.git
 cd slidekit
 npm install
 npm run build
