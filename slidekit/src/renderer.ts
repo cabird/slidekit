@@ -112,7 +112,8 @@ function buildConnectorSVG(
     if (connProps._cachedWaypoints) {
       elbowWaypoints = connProps._cachedWaypoints;
     } else {
-      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal" });
+      const stubLength = Math.max(30, markerSize * thickness + 10);
+      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal", stubLength });
       elbowWaypoints = route.waypoints;
     }
     for (const wp of elbowWaypoints!) {

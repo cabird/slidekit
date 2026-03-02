@@ -423,9 +423,15 @@ export function finalize({
     const connType = el.props.connectorType || 'straight';
     let waypoints: Point[] | undefined;
     if (connType === 'elbow' || connType === 'orthogonal') {
+      // Stub length must clear the arrowhead so the path straightens out
+      // before entering the marker. Marker is 8×8 in viewBox 0-10 and
+      // scales with strokeWidth (SVG default markerUnits="strokeWidth").
+      const thickness = (el.props.thickness as number) ?? 2;
+      const stubLength = Math.max(30, 8 * thickness + 10);
       const route = routeConnector({
         from: fromPt, to: toPt, obstacles,
         orthogonal: connType === 'orthogonal',
+        stubLength,
       });
       waypoints = route.waypoints;
     }
