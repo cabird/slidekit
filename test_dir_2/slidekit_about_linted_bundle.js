@@ -2087,23 +2087,24 @@ function polylineIntersectsObstacles(points, obstacles, clearance) {
 }
 function findBestRoute(p1, d1, q1, d2, obstacles, clearance) {
   const candidates = [];
-  candidates.push([]);
-  candidates.push([{ x: q1.x, y: p1.y }]);
-  candidates.push([{ x: p1.x, y: q1.y }]);
-  const midX = (p1.x + q1.x) / 2;
-  const midY = (p1.y + q1.y) / 2;
-  candidates.push([
-    { x: midX, y: p1.y },
-    { x: midX, y: q1.y }
-  ]);
-  candidates.push([
-    { x: p1.x, y: midY },
-    { x: q1.x, y: midY }
-  ]);
   const caseType = classifyCase(p1, d1, q1, d2);
   if (caseType === "backward" || caseType === "same-direction") {
-    const uRoutes = computeURoute(p1, d1, q1, d2, obstacles, clearance);
-    candidates.push(uRoutes);
+    const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
+    candidates.push(...uCandidates);
+  } else {
+    candidates.push([]);
+    candidates.push([{ x: q1.x, y: p1.y }]);
+    candidates.push([{ x: p1.x, y: q1.y }]);
+    const midX = (p1.x + q1.x) / 2;
+    const midY = (p1.y + q1.y) / 2;
+    candidates.push([
+      { x: midX, y: p1.y },
+      { x: midX, y: q1.y }
+    ]);
+    candidates.push([
+      { x: p1.x, y: midY },
+      { x: q1.x, y: midY }
+    ]);
   }
   let bestRoute = [];
   let bestDist = Infinity;
@@ -2154,31 +2155,6 @@ function classifyCase(p1, d1, q1, d2) {
   }
   return "backward";
 }
-function computeURoute(p1, d1, q1, d2, obstacles, clearance) {
-  const routes = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
-  let best = [];
-  let bestDist = Infinity;
-  for (const route of routes) {
-    const full = [p1, ...route, q1];
-    const dist = manhattanLength(full);
-    if (dist < bestDist && !polylineIntersectsObstacles(full, obstacles, clearance)) {
-      bestDist = dist;
-      best = route;
-    }
-  }
-  if (bestDist === Infinity && routes.length > 0) {
-    let fallbackDist = Infinity;
-    for (const route of routes) {
-      const full = [p1, ...route, q1];
-      const dist = manhattanLength(full);
-      if (dist < fallbackDist) {
-        fallbackDist = dist;
-        best = route;
-      }
-    }
-  }
-  return best;
-}
 function computeAllChannelRoutes(p1, d1, q1, _d2, obstacles, clearance) {
   let minX = Math.min(p1.x, q1.x);
   let minY = Math.min(p1.y, q1.y);
@@ -2191,13 +2167,17 @@ function computeAllChannelRoutes(p1, d1, q1, _d2, obstacles, clearance) {
     maxY = Math.max(maxY, obs.y + obs.h);
   }
   const routes = [];
-  const topY = minY - clearance;
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  const offsetY = Math.max(60, spanY * 0.3, clearance);
+  const offsetX = Math.max(60, spanX * 0.3, clearance);
+  const topY = minY - offsetY;
   routes.push(buildChannelRoute(p1, q1, d1, "y", topY));
-  const bottomY = maxY + clearance;
+  const bottomY = maxY + offsetY;
   routes.push(buildChannelRoute(p1, q1, d1, "y", bottomY));
-  const leftX = minX - clearance;
+  const leftX = minX - offsetX;
   routes.push(buildChannelRoute(p1, q1, d1, "x", leftX));
-  const rightX = maxX + clearance;
+  const rightX = maxX + offsetX;
   routes.push(buildChannelRoute(p1, q1, d1, "x", rightX));
   return routes;
 }
@@ -5907,11 +5887,22 @@ w: 800, h: 400`,
                   w: 72,
                   h: 72
                 }),
-                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow("glow")};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#6a4dab;">glow</span></div>`, {
-                  id: "s13-sh-glow",
-                  w: 72,
-                  h: 72
-                })
+                group([
+                  el('<div style="width:100%;height:100%;background:#1a1a2e;border-radius:14px;"></div>', {
+                    id: "s13-sh-glow-bg",
+                    x: -20,
+                    y: -40,
+                    w: 152,
+                    h: 152
+                  }),
+                  el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:0 0 24px 6px rgba(0,220,180,0.7), 0 0 48px 2px rgba(0,220,180,0.35);display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">glow</span></div>`, {
+                    id: "s13-sh-glow",
+                    x: 20,
+                    y: 0,
+                    w: 72,
+                    h: 72
+                  })
+                ], { id: "s13-sh-glow-group", w: 112, h: 72 })
               ], {
                 id: "s13-shadow-row",
                 w: "fill",

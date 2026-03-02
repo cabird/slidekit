@@ -1510,9 +1510,14 @@ w: 800, h: 400`,
                 el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('xl')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">xl</span></div>`, {
                   id: 's13-sh-xl', w: 72, h: 72,
                 }),
-                el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:${resolveShadow('glow')};display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#6a4dab;">glow</span></div>`, {
-                  id: 's13-sh-glow', w: 72, h: 72,
-                }),
+                group([
+                  el('<div style="width:100%;height:100%;background:#1a1a2e;border-radius:14px;"></div>', {
+                    id: 's13-sh-glow-bg', x: -20, y: -40, w: 152, h: 152,
+                  }),
+                    el(`<div style="width:100%;height:100%;background:#ffffff;border-radius:6px;box-shadow:0 0 24px 6px rgba(0,220,180,0.7), 0 0 48px 2px rgba(0,220,180,0.35);display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:12px;color:#444;">glow</span></div>`, {
+                    id: 's13-sh-glow', x: 20, y: 0, w: 72, h: 72,
+                  }),
+                ], { id: 's13-sh-glow-group', w: 112, h: 72 }),
               ], {
                 id: 's13-shadow-row',
                 w: 'fill', gap: 'lg', align: 'middle',

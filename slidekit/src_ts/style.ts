@@ -58,6 +58,85 @@ function stripVendorPrefix(camelName: string): string {
   return camelName; // no vendor prefix found
 }
 
+// =============================================================================
+// CSS-like Property Detection (auto-promote misplaced CSS props)
+// =============================================================================
+
+/**
+ * Common CSS property names (camelCase) that users might accidentally place
+ * at the top level of an element's props instead of inside `style: { ... }`.
+ */
+export const CSS_LIKE_PROPS: ReadonlySet<string> = new Set([
+  // Text
+  "textAlign", "textDecoration", "textTransform", "textIndent", "textShadow",
+  "letterSpacing", "wordSpacing", "whiteSpace", "wordBreak", "wordWrap", "textOverflow",
+  // Font
+  "fontSize", "fontFamily", "fontWeight", "fontStyle", "fontVariant", "lineHeight",
+  // Color / Background
+  "backgroundColor", "background", "backgroundImage", "backgroundSize",
+  "backgroundPosition", "backgroundRepeat",
+  // Border
+  "border", "borderRadius", "borderWidth", "borderStyle", "borderColor",
+  "borderTop", "borderBottom", "borderLeft", "borderRight",
+  // Spacing (padding only — margin is blocked by filterStyle)
+  "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
+  // Other visual
+  "boxShadow", "cursor", "visibility", "verticalAlign", "listStyle", "outline",
+]);
+
+/**
+ * Known layout props that are consumed by SlideKit and should NOT be flagged
+ * as misplaced CSS properties, even if they happen to share a name with a CSS
+ * property (e.g. `color` on connectors, `overflow` on elements).
+ */
+const KNOWN_LAYOUT_PROPS: ReadonlySet<string> = new Set([
+  // Position / size
+  "x", "y", "w", "h", "maxW", "maxH",
+  // Layout
+  "anchor", "layer", "valign", "overflow",
+  // Visual (SlideKit-owned)
+  "style", "opacity", "rotate", "className", "shadow", "z",
+  // Stack / group
+  "gap", "align", "bounds", "scale", "clip",
+  // Internal
+  "_layoutFlags", "id",
+  // Connector-specific
+  "dash", "type", "arrow", "color", "thickness", "label", "labelStyle",
+  "fromAnchor", "toAnchor", "fromId", "toId", "connectorType",
+  // Content-bearing
+  "text", "src", "alt",
+]);
+
+/**
+ * Scan top-level element props for CSS property names that likely belong
+ * inside `style: { ... }`.  Returns the detected CSS props (for auto-promotion)
+ * and warning objects.
+ */
+export function detectMisplacedCssProps(
+  props: Record<string, unknown>,
+): { cssProps: Record<string, unknown>; warnings: Array<Record<string, unknown>> } {
+  const cssProps: Record<string, unknown> = {};
+  const warnings: Array<Record<string, unknown>> = [];
+  const elementId = (props.id as string) || "(anonymous)";
+
+  for (const key of Object.keys(props)) {
+    if (KNOWN_LAYOUT_PROPS.has(key)) continue;
+    if (!CSS_LIKE_PROPS.has(key)) continue;
+
+    cssProps[key] = props[key];
+    warnings.push({
+      type: "misplaced_css_prop",
+      elementId,
+      property: key,
+      value: props[key],
+      message: `CSS property "${key}" should be inside style: { ${key}: ${JSON.stringify(props[key])} }. It was auto-promoted but please move it to style for clarity.`,
+      suggestion: `Move "${key}" into the style object: style: { ${key}: ... }`,
+    });
+  }
+
+  return { cssProps, warnings };
+}
+
 /**
  * Blocked CSS property names (in camelCase) for container div styles.
  *
@@ -215,6 +294,7 @@ export function _baselineCSS(prefix: string): string {
 /* --- Container boundary: establish a clean context --- */
 ${P} {
   text-align: left;
+  font-size: initial;
   font-style: normal;
   font-weight: 400;
   font-stretch: normal;
