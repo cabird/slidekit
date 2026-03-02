@@ -5,8 +5,8 @@ screenshots/
 scene-model-data.json
 package.json
 package-lock.json
-slidekit/dist/
 *.bundle.js
 *.bundle.js.map
 *_bundle.js
 *_bundle.js.map
+!slidekit/dist/slidekit.bundle.js
