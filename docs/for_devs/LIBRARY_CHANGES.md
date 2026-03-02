@@ -1,6 +1,6 @@
 # SlideKit Library: Required Changes
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `42ae636` (2026-03-02)
 
 Catalog of bugs found, fixes already applied, and remaining work needed. Based on building two presentations (16-slide "about" deck, 17-slide academic deck) and an 18-slide stress test.
 

@@ -9,13 +9,13 @@ import {
   alignTop, distributeH, matchWidth, matchHeight, fitToRect,
   cardGrid, figure, grid, snap, repeat,
   getSpacing, resolveShadow,
-} from '../slidekit/dist/slidekit.bundle.js';
+} from '../../slidekit/dist/slidekit.bundle.js';
 
 import type {
   SlideDefinition,
   SlideElement,
   Rect,
-} from '../slidekit/src/types.js';
+} from '../../slidekit/src/types.js';
 
 // -- Design Tokens ------------------------------------------------------------
 

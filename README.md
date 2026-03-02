@@ -1,6 +1,6 @@
 # SlideKit
 
-> **Current as of:** `068e7d3` (2026-03-02)
+> **Current as of:** `42ae636` (2026-03-02)
 
 A coordinate-based slide layout library built on [Reveal.js](https://revealjs.com), designed for AI agents and humans. You place every element at explicit pixel coordinates on a fixed 1920×1080 canvas — no CSS flexbox, no reflow, no surprises. SlideKit handles text measurement, collision detection, layout validation, and structured linting so you can build polished presentations programmatically.
 
@@ -164,4 +164,4 @@ The source lives in `slidekit/src/` — 19 TypeScript modules plus a 6-module la
 
 ## License
 
-See repository root for license information.
+MIT — see [LICENSE](LICENSE) for details.

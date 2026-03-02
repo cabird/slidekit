@@ -1,6 +1,6 @@
 # SlideKit API v2 — Design Document
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `42ae636` (2026-03-02)
 
 > Based on analysis of 13 visual issues found across a 17-slide replication deck,
 > with input from GPT-5.2 and Gemini 3 Pro.

@@ -2,7 +2,7 @@ import importPlugin from "eslint-plugin-import";
 
 export default [
   {
-    files: ["slidekit/src/**/*.js"],
+    files: ["slidekit/src/**/*.ts"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -18,7 +18,7 @@ export default [
     settings: {
       "import/resolver": {
         node: {
-          extensions: [".js"],
+          extensions: [".ts", ".js"],
         },
       },
     },

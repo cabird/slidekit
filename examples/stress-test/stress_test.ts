@@ -8,13 +8,13 @@ import {
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
   cardGrid, figure,
-} from '../slidekit/dist/slidekit.bundle.js';
+} from '../../slidekit/dist/slidekit.bundle.js';
 
 import type {
   SlideDefinition,
   SlideElement,
   Rect,
-} from '../slidekit/src/types.js';
+} from '../../slidekit/src/types.js';
 
 // -- Design Tokens ------------------------------------------------------------
 

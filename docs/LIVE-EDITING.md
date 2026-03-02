@@ -1,6 +1,6 @@
 # SlideKit Live Editing via AI + MCP
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `42ae636` (2026-03-02)
 
 ## The Discovery
 
