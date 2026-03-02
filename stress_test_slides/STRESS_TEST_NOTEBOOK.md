@@ -82,3 +82,35 @@ Slides 1–18 were reviewed both visually (screenshot) and programmatically (DOM
 - **Router backward case classification**: Simple candidates (direct/L-bend/Z-bend) degenerate for backward routes, producing flat lines that win on Manhattan distance.
 - **U-route channel offset needs proportional sizing**: A fixed clearance value is too small for visually correct U-routes.
 - **Obstacle bounds not yet wired into routing calls** (future work).
+
+## Visual Review Round 2 — Sub-Agent Verification
+
+All 18 slides reviewed visually via Playwright screenshots by sub-agents.
+
+### Fixes Applied
+- **Slide 3**: `alignTopWith()` was incorrectly used as x-position (returns y-value). Changed to `alignLeftWith()`. All boxes A-J now on screen.
+- **Slide 4**: Spread 9 anchor boxes across a 3×3 grid instead of all at center point (960,540). Each box clearly demonstrates its anchor semantics.
+- **Slide 13**: Wrapped SVG data URIs in `encodeURIComponent()`. Figures now show placeholder images instead of raw HTML.
+- **Slide 18**: Spread elements B and C further apart to prevent overlap from conflicting transforms.
+
+### Final Results
+| Slide | Status | Notes |
+|-------|--------|-------|
+| 1-2 | ✅ PASS | |
+| 3 | ✅ PASS | Fixed: alignTopWith→alignLeftWith |
+| 4 | ✅ PASS | Fixed: spread to 3×3 grid |
+| 5-9 | ✅ PASS | |
+| 10 | ✅ PASS | Right-edge clipping is intentional (stress test) |
+| 11-12 | ✅ PASS | |
+| 13 | ✅ PASS | Fixed: encodeURIComponent for SVG URIs |
+| 14-17 | ✅ PASS | |
+| 18 | ✅ PASS | Fixed: increased spacing between B and C |
+
+### Linter Rule Candidates
+- Warn when `alignTopWith`/`alignBottomWith` result is used as x-coordinate (cross-axis misuse)
+- Warn when multiple overlapping elements share the same position without explicit z-index
+- Warn when data URIs contain unencoded special characters
+
+### Anti-Patterns
+- Using `alignTopWith()` (y-axis helper) as an x-coordinate — always match axis
+- Placing many anchor-demo boxes at the exact same point — spread them for readability

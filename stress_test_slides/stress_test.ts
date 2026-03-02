@@ -4,7 +4,7 @@
 import {
   init, render, safeRect,
   el, below, above, rightOf, leftOf,
-  centerHWith, centerVWith, alignTopWith, placeBetween,
+  centerHWith, centerVWith, alignTopWith, alignLeftWith, placeBetween,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
   cardGrid, figure,
@@ -55,7 +55,7 @@ function label(text: string, id: string, extra: Record<string, unknown> = {}): S
   );
 }
 
-const PLACEHOLDER_SVG = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="%23334" width="400" height="300"/><text x="200" y="150" text-anchor="middle" fill="white" font-size="20">Image</text></svg>`;
+const PLACEHOLDER_SVG = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#334" width="400" height="300"/><text x="200" y="150" text-anchor="middle" fill="white" font-size="20">Image</text></svg>')}`;
 
 // -- Main Entry ---------------------------------------------------------------
 
@@ -134,13 +134,13 @@ export async function run() {
       background: C.bg,
       elements: [
         title('Relative Positioning Chain', 's3-title', { x: safe.x, y: safe.y }),
-        box('s3-a', 'A', 200, 250, 120, 60),
+        box('s3-a', 'A', 500, 250, 120, 60),
         box('s3-b', 'B', rightOf('s3-a', { gap: 20 }), alignTopWith('s3-a'), 120, 60),
         box('s3-c', 'C', rightOf('s3-b', { gap: 20 }), alignTopWith('s3-b'), 120, 60),
-        box('s3-d', 'D', alignTopWith('s3-c') as unknown as number, below('s3-c', { gap: 20 }), 120, 60),
+        box('s3-d', 'D', alignLeftWith('s3-c'), below('s3-c', { gap: 20 }), 120, 60),
         box('s3-e', 'E', leftOf('s3-d', { gap: 20 }), alignTopWith('s3-d'), 120, 60),
         box('s3-f', 'F', leftOf('s3-e', { gap: 20 }), alignTopWith('s3-e'), 120, 60),
-        box('s3-g', 'G', alignTopWith('s3-f') as unknown as number, below('s3-f', { gap: 20 }), 120, 60),
+        box('s3-g', 'G', alignLeftWith('s3-f'), below('s3-f', { gap: 20 }), 120, 60),
         box('s3-h', 'H', rightOf('s3-g', { gap: 20 }), alignTopWith('s3-g'), 120, 60),
         box('s3-i', 'I', rightOf('s3-h', { gap: 20 }), alignTopWith('s3-h'), 120, 60),
         box('s3-j', 'J', rightOf('s3-i', { gap: 20 }), alignTopWith('s3-i'), 120, 60),
@@ -155,27 +155,32 @@ export async function run() {
       background: C.bg,
       elements: [
         title('All 9 Anchor Points', 's4-title', { x: safe.x, y: safe.y }),
-        // Cross-hairs at center
-        el(`<div style="width:100%;height:1px;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-crossH', x: 460, y: 540, w: 1000, h: 1 }),
-        el(`<div style="width:1px;height:100%;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-crossV', x: 960, y: 200, w: 1, h: 680 }),
-        // 9 boxes at (960, 540) with different anchors
-        box('s4-tl', 'tl', 960, 540, 100, 50, 'rgba(0,212,255,0.25)'),
+        // 3×3 grid lines marking anchor reference points
+        el(`<div style="width:100%;height:1px;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridH1', x: 400, y: 310, w: 1120, h: 1 }),
+        el(`<div style="width:100%;height:1px;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridH2', x: 400, y: 540, w: 1120, h: 1 }),
+        el(`<div style="width:100%;height:1px;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridH3', x: 400, y: 770, w: 1120, h: 1 }),
+        el(`<div style="width:1px;height:100%;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridV1', x: 560, y: 230, w: 1, h: 620 }),
+        el(`<div style="width:1px;height:100%;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridV2', x: 960, y: 230, w: 1, h: 620 }),
+        el(`<div style="width:1px;height:100%;background:rgba(255,255,255,0.15);"></div>`, { id: 's4-gridV3', x: 1360, y: 230, w: 1, h: 620 }),
+        // 9 boxes — each anchor's namesake point is placed at a grid intersection
+        el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(0,212,255,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">tl</div>`,
+          { id: 's4-tl', x: 560, y: 310, w: 140, h: 70, anchor: 'tl' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(124,92,191,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">tc</div>`,
-          { id: 's4-tc', x: 960, y: 540, w: 100, h: 50, anchor: 'tc' }),
+          { id: 's4-tc', x: 960, y: 310, w: 140, h: 70, anchor: 'tc' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(255,107,157,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">tr</div>`,
-          { id: 's4-tr', x: 960, y: 540, w: 100, h: 50, anchor: 'tr' }),
+          { id: 's4-tr', x: 1360, y: 310, w: 140, h: 70, anchor: 'tr' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(0,255,136,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">cl</div>`,
-          { id: 's4-cl', x: 960, y: 540, w: 100, h: 50, anchor: 'cl' }),
+          { id: 's4-cl', x: 560, y: 540, w: 140, h: 70, anchor: 'cl' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(255,165,0,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">cc</div>`,
-          { id: 's4-cc', x: 960, y: 540, w: 100, h: 50, anchor: 'cc' }),
+          { id: 's4-cc', x: 960, y: 540, w: 140, h: 70, anchor: 'cc' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(255,0,0,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">cr</div>`,
-          { id: 's4-cr', x: 960, y: 540, w: 100, h: 50, anchor: 'cr' }),
+          { id: 's4-cr', x: 1360, y: 540, w: 140, h: 70, anchor: 'cr' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(200,200,0,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">bl</div>`,
-          { id: 's4-bl', x: 960, y: 540, w: 100, h: 50, anchor: 'bl' }),
+          { id: 's4-bl', x: 560, y: 770, w: 140, h: 70, anchor: 'bl' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(0,100,200,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">bc</div>`,
-          { id: 's4-bc', x: 960, y: 540, w: 100, h: 50, anchor: 'bc' }),
+          { id: 's4-bc', x: 960, y: 770, w: 140, h: 70, anchor: 'bc' }),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(180,0,180,0.25);border:1px solid ${C.glassBr};border-radius:8px;font-family:${FONT};font-size:16px;color:${C.text};">br</div>`,
-          { id: 's4-br', x: 960, y: 540, w: 100, h: 50, anchor: 'br' }),
+          { id: 's4-br', x: 1360, y: 770, w: 140, h: 70, anchor: 'br' }),
       ],
     },
 
@@ -582,8 +587,8 @@ export async function run() {
         title('Multiple Transforms on Same Elements', 's18-title', { x: safe.x, y: safe.y }),
         label('Elements share across 3 transform groups', 's18-lbl', { x: 150, y: 190, w: 600, h: 30 }),
         box('s18-a', 'A (all 3)', 200, 300, 140, 60, 'rgba(0,212,255,0.2)'),
-        box('s18-b', 'B (align+dist)', 400, 350, 180, 90, 'rgba(124,92,191,0.2)'),
-        box('s18-c', 'C (align+match)', 650, 280, 120, 50, 'rgba(255,107,157,0.2)'),
+        box('s18-b', 'B (align+dist)', 500, 350, 180, 90, 'rgba(124,92,191,0.2)'),
+        box('s18-c', 'C (align+match)', 850, 280, 120, 50, 'rgba(255,107,157,0.2)'),
         box('s18-d', 'D (dist+match)', 900, 320, 160, 70, 'rgba(0,255,136,0.2)'),
         box('s18-e', 'E (dist only)', 1100, 340, 150, 80, 'rgba(255,165,0,0.2)'),
         // Second row — separate transform set
