@@ -2353,7 +2353,8 @@ function routeConnector(options) {
     to,
     obstacles = [],
     stubLength = DEFAULT_STUB_LENGTH,
-    clearance = DEFAULT_CLEARANCE
+    clearance = DEFAULT_CLEARANCE,
+    orthogonal = false
   } = options;
   const fromPt = { x: from.x, y: from.y };
   const toPt = { x: to.x, y: to.y };
@@ -2365,7 +2366,7 @@ function routeConnector(options) {
   const toSegments = buildStubSegments(toPt, toStub, to.dx, to.dy);
   const p1 = fromSegments[fromSegments.length - 1];
   const q1 = toSegments[toSegments.length - 1];
-  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance);
+  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance, orthogonal);
   const toSegmentsReversed = [...toSegments].reverse();
   const waypoints = deduplicatePoints([
     fromPt,
@@ -2427,14 +2428,16 @@ function polylineIntersectsObstacles(points, obstacles, clearance) {
   }
   return false;
 }
-function findBestRoute(p1, d1, q1, d2, obstacles, clearance) {
+function findBestRoute(p1, d1, q1, d2, obstacles, clearance, orthogonal = false) {
   const candidates = [];
   const caseType = classifyCase(p1, d1, q1, d2);
   if (caseType === "backward" || caseType === "same-direction") {
     const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
     candidates.push(...uCandidates);
   } else {
-    candidates.push([]);
+    if (!orthogonal) {
+      candidates.push([]);
+    }
     candidates.push([{ x: q1.x, y: p1.y }]);
     candidates.push([{ x: p1.x, y: q1.y }]);
     const midX = (p1.x + q1.x) / 2;
@@ -2640,11 +2643,11 @@ function buildConnectorSVG(from, to, connProps) {
   let maxX = Math.max(from.x, to.x) + padding;
   let maxY = Math.max(from.y, to.y) + padding;
   let elbowWaypoints = null;
-  if (connType === "elbow") {
+  if (connType === "elbow" || connType === "orthogonal") {
     if (connProps._cachedWaypoints) {
       elbowWaypoints = connProps._cachedWaypoints;
     } else {
-      const route = routeConnector({ from, to });
+      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal" });
       elbowWaypoints = route.waypoints;
     }
     for (const wp of elbowWaypoints) {
@@ -2716,7 +2719,7 @@ function buildConnectorSVG(from, to, connProps) {
       const cx2 = lx2 + to.dx * cpOffset;
       const cy2 = ly2 + to.dy * cpOffset;
       d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
-    } else if (connType === "elbow") {
+    } else if (connType === "elbow" || connType === "orthogonal") {
       const waypoints = elbowWaypoints;
       const localWaypoints = waypoints.map((p) => ({
         x: p.x - minX,
@@ -2761,15 +2764,46 @@ function buildConnectorSVG(from, to, connProps) {
     const labelOffsetX = connProps.labelOffset?.x ?? 0;
     const labelOffsetY = connProps.labelOffset?.y ?? -8;
     let midLX, midLY;
-    if (connType === "elbow" && elbowWaypoints && elbowWaypoints.length >= 2) {
+    let segAngle = 0;
+    if ((connType === "elbow" || connType === "orthogonal") && elbowWaypoints && elbowWaypoints.length >= 2) {
       const localWaypoints = elbowWaypoints.map((p) => ({ x: p.x - minX, y: p.y - minY }));
       const pt = pointAlongPolyline(localWaypoints, labelPosition);
       midLX = pt.x;
       midLY = pt.y;
+      const segInfo = segmentAtFraction(localWaypoints, labelPosition);
+      if (segInfo) {
+        const dx = segInfo.p2.x - segInfo.p1.x;
+        const dy = segInfo.p2.y - segInfo.p1.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) > 0.5) {
+          segAngle = -90;
+        }
+      }
     } else {
       midLX = lx1 + (lx2 - lx1) * labelPosition;
       midLY = ly1 + (ly2 - ly1) * labelPosition;
+      if (Math.abs(lx2 - lx1) < Math.abs(ly2 - ly1) * 0.3) {
+        segAngle = -90;
+      }
     }
+    const approxCharWidth = (typeof labelSize === "number" ? labelSize : 14) * 0.6;
+    const textWidth = connProps.label.length * approxCharWidth + 8;
+    const textHeight = (typeof labelSize === "number" ? labelSize : 14) + 6;
+    const bgRect = document.createElementNS(ns, "rect");
+    const bgX = midLX + labelOffsetX - textWidth / 2;
+    const bgY = midLY + labelOffsetY - textHeight + 2;
+    bgRect.setAttribute("x", String(bgX));
+    bgRect.setAttribute("y", String(bgY));
+    bgRect.setAttribute("width", String(textWidth));
+    bgRect.setAttribute("height", String(textHeight));
+    bgRect.setAttribute("fill", connProps._bgColor || "#0a0a1a");
+    bgRect.setAttribute("rx", "3");
+    if (segAngle !== 0) {
+      bgRect.setAttribute(
+        "transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`
+      );
+    }
+    svg.appendChild(bgRect);
     const textNode = document.createElementNS(ns, "text");
     textNode.setAttribute("x", String(midLX + labelOffsetX));
     textNode.setAttribute("y", String(midLY + labelOffsetY));
@@ -2778,6 +2812,12 @@ function buildConnectorSVG(from, to, connProps) {
     textNode.setAttribute("font-size", String(labelSize));
     textNode.setAttribute("font-weight", String(labelWeight));
     textNode.setAttribute("fill", labelColor);
+    if (segAngle !== 0) {
+      textNode.setAttribute(
+        "transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`
+      );
+    }
     textNode.textContent = connProps.label;
     svg.appendChild(textNode);
   }
@@ -2817,6 +2857,27 @@ function pointAlongPolyline(points, t) {
   }
   return points[points.length - 1];
 }
+function segmentAtFraction(points, t) {
+  if (points.length < 2) return null;
+  const segLengths = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    segLengths.push(Math.sqrt(dx * dx + dy * dy));
+    totalLength += segLengths[i];
+  }
+  if (totalLength === 0) return null;
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      return { p1: points[i], p2: points[i + 1] };
+    }
+    accumulated += segLengths[i];
+  }
+  return { p1: points[points.length - 2], p2: points[points.length - 1] };
+}
 function buildRoundedElbowPath(points, radius) {
   if (points.length < 2) return "";
   if (points.length === 2) {
@@ -2829,8 +2890,7 @@ function buildRoundedElbowPath(points, radius) {
     const next = points[i + 1];
     const len1 = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
     const len2 = Math.sqrt((next.x - curr.x) ** 2 + (next.y - curr.y) ** 2);
-    const rEff = Math.min(radius, len1 / 2, len2 / 2);
-    if (rEff < 1) {
+    if (len1 < 0.5 || len2 < 0.5) {
       d += ` L ${curr.x} ${curr.y}`;
       continue;
     }
@@ -2838,14 +2898,31 @@ function buildRoundedElbowPath(points, radius) {
     const uy1 = (curr.y - prev.y) / len1;
     const ux2 = (next.x - curr.x) / len2;
     const uy2 = (next.y - curr.y) / len2;
-    const enterX = curr.x - ux1 * rEff;
-    const enterY = curr.y - uy1 * rEff;
-    const exitX = curr.x + ux2 * rEff;
-    const exitY = curr.y + uy2 * rEff;
     const cross = ux1 * uy2 - uy1 * ux2;
+    const dot = ux1 * ux2 + uy1 * uy2;
+    const absCross = Math.abs(cross);
+    if (absCross < 0.01) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+    const tanHalf = absCross / (1 - dot);
+    let trim = radius / tanHalf;
+    const maxTrim = Math.min(len1 / 2, len2 / 2);
+    if (trim > maxTrim) {
+      trim = maxTrim;
+    }
+    const arcRadius = trim * tanHalf;
+    if (trim < 1 || arcRadius < 1) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+    const enterX = curr.x - ux1 * trim;
+    const enterY = curr.y - uy1 * trim;
+    const exitX = curr.x + ux2 * trim;
+    const exitY = curr.y + uy2 * trim;
     const sweep = cross > 0 ? 1 : 0;
     d += ` L ${enterX} ${enterY}`;
-    d += ` A ${rEff} ${rEff} 0 0 ${sweep} ${exitX} ${exitY}`;
+    d += ` A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${exitX} ${exitY}`;
   }
   const last = points[points.length - 1];
   d += ` L ${last.x} ${last.y}`;
@@ -3097,8 +3174,15 @@ function connect(fromId, toId, props = {}) {
     dash: rest.dash || null,
     fromAnchor: rest.fromAnchor || "cr",
     toAnchor: rest.toAnchor || "cl",
+    fromPortOffset: rest.fromPortOffset,
+    toPortOffset: rest.toPortOffset,
+    fromPortOrder: rest.fromPortOrder,
+    toPortOrder: rest.toPortOrder,
     label: rest.label || null,
     labelStyle: rest.labelStyle || {},
+    labelPosition: rest.labelPosition,
+    labelOffset: rest.labelOffset,
+    cornerRadius: rest.cornerRadius,
     fromId,
     toId,
     // Common props
@@ -4472,15 +4556,28 @@ function finalize({
   }
   for (const info of connectorInfos) {
     const { id, el: el2, fromId, toId, fromAnchor, toAnchor, fromPt, toPt } = info;
+    const margin = 200;
+    const pathMinX = Math.min(fromPt.x, toPt.x) - margin;
+    const pathMaxX = Math.max(fromPt.x, toPt.x) + margin;
+    const pathMinY = Math.min(fromPt.y, toPt.y) - margin;
+    const pathMaxY = Math.max(fromPt.y, toPt.y) + margin;
     const obstacles = [];
     for (const obs of obstacleRects) {
       if (obs.id === fromId || obs.id === toId) continue;
-      obstacles.push(obs.rect);
+      const r = obs.rect;
+      if (r.x + r.w < pathMinX || r.x > pathMaxX) continue;
+      if (r.y + r.h < pathMinY || r.y > pathMaxY) continue;
+      obstacles.push(r);
     }
     const connType = el2.props.connectorType || "straight";
     let waypoints;
-    if (connType === "elbow") {
-      const route = routeConnector({ from: fromPt, to: toPt, obstacles });
+    if (connType === "elbow" || connType === "orthogonal") {
+      const route = routeConnector({
+        from: fromPt,
+        to: toPt,
+        obstacles,
+        orthogonal: connType === "orthogonal"
+      });
       waypoints = route.waypoints;
     }
     let connMinX = Math.min(fromPt.x, toPt.x);

@@ -50,7 +50,7 @@ export type ProvenanceSource =
   | "authored" | "measured" | "stack" | "constraint" | "transform" | "default";
 
 /** Connector line types. */
-export type ConnectorType = "straight" | "curved" | "elbow";
+export type ConnectorType = "straight" | "curved" | "elbow" | "orthogonal";
 
 /** Arrow placement. */
 export type ArrowType = "none" | "end" | "start" | "both";

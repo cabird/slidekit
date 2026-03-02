@@ -23,6 +23,8 @@ export interface RouteOptions {
   obstacles?: Rect[];
   stubLength?: number;
   clearance?: number;
+  /** When true, only produce axis-aligned (horizontal/vertical) segments. */
+  orthogonal?: boolean;
 }
 
 export interface RouteResult {
@@ -47,6 +49,7 @@ export function routeConnector(options: RouteOptions): RouteResult {
     obstacles = [],
     stubLength = DEFAULT_STUB_LENGTH,
     clearance = DEFAULT_CLEARANCE,
+    orthogonal = false,
   } = options;
 
   const fromPt: Point = { x: from.x, y: from.y };
@@ -66,7 +69,7 @@ export function routeConnector(options: RouteOptions): RouteResult {
   const p1 = fromSegments[fromSegments.length - 1];
   const q1 = toSegments[toSegments.length - 1];
 
-  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance);
+  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance, orthogonal);
 
   // Assemble full path: from → stub segments → middle → reverse(to stub segments) → to
   const toSegmentsReversed = [...toSegments].reverse();
@@ -193,6 +196,7 @@ function findBestRoute(
   d2: { dx: number; dy: number },
   obstacles: Rect[],
   clearance: number,
+  orthogonal: boolean = false,
 ): Point[] {
   const candidates: Point[][] = [];
 
@@ -205,8 +209,10 @@ function findBestRoute(
     const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
     candidates.push(...uCandidates);
   } else {
-    // Direct segment
-    candidates.push([]);
+    // Direct segment — skip for orthogonal mode (would create diagonal)
+    if (!orthogonal) {
+      candidates.push([]);
+    }
 
     // L-bend variants
     candidates.push([{ x: q1.x, y: p1.y }]);

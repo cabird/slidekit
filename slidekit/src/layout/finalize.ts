@@ -400,17 +400,33 @@ export function finalize({
     const { id, el, fromId, toId, fromAnchor, toAnchor, fromPt, toPt } = info;
 
     // Build obstacle list excluding the connector's own from/to elements
+    // Only include obstacles that are within a reasonable bounding region
+    // of the connector's path (expanded by a margin). Far-away elements
+    // on the slide shouldn't affect routing.
+    const margin = 200;
+    const pathMinX = Math.min(fromPt.x, toPt.x) - margin;
+    const pathMaxX = Math.max(fromPt.x, toPt.x) + margin;
+    const pathMinY = Math.min(fromPt.y, toPt.y) - margin;
+    const pathMaxY = Math.max(fromPt.y, toPt.y) + margin;
+
     const obstacles: Rect[] = [];
     for (const obs of obstacleRects) {
       if (obs.id === fromId || obs.id === toId) continue;
-      obstacles.push(obs.rect);
+      // Skip obstacles completely outside the connector's region
+      const r = obs.rect;
+      if (r.x + r.w < pathMinX || r.x > pathMaxX) continue;
+      if (r.y + r.h < pathMinY || r.y > pathMaxY) continue;
+      obstacles.push(r);
     }
 
-    // Route with obstacles for elbow connectors
+    // Route with obstacles for elbow and orthogonal connectors
     const connType = el.props.connectorType || 'straight';
     let waypoints: Point[] | undefined;
-    if (connType === 'elbow') {
-      const route = routeConnector({ from: fromPt, to: toPt, obstacles });
+    if (connType === 'elbow' || connType === 'orthogonal') {
+      const route = routeConnector({
+        from: fromPt, to: toPt, obstacles,
+        orthogonal: connType === 'orthogonal',
+      });
       waypoints = route.waypoints;
     }
 

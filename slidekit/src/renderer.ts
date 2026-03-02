@@ -108,11 +108,11 @@ function buildConnectorSVG(
 
   // Use cached waypoints from layout if available, otherwise compute
   let elbowWaypoints: {x: number, y: number}[] | null = null;
-  if (connType === "elbow") {
+  if (connType === "elbow" || connType === "orthogonal") {
     if (connProps._cachedWaypoints) {
       elbowWaypoints = connProps._cachedWaypoints;
     } else {
-      const route = routeConnector({ from, to });
+      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal" });
       elbowWaypoints = route.waypoints;
     }
     for (const wp of elbowWaypoints!) {
@@ -199,7 +199,7 @@ function buildConnectorSVG(
       const cx2 = lx2 + to.dx * cpOffset;
       const cy2 = ly2 + to.dy * cpOffset;
       d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
-    } else if (connType === "elbow") {
+    } else if (connType === "elbow" || connType === "orthogonal") {
       // Use orthogonal routing with direction-aware waypoints
       const waypoints = elbowWaypoints!;
       // Convert waypoints to SVG-local coordinates
@@ -256,15 +256,49 @@ function buildConnectorSVG(
 
     // Compute label position along the actual path
     let midLX: number, midLY: number;
-    if (connType === "elbow" && elbowWaypoints && elbowWaypoints.length >= 2) {
+    let segAngle = 0; // rotation angle for the label
+    if ((connType === "elbow" || connType === "orthogonal") && elbowWaypoints && elbowWaypoints.length >= 2) {
       const localWaypoints = elbowWaypoints.map(p => ({ x: p.x - minX, y: p.y - minY }));
       const pt = pointAlongPolyline(localWaypoints, labelPosition);
       midLX = pt.x;
       midLY = pt.y;
+      // Find which segment the label falls on and compute angle
+      const segInfo = segmentAtFraction(localWaypoints, labelPosition);
+      if (segInfo) {
+        const dx = segInfo.p2.x - segInfo.p1.x;
+        const dy = segInfo.p2.y - segInfo.p1.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) > 0.5) {
+          segAngle = -90; // vertical segment: rotate label
+        }
+      }
     } else {
       midLX = lx1 + (lx2 - lx1) * labelPosition;
       midLY = ly1 + (ly2 - ly1) * labelPosition;
+      // For straight/curved, check if mostly vertical
+      if (Math.abs(lx2 - lx1) < Math.abs(ly2 - ly1) * 0.3) {
+        segAngle = -90;
+      }
     }
+
+    // Add a background rect behind the label so the line doesn't cross it
+    // First measure approximate text width
+    const approxCharWidth = (typeof labelSize === 'number' ? labelSize : 14) * 0.6;
+    const textWidth = connProps.label.length * approxCharWidth + 8;
+    const textHeight = (typeof labelSize === 'number' ? labelSize : 14) + 6;
+    const bgRect = document.createElementNS(ns, "rect");
+    const bgX = midLX + labelOffsetX - textWidth / 2;
+    const bgY = midLY + labelOffsetY - textHeight + 2;
+    bgRect.setAttribute("x", String(bgX));
+    bgRect.setAttribute("y", String(bgY));
+    bgRect.setAttribute("width", String(textWidth));
+    bgRect.setAttribute("height", String(textHeight));
+    bgRect.setAttribute("fill", connProps._bgColor || "#0a0a1a");
+    bgRect.setAttribute("rx", "3");
+    if (segAngle !== 0) {
+      bgRect.setAttribute("transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`);
+    }
+    svg.appendChild(bgRect);
 
     const textNode = document.createElementNS(ns, "text");
     textNode.setAttribute("x", String(midLX + labelOffsetX));
@@ -274,6 +308,10 @@ function buildConnectorSVG(
     textNode.setAttribute("font-size", String(labelSize));
     textNode.setAttribute("font-weight", String(labelWeight));
     textNode.setAttribute("fill", labelColor);
+    if (segAngle !== 0) {
+      textNode.setAttribute("transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`);
+    }
     textNode.textContent = connProps.label;
     svg.appendChild(textNode);
   }
@@ -327,9 +365,38 @@ function pointAlongPolyline(points: {x: number, y: number}[], t: number): {x: nu
 }
 
 /**
+ * Return the segment endpoints at a given fraction along a polyline.
+ */
+function segmentAtFraction(
+  points: {x: number, y: number}[],
+  t: number
+): { p1: {x: number, y: number}, p2: {x: number, y: number} } | null {
+  if (points.length < 2) return null;
+  const segLengths: number[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    segLengths.push(Math.sqrt(dx * dx + dy * dy));
+    totalLength += segLengths[i];
+  }
+  if (totalLength === 0) return null;
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      return { p1: points[i], p2: points[i + 1] };
+    }
+    accumulated += segLengths[i];
+  }
+  return { p1: points[points.length - 2], p2: points[points.length - 1] };
+}
+
+/**
  * Build an SVG path string for an elbow polyline with rounded corners.
- * Each interior vertex gets a circular arc with the given radius,
- * clamped to half the adjacent segment lengths.
+ * Each interior vertex gets a circular arc tangent to both adjacent segments.
+ * The arc radius is computed from the actual angle between segments so that
+ * the fillet is correct for any turn angle, not just 90°.
  */
 function buildRoundedElbowPath(points: {x: number, y: number}[], radius: number): string {
   if (points.length < 2) return '';
@@ -348,11 +415,7 @@ function buildRoundedElbowPath(points: {x: number, y: number}[], radius: number)
     const len1 = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
     const len2 = Math.sqrt((next.x - curr.x) ** 2 + (next.y - curr.y) ** 2);
 
-    // Clamp radius to half the shortest adjacent segment
-    const rEff = Math.min(radius, len1 / 2, len2 / 2);
-
-    if (rEff < 1) {
-      // Too small for an arc, just use a line
+    if (len1 < 0.5 || len2 < 0.5) {
       d += ` L ${curr.x} ${curr.y}`;
       continue;
     }
@@ -363,19 +426,51 @@ function buildRoundedElbowPath(points: {x: number, y: number}[], radius: number)
     const ux2 = (next.x - curr.x) / len2;
     const uy2 = (next.y - curr.y) / len2;
 
-    // Trim points: where the arc starts and ends
-    const enterX = curr.x - ux1 * rEff;
-    const enterY = curr.y - uy1 * rEff;
-    const exitX = curr.x + ux2 * rEff;
-    const exitY = curr.y + uy2 * rEff;
-
-    // Determine sweep direction (clockwise vs counter-clockwise)
-    // Cross product of incoming and outgoing vectors
+    // Cross product and dot product of direction vectors
     const cross = ux1 * uy2 - uy1 * ux2;
+    const dot = ux1 * ux2 + uy1 * uy2;
+    const absCross = Math.abs(cross);
+
+    // Skip arc for near-collinear segments (straight through or hairpin)
+    if (absCross < 0.01) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    // Compute the tangent of half the opening angle between -u1 and u2.
+    // Opening angle β = acos(-dot), so cos(β) = -dot, sin(β) = |cross|.
+    // tan(β/2) = sin(β) / (1 + cos(β)) = |cross| / (1 - dot)
+    const tanHalf = absCross / (1 - dot);
+
+    // For the desired fillet radius R, the trim distance along each
+    // segment is: trim = R / tan(β/2)
+    let trim = radius / tanHalf;
+
+    // Clamp trim to half the shortest adjacent segment
+    const maxTrim = Math.min(len1 / 2, len2 / 2);
+    if (trim > maxTrim) {
+      trim = maxTrim;
+    }
+
+    // Compute the actual SVG arc radius from the (possibly clamped) trim
+    const arcRadius = trim * tanHalf;
+
+    if (trim < 1 || arcRadius < 1) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    // Trim points: where the arc starts and ends (tangent to both segments)
+    const enterX = curr.x - ux1 * trim;
+    const enterY = curr.y - uy1 * trim;
+    const exitX = curr.x + ux2 * trim;
+    const exitY = curr.y + uy2 * trim;
+
+    // Sweep direction from cross product sign
     const sweep = cross > 0 ? 1 : 0;
 
     d += ` L ${enterX} ${enterY}`;
-    d += ` A ${rEff} ${rEff} 0 0 ${sweep} ${exitX} ${exitY}`;
+    d += ` A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${exitX} ${exitY}`;
   }
 
   // Final segment to last point
