@@ -1,4 +1,4 @@
-// slidekit/src_ts/state.ts
+// slidekit/src/state.ts
 var state = {
   idCounter: 0,
   config: null,
@@ -11,7 +11,7 @@ var state = {
   transformIdCounter: 0
 };
 
-// slidekit/src_ts/id.ts
+// slidekit/src/id.ts
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -20,7 +20,7 @@ function nextId() {
   return `sk-${state.idCounter}`;
 }
 
-// slidekit/src_ts/spacing.ts
+// slidekit/src/spacing.ts
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -43,7 +43,7 @@ function getSpacing(token) {
   return resolveSpacing(token);
 }
 
-// slidekit/src_ts/elements.ts
+// slidekit/src/elements.ts
 var COMMON_DEFAULTS = {
   x: 0,
   y: 0,
@@ -131,7 +131,7 @@ function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer
   });
 }
 
-// slidekit/src_ts/anchor.ts
+// slidekit/src/anchor.ts
 var VALID_ANCHORS = /* @__PURE__ */ new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
 function resolveAnchor(x, y, w, h, anchor) {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
@@ -164,7 +164,7 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// slidekit/src_ts/style.ts
+// slidekit/src/style.ts
 function toCamelCase(name) {
   if (name.startsWith("--")) return name;
   if (!name.includes("-")) return name;
@@ -623,7 +623,7 @@ function getShadowPresets() {
   return { ...SHADOWS };
 }
 
-// slidekit/src_ts/config.ts
+// slidekit/src/config.ts
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -774,7 +774,7 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// slidekit/src_ts/dom-helpers.ts
+// slidekit/src/dom-helpers.ts
 function applyStyleToDOM(domEl, styleObj) {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
@@ -785,7 +785,7 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
-// slidekit/src_ts/measure.ts
+// slidekit/src/measure.ts
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -853,7 +853,7 @@ async function measure(html, props = {}) {
   return result;
 }
 
-// slidekit/src_ts/relative.ts
+// slidekit/src/relative.ts
 function below(refId, opts = {}) {
   return { _rel: "below", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
 }
@@ -894,7 +894,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
-// slidekit/src_ts/assertions.ts
+// slidekit/src/assertions.ts
 function mustGet(map, key, msg) {
   const value = map.get(key);
   if (value === void 0) {
@@ -903,7 +903,7 @@ function mustGet(map, key, msg) {
   return value;
 }
 
-// slidekit/src_ts/transforms.ts
+// slidekit/src/transforms.ts
 function nextTransformId() {
   state.transformIdCounter += 1;
   return `transform-${state.transformIdCounter}`;
@@ -1160,7 +1160,7 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
-// slidekit/src_ts/lint.ts
+// slidekit/src/lint.ts
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -2344,7 +2344,7 @@ function lintDeck(skData, sections = null) {
   return findings;
 }
 
-// slidekit/src_ts/connectorRouting.ts
+// slidekit/src/connectorRouting.ts
 var DEFAULT_STUB_LENGTH = 30;
 var DEFAULT_CLEARANCE = 15;
 function routeConnector(options) {
@@ -2594,7 +2594,7 @@ function deduplicatePoints(points) {
   return result;
 }
 
-// slidekit/src_ts/renderer.ts
+// slidekit/src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -3010,7 +3010,7 @@ async function render(slides, options = {}) {
   return { sections, layouts };
 }
 
-// slidekit/src_ts/compounds.ts
+// slidekit/src/compounds.ts
 function connect(fromId, toId, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
@@ -3192,7 +3192,7 @@ function figure(opts = {}) {
   return result;
 }
 
-// slidekit/src_ts/utilities.ts
+// slidekit/src/utilities.ts
 function deepClone(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -3340,7 +3340,7 @@ function rotatedAABB(w, h, degrees) {
   };
 }
 
-// slidekit/src_ts/layout/helpers.ts
+// slidekit/src/layout/helpers.ts
 function isRelMarker(value) {
   return value !== null && typeof value === "object" && typeof value._rel === "string";
 }
@@ -3472,7 +3472,7 @@ function computeAABBIntersection(a, b) {
   return null;
 }
 
-// slidekit/src_ts/layout/overflow.ts
+// slidekit/src/layout/overflow.ts
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -3515,12 +3515,12 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
   }
 }
 
-// slidekit/src_ts/types.ts
+// slidekit/src/types.ts
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
 
-// slidekit/src_ts/layout/intrinsics.ts
+// slidekit/src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
   if (type === "el" && (props.h === void 0 || props.h === null)) {
@@ -3766,7 +3766,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 
-// slidekit/src_ts/layout/positions.ts
+// slidekit/src/layout/positions.ts
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -4133,7 +4133,7 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
   return { resolvedBounds, sortedOrder };
 }
 
-// slidekit/src_ts/layout/finalize.ts
+// slidekit/src/layout/finalize.ts
 function finalize({
   sortedOrder,
   flatMap,
@@ -4607,7 +4607,7 @@ function finalize({
   };
 }
 
-// slidekit/src_ts/layout/index.ts
+// slidekit/src/layout/index.ts
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];

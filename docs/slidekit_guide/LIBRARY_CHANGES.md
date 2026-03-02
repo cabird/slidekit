@@ -2,7 +2,7 @@
 
 Catalog of bugs found, fixes already applied, and remaining work needed. Based on building two presentations (16-slide "about" deck, 17-slide academic deck) and an 18-slide stress test.
 
-All references are to the TypeScript source in `slidekit/src_ts/`.
+All references are to the TypeScript source in `slidekit/src/`.
 
 ---
 

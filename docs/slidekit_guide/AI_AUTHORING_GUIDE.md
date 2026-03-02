@@ -90,7 +90,7 @@ import {
   render, safeRect, el, below,
 } from '../slidekit/dist/slidekit_ts.bundle.js';
 
-import type { SlideDefinition } from '../slidekit/src_ts/types.js';
+import type { SlideDefinition } from '../slidekit/src/types.js';
 
 const safe = safeRect(); // { x: 120, y: 90, w: 1680, h: 900 }
 

@@ -14,7 +14,7 @@ import type {
   SlideDefinition,
   SlideElement,
   Rect,
-} from '../slidekit/src_ts/types.js';
+} from '../slidekit/src/types.js';
 
 // -- Design Tokens ------------------------------------------------------------
 

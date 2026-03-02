@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["slidekit/src_ts/**/*.ts", "slidekit/slidekit.ts"]
+  "include": ["slidekit/src/**/*.ts", "slidekit/slidekit.ts"]
 }
