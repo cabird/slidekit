@@ -23,40 +23,43 @@ flowchart LR
 
 ## Source Organization
 
-The library lives in `src/` as 15 ES modules plus a 6-module layout pipeline. The top-level `slidekit.js` is a barrel file that re-exports the public API. Users always import from the barrel; `src/` modules import from each other.
+The library lives in `src/` as 18 TypeScript modules plus a 6-module layout pipeline. The top-level `slidekit.ts` is a barrel file that re-exports the public API (and a `SlideKit` default namespace object for convenient `SlideKit.*` usage). Users always import from the barrel; `src/` modules import from each other.
 
 ```mermaid
 graph TD
     subgraph "Barrel"
-        SK["slidekit.js"]
+        SK["slidekit.ts"]
     end
 
     subgraph "src/ — Core Modules"
-        STATE["state.js"]
-        TYPES["types.js"]
-        ID["id.js"]
-        ANCHOR["anchor.js"]
-        SPACING["spacing.js"]
-        STYLE["style.js"]
-        CONFIG["config.js"]
-        DOM["dom-helpers.js"]
-        ELEMENTS["elements.js"]
-        RELATIVE["relative.js"]
-        MEASURE["measure.js"]
-        TRANSFORMS["transforms.js"]
-        COMPOUNDS["compounds.js"]
-        UTILITIES["utilities.js"]
-        RENDERER["renderer.js"]
+        STATE["state.ts"]
+        TYPES["types.ts"]
+        ID["id.ts"]
+        ANCHOR["anchor.ts"]
+        SPACING["spacing.ts"]
+        STYLE["style.ts"]
+        CONFIG["config.ts"]
+        DOM["dom-helpers.ts"]
+        ELEMENTS["elements.ts"]
+        RELATIVE["relative.ts"]
+        MEASURE["measure.ts"]
+        TRANSFORMS["transforms.ts"]
+        COMPOUNDS["compounds.ts"]
+        UTILITIES["utilities.ts"]
+        RENDERER["renderer.ts"]
+        CONNROUTE["connectorRouting.ts"]
+        LINT["lint.ts"]
+        ASSERTIONS["assertions.ts"]
     end
 
     subgraph "src/layout/ — Layout Pipeline"
-        LAYOUT_BARREL["layout.js<br/>(re-export barrel)"]
-        LAYOUT_INDEX["layout/index.js<br/>(orchestrator)"]
-        LAYOUT_HELPERS["layout/helpers.js"]
-        LAYOUT_INTRINSICS["layout/intrinsics.js"]
-        LAYOUT_POSITIONS["layout/positions.js"]
-        LAYOUT_OVERFLOW["layout/overflow.js"]
-        LAYOUT_FINALIZE["layout/finalize.js"]
+        LAYOUT_BARREL["layout.ts<br/>(re-export barrel)"]
+        LAYOUT_INDEX["layout/index.ts<br/>(orchestrator)"]
+        LAYOUT_HELPERS["layout/helpers.ts"]
+        LAYOUT_INTRINSICS["layout/intrinsics.ts"]
+        LAYOUT_POSITIONS["layout/positions.ts"]
+        LAYOUT_OVERFLOW["layout/overflow.ts"]
+        LAYOUT_FINALIZE["layout/finalize.ts"]
     end
 
     SK --> STATE
@@ -70,6 +73,8 @@ graph TD
     SK --> RENDERER
     SK --> COMPOUNDS
     SK --> UTILITIES
+    SK --> CONNROUTE
+    SK --> LINT
     SK --> LAYOUT_BARREL
 
     LAYOUT_BARREL --> LAYOUT_INDEX
@@ -81,35 +86,40 @@ graph TD
     LAYOUT_INDEX --> LAYOUT_FINALIZE
 
     STATE -.->|"leaf dependency"| TYPES
+    LAYOUT_FINALIZE --> CONNROUTE
+    LAYOUT_FINALIZE --> ASSERTIONS
 ```
 
 ### Module Responsibilities
 
 | Module | Role | Key Exports |
 |--------|------|-------------|
-| `state.js` | Single mutable state object (config, caches, counters). Leaf dependency -- imports nothing from the project. | `state` |
-| `types.js` | JSDoc type definitions (`@typedef`). No runtime code; `export {}` only. | Type aliases |
-| `id.js` | Auto-incrementing element ID generator (`sk-1`, `sk-2`, ...). Reset at start of each `layout()`/`render()` call. | `nextId()`, `resetIdCounter()` |
-| `anchor.js` | 9-point anchor grid resolution. Converts `(x, y, w, h, anchor)` to CSS `{left, top}`. | `resolveAnchor()`, `VALID_ANCHORS` |
-| `spacing.js` | Semantic spacing tokens (`xs`..`section`). Resolves token strings to pixel values. | `resolveSpacing()`, `getSpacing()`, `DEFAULT_SPACING` |
-| `style.js` | CSS property filtering (blocked layout props), baseline CSS generation, shadow presets. | `filterStyle()`, `_baselineCSS()`, `resolveShadow()` |
-| `config.js` | `init()`, safe zone computation, font loading, `safeRect()`, `splitRect()`, `_resetForTests()`. | `init()`, `safeRect()`, `splitRect()`, `getConfig()` |
-| `dom-helpers.js` | Single utility: `applyStyleToDOM()` for applying camelCase CSS to DOM elements. | `applyStyleToDOM()` |
-| `elements.js` | Core element constructors with default merging. | `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
-| `relative.js` | Relative positioning helpers that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, etc. |
-| `measure.js` | Off-screen DOM measurement with caching. Creates a hidden container with baseline CSS. | `measure()`, `clearMeasureCache()` |
-| `transforms.js` | PowerPoint-style alignment, distribution, and size-matching transforms. Both factory functions and the `applyTransform()` executor. | `alignTop()`, `distributeH()`, `matchWidth()`, `fitToRect()`, etc. |
-| `compounds.js` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `figure()` |
-| `utilities.js` | Grid system, snap, percentage resolution, repeat/duplicate, rotated AABB. | `grid()`, `snap()`, `resolvePercentage()`, `repeat()`, `rotatedAABB()` |
-| `renderer.js` | DOM rendering, z-order computation, SVG connector building, Reveal.js integration, post-render overflow detection. | `render()`, `renderElementFromScene()`, `computeZOrder()` |
-| `layout.js` | 6-line re-export barrel forwarding from `layout/index.js` and `layout/intrinsics.js`. | `layout()`, `getEffectiveDimensions()` |
+| `state.ts` | Single mutable state object (config, caches, counters). Leaf dependency -- imports nothing from the project. | `state` |
+| `types.ts` | TypeScript type definitions (`interface`, `type`). No runtime code. | Type aliases |
+| `id.ts` | Auto-incrementing element ID generator (`sk-1`, `sk-2`, ...). Reset at start of each `layout()`/`render()` call. | `nextId()`, `resetIdCounter()` |
+| `anchor.ts` | 9-point anchor grid resolution. Converts `(x, y, w, h, anchor)` to CSS `{left, top}`. | `resolveAnchor()`, `VALID_ANCHORS` |
+| `spacing.ts` | Semantic spacing tokens (`xs`..`section`). Resolves token strings to pixel values. | `resolveSpacing()`, `getSpacing()`, `DEFAULT_SPACING` |
+| `style.ts` | CSS property filtering (blocked layout props), baseline CSS generation, shadow presets. | `filterStyle()`, `_baselineCSS()`, `resolveShadow()` |
+| `config.ts` | `init()`, safe zone computation, font loading, `safeRect()`, `splitRect()`, `_resetForTests()`. | `init()`, `safeRect()`, `splitRect()`, `getConfig()` |
+| `dom-helpers.ts` | Single utility: `applyStyleToDOM()` for applying camelCase CSS to DOM elements. | `applyStyleToDOM()` |
+| `elements.ts` | Core element constructors with default merging. | `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
+| `relative.ts` | Relative positioning helpers that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, etc. |
+| `measure.ts` | Off-screen DOM measurement with caching. Creates a hidden container with baseline CSS. | `measure()`, `clearMeasureCache()` |
+| `transforms.ts` | PowerPoint-style alignment, distribution, and size-matching transforms. Both factory functions and the `applyTransform()` executor. | `alignTop()`, `distributeH()`, `matchWidth()`, `fitToRect()`, etc. |
+| `compounds.ts` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `figure()`, `getAnchorPoint()` |
+| `utilities.ts` | Grid system, snap, percentage resolution, repeat/duplicate, rotated AABB. | `grid()`, `snap()`, `resolvePercentage()`, `repeat()`, `rotatedAABB()` |
+| `renderer.ts` | DOM rendering, z-order computation, SVG connector building, Reveal.js integration, post-render overflow detection. | `render()`, `renderElementFromScene()`, `computeZOrder()` |
+| `connectorRouting.ts` | Orthogonal polyline routing for connectors with obstacle avoidance. | `routeConnector()` |
+| `lint.ts` | Static analysis rules for scene graphs (font sizes, spacing, alignment, density, etc.). | `lintSlide()`, `lintDeck()` |
+| `assertions.ts` | Runtime assertion helpers for null/Map-miss checks. | `assertDefined()`, `mustGet()`, `assertUnreachable()` |
+| `layout.ts` | Re-export barrel forwarding from `layout/index.ts` and `layout/intrinsics.ts`. | `layout()`, `getEffectiveDimensions()` |
 
 ### Dependency Rules
 
 1. **No circular imports.** Enforced by ESLint `import/no-cycle` at lint time.
-2. **state.js is a leaf.** It imports nothing -- all other modules depend on it.
+2. **state.ts is a leaf.** It imports only `types.ts` for type annotations -- no runtime dependencies.
 3. **Renderer/Layout decoupling.** The renderer needs `layout()` but importing it directly would create a cycle. The barrel file resolves this by calling `_setLayoutFn(layout)` at initialization, injecting the dependency.
-4. **Fan-in to the barrel.** `slidekit.js` imports from all `src/` modules; `src/` modules import from each other but never from the barrel.
+4. **Fan-in to the barrel.** `slidekit.ts` imports from all `src/` modules; `src/` modules import from each other but never from the barrel.
 
 ---
 
@@ -195,7 +205,7 @@ graph TD
 
 ### Default Merging
 
-`applyDefaults(props, extraDefaults)` in `elements.js` merges user props with `COMMON_DEFAULTS`:
+`applyDefaults(props, extraDefaults)` in `elements.ts` merges user props with `COMMON_DEFAULTS`:
 
 ```js
 COMMON_DEFAULTS = {
@@ -267,7 +277,7 @@ The same pipeline runs, minus the DOM rendering. This is useful for inspecting t
 
 ### Phase 1: Intrinsic Size Resolution
 
-**File:** `src/layout/intrinsics.js` -- `resolveIntrinsicSizes()`
+**File:** `src/layout/intrinsics.ts` -- `resolveIntrinsicSizes()`
 
 Phase 1 determines how big every element is before knowing where it goes. This phase runs asynchronously because it may call `measure()` for DOM-based text measurement.
 
@@ -301,7 +311,7 @@ flowchart TD
 
 ### Phase 2: Position Resolution
 
-**File:** `src/layout/positions.js` -- `resolvePositions()`
+**File:** `src/layout/positions.ts` -- `resolvePositions()`
 
 Phase 2 determines where every element goes. It builds a dependency graph from `_rel` markers and uses Kahn's algorithm (BFS topological sort) to resolve positions in dependency order.
 
@@ -351,7 +361,7 @@ When the topological sort reaches a stack, all its children are positioned immed
 
 ### Phase 2.5: Overflow Policies
 
-**File:** `src/layout/overflow.js` -- `checkOverflowPolicies()`
+**File:** `src/layout/overflow.ts` -- `checkOverflowPolicies()`
 
 For `el()` elements with an explicit `h` and a non-`"visible"` overflow policy, this phase re-measures the content and checks if it overflows:
 
@@ -364,7 +374,7 @@ For `el()` elements with an explicit `h` and a non-`"visible"` overflow policy, 
 
 ### Phase 3: Transforms
 
-**File:** `src/layout/index.js` (orchestrator) + `src/transforms.js` (`applyTransform()`)
+**File:** `src/layout/index.ts` (orchestrator) + `src/transforms.ts` (`applyTransform()`)
 
 Transforms are PowerPoint-style batch operations declared in the slide's `transforms` array. They run after position resolution and modify `resolvedBounds` in place.
 
@@ -392,7 +402,7 @@ After all transforms run, the orchestrator compares pre-transform and post-trans
 
 ### Phase 4: Finalize
 
-**File:** `src/layout/finalize.js` -- `finalize()`
+**File:** `src/layout/finalize.ts` -- `finalize()`
 
 Phase 4 assembles the hierarchical scene graph, resolves connector endpoints, runs collision detection, and performs presentation-specific validations.
 
@@ -416,7 +426,7 @@ flowchart TD
 
 ### The Flat Map
 
-Before layout begins, `flattenElements()` in `helpers.js` walks the element tree recursively and produces:
+Before layout begins, `flattenElements()` in `helpers.ts` walks the element tree recursively and produces:
 
 ```mermaid
 classDiagram
@@ -504,6 +514,7 @@ classDiagram
 | `"constraint"` | Value was resolved from a `_rel` marker. Contains `type`, `ref`, `gap`, `bias`, etc. |
 | `"stack"` | Value was set by a parent vstack/hstack. Contains `stackId`. |
 | `"transform"` | Value was modified by a Phase 3 transform. Contains `original` (the pre-transform provenance). |
+| `"default"` | Value was not specified by the user and fell through to a pipeline default. |
 
 **`localResolved` vs `resolved`:**
 
@@ -529,7 +540,7 @@ This enables console-based inspection and live editing workflows.
 
 ## Measurement System
 
-**File:** `src/measure.js`
+**File:** `src/measure.ts`
 
 Measurement is how SlideKit determines the rendered dimensions of HTML content. It is the bridge between the specification world (user code) and the physical world (browser rendering).
 
@@ -575,7 +586,7 @@ sequenceDiagram
 
 ## Rendering
 
-**File:** `src/renderer.js`
+**File:** `src/renderer.ts`
 
 ### Z-Order Computation
 
@@ -723,7 +734,7 @@ Two heuristic checks in Phase 4:
 
 ## Centralized State
 
-**File:** `src/state.js`
+**File:** `src/state.ts`
 
 All mutable state lives in a single exported object:
 
@@ -751,7 +762,7 @@ Modules import `state` and read/write its properties directly. There is no event
 
 ### Blocked Properties
 
-`filterStyle()` in `style.js` normalizes CSS property names to camelCase and checks them against a blocklist. Blocked categories:
+`filterStyle()` in `style.ts` normalizes CSS property names to camelCase and checks them against a blocklist. Blocked categories:
 
 - **Layout positioning**: `position`, `top`, `left`, etc. (SlideKit owns absolute positioning)
 - **Sizing**: `width`, `height`, `minWidth`, etc. (SlideKit owns via `w`/`h` props)
@@ -781,7 +792,7 @@ This parity is what ensures `measure()` and `render()` agree on dimensions.
 
 ### CSS Specificity Strategy
 
-SlideKit uses a **triple-attribute-selector** strategy (`[data-sk-type="el"]×3`) to override Reveal.js styles with high specificity. This is by design — Reveal.js applies aggressive default styles to headings, paragraphs, images, and other elements. Rather than fighting these with inline style overrides on individual elements, all Reveal CSS resets belong in `_baselineCSS()` in `style.js`. If an element has unexpected margins, padding, or font sizes, the fix goes in `_baselineCSS()`, not in individual slide code.
+SlideKit uses a **triple-attribute-selector** strategy (`[data-sk-type="el"]×3`) to override Reveal.js styles with high specificity. This is by design — Reveal.js applies aggressive default styles to headings, paragraphs, images, and other elements. Rather than fighting these with inline style overrides on individual elements, all Reveal CSS resets belong in `_baselineCSS()` in `style.ts`. If an element has unexpected margins, padding, or font sizes, the fix goes in `_baselineCSS()`, not in individual slide code.
 
 ---
 
@@ -813,7 +824,7 @@ Splits a rectangle into left and right sub-rectangles with configurable `ratio` 
 
 ## Type Safety
 
-All source files use `// @ts-check` for JSDoc-based type checking. Type definitions are centralized in `src/types.js` as `@typedef` declarations. Running `tsc --noEmit` validates types across all modules without a TypeScript compilation step.
+All source files are TypeScript (`.ts`). Type definitions are centralized in `src/types.ts` as `interface` and `type` declarations. Running `tsc --noEmit` validates types across all modules.
 
 Key type definitions:
 

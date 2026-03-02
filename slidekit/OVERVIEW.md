@@ -126,48 +126,52 @@ This enables a closed loop: generate a slide, view it in a browser, make targete
 
 ### Module Structure
 
-SlideKit is decomposed into 15 focused ES modules under `src/`, plus a 6-module layout pipeline under `src/layout/`. The top-level `slidekit.js` is a barrel file that re-exports the public API — users always import from the barrel, never from `src/` directly.
+SlideKit is decomposed into 19 focused TypeScript modules under `src/`, plus a 6-module layout pipeline under `src/layout/`. The top-level `slidekit.ts` is a barrel file that re-exports the public API — users always import from the barrel, never from `src/` directly.
 
 | Module | Responsibility |
 |--------|---------------|
-| `state.js` | Single exported `state` object holding all mutable state (config, caches, counters) |
-| `config.js` | `init()`, `safeRect()`, font loading, configuration |
-| `elements.js` | Core element constructors: `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
-| `anchor.js` | 9-point anchor resolution |
-| `style.js` | CSS property filtering (block layout props), shadow presets |
-| `spacing.js` | Semantic spacing scale (`xs` through `section`) |
-| `id.js` | Auto-incrementing element IDs |
-| `relative.js` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, etc.) |
-| `measure.js` | DOM-based text measurement with caching |
-| `transforms.js` | Post-solve alignment, distribution, size matching |
-| `renderer.js` | DOM rendering into Reveal.js `<section>` elements |
-| `compounds.js` | Higher-level primitives: `connect()`, `panel()`, `figure()` |
-| `utilities.js` | `grid()`, `snap()`, `repeat()`, percentage resolution |
-| `dom-helpers.js` | Shared DOM utilities |
-| `types.js` | JSDoc type definitions |
+| `state.ts` | Single exported `state` object holding all mutable state (config, caches, counters) |
+| `config.ts` | `init()`, `safeRect()`, font loading, configuration |
+| `elements.ts` | Core element constructors: `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
+| `anchor.ts` | 9-point anchor resolution |
+| `style.ts` | CSS property filtering (block layout props), shadow presets |
+| `spacing.ts` | Semantic spacing scale (`xs` through `section`) |
+| `id.ts` | Auto-incrementing element IDs |
+| `relative.ts` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, etc.) |
+| `measure.ts` | DOM-based text measurement with caching |
+| `transforms.ts` | Post-solve alignment, distribution, size matching |
+| `renderer.ts` | DOM rendering into Reveal.js `<section>` elements |
+| `compounds.ts` | Higher-level primitives: `connect()`, `panel()`, `figure()` |
+| `utilities.ts` | `grid()`, `snap()`, `repeat()`, percentage resolution |
+| `dom-helpers.ts` | Shared DOM utilities |
+| `types.ts` | TypeScript type definitions |
+| `assertions.ts` | Runtime assertion helpers (`assertDefined`, `mustGet`, `assertUnreachable`) |
+| `connectorRouting.ts` | Connector path routing (straight, elbow, curved) |
+| `lint.ts` | Slide and deck linting rules (`lintSlide()`, `lintDeck()`) |
+| `layout.ts` | Re-export barrel forwarding `layout()` and `getEffectiveDimensions()` |
 
 ### Layout Pipeline Decomposition
 
-The layout solve pipeline (`src/layout/`) is split into 6 sub-modules, orchestrated by `index.js`:
+The layout solve pipeline (`src/layout/`) is split into 6 sub-modules, orchestrated by `index.ts`:
 
 ```
-index.js (orchestrator)
-  ├── helpers.js      — deepClone(), flattenElements()
-  ├── intrinsics.js   — Phase 1: resolve intrinsic sizes (text measurement, stack dimensions)
-  ├── positions.js    — Phase 2: topological sort of dependency graph, resolve positions
-  ├── overflow.js     — Phase 2.5: overflow policy checks
-  ├── (transforms)    — Phase 3: alignment/distribution transforms (delegates to ../transforms.js)
-  └── finalize.js     — Phase 4: collision detection, validation, provenance tracking
+index.ts (orchestrator)
+  ├── helpers.ts      — deepClone(), flattenElements()
+  ├── intrinsics.ts   — Phase 1: resolve intrinsic sizes (text measurement, stack dimensions)
+  ├── positions.ts    — Phase 2: topological sort of dependency graph, resolve positions
+  ├── overflow.ts     — Phase 2.5: overflow policy checks
+  ├── (transforms)    — Phase 3: alignment/distribution transforms (delegates to ../transforms.ts)
+  └── finalize.ts     — Phase 4: collision detection, validation, provenance tracking
 ```
 
-The `src/layout.js` file is a 6-line re-export barrel that forwards `layout()` from `layout/index.js` and `getEffectiveDimensions()` from `layout/intrinsics.js`.
+The `src/layout.ts` file is a re-export barrel that forwards `layout()` from `layout/index.ts` and `getEffectiveDimensions()` from `layout/intrinsics.ts`.
 
 ### State Management
 
-All mutable state is centralized in a single exported object in `state.js`:
+All mutable state is centralized in a single exported object in `state.ts`:
 
-```js
-export const state = {
+```ts
+export const state: SlideKitState = {
   idCounter: 0,
   config: null,
   safeRectCache: null,
@@ -185,22 +189,21 @@ Modules import `state` and read/write its properties directly. This replaces sca
 ### Dependency Rules
 
 - **No circular imports.** ESLint's `import/no-cycle` rule (max depth 5) enforces this at lint time.
-- **Fan-in to the barrel.** The barrel file (`slidekit.js`) imports from all `src/` modules; `src/` modules import from each other but never from the barrel.
+- **Fan-in to the barrel.** The barrel file (`slidekit.ts`) imports from all `src/` modules; `src/` modules import from each other but never from the barrel.
 - **Renderer ↔ Layout decoupling.** The renderer needs the layout function, but importing it directly would create a cycle. Instead, the barrel file injects it via `_setLayoutFn(layout)` at initialization.
-- **State is a leaf dependency.** `state.js` imports nothing from the project — other modules depend on it, not the other way around.
+- **State is a leaf dependency.** `state.ts` imports nothing from the project — other modules depend on it, not the other way around.
 
 ### Type Safety
 
-All source files use `// @ts-check` for JSDoc-based type checking. Type definitions are centralized in `src/types.js`. The `tsconfig.json` at the repo root configures `allowJs` + `checkJs` so running `tsc --noEmit` validates types across all modules without a TypeScript compilation step.
+All source files are TypeScript (`.ts`). Type definitions are centralized in `src/types.ts`. The `tsconfig.json` at the repo root configures strict type checking so running `tsc --noEmit` validates types across all modules without a compilation step.
 
 ### Build Tooling
 
-- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM format, ~94.5kb minified).
-- **`npm run dev`** runs esbuild in watch mode for development.
-- **`npm run build`** produces a minified production bundle with sourcemap.
+- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM format, ~162kb unminified).
+- **`npm run build`** produces the bundle with sourcemap.
 - **`npm run typecheck`** runs `tsc --noEmit` for type validation.
 - **`npm run lint`** runs ESLint on `src/` to enforce no-cycle and import hygiene rules.
-- **`node run-tests.js`** runs the test suite (688 tests) via a Playwright-based browser runner.
+- **`node run-tests.js`** runs the test suite (~1027 tests) via a Playwright-based browser runner.
 
 ## What SlideKit Does Not Do
 

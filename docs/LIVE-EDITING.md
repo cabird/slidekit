@@ -169,4 +169,5 @@ The key difference from current DOM manipulation: mutations flow through the sce
 
 ## Future Possibilities
 
-See [LIVE-EDITING-IDEAS.md](./LIVE-EDITING-IDEAS.md) for brainstormed extensions of this capability.
+Ideas for extending this capability include undo/redo stacks, snapshot diffing,
+AI-generated slide annotations, and two-way sync between DOM edits and source specs.

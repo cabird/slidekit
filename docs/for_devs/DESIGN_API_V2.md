@@ -1,8 +1,7 @@
 # SlideKit API v2 — Design Document
 
 > Based on analysis of 13 visual issues found across a 17-slide replication deck,
-> with input from GPT-5.2 and Gemini 3 Pro. See `test_dir_2/LINTING_NOTEBOOK.md`
-> for the full issue catalog.
+> with input from GPT-5.2 and Gemini 3 Pro.
 
 ## Problem Statement
 

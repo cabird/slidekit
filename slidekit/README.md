@@ -4,7 +4,7 @@ A coordinate-based slide layout library for AI agents and humans. SlideKit gives
 
 ## Quick Start
 
-Copy this into an HTML file in your `slidekit/` directory (alongside `slidekit.js`) and serve it from a local web server. ES module imports require a server -- opening the file directly via `file://` will not work.
+Copy this into an HTML file in your `slidekit/` directory and serve it from a local web server. Run `npm run build` first to generate the bundle in `dist/`. ES module imports require a server -- opening the file directly via `file://` will not work.
 
 ```bash
 # Start a local server from the slidekit/ directory
@@ -23,22 +23,22 @@ python -m http.server 8000 --directory slidekit/
   <div class="reveal"><div class="slides"></div></div>
   <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
   <script type="module">
-    import { init, render, text, rect, rule, below } from './slidekit.js';
+    import { init, render, el, below } from './dist/slidekit.bundle.js';
 
     await init();
 
     await render([{
       background: "#0c0c14",
       elements: [
-        text("Hello, SlideKit", {
+        el("Hello, SlideKit", {
           id: "title", x: 960, y: 400, w: 1200,
           anchor: "tc", size: 72, weight: 700, color: "#fff", align: "center",
         }),
-        rule({
-          x: 900, y: below("title", { gap: 24 }), w: 120,
-          color: "#7c5cbf", thickness: 3,
+        el("", {
+          x: 900, y: below("title", { gap: 24 }), w: 120, h: 3,
+          style: { background: "#7c5cbf" },
         }),
-        text("Coordinate-based layout for presentations", {
+        el("Coordinate-based layout for presentations", {
           x: 960, y: below("title", { gap: 60 }), w: 800,
           anchor: "tc", size: 32, color: "rgba(255,255,255,0.6)", align: "center",
         }),
@@ -78,10 +78,12 @@ The agent can inspect the layout result (warnings, errors, resolved positions) b
 
 ## API Reference
 
+See [API.md](API.md) for complete API documentation with parameters, types, and usage patterns.
+
 ### Initialization
 
 ```js
-import { init, safeRect, getConfig } from './slidekit.js';
+import { init, safeRect, getConfig } from './dist/slidekit.bundle.js';
 
 await init({
   slide: { w: 1920, h: 1080 },           // Canvas dimensions (fixed)
@@ -96,144 +98,90 @@ await init({
 safeRect();  // { x: 120, y: 90, w: 1680, h: 900 }
 ```
 
-### Element Primitives
+### Core Elements
 
-All elements share common positioning properties:
+See [API.md](API.md) for complete API documentation with parameters, types, and usage patterns.
 
-| Property    | Type     | Default     | Description |
-|-------------|----------|-------------|-------------|
-| `id`        | string   | auto        | Unique identifier for referencing |
-| `x`         | number   | 0           | X position in slide coordinates |
-| `y`         | number   | 0           | Y position in slide coordinates |
-| `w`         | number   | required    | Width in pixels |
-| `h`         | number   | auto        | Height (auto-measured for text) |
-| `anchor`    | string   | `"tl"`      | Which point (x,y) refers to (see Anchor System) |
-| `layer`     | string   | `"content"` | Z-layer: `"bg"`, `"content"`, `"overlay"` |
-| `opacity`   | number   | 1           | Element opacity (0-1) |
-| `z`         | number   | 0           | Z-order within layer (higher = on top) |
-| `rotate`    | number   | 0           | Rotation in degrees (applied via CSS transform) |
-| `style`     | object   | `{}`        | CSS properties for visual styling |
-| `className` | string   | `""`        | CSS class names (requires corresponding CSS) |
+All elements share common positioning properties: `id`, `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `z`, `rotate`, `style`, `className`.
 
-#### `text(content, props)`
+#### `el(html, props)` — Universal Element
+
+The single primitive for creating all elements — text, shapes, images, or any HTML content.
 
 ```js
-import { text } from './slidekit.js';
+import { el } from './dist/slidekit.bundle.js';
 
-text("Title Text", {
+// Text element (height auto-measured from content)
+el("Title Text", {
   x: 170, y: 300, w: 800,
-  font: "Space Grotesk", size: 64, weight: 700, color: "#fff",
-  lineHeight: 1.1, letterSpacing: "0.02em", align: "left",
-  overflow: "warn",   // "visible" | "warn" | "clip" | "ellipsis" | "shrink" | "error"
-  maxLines: null,      // Limit line count
-  style: { textShadow: "0 2px 20px rgba(0,0,0,0.5)" },
+  size: 64, weight: 700, color: "#fff",
 });
+
+// Empty rectangle (background shape)
+el("", {
+  x: 100, y: 200, w: 500, h: 400,
+  style: { background: "linear-gradient(135deg, #1a1a3e, #2a2a5e)", borderRadius: "16px" },
+});
+
+// Horizontal rule
+el("", { x: 170, y: 470, w: 120, h: 3, style: { background: "#7c5cbf" } });
 ```
 
 Text-specific properties: `font`, `size`, `weight`, `color`, `lineHeight`, `letterSpacing`, `align`, `overflow`, `maxLines`, `fit`.
 
-If `h` is omitted, the height is auto-measured from the text content.
-
-#### `image(src, props)`
+#### `group(children, props)` — Grouping Container
 
 ```js
-import { image } from './slidekit.js';
-
-image("photo.jpg", {
-  x: 0, y: 0, w: 1920, h: 1080,
-  fit: "cover",       // "cover" | "contain" | "fill" | "none"
-  position: "center", // CSS object-position
-  layer: "bg",
-});
-```
-
-#### `rect(props)`
-
-```js
-import { rect } from './slidekit.js';
-
-rect({
-  x: 100, y: 200, w: 500, h: 400,
-  fill: "#1a1a2e",    // Background shorthand
-  radius: 12,         // Border radius shorthand
-  style: {
-    background: "linear-gradient(135deg, #1a1a3e, #2a2a5e)",
-    borderRadius: "16px",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    backdropFilter: "blur(12px)",
-  },
-});
-```
-
-#### `rule(props)`
-
-```js
-import { rule } from './slidekit.js';
-
-// Horizontal rule
-rule({ x: 170, y: 470, w: 120, color: "#7c5cbf", thickness: 3 });
-
-// Vertical rule
-rule({ x: 500, y: 100, h: 400, direction: "vertical", color: "#fff", thickness: 1 });
-```
-
-For horizontal rules, `w` is the length. For vertical rules, `h` is the length.
-
-#### `group(children, props)`
-
-```js
-import { group } from './slidekit.js';
+import { group } from './dist/slidekit.bundle.js';
 
 group([
-  rect({ x: 0, y: 0, w: 400, h: 300, fill: "rgba(255,255,255,0.06)" }),
-  text("Title", { x: 24, y: 24, w: 352, size: 28, weight: 600, color: "#fff" }),
-], {
-  x: 100, y: 200,  // Move entire group
-  scale: 1,         // Scale factor
-  clip: false,       // Clip children to group bounds
-});
+  el("", { x: 0, y: 0, w: 400, h: 300, fill: "rgba(255,255,255,0.06)" }),
+  el("Title", { x: 24, y: 24, w: 352, size: 28, weight: 600, color: "#fff" }),
+], { x: 100, y: 200 });
 ```
 
 Children coordinates are relative to the group origin.
 
-#### `vstack(items, props)`
+#### `vstack(items, props)` — Vertical Stack
 
 ```js
-import { vstack } from './slidekit.js';
+import { vstack } from './dist/slidekit.bundle.js';
 
 vstack([
-  text("First", { w: 400, size: 28, color: "#fff" }),
-  text("Second", { w: 400, size: 28, color: "#fff" }),
-  text("Third", { w: 400, size: 28, color: "#fff" }),
-], {
-  id: "my-vstack",
-  x: 170, y: 200,
-  gap: 16,          // Pixels between children
-  align: "left",    // "left" | "center" | "right" | "stretch"
-});
+  el("First", { w: 400, size: 28, color: "#fff" }),
+  el("Second", { w: 400, size: 28, color: "#fff" }),
+  el("Third", { w: 400, size: 28, color: "#fff" }),
+], { id: "my-vstack", x: 170, y: 200, gap: 16, align: "left" });
 ```
 
-Children are laid out top-to-bottom. Each child's position is computed during layout solve based on measured heights. Children do not need explicit `x`/`y` coordinates -- the stack assigns them.
+Children are laid out top-to-bottom. Heights are auto-measured; children do not need explicit `x`/`y`.
 
-#### `hstack(items, props)`
+#### `hstack(items, props)` — Horizontal Stack
 
 ```js
-import { hstack } from './slidekit.js';
+import { hstack } from './dist/slidekit.bundle.js';
 
 hstack([
-  rect({ w: 300, h: 200, fill: "#1a1a2e" }),
-  rect({ w: 300, h: 200, fill: "#2a2a5e" }),
-  rect({ w: 300, h: 200, fill: "#3a3a6e" }),
-], {
-  id: "my-hstack",
-  x: 170, y: 200,
-  gap: 24,         // Pixels between children
-  align: "top",    // "top" | "middle" | "bottom" | "stretch"
-});
+  el("", { w: 300, h: 200, fill: "#1a1a2e" }),
+  el("", { w: 300, h: 200, fill: "#2a2a5e" }),
+  el("", { w: 300, h: 200, fill: "#3a3a6e" }),
+], { x: 170, y: 200, gap: 24, align: "top" });
 ```
 
-Children are laid out left-to-right. The stack computes absolute positions from the stack origin and each child's measured width.
+Children are laid out left-to-right.
+
+#### `cardGrid(items, opts)` — Grid Layout
+
+```js
+import { cardGrid } from './dist/slidekit.bundle.js';
+
+cardGrid([
+  el("Card 1", { w: 300, h: 200, size: 24, color: "#fff" }),
+  el("Card 2", { w: 300, h: 200, size: 24, color: "#fff" }),
+  el("Card 3", { w: 300, h: 200, size: 24, color: "#fff" }),
+  el("Card 4", { w: 300, h: 200, size: 24, color: "#fff" }),
+], { x: 170, y: 200, cols: 2, gap: 24 });
+```
 
 ### Anchor System
 
@@ -254,7 +202,7 @@ bl ---- bc ---- br
 
 ```js
 // Center a title on the slide
-text("TITLE", { x: 960, y: 540, w: 1200, anchor: "cc", align: "center", ... });
+el("TITLE", { x: 960, y: 540, w: 1200, anchor: "cc", align: "center", size: 64, color: "#fff" });
 ```
 
 ### Relative Positioning
@@ -265,19 +213,19 @@ Position elements relative to other elements. References are resolved during lay
 import { below, above, rightOf, leftOf, centerIn,
          centerVWith, centerHWith,
          alignTopWith, alignBottomWith,
-         alignLeftWith, alignRightWith } from './slidekit.js';
+         alignLeftWith, alignRightWith } from './dist/slidekit.bundle.js';
 
 // Y = bottom edge of "title" + 24px gap
-text("Subtitle", { y: below("title", { gap: 24 }), ... });
+el("Subtitle", { y: below("title", { gap: 24 }), w: 800, size: 28, color: "#fff" });
 
 // X = right edge of "sidebar" + 40px gap
-text("Content", { x: rightOf("sidebar", { gap: 40 }), ... });
+el("Content", { x: rightOf("sidebar", { gap: 40 }), w: 600, size: 24, color: "#fff" });
 
 // Center within the safe zone rectangle
-text("Centered", { ...centerIn(safeRect()), w: 800 });
+el("Centered", { ...centerIn(safeRect()), w: 800, size: 32, color: "#fff" });
 
 // Align edges with another element
-text("Aligned", { y: alignTopWith("reference"), ... });
+el("Aligned", { y: alignTopWith("reference"), w: 400, size: 24, color: "#fff" });
 ```
 
 Available helpers:
@@ -299,7 +247,7 @@ Available helpers:
 ### Layout Solve
 
 ```js
-import { layout } from './slidekit.js';
+import { layout } from './dist/slidekit.bundle.js';
 
 const result = await layout({
   elements: [ ... ],
@@ -318,32 +266,20 @@ The 4-phase pipeline:
 3. **Apply transforms** -- alignment, distribution, size matching
 4. **Finalize** -- collision detection, validation, provenance tracking
 
-### Text Measurement
+### Measurement
 
 ```js
-import { measureText, fitText } from './slidekit.js';
+import { measure } from './dist/slidekit.bundle.js';
 
 // Measure text dimensions without placing it
-const metrics = measureText("Hello World", {
+const dims = await measure("Hello World", {
   font: "Inter", size: 32, weight: 400,
-  lineHeight: 1.3, letterSpacing: "0",
-  w: 800,  // Constrain width for wrapping
+  lineHeight: 1.3, w: 800,
 });
-// metrics.block: { w: 800, h: 42 }
-// metrics.lineCount: 1
-// metrics.fontSize: 32
-
-// Auto-fit text to a box
-const fit = fitText("Long title that might need shrinking", {
-  w: 600, h: 100,
-}, {
-  font: "Inter", weight: 700,
-  minSize: 24, maxSize: 72,
-});
-// fit.fontSize: 48 (largest size that fits)
-// fit.metrics: { ... }
-// fit.warnings: []
+// dims: { w: 800, h: 42 }
 ```
+
+`measure()` is async and uses a DOM-based measurement container. Results are cached.
 
 ### Alignment and Distribution
 
@@ -354,7 +290,7 @@ import { alignLeft, alignRight, alignTop, alignBottom,
          alignCenterH, alignCenterV,
          distributeH, distributeV,
          matchWidth, matchHeight, matchSize,
-         fitToRect } from './slidekit.js';
+         fitToRect } from './dist/slidekit.bundle.js';
 
 const slide = {
   elements: [ ... ],
@@ -382,37 +318,26 @@ Distribution modes:
 - `"equal-gap"` -- equal space between adjacent elements
 - `"equal-center"` -- equal spacing between element centers
 
-### Compound Primitives
+### Compound Elements
 
-Higher-level primitives for common slide patterns.
+Higher-level elements for common slide patterns.
 
-#### `bullets(items, props)`
+#### `figure(opts)` — Image with Optional Caption
 
 ```js
-import { bullets } from './slidekit.js';
+import { figure } from './dist/slidekit.bundle.js';
 
-bullets([
-  "First point",
-  "Second point",
-  { text: "Third point with sub-items", children: [
-    "Sub-point A",
-    "Sub-point B",
-  ]},
-], {
-  x: 170, y: 250, w: 700,
-  size: 28, color: "#fff",
-  bulletChar: "\u2022",       // or "\u2014", "\u2192", etc.
-  bulletColor: "#7c5cbf",
-  bulletGap: 16,         // Gap between bullet character and text (default: 16)
-  indent: 40,            // Indent per nesting level
-  gap: 12,               // Vertical gap between items
+figure({
+  src: "photo.jpg", x: 0, y: 0, w: 1920, h: 1080,
+  fit: "cover", layer: "bg",
+  caption: "Photo credit", captionGap: 8,
 });
 ```
 
 #### `connect(fromId, toId, props)`
 
 ```js
-import { connect } from './slidekit.js';
+import { connect } from './dist/slidekit.bundle.js';
 
 connect("box-a", "box-b", {
   type: "straight",    // "straight" | "curved" | "elbow"
@@ -430,17 +355,16 @@ connect("box-a", "box-b", {
 #### `panel(children, props)`
 
 ```js
-import { panel } from './slidekit.js';
+import { panel } from './dist/slidekit.bundle.js';
 
 panel([
-  text("Feature", { w: "fill", size: 24, weight: 600, color: "#fff" }),
-  rule({ w: "fill", color: "rgba(255,255,255,0.2)", thickness: 1 }),
-  text("Description text.", { w: "fill", size: 18, color: "rgba(255,255,255,0.7)" }),
+  el("Feature", { w: "fill", size: 24, weight: 600, color: "#fff" }),
+  el("", { w: "fill", h: 1, style: { background: "rgba(255,255,255,0.2)" } }),
+  el("Description text.", { w: "fill", size: 18, color: "rgba(255,255,255,0.7)" }),
 ], {
   x: 100, y: 200, w: 400,
-  padding: 24,
-  gap: 16,
-  className: "glass-card",  // CSS class for visual styling
+  padding: 24, gap: 16,
+  className: "glass-card",
 });
 ```
 
@@ -449,7 +373,7 @@ Children with `w: "fill"` expand to `panel.w - 2 * padding`. The panel auto-comp
 ### Grid and Snap
 
 ```js
-import { grid, snap } from './slidekit.js';
+import { grid, snap } from './dist/slidekit.bundle.js';
 
 const g = grid({ cols: 12, gutter: 30 });
 g.col(1);        // X position of column 1
@@ -461,16 +385,18 @@ snap(173, 10);   // 170 -- round to nearest 10px
 ### Percentage Sugar
 
 ```js
-text("Title", {
+el("Title", {
   x: "10%",       // 192px (10% of 1920)
   y: "20%",       // 216px (20% of 1080)
   w: "80%",       // 1536px
+  size: 48, color: "#fff",
 });
 
-text("Safe", {
+el("Safe", {
   x: "safe:5%",   // 5% of safe zone width, offset from safe zone left
   y: "safe:10%",
   w: "safe:90%",
+  size: 32, color: "#fff",
 });
 ```
 
@@ -496,7 +422,7 @@ removeDebugOverlay();    // Toggle off
 ### Rendering
 
 ```js
-import { render } from './slidekit.js';
+import { render } from './dist/slidekit.bundle.js';
 
 const result = await render(slides, {
   container: document.querySelector('.reveal .slides'),
@@ -512,7 +438,7 @@ window.sk.slides;    // Slide metadata
 ### Shadow Presets
 
 ```js
-rect({ x: 0, y: 0, w: 400, h: 300, shadow: "lg" });
+el("", { x: 0, y: 0, w: 400, h: 300, shadow: "lg" });
 ```
 
 | Preset   | CSS Value |
@@ -526,10 +452,10 @@ rect({ x: 0, y: 0, w: 400, h: 300, shadow: "lg" });
 ### Repeat / Duplicate
 
 ```js
-import { repeat } from './slidekit.js';
+import { repeat } from './dist/slidekit.bundle.js';
 
 const cards = repeat(
-  rect({ w: 300, h: 200, className: "glass-card" }),
+  el("", { w: 300, h: 200, className: "glass-card" }),
   { count: 6, cols: 3, gapX: 30, gapY: 30, startX: 170, startY: 200 }
 );
 // Creates a 3x2 grid of cards
@@ -621,10 +547,10 @@ SlideKit strips layout properties from inline styles with warnings. But class-ba
 
 ```js
 // The className must match a CSS class in a loaded stylesheet
-rect({ x: 100, y: 200, w: 400, h: 300, className: "glass-card" });
+el("", { x: 100, y: 200, w: 400, h: 300, className: "glass-card" });
 
 // Multiple classes
-rect({ x: 100, y: 200, w: 400, h: 300, className: "glass-card glow-accent" });
+el("", { x: 100, y: 200, w: 400, h: 300, className: "glass-card glow-accent" });
 ```
 
 ## CSS Property Handling
@@ -671,56 +597,60 @@ Each element in the scene graph has:
 
 ## Examples
 
-- [`examples/basic.html`](examples/basic.html) -- Single slide with text, rect, rule, and relative positioning
-- [`examples/full-deck.html`](examples/full-deck.html) -- 5-slide deck with panels, bullets, connectors, and theme CSS
+- [`examples/basic.html`](examples/basic.html) -- Single slide with elements and relative positioning
+- [`examples/full-deck.html`](examples/full-deck.html) -- 5-slide deck with panels, connectors, and theme CSS
 - [`examples/theme.css`](examples/theme.css) -- Dark theme CSS (styling only, no layout)
 
 ## Project Architecture
 
-SlideKit's source is organized as ES modules under `slidekit/src/`. Users import from the barrel file (`slidekit.js`), which re-exports the public API — the internal module structure is an implementation detail.
+SlideKit's source is organized as TypeScript modules under `slidekit/src/`. Users import from the bundle (`dist/slidekit.bundle.js`), which re-exports the public API from the barrel file (`slidekit.ts`) — the internal module structure is an implementation detail.
 
 ### Module Structure
 
 ```
 slidekit/
-├── slidekit.js          # Barrel file — re-exports public API from src/
+├── slidekit.ts          # Barrel file — re-exports public API from src/
 ├── slidekit-debug.js    # Debug overlay (separate import)
 ├── dist/                # esbuild output (bundle + sourcemap)
 └── src/                 # Internal modules
-    ├── state.js         # Centralized mutable state (single exported object)
-    ├── config.js        # init(), safeRect(), font loading
-    ├── elements.js      # el(), group(), vstack(), hstack(), cardGrid()
-    ├── anchor.js        # Anchor resolution (9-point system)
-    ├── style.js         # CSS property filtering, shadow presets
-    ├── spacing.js       # Spacing token scale (xs → section)
-    ├── id.js            # Auto-incrementing element IDs
-    ├── relative.js      # Relative positioning helpers (below, rightOf, etc.)
-    ├── measure.js       # DOM-based text measurement + caching
-    ├── transforms.js    # Alignment, distribution, size matching
-    ├── renderer.js      # DOM rendering into Reveal.js sections
-    ├── compounds.js     # connect(), panel(), figure()
-    ├── utilities.js     # grid(), snap(), repeat(), percentage resolution
-    ├── dom-helpers.js   # Shared DOM utilities
-    ├── types.js         # JSDoc type definitions
+    ├── state.ts         # Centralized mutable state (single exported object)
+    ├── config.ts        # init(), safeRect(), font loading
+    ├── elements.ts      # el(), group(), vstack(), hstack(), cardGrid()
+    ├── anchor.ts        # Anchor resolution (9-point system)
+    ├── style.ts         # CSS property filtering, shadow presets
+    ├── spacing.ts       # Spacing token scale (xs → section)
+    ├── id.ts            # Auto-incrementing element IDs
+    ├── relative.ts      # Relative positioning helpers (below, rightOf, etc.)
+    ├── measure.ts       # DOM-based text measurement + caching
+    ├── transforms.ts    # Alignment, distribution, size matching
+    ├── renderer.ts      # DOM rendering into Reveal.js sections
+    ├── compounds.ts     # connect(), panel(), figure()
+    ├── utilities.ts     # grid(), snap(), repeat(), percentage resolution
+    ├── dom-helpers.ts   # Shared DOM utilities
+    ├── types.ts         # TypeScript type definitions
+    ├── assertions.ts    # Runtime assertion helpers
+    ├── connectorRouting.ts # Connector path routing (straight, elbow, curved)
+    ├── lint.ts          # Slide and deck linting rules
+    ├── layout.ts        # Re-export barrel for layout pipeline
     └── layout/          # Layout solve pipeline (6 sub-modules)
-        ├── index.js     # Pipeline orchestrator
-        ├── helpers.js   # Deep clone, element flattening
-        ├── intrinsics.js# Phase 1: resolve sizes (text measurement, stacks)
-        ├── positions.js # Phase 2: topological sort + position resolution
-        ├── overflow.js  # Phase 2.5: overflow policy checks
-        └── finalize.js  # Phase 4: collision detection, validation
+        ├── index.ts     # Pipeline orchestrator
+        ├── helpers.ts   # Deep clone, element flattening
+        ├── intrinsics.ts# Phase 1: resolve sizes (text measurement, stacks)
+        ├── positions.ts # Phase 2: topological sort + position resolution
+        ├── overflow.ts  # Phase 2.5: overflow policy checks
+        └── finalize.ts  # Phase 4: collision detection, validation
 ```
 
-All source files use `// @ts-check` for JSDoc-based type checking via TypeScript (`tsconfig.json` at repo root).
+All source files are TypeScript (`.ts`). Type definitions live in `src/types.ts`. The `tsconfig.json` at the repo root configures strict type checking so `tsc --noEmit` validates types across all modules without a compilation step.
 
 ### Import Convention
 
 ```js
-// Users always import from the barrel file:
-import { init, render, el, below } from './slidekit.js';
+// Users always import from the bundle (or the barrel in TS source):
+import { init, render, el, below } from './dist/slidekit.bundle.js';
 
 // Internal modules import from each other directly:
-// (e.g., renderer.js imports from state.js, config.js, etc.)
+// (e.g., renderer.ts imports from state.ts, config.ts, etc.)
 ```
 
 ## Development
@@ -735,19 +665,18 @@ npm install   # Install esbuild, eslint, typescript, playwright
 
 | Script             | Command                | Description |
 |--------------------|------------------------|-------------|
-| `npm run dev`      | esbuild (watch mode)   | Rebuild bundle on file changes |
-| `npm run build`    | esbuild (minified)     | Production bundle → `dist/slidekit.bundle.js` |
-| `npm run typecheck`| `tsc --noEmit`         | JSDoc type checking across all `src/` files |
+| `npm run build`    | esbuild (bundled)      | Bundle → `dist/slidekit.bundle.js` with sourcemap |
+| `npm run typecheck`| `tsc --noEmit`         | TypeScript type checking across all `src/` files |
 | `npm run lint`     | `eslint slidekit/src/` | Lint with `import/no-cycle` rule to prevent circular dependencies |
 
 ### Type Safety
 
-SlideKit uses JSDoc annotations with `@ts-check` instead of TypeScript source files. Type definitions live in `src/types.js`. The `tsconfig.json` at the repo root configures `allowJs` + `checkJs` so `tsc --noEmit` validates types across all modules without a compilation step.
+SlideKit uses TypeScript source files (`.ts`). Type definitions live in `src/types.ts`. The `tsconfig.json` at the repo root configures strict type checking so `tsc --noEmit` validates types across all modules without a compilation step.
 
 ## Running Tests
 
 ```bash
-# Run the full test suite (688 tests, Playwright-based browser runner)
+# Run the full test suite (~1027 tests, Playwright-based browser runner)
 node run-tests.js
 ```
 
