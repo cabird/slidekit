@@ -429,7 +429,7 @@ export function finalize({
       // Also account for cornerRadius which trims into the stub.
       const thickness = (el.props.thickness as number) ?? 2;
       const cornerRadius = (el.props.cornerRadius as number) ?? 0;
-      const stubLength = Math.max(50, 12 * thickness + cornerRadius + 20);
+      const stubLength = Math.max(40, 8 * thickness + cornerRadius + 15);
       const route = routeConnector({
         from: fromPt, to: toPt, obstacles,
         orthogonal: connType === 'orthogonal',

@@ -2648,7 +2648,7 @@ function buildConnectorSVG(from, to, connProps) {
       elbowWaypoints = connProps._cachedWaypoints;
     } else {
       const cornerRadius = connProps.cornerRadius ?? 0;
-      const stubLength = Math.max(50, markerSize * thickness + cornerRadius + 20);
+      const stubLength = Math.max(40, markerSize * thickness + cornerRadius + 15);
       const route = routeConnector({ from, to, orthogonal: connType === "orthogonal", stubLength });
       elbowWaypoints = route.waypoints;
     }
@@ -4576,7 +4576,7 @@ function finalize({
     if (connType === "elbow" || connType === "orthogonal") {
       const thickness = el2.props.thickness ?? 2;
       const cornerRadius = el2.props.cornerRadius ?? 0;
-      const stubLength = Math.max(50, 12 * thickness + cornerRadius + 20);
+      const stubLength = Math.max(40, 8 * thickness + cornerRadius + 15);
       const route = routeConnector({
         from: fromPt,
         to: toPt,
