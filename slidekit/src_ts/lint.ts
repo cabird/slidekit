@@ -4,6 +4,7 @@
 // Pure read-only analysis; never modifies scene data.
 
 import type { Rect, SceneElement } from './types.js';
+import { CSS_LIKE_PROPS } from './style.js';
 
 // ---------------------------------------------------------------------------
 // Lint-specific interfaces
@@ -137,12 +138,34 @@ function normLayer(el: SceneElement): 'bg' | 'content' | 'overlay' {
 // Rule implementations
 // ---------------------------------------------------------------------------
 
+/** Check if one element is a connector and the other is one of its endpoints. */
+function isConnectorEndpointPair(a: SceneElement, b: SceneElement): boolean {
+  if (a.type === 'connector') {
+    const cr = a._connectorResolved;
+    const props = a.authored?.props as Record<string, unknown>;
+    const fromId = cr?.fromId ?? props?.fromId;
+    const toId = cr?.toId ?? props?.toId;
+    if (b.id === fromId || b.id === toId) return true;
+  }
+  if (b.type === 'connector') {
+    const cr = b._connectorResolved;
+    const props = b.authored?.props as Record<string, unknown>;
+    const fromId = cr?.fromId ?? props?.fromId;
+    const toId = cr?.toId ?? props?.toId;
+    if (a.id === fromId || a.id === toId) return true;
+  }
+  return false;
+}
+
 function ruleChildOverflow(elements: Record<string, SceneElement>): LintFinding[] {
   const findings: LintFinding[] = [];
   for (const el of Object.values(elements)) {
     if (!el.parentId || el._internal) continue;
     const parent = elements[el.parentId];
     if (!parent) continue;
+    // Suppress child-overflow for auto-sizing parents (bounds: 'hug')
+    const parentBoundsMode = (parent.authored?.props as Record<string, unknown>)?.bounds;
+    if (parentBoundsMode === 'hug') continue;
     const cb = localBoundsOf(el);
     const pr = parent.resolved;
     if (!cb || !pr) continue;
@@ -165,7 +188,7 @@ function ruleChildOverflow(elements: Record<string, SceneElement>): LintFinding[
           severity: 'error',
           elementId: el.id,
           message: `Child "${el.id}" overflows parent "${el.parentId}" on ${edge} by ${overshoot}px`,
-          detail: { edge, overshoot },
+          detail: { edge, overshoot, parentId: el.parentId },
           bounds: cb,
           parentBounds: pb,
           suggestion: `Reduce child ${dim} or increase parent ${dim} to ${parentDim + overshoot}`,
@@ -203,6 +226,10 @@ function ruleNonAncestorOverlap(elements: Record<string, SceneElement>): LintFin
       if (layerA !== layerB) continue;
 
       if (isAncestor(elements, a.id, b.id) || isAncestor(elements, b.id, a.id)) continue;
+
+      // Exempt connector-endpoint overlaps: a connector overlapping its own
+      // fromId/toId element is expected — only flag unrelated overlaps.
+      if (isConnectorEndpointPair(a, b)) continue;
 
       const ba = cachedAbsBounds(a)!;
       const bb = cachedAbsBounds(b)!;
@@ -268,7 +295,7 @@ function ruleSafeZoneViolation(elements: Record<string, SceneElement>): LintFind
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
     if (el.parentId != null) continue;
-    if (normLayer(el) === 'bg') continue;
+    if (normLayer(el) === 'bg' || normLayer(el) === 'overlay') continue;
     const b = absoluteBoundsOf(el, elements);
     if (!b) continue;
 
@@ -436,7 +463,7 @@ function ruleEdgeCrowding(elements: Record<string, SceneElement>): LintFinding[]
   for (const el of Object.values(elements)) {
     if (el._internal) continue;
     if (el.parentId != null) continue;
-    if (normLayer(el) === 'bg') continue;
+    if (normLayer(el) === 'bg' || normLayer(el) === 'overlay') continue;
     const b = localBoundsOf(el);
     if (!b || b.w <= 0 || b.h <= 0) continue;
 
@@ -643,7 +670,8 @@ function ruleTextOverflow(slideEl: HTMLElement | null): LintFinding[] {
 
 function ruleFontTooSmall(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
-  for (const el of findSkTextElements(slideEl!)) {
+  if (!slideEl) return findings;
+  for (const el of findSkTextElements(slideEl)) {
     if (!el.textContent || !el.textContent.trim()) continue;
     const fontSize = parseFloat(getComputedStyle(el).fontSize);
     if (fontSize < THRESHOLDS.minFontSize) {
@@ -662,7 +690,8 @@ function ruleFontTooSmall(slideEl: HTMLElement | null): LintFinding[] {
 
 function ruleFontTooLarge(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
-  for (const el of findSkTextElements(slideEl!)) {
+  if (!slideEl) return findings;
+  for (const el of findSkTextElements(slideEl)) {
     if (!el.textContent || !el.textContent.trim()) continue;
     const fontSize = parseFloat(getComputedStyle(el).fontSize);
     if (fontSize > THRESHOLDS.maxFontSize) {
@@ -681,7 +710,8 @@ function ruleFontTooLarge(slideEl: HTMLElement | null): LintFinding[] {
 
 function ruleLineTooLong(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
-  for (const el of findSkTextElements(slideEl!)) {
+  if (!slideEl) return findings;
+  for (const el of findSkTextElements(slideEl)) {
     if (!el.textContent || !el.textContent.trim()) continue;
     const fontSize = parseFloat(getComputedStyle(el).fontSize);
     const elementWidth = (el as HTMLElement).clientWidth;
@@ -702,7 +732,8 @@ function ruleLineTooLong(slideEl: HTMLElement | null): LintFinding[] {
 
 function ruleLineHeightTight(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
-  for (const el of findSkTextElements(slideEl!)) {
+  if (!slideEl) return findings;
+  for (const el of findSkTextElements(slideEl)) {
     if (!el.textContent || !el.textContent.trim()) continue;
     const style = getComputedStyle(el);
     const lineHeight = style.lineHeight;
@@ -1046,6 +1077,300 @@ function ruleStyleDrift(sections: NodeListOf<HTMLElement>, slides: LintSlideData
 }
 
 // ---------------------------------------------------------------------------
+// Rule: misplaced-css-prop
+// ---------------------------------------------------------------------------
+
+function ruleMisplacedCssProp(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+  for (const el of Object.values(elements)) {
+    if (el._internal) continue;
+    const props = el.authored?.props as Record<string, unknown> | undefined;
+    if (!props) continue;
+    const id = el.id;
+    for (const key of Object.keys(props)) {
+      if (key === 'style') continue;
+      if (CSS_LIKE_PROPS.has(key)) {
+        findings.push({
+          rule: 'misplaced-css-prop',
+          severity: 'warning',
+          elementId: id,
+          message: `Element "${id}" has CSS property "${key}" at top level. Move it to style: { ${key}: ... }`,
+          detail: { property: key },
+          suggestion: `Move "${key}" into the style object: style: { ${key}: ... }`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Rule: textAlign-direction-mismatch
+// ---------------------------------------------------------------------------
+
+function ruleTextAlignDirectionMismatch(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+  for (const el of Object.values(elements)) {
+    if (el._internal) continue;
+    const prov = el.provenance;
+    if (!prov?.x || prov.x.source !== 'constraint' || prov.x.type !== 'leftOf') continue;
+    const props = el.authored?.props as Record<string, unknown> | undefined;
+    const style = (props?.style ?? {}) as Record<string, unknown>;
+    const textAlign = (style.textAlign as string) ?? 'left';
+    if (textAlign !== 'right') {
+      findings.push({
+        rule: 'textAlign-direction-mismatch',
+        severity: 'warning',
+        elementId: el.id,
+        message: `Element "${el.id}" uses leftOf() positioning but textAlign is '${textAlign}' (should be 'right' for visual alignment)`,
+        detail: { textAlign, provenanceType: 'leftOf' },
+        suggestion: `Add style: { textAlign: 'right' } to align text near the reference element`,
+      });
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Rule: equal-height-peers
+// ---------------------------------------------------------------------------
+
+function ruleEqualHeightPeers(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+  for (const el of Object.values(elements)) {
+    if (el.type !== 'hstack' || el._internal) continue;
+    const childIds = el.children;
+    if (!childIds || childIds.length < 2) continue;
+    const heights: { id: string; h: number }[] = [];
+    for (const cid of childIds) {
+      const child = elements[cid];
+      if (!child?.resolved) continue;
+      heights.push({ id: cid, h: child.resolved.h });
+    }
+    if (heights.length < 2) continue;
+    const sorted = heights.map(c => c.h).sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 !== 0
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+    if (median === 0) continue;
+    for (const child of heights) {
+      const pct = Math.round(Math.abs(child.h - median) / median * 100);
+      if (pct > 5) {
+        findings.push({
+          rule: 'equal-height-peers',
+          severity: 'warning',
+          elementId: child.id,
+          message: `Element "${child.id}" height (${child.h}px) deviates ${pct}% from median (${median}px) in hstack "${el.id}"`,
+          detail: { childId: child.id, height: child.h, median, pct, stackId: el.id },
+          suggestion: `Use hstack({ align: 'stretch' }) to equalize heights, or set explicit heights`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
+// Layout quality rules (Rules 4–6)
+// ---------------------------------------------------------------------------
+
+/** Extract font size from an element's authored style, falling back to a default. */
+function getFontSize(el: SceneElement): number {
+  const props = el.authored?.props as Record<string, unknown> | undefined;
+  const style = props?.style as Record<string, unknown> | undefined;
+  if (style?.fontSize) {
+    const raw = style.fontSize;
+    if (typeof raw === 'number') return raw;
+    if (typeof raw === 'string') {
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed)) return parsed;
+    }
+  }
+  return 24; // reasonable default for presentation text
+}
+
+/** Estimate whether a text element wraps to multiple lines. */
+function isMultiLine(el: SceneElement): boolean {
+  const b = localBoundsOf(el);
+  if (!b) return false;
+  const fontSize = getFontSize(el);
+  // If element height exceeds ~1.8× the font size, it likely wraps
+  return b.h > fontSize * 1.8;
+}
+
+function ruleMinVerticalGap(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+
+  for (const siblings of siblingGroups(elements).values()) {
+    // Only consider text-like elements (type 'el')
+    const textEls = siblings.filter(el => el.type === 'el');
+    if (textEls.length < 2) continue;
+
+    // Sort by y position
+    const sorted = [...textEls].sort((a, b) => {
+      const ba = localBoundsOf(a);
+      const bb = localBoundsOf(b);
+      return (ba?.y ?? 0) - (bb?.y ?? 0);
+    });
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const elA = sorted[i];
+      const elB = sorted[i + 1];
+      const bA = localBoundsOf(elA);
+      const bB = localBoundsOf(elB);
+      if (!bA || !bB) continue;
+
+      // Only flag vertically adjacent elements (horizontally overlapping)
+      const overlapX = bA.x < bB.x + bB.w && bA.x + bA.w > bB.x;
+      if (!overlapX) continue;
+
+      const gap = bB.y - (bA.y + bA.h);
+      if (gap <= 0) continue; // overlapping or touching — handled by other rules
+
+      const fontSizeA = getFontSize(elA);
+      const fontSizeB = getFontSize(elB);
+      const smallerFont = Math.min(fontSizeA, fontSizeB);
+      const multiplier = isMultiLine(elA) ? 2.0 : 1.5;
+      const minGap = Math.round(smallerFont * multiplier);
+
+      if (gap < minGap) {
+        const aId = elA.id;
+        const bId = elB.id;
+        findings.push({
+          rule: 'min-vertical-gap',
+          severity: 'warning',
+          elementId: elA.id,
+          message: `Gap between "${aId}" and "${bId}" is ${gap}px (minimum recommended: ${minGap}px based on font sizes)`,
+          detail: { elementA: aId, elementB: bId, gap, minGap, fontSizeA, fontSizeB, multiplier },
+          bounds: bA,
+          parentBounds: null,
+          suggestion: `Increase gap to at least ${minGap}px`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+function ruleHorizontalCenterConsistency(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+  const SLIDE_CENTER = 960;
+  const CENTER_TOLERANCE = 20;
+  const WARN_DEVIATION = 50;
+  const ERROR_DEVIATION = 100;
+
+  // Consider only root-level content elements (skip bg/overlay and connectors)
+  const candidates = Object.values(elements).filter(el =>
+    !el._internal &&
+    el.parentId == null &&
+    normLayer(el) !== 'bg' &&
+    normLayer(el) !== 'overlay' &&
+    el.type !== 'connector'
+  );
+
+  if (candidates.length < 2) return findings;
+
+  // Count how many elements are centered
+  const withBounds = candidates.map(el => ({
+    el,
+    bounds: localBoundsOf(el),
+  })).filter((e): e is { el: SceneElement; bounds: Rect } => e.bounds != null && e.bounds.w > 0);
+
+  if (withBounds.length < 2) return findings;
+
+  const centeredCount = withBounds.filter(({ bounds }) => {
+    const centerX = bounds.x + bounds.w / 2;
+    return Math.abs(centerX - SLIDE_CENTER) < CENTER_TOLERANCE;
+  }).length;
+
+  const centeredRatio = centeredCount / withBounds.length;
+  if (centeredRatio <= 0.6) return findings; // not a centered-layout slide
+
+  // Flag elements that deviate from center
+  for (const { el, bounds } of withBounds) {
+    const centerX = Math.round(bounds.x + bounds.w / 2);
+    const offset = Math.abs(centerX - SLIDE_CENTER);
+    if (offset > WARN_DEVIATION) {
+      const id = el.id;
+      findings.push({
+        rule: 'horizontal-center-consistency',
+        severity: offset > ERROR_DEVIATION ? 'error' : 'warning',
+        elementId: id,
+        message: `Element "${id}" center (${centerX}) is ${offset}px from slide center (960) on a centered-layout slide`,
+        detail: { elementId: id, centerX, offset, centeredRatio },
+        bounds,
+        parentBounds: null,
+        suggestion: `Use anchor: 'tc' at x: 960, or wrap in a centered group`,
+      });
+    }
+  }
+  return findings;
+}
+
+function ruleUnbalancedTrailingWhitespace(elements: Record<string, SceneElement>): LintFinding[] {
+  const findings: LintFinding[] = [];
+  const SAFE_BOTTOM = 990; // safe zone bottom (SAFE_ZONE.y + SAFE_ZONE.h)
+  const SUGGESTION_RATIO = 3.0;
+  const WARNING_RATIO = 5.0;
+
+  // Consider root-level content elements, skip bg/overlay and connectors
+  const candidates = Object.values(elements).filter(el =>
+    !el._internal &&
+    el.parentId == null &&
+    normLayer(el) !== 'bg' &&
+    normLayer(el) !== 'overlay' &&
+    el.type !== 'connector'
+  );
+
+  const withBounds = candidates.map(el => ({
+    el,
+    bounds: localBoundsOf(el),
+  })).filter((e): e is { el: SceneElement; bounds: Rect } => e.bounds != null && e.bounds.w > 0 && e.bounds.h > 0);
+
+  // Sort by y position
+  withBounds.sort((a, b) => a.bounds.y - b.bounds.y);
+
+  for (let i = 0; i < withBounds.length; i++) {
+    const { el, bounds } = withBounds[i];
+
+    // Find the element directly above (nearest with bottom edge above this element's top)
+    let aboveBounds: Rect | null = null;
+    for (let j = i - 1; j >= 0; j--) {
+      const candidate = withBounds[j].bounds;
+      if (candidate.y + candidate.h <= bounds.y) {
+        aboveBounds = candidate;
+        break;
+      }
+    }
+
+    if (!aboveBounds) continue;
+
+    const gapAbove = bounds.y - (aboveBounds.y + aboveBounds.h);
+    const spaceBelow = SAFE_BOTTOM - (bounds.y + bounds.h);
+
+    if (spaceBelow <= 0 || gapAbove <= 0) continue;
+
+    const ratio = spaceBelow / gapAbove;
+    if (ratio > SUGGESTION_RATIO) {
+      const id = el.id;
+      const optimalGap = Math.round((gapAbove + spaceBelow) * 0.35);
+      findings.push({
+        rule: 'unbalanced-trailing-whitespace',
+        severity: ratio > WARNING_RATIO ? 'warning' : 'info',
+        elementId: id,
+        message: `Element "${id}" has ${spaceBelow}px below vs ${gapAbove}px above (ratio: ${ratio.toFixed(1)}×). Consider increasing gap for balance.`,
+        detail: { elementId: id, gapAbove, spaceBelow, ratio, optimalGap },
+        bounds,
+        parentBounds: null,
+        suggestion: `Increase gap above to ~${optimalGap}px for better vertical balance`,
+      });
+    }
+  }
+  return findings;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -1074,6 +1399,14 @@ export function lintSlide(slideData: LintSlideData, slideElement: HTMLElement | 
     ...ruleLopsidedLayout(elements),
     ...ruleTooManyElements(elements),
     ...ruleContentUnderutilized(elements),
+    // Authoring quality
+    ...ruleMisplacedCssProp(elements),
+    ...ruleTextAlignDirectionMismatch(elements),
+    ...ruleEqualHeightPeers(elements),
+    // Layout quality
+    ...ruleMinVerticalGap(elements),
+    ...ruleHorizontalCenterConsistency(elements),
+    ...ruleUnbalancedTrailingWhitespace(elements),
   ];
 
   // DOM-based rules only run when a slide DOM element is provided

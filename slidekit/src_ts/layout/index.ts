@@ -131,6 +131,13 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
   // Phase 4: Finalize
   // =========================================================================
 
+  // Merge font warnings from initialization (clear after consuming to prevent
+  // phantom re-reporting across multiple layout() calls within the same init)
+  if (state.fontWarnings && state.fontWarnings.length > 0) {
+    warnings.push(...state.fontWarnings);
+    state.fontWarnings = [];
+  }
+
   return finalize({
     sortedOrder,
     flatMap,
