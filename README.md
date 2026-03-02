@@ -121,7 +121,7 @@ After rendering, `window.sk.layouts[N]` exposes every element's resolved bounds,
 ## Examples
 
 See the [`examples/`](examples/) directory:
-- **slidekit-about** — a presentation about SlideKit itself, exercising most API features
+- **slidekit-about** — a presentation about SlideKit itself, exercising most API features ([view PDF](examples/slidekit-about/slidekit-about.pdf))
 - **stress-test** — 18-slide deck that exercises every layout primitive and edge case
 
 ## Development
