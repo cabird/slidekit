@@ -159,6 +159,13 @@ function buildConnectorSVG(
   const dash = connProps.dash;
   const arrow = connProps.arrow || "end";
 
+  // Arrowhead trim: move path endpoints inward so the stroke ends at the
+  // arrowhead midpoint (refX=5) rather than extending through to the tip.
+  // The marker tip extends past the shortened endpoint to the original anchor.
+  // trim = (viewBoxWidth - refX) / viewBoxWidth * markerWidth * strokeWidth
+  const arrowRefX = 5;
+  const arrowTrim = (10 - arrowRefX) / 10 * markerSize * thickness;
+
   // Create marker definitions for arrow heads
   // Use element ID for deterministic marker IDs (avoid Math.random)
   const defs = document.createElementNS(ns, "defs");
@@ -168,10 +175,10 @@ function buildConnectorSVG(
     const marker = document.createElementNS(ns, "marker");
     marker.setAttribute("id", markerId);
     marker.setAttribute("viewBox", "0 0 10 10");
-    marker.setAttribute("refX", "10");
+    marker.setAttribute("refX", String(arrowRefX));
     marker.setAttribute("refY", "5");
-    marker.setAttribute("markerWidth", "8");
-    marker.setAttribute("markerHeight", "8");
+    marker.setAttribute("markerWidth", String(markerSize));
+    marker.setAttribute("markerHeight", String(markerSize));
     marker.setAttribute("orient", "auto-start-reverse");
 
     const polygon = document.createElementNS(ns, "polygon");
@@ -183,32 +190,82 @@ function buildConnectorSVG(
 
   svg.appendChild(defs);
 
+  // Helper: move endpoint backward along the last segment by `amount` pixels
+  const trimEnd = (pts: {x:number,y:number}[], amount: number): {x:number,y:number}[] => {
+    if (pts.length < 2 || amount <= 0) return pts;
+    const result = pts.map(p => ({...p}));
+    const last = result[result.length - 1];
+    const prev = result[result.length - 2];
+    const dx = last.x - prev.x;
+    const dy = last.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > amount * 2) {
+      last.x -= (dx / len) * amount;
+      last.y -= (dy / len) * amount;
+    }
+    return result;
+  };
+  const trimStart = (pts: {x:number,y:number}[], amount: number): {x:number,y:number}[] => {
+    if (pts.length < 2 || amount <= 0) return pts;
+    const result = pts.map(p => ({...p}));
+    const first = result[0];
+    const next = result[1];
+    const dx = first.x - next.x;
+    const dy = first.y - next.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > amount * 2) {
+      first.x -= (dx / len) * amount;
+      first.y -= (dy / len) * amount;
+    }
+    return result;
+  };
+
+  const hasEndArrow = arrow === "end" || arrow === "both";
+  const hasStartArrow = arrow === "start" || arrow === "both";
+
   // Draw the connector path
   let pathEl;
   if (connType === "straight") {
+    // Trim straight line endpoints for arrowheads
+    let pts = [{x: lx1, y: ly1}, {x: lx2, y: ly2}];
+    if (hasEndArrow) pts = trimEnd(pts, arrowTrim);
+    if (hasStartArrow) pts = trimStart(pts, arrowTrim);
     pathEl = document.createElementNS(ns, "line");
-    pathEl.setAttribute("x1", String(lx1));
-    pathEl.setAttribute("y1", String(ly1));
-    pathEl.setAttribute("x2", String(lx2));
-    pathEl.setAttribute("y2", String(ly2));
+    pathEl.setAttribute("x1", String(pts[0].x));
+    pathEl.setAttribute("y1", String(pts[0].y));
+    pathEl.setAttribute("x2", String(pts[1].x));
+    pathEl.setAttribute("y2", String(pts[1].y));
   } else {
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      // Use clamped control point offset for proper curves
+      // Trim curved path endpoints
+      let startPt = {x: lx1, y: ly1};
+      let endPt = {x: lx2, y: ly2};
+      if (hasStartArrow) {
+        const trimmed = trimStart([startPt, {x: lx1 + from.dx * cpOffset, y: ly1 + from.dy * cpOffset}], arrowTrim);
+        startPt = trimmed[0];
+      }
+      if (hasEndArrow) {
+        const trimmed = trimEnd([{x: lx2 + to.dx * cpOffset, y: ly2 + to.dy * cpOffset}, endPt], arrowTrim);
+        endPt = trimmed[trimmed.length - 1];
+      }
       const cx1 = lx1 + from.dx * cpOffset;
       const cy1 = ly1 + from.dy * cpOffset;
       const cx2 = lx2 + to.dx * cpOffset;
       const cy2 = ly2 + to.dy * cpOffset;
-      d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
+      d = `M ${startPt.x} ${startPt.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${endPt.x} ${endPt.y}`;
     } else if (connType === "elbow" || connType === "orthogonal") {
       // Use orthogonal routing with direction-aware waypoints
       const waypoints = elbowWaypoints!;
       // Convert waypoints to SVG-local coordinates
-      const localWaypoints = waypoints.map(p => ({
+      let localWaypoints = waypoints.map(p => ({
         x: p.x - minX,
         y: p.y - minY
       }));
+      // Trim endpoints for arrowheads
+      if (hasEndArrow) localWaypoints = trimEnd(localWaypoints, arrowTrim);
+      if (hasStartArrow) localWaypoints = trimStart(localWaypoints, arrowTrim);
       if (localWaypoints.length >= 2) {
         const cornerRadius = connProps.cornerRadius ?? 0;
         if (cornerRadius > 0 && localWaypoints.length >= 3) {
@@ -220,7 +277,6 @@ function buildConnectorSVG(
           }
         }
       } else {
-        // Fallback to simple line
         d = `M ${lx1} ${ly1} L ${lx2} ${ly2}`;
       }
     }
