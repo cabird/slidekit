@@ -16,7 +16,7 @@
     "coordinate-based"
   ],
   "scripts": {
-    "build": "esbuild slidekit/slidekit.ts --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap && esbuild slidekit/src/debug.ts --bundle --format=esm --outfile=slidekit/dist/slidekit-debug.bundle.js --sourcemap",
+    "build": "esbuild slidekit/slidekit.ts --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap && esbuild slidekit/slidekit.ts --bundle --format=esm --minify --outfile=slidekit/dist/slidekit.bundle.min.js --sourcemap && esbuild slidekit/src/debug.ts --bundle --format=esm --outfile=slidekit/dist/slidekit-debug.bundle.js --sourcemap",
     "typecheck": "tsc --noEmit",
     "lint": "eslint slidekit/src/",
     "test": "node run-tests.js"

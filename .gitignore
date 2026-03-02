@@ -9,6 +9,7 @@ scene-model-data.json
 *_bundle.js
 *_bundle.js.map
 !slidekit/dist/slidekit.bundle.js
+!slidekit/dist/slidekit.bundle.min.js
 
 .env
 .env.*
