@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
     filePath = path.resolve(__dirname, 'slidekit/test/test_ts.html');
   } else if (req.url.startsWith('/dist/')) {
     filePath = path.resolve(__dirname, 'slidekit' + req.url);
-  } else if (req.url === '/slidekit.js' || req.url === '/slidekit-debug.js') {
+  } else if (req.url === '/slidekit.js') {
     filePath = path.resolve(__dirname, 'slidekit' + req.url);
   } else if (req.url.startsWith('/src/')) {
     // Imports from slidekit.js (e.g. ./src/state.js) resolve relative to /slidekit.js

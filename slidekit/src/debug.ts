@@ -1,10 +1,51 @@
 // SlideKit Debug Overlay — Separate module to keep the core lean
 // Reads from window.sk scene model data to render debug visualizations.
 
-/**
- * Color mapping for element types in debug overlay.
- */
-const TYPE_COLORS = {
+import type { Rect, Collision, SceneElement, SlideKitConfig, LayoutResult } from './types.js';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/** Color-mapped element type keys used in the debug overlay. */
+type DebugElementType =
+  | "text" | "image" | "rect" | "rule"
+  | "group" | "vstack" | "hstack"
+  | "connector" | "panel";
+
+/** Options controlling which debug features are rendered. */
+export interface DebugOverlayOptions {
+  /** Show element bounding boxes. Default: true. */
+  showBoxes?: boolean;
+  /** Show safe zone boundary. Default: true. */
+  showSafeZone?: boolean;
+  /** Show element ID labels. Default: true. */
+  showIds?: boolean;
+  /** Show anchor points as dots. Default: true. */
+  showAnchors?: boolean;
+  /** Highlight collision areas. Default: true. */
+  showCollisions?: boolean;
+  /** Which slide to overlay (0-based). Default: 0. */
+  slideIndex?: number;
+}
+
+/** Shape of window.sk as read by the debug overlay. */
+interface SkGlobal {
+  layouts?: LayoutResult[];
+  _config?: Partial<SlideKitConfig>;
+}
+
+declare global {
+  interface Window {
+    sk?: SkGlobal | null;
+  }
+}
+
+// =============================================================================
+// Color maps
+// =============================================================================
+
+const TYPE_COLORS: Record<DebugElementType, string> = {
   text:      "rgba(66, 133, 244, 0.3)",   // blue
   image:     "rgba(52, 168, 83, 0.3)",     // green
   rect:      "rgba(251, 188, 4, 0.3)",     // orange
@@ -16,7 +57,7 @@ const TYPE_COLORS = {
   panel:     "rgba(124, 92, 191, 0.3)",    // purple
 };
 
-const TYPE_BORDER_COLORS = {
+const TYPE_BORDER_COLORS: Record<DebugElementType, string> = {
   text:      "rgba(66, 133, 244, 0.8)",
   image:     "rgba(52, 168, 83, 0.8)",
   rect:      "rgba(251, 188, 4, 0.8)",
@@ -28,34 +69,23 @@ const TYPE_BORDER_COLORS = {
   panel:     "rgba(124, 92, 191, 0.8)",
 };
 
-/**
- * Track the current debug overlay element so it can be toggled.
- */
-let _debugOverlay = null;
+// =============================================================================
+// Module state
+// =============================================================================
+
+let _debugOverlay: HTMLDivElement | null = null;
+
+// =============================================================================
+// Public API
+// =============================================================================
 
 /**
  * Render a debug overlay on top of the slidekit-layer.
  *
- * Options:
- *   showBoxes:      Draw semi-transparent colored rectangles for each element's resolved bounds
- *   showSafeZone:   Draw a dashed border at the safe zone boundary
- *   showIds:        Render element IDs as small labels at each element's anchor point
- *   showAnchors:    Render a small dot at each element's anchor point
- *   showCollisions: Highlight collision areas in semi-transparent red
- *
  * The overlay reads from `window.sk` to get scene model data.
  * It can be toggled on/off without re-rendering the slide.
- *
- * @param {object} [options={}] - Debug overlay options
- * @param {boolean} [options.showBoxes=true] - Show element bounding boxes
- * @param {boolean} [options.showSafeZone=true] - Show safe zone boundary
- * @param {boolean} [options.showIds=true] - Show element ID labels
- * @param {boolean} [options.showAnchors=true] - Show anchor points as dots
- * @param {boolean} [options.showCollisions=true] - Highlight collision areas
- * @param {number} [options.slideIndex=0] - Which slide to overlay (0-based)
- * @returns {HTMLElement} The overlay element
  */
-export function renderDebugOverlay(options = {}) {
+export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivElement | null {
   const showBoxes = options.showBoxes !== false;
   const showSafeZone = options.showSafeZone !== false;
   const showIds = options.showIds !== false;
@@ -67,15 +97,15 @@ export function renderDebugOverlay(options = {}) {
   removeDebugOverlay();
 
   // Get scene model from window.sk
-  const sk = typeof window !== "undefined" ? window.sk : null;
+  const sk: SkGlobal | null | undefined = typeof window !== "undefined" ? window.sk : null;
   if (!sk || !sk.layouts || !sk.layouts[slideIndex]) {
     console.warn("SlideKit debug overlay: no scene model found. Call render() first.");
     return null;
   }
 
-  const layoutResult = sk.layouts[slideIndex];
-  const sceneElements = layoutResult.elements || {};
-  const collisions = layoutResult.collisions || [];
+  const layoutResult: LayoutResult = sk.layouts[slideIndex];
+  const sceneElements: Record<string, SceneElement> = layoutResult.elements || {};
+  const collisions: Collision[] = layoutResult.collisions || [];
 
   // Find the slidekit-layer to overlay on
   const slidekitLayers = document.querySelectorAll(".slidekit-layer");
@@ -86,8 +116,8 @@ export function renderDebugOverlay(options = {}) {
   }
 
   // Read slide dimensions from config, fall back to 1920x1080
-  const slideW = sk._config?.slide?.w ?? 1920;
-  const slideH = sk._config?.slide?.h ?? 1080;
+  const slideW: number = sk._config?.slide?.w ?? 1920;
+  const slideH: number = sk._config?.slide?.h ?? 1080;
 
   // Create the overlay div
   const overlay = document.createElement("div");
@@ -103,7 +133,7 @@ export function renderDebugOverlay(options = {}) {
 
   // Show safe zone boundary
   if (showSafeZone) {
-    const safeZoneEl = _createSafeZoneOverlay();
+    const safeZoneEl = _createSafeZoneOverlay(sk);
     if (safeZoneEl) {
       overlay.appendChild(safeZoneEl);
     }
@@ -112,7 +142,7 @@ export function renderDebugOverlay(options = {}) {
   // Show element bounding boxes
   if (showBoxes) {
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved = sceneEl.resolved;
+      const resolved: Rect | undefined = sceneEl.resolved;
       if (!resolved) continue;
 
       const boxEl = document.createElement("div");
@@ -123,8 +153,8 @@ export function renderDebugOverlay(options = {}) {
       boxEl.style.top = `${resolved.y}px`;
       boxEl.style.width = `${resolved.w}px`;
       boxEl.style.height = `${resolved.h}px`;
-      boxEl.style.background = TYPE_COLORS[sceneEl.type] || "rgba(128, 128, 128, 0.3)";
-      boxEl.style.border = `1px solid ${TYPE_BORDER_COLORS[sceneEl.type] || "rgba(128, 128, 128, 0.8)"}`;
+      boxEl.style.background = TYPE_COLORS[sceneEl.type as DebugElementType] || "rgba(128, 128, 128, 0.3)";
+      boxEl.style.border = `1px solid ${TYPE_BORDER_COLORS[sceneEl.type as DebugElementType] || "rgba(128, 128, 128, 0.8)"}`;
       boxEl.style.boxSizing = "border-box";
       boxEl.style.pointerEvents = "none";
 
@@ -135,11 +165,10 @@ export function renderDebugOverlay(options = {}) {
   // Show element IDs
   if (showIds) {
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved = sceneEl.resolved;
+      const resolved: Rect | undefined = sceneEl.resolved;
       if (!resolved) continue;
 
-      // Get the authored anchor to place the label at the anchor point
-      const anchor = sceneEl.authored?.props?.anchor || "tl";
+      const anchor: string = (sceneEl.authored?.props?.anchor as string) || "tl";
       const anchorPos = _getAnchorPosition(resolved, anchor);
 
       const labelEl = document.createElement("div");
@@ -166,10 +195,10 @@ export function renderDebugOverlay(options = {}) {
   // Show anchor points as dots
   if (showAnchors) {
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved = sceneEl.resolved;
+      const resolved: Rect | undefined = sceneEl.resolved;
       if (!resolved) continue;
 
-      const anchor = sceneEl.authored?.props?.anchor || "tl";
+      const anchor: string = (sceneEl.authored?.props?.anchor as string) || "tl";
       const anchorPos = _getAnchorPosition(resolved, anchor);
 
       const dotEl = document.createElement("div");
@@ -192,7 +221,7 @@ export function renderDebugOverlay(options = {}) {
   // Show collision areas
   if (showCollisions && collisions.length > 0) {
     for (const collision of collisions) {
-      const rect = collision.overlapRect;
+      const rect: Rect | undefined = collision.overlapRect;
       if (!rect) continue;
 
       const collisionEl = document.createElement("div");
@@ -220,32 +249,21 @@ export function renderDebugOverlay(options = {}) {
   return overlay;
 }
 
-/**
- * Remove the current debug overlay (toggle off).
- */
-export function removeDebugOverlay() {
+/** Remove the current debug overlay (toggle off). */
+export function removeDebugOverlay(): void {
   if (_debugOverlay && _debugOverlay.parentNode) {
     _debugOverlay.parentNode.removeChild(_debugOverlay);
   }
   _debugOverlay = null;
 }
 
-/**
- * Check if a debug overlay is currently visible.
- *
- * @returns {boolean}
- */
-export function isDebugOverlayVisible() {
+/** Check if a debug overlay is currently visible. */
+export function isDebugOverlayVisible(): boolean {
   return _debugOverlay !== null && _debugOverlay.parentNode !== null;
 }
 
-/**
- * Toggle the debug overlay on/off.
- *
- * @param {object} [options={}] - Debug overlay options (used when turning on)
- * @returns {boolean} Whether the overlay is now visible
- */
-export function toggleDebugOverlay(options = {}) {
+/** Toggle the debug overlay on/off. */
+export function toggleDebugOverlay(options: DebugOverlayOptions = {}): boolean {
   if (isDebugOverlayVisible()) {
     removeDebugOverlay();
     return false;
@@ -259,19 +277,13 @@ export function toggleDebugOverlay(options = {}) {
 // Internal helpers
 // =============================================================================
 
-/**
- * Create the safe zone boundary overlay element.
- *
- * @returns {HTMLElement|null}
- */
-function _createSafeZoneOverlay() {
-  // Try to read safe zone from window.sk or use defaults
+/** Create the safe zone boundary overlay element. */
+function _createSafeZoneOverlay(sk: SkGlobal): HTMLDivElement | null {
   let safeX = 120, safeY = 90, safeW = 1680, safeH = 900;
 
   try {
-    // Try to import safeRect from slidekit - if not available, use defaults
-    if (typeof window !== "undefined" && window.sk && window.sk._config) {
-      const cfg = window.sk._config;
+    if (sk._config) {
+      const cfg = sk._config;
       const sz = cfg.safeZone || { left: 120, right: 120, top: 90, bottom: 90 };
       const sl = cfg.slide || { w: 1920, h: 1080 };
       safeX = sz.left;
@@ -279,7 +291,7 @@ function _createSafeZoneOverlay() {
       safeW = sl.w - sz.left - sz.right;
       safeH = sl.h - sz.top - sz.bottom;
     }
-  } catch (e) {
+  } catch (_e) {
     // Use defaults
   }
 
@@ -297,18 +309,12 @@ function _createSafeZoneOverlay() {
   return el;
 }
 
-/**
- * Compute the pixel position of an anchor point on a resolved bounds rect.
- *
- * @param {{ x: number, y: number, w: number, h: number }} bounds
- * @param {string} anchor - tl, tc, tr, cl, cc, cr, bl, bc, br
- * @returns {{ x: number, y: number }}
- */
-function _getAnchorPosition(bounds, anchor) {
+/** Compute the pixel position of an anchor point on a resolved bounds rect. */
+function _getAnchorPosition(bounds: Rect, anchor: string): { x: number; y: number } {
   const row = (anchor && anchor[0]) || "t";
   const col = (anchor && anchor[1]) || "l";
 
-  let px, py;
+  let px: number, py: number;
 
   if (col === "l") px = bounds.x;
   else if (col === "c") px = bounds.x + bounds.w / 2;
