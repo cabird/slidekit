@@ -1,6 +1,6 @@
 # SlideKit Linter: Improvement Specification
 
-> **Current as of:** `42ae636` (2026-03-02)
+> **Current as of:** `66ce7bc` (2026-03-02)
 
 Prioritized changes to improve the linter's signal-to-noise ratio from ~4% to a target of >50%.
 

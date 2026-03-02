@@ -1,6 +1,6 @@
 # Design Decisions Log
 
-> **Current as of:** `42ae636` (2026-03-02)
+> **Current as of:** `66ce7bc` (2026-03-02)
 
 > Extracted from the original `docs/DESIGN.md`. These decisions were validated through multi-model consensus (Gemini Pro 3.1 + GPT 5.2).
 
