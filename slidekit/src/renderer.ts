@@ -86,8 +86,8 @@ export function applySlideBackground(section: HTMLElement, background: string): 
 /**
  * Build an SVG element for a connector between two points.
  *
- * @param {object} from - { x, y } start point
- * @param {object} to - { x, y } end point
+ * @param {object} from - { x, y, dx, dy } start point
+ * @param {object} to - { x, y, dx, dy } end point
  * @param {object} connProps - Connector properties from the element
  * @returns {HTMLElement} An absolutely positioned div containing the SVG
  */
@@ -106,14 +106,16 @@ function buildConnectorSVG(
   let maxX = Math.max(from.x, to.x) + padding;
   let maxY = Math.max(from.y, to.y) + padding;
 
-  // Pre-compute route for elbow to get proper SVG bounds
+  // Use cached waypoints from layout if available, otherwise compute
   let elbowWaypoints: {x: number, y: number}[] | null = null;
   if (connType === "elbow") {
-    // TODO: Pass obstacle bounding boxes for obstacle-aware routing
-    // const obstacles = collectObstacleBounds(sceneElements, element.id);
-    const route = routeConnector({ from, to });
-    elbowWaypoints = route.waypoints;
-    for (const wp of elbowWaypoints) {
+    if (connProps._cachedWaypoints) {
+      elbowWaypoints = connProps._cachedWaypoints;
+    } else {
+      const route = routeConnector({ from, to });
+      elbowWaypoints = route.waypoints;
+    }
+    for (const wp of elbowWaypoints!) {
       if (wp.x < minX) minX = wp.x;
       if (wp.y < minY) minY = wp.y;
       if (wp.x > maxX) maxX = wp.x;
@@ -121,14 +123,15 @@ function buildConnectorSVG(
     }
   }
 
-  // Pre-compute control points for curved to get proper SVG bounds
+  // Clamp control point offset for curved connectors
+  let cpOffset = 0;
   if (connType === "curved") {
     const dist = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
-    const cpOff = dist * 0.4;
-    const cx1 = from.x + from.dx * cpOff;
-    const cy1 = from.y + from.dy * cpOff;
-    const cx2 = to.x + to.dx * cpOff;
-    const cy2 = to.y + to.dy * cpOff;
+    cpOffset = Math.min(200, Math.max(40, dist * 0.4));
+    const cx1 = from.x + from.dx * cpOffset;
+    const cy1 = from.y + from.dy * cpOffset;
+    const cx2 = to.x + to.dx * cpOffset;
+    const cy2 = to.y + to.dy * cpOffset;
     minX = Math.min(minX, cx1, cx2);
     minY = Math.min(minY, cy1, cy2);
     maxX = Math.max(maxX, cx1, cx2);
@@ -151,16 +154,13 @@ function buildConnectorSVG(
   svg.style.overflow = "visible";
 
   const color = connProps.color || "#ffffff";
-  // thickness already declared above for padding calculation
   const dash = connProps.dash;
   const arrow = connProps.arrow || "end";
 
   // Create marker definitions for arrow heads
-  // Use a unique marker ID per connector to prevent cross-connector collisions
-  // (each SVG has its own defs, but IDs are document-global in some browsers)
+  // Use element ID for deterministic marker IDs (avoid Math.random)
   const defs = document.createElementNS(ns, "defs");
-  const uniqueSuffix = connProps._markerId || Math.random().toString(36).slice(2, 10);
-  const markerId = `sk-arrow-${uniqueSuffix}`;
+  const markerId = `sk-arrow-${connProps._markerId || 'default'}`;
 
   if (arrow !== "none") {
     const marker = document.createElementNS(ns, "marker");
@@ -193,13 +193,9 @@ function buildConnectorSVG(
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      // Use anchor directions for control point placement
-      const dist = Math.sqrt((lx2 - lx1) ** 2 + (ly2 - ly1) ** 2);
-      const cpOffset = dist * 0.4;
-      // Control points extend in the anchor's exit/entry direction
+      // Use clamped control point offset for proper curves
       const cx1 = lx1 + from.dx * cpOffset;
       const cy1 = ly1 + from.dy * cpOffset;
-      // Control point extends outward from target, so curve arrives from outside
       const cx2 = lx2 + to.dx * cpOffset;
       const cy2 = ly2 + to.dy * cpOffset;
       d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
@@ -212,9 +208,14 @@ function buildConnectorSVG(
         y: p.y - minY
       }));
       if (localWaypoints.length >= 2) {
-        d = `M ${localWaypoints[0].x} ${localWaypoints[0].y}`;
-        for (let i = 1; i < localWaypoints.length; i++) {
-          d += ` L ${localWaypoints[i].x} ${localWaypoints[i].y}`;
+        const cornerRadius = connProps.cornerRadius ?? 0;
+        if (cornerRadius > 0 && localWaypoints.length >= 3) {
+          d = buildRoundedElbowPath(localWaypoints, cornerRadius);
+        } else {
+          d = `M ${localWaypoints[0].x} ${localWaypoints[0].y}`;
+          for (let i = 1; i < localWaypoints.length; i++) {
+            d += ` L ${localWaypoints[i].x} ${localWaypoints[i].y}`;
+          }
         }
       } else {
         // Fallback to simple line
@@ -242,28 +243,32 @@ function buildConnectorSVG(
 
   svg.appendChild(pathEl);
 
-  // Optional label at midpoint
+  // Optional label — placed along the actual path
   if (connProps.label) {
     const labelStyle = connProps.labelStyle || {};
-    const labelSize = labelStyle.size ?? 14;
+    const labelSize = labelStyle.size ?? labelStyle.fontSize ?? 14;
     const labelColor = labelStyle.color ?? "#999999";
-    const labelFont = labelStyle.font || "Inter";
-    const labelWeight = labelStyle.weight ?? 400;
+    const labelFont = labelStyle.font || labelStyle.fontFamily || "Inter";
+    const labelWeight = labelStyle.weight ?? labelStyle.fontWeight ?? 400;
+    const labelPosition = connProps.labelPosition ?? 0.5;
+    const labelOffsetX = connProps.labelOffset?.x ?? 0;
+    const labelOffsetY = connProps.labelOffset?.y ?? -8;
 
-    // Compute midpoint
-    let midLX, midLY;
-    if (connType === "elbow") {
-      const midX = (lx1 + lx2) / 2;
-      midLX = midX;
-      midLY = (ly1 + ly2) / 2;
+    // Compute label position along the actual path
+    let midLX: number, midLY: number;
+    if (connType === "elbow" && elbowWaypoints && elbowWaypoints.length >= 2) {
+      const localWaypoints = elbowWaypoints.map(p => ({ x: p.x - minX, y: p.y - minY }));
+      const pt = pointAlongPolyline(localWaypoints, labelPosition);
+      midLX = pt.x;
+      midLY = pt.y;
     } else {
-      midLX = (lx1 + lx2) / 2;
-      midLY = (ly1 + ly2) / 2;
+      midLX = lx1 + (lx2 - lx1) * labelPosition;
+      midLY = ly1 + (ly2 - ly1) * labelPosition;
     }
 
     const textNode = document.createElementNS(ns, "text");
-    textNode.setAttribute("x", String(midLX));
-    textNode.setAttribute("y", String(midLY - 8)); // offset above line
+    textNode.setAttribute("x", String(midLX + labelOffsetX));
+    textNode.setAttribute("y", String(midLY + labelOffsetY));
     textNode.setAttribute("text-anchor", "middle");
     textNode.setAttribute("font-family", `"${labelFont}", sans-serif`);
     textNode.setAttribute("font-size", String(labelSize));
@@ -284,6 +289,100 @@ function buildConnectorSVG(
   wrapper.appendChild(svg);
 
   return wrapper;
+}
+
+/**
+ * Find a point at a given fraction (0–1) along a polyline's total length.
+ */
+function pointAlongPolyline(points: {x: number, y: number}[], t: number): {x: number, y: number} {
+  if (points.length < 2) return points[0] || { x: 0, y: 0 };
+
+  // Compute total length
+  const segLengths: number[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    segLengths.push(len);
+    totalLength += len;
+  }
+
+  if (totalLength === 0) return points[0];
+
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      const segFraction = segLengths[i] > 0 ? (targetLength - accumulated) / segLengths[i] : 0;
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * segFraction,
+        y: points[i].y + (points[i + 1].y - points[i].y) * segFraction,
+      };
+    }
+    accumulated += segLengths[i];
+  }
+
+  return points[points.length - 1];
+}
+
+/**
+ * Build an SVG path string for an elbow polyline with rounded corners.
+ * Each interior vertex gets a circular arc with the given radius,
+ * clamped to half the adjacent segment lengths.
+ */
+function buildRoundedElbowPath(points: {x: number, y: number}[], radius: number): string {
+  if (points.length < 2) return '';
+  if (points.length === 2) {
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+  }
+
+  let d = `M ${points[0].x} ${points[0].y}`;
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+
+    // Compute segment lengths
+    const len1 = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
+    const len2 = Math.sqrt((next.x - curr.x) ** 2 + (next.y - curr.y) ** 2);
+
+    // Clamp radius to half the shortest adjacent segment
+    const rEff = Math.min(radius, len1 / 2, len2 / 2);
+
+    if (rEff < 1) {
+      // Too small for an arc, just use a line
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    // Unit vectors for incoming and outgoing segments
+    const ux1 = (curr.x - prev.x) / len1;
+    const uy1 = (curr.y - prev.y) / len1;
+    const ux2 = (next.x - curr.x) / len2;
+    const uy2 = (next.y - curr.y) / len2;
+
+    // Trim points: where the arc starts and ends
+    const enterX = curr.x - ux1 * rEff;
+    const enterY = curr.y - uy1 * rEff;
+    const exitX = curr.x + ux2 * rEff;
+    const exitY = curr.y + uy2 * rEff;
+
+    // Determine sweep direction (clockwise vs counter-clockwise)
+    // Cross product of incoming and outgoing vectors
+    const cross = ux1 * uy2 - uy1 * ux2;
+    const sweep = cross > 0 ? 1 : 0;
+
+    d += ` L ${enterX} ${enterY}`;
+    d += ` A ${rEff} ${rEff} 0 0 ${sweep} ${exitX} ${exitY}`;
+  }
+
+  // Final segment to last point
+  const last = points[points.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+
+  return d;
 }
 
 /**
@@ -446,7 +545,11 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
         const svgWrapper = buildConnectorSVG(
           connectorData.from,
           connectorData.to,
-          { ...props, _markerId: element.id }
+          {
+            ...props,
+            _markerId: element.id,
+            _cachedWaypoints: connectorData.waypoints,
+          }
         );
         // Return the SVG wrapper directly instead of the div
         svgWrapper.setAttribute("data-sk-id", element.id);

@@ -9,7 +9,7 @@ import { buildProvenance, computeAABBIntersection } from './helpers.js';
 import { mustGet } from '../assertions.js';
 import { isPanelElement } from '../types.js';
 import { routeConnector } from '../connectorRouting.js';
-import type { SlideElement, Rect, ResolvedSize, TransformMarker, AuthoredSpec, LayoutResult, SceneElement, Provenance, ElementType } from '../types.js';
+import type { SlideElement, Rect, Point, AnchorPointResult, ResolvedSize, TransformMarker, AuthoredSpec, LayoutResult, SceneElement, Provenance, ElementType } from '../types.js';
 
 /** Context passed from earlier layout phases into finalize. */
 interface FinalizeContext {
@@ -181,6 +181,53 @@ export function finalize({
   // =========================================================================
   // After all positions are resolved, compute connection points for connectors.
 
+  // Collect obstacle rects (all non-connector, non-bg-layer elements)
+  const obstacleRects: Array<{ id: string; rect: Rect }> = [];
+  for (const id of sortedOrder) {
+    const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
+    if (el.type === "connector") continue;
+    // Skip stacks (their children are the real elements)
+    if (el.type === "vstack" || el.type === "hstack") continue;
+    // Skip internal panel parts
+    if (panelInternals.has(id)) continue;
+    // Skip background layer elements (full-bleed backgrounds shouldn't block routing)
+    if (el.props.layer === "bg") continue;
+    const bounds = resolvedBounds.get(id);
+    if (!bounds || bounds.w <= 0 || bounds.h <= 0) continue;
+    obstacleRects.push({ id, rect: bounds });
+  }
+
+  // First pass: resolve anchor points for all connectors and collect
+  // port spreading groups (connectors sharing the same element+edge).
+  interface ConnectorInfo {
+    id: string;
+    el: SlideElement;
+    fromId: string;
+    toId: string;
+    fromAnchor: string;
+    toAnchor: string;
+    fromPt: AnchorPointResult;
+    toPt: AnchorPointResult;
+    fromBounds: Rect;
+    toBounds: Rect;
+  }
+  const connectorInfos: ConnectorInfo[] = [];
+
+  // Grouping key: elementId + edge (t/b/l/r derived from anchor)
+  function anchorEdge(anchor: string): string {
+    const row = anchor[0]; // t, c, b
+    const col = anchor[1]; // l, c, r
+    if (row === 't') return 'top';
+    if (row === 'b') return 'bottom';
+    if (col === 'l') return 'left';
+    if (col === 'r') return 'right';
+    return 'center'; // cc — no edge spreading
+  }
+
+  // Port group: connectors sharing the same (elementId, edge, direction)
+  // direction = 'from' or 'to'
+  const portGroups = new Map<string, Array<{ idx: number; targetPt: Point; portOrder: number }>>();
+
   for (const id of sortedOrder) {
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     if (el.type !== "connector") continue;
@@ -234,16 +281,168 @@ export function finalize({
       }
     }
 
-    // Compute routing to get accurate connector bounds
-    const route = routeConnector({ from: fromPt, to: toPt });
-    let connMinX = Infinity, connMinY = Infinity;
-    let connMaxX = -Infinity, connMaxY = -Infinity;
-    for (const wp of route.waypoints) {
-      if (wp.x < connMinX) connMinX = wp.x;
-      if (wp.y < connMinY) connMinY = wp.y;
-      if (wp.x > connMaxX) connMaxX = wp.x;
-      if (wp.y > connMaxY) connMaxY = wp.y;
+    const idx = connectorInfos.length;
+    connectorInfos.push({ id, el, fromId, toId, fromAnchor, toAnchor, fromPt, toPt, fromBounds, toBounds });
+
+    // Register in port groups for spreading
+    const fromEdge = anchorEdge(fromAnchor);
+    if (fromEdge !== 'center') {
+      const key = `from:${fromId}:${fromEdge}`;
+      if (!portGroups.has(key)) portGroups.set(key, []);
+      portGroups.get(key)!.push({
+        idx,
+        targetPt: { x: toPt.x, y: toPt.y },
+        portOrder: (el.props.fromPortOrder as number) ?? 0,
+      });
     }
+
+    const toEdge = anchorEdge(toAnchor);
+    if (toEdge !== 'center') {
+      const key = `to:${toId}:${toEdge}`;
+      if (!portGroups.has(key)) portGroups.set(key, []);
+      portGroups.get(key)!.push({
+        idx,
+        targetPt: { x: fromPt.x, y: fromPt.y },
+        portOrder: (el.props.toPortOrder as number) ?? 0,
+      });
+    }
+  }
+
+  // Apply port spreading: when multiple connectors share an edge, distribute
+  // them along it. Sort by portOrder, then by target projection to avoid crossings.
+  const PORT_SPACING = 14; // px between spread ports
+  const EDGE_MARGIN = 8;   // px margin from edge corners
+
+  for (const [key, group] of portGroups) {
+    // For single-connector groups, only apply if there's an explicit offset
+    if (group.length <= 1) {
+      if (group.length === 1) {
+        const parts = key.split(':');
+        const direction = parts[0];
+        const info = connectorInfos[group[0].idx];
+        const explicitOffset = direction === 'from'
+          ? (info.el.props.fromPortOffset as number | undefined)
+          : (info.el.props.toPortOffset as number | undefined);
+        if (explicitOffset !== undefined) {
+          const edge = parts[2];
+          const isHorizontalEdge = edge === 'top' || edge === 'bottom';
+          if (direction === 'from') {
+            if (isHorizontalEdge) info.fromPt.x += explicitOffset;
+            else info.fromPt.y += explicitOffset;
+          } else {
+            if (isHorizontalEdge) info.toPt.x += explicitOffset;
+            else info.toPt.y += explicitOffset;
+          }
+        }
+      }
+      continue;
+    }
+
+    const parts = key.split(':');
+    const direction = parts[0]; // 'from' or 'to'
+    const elementId = parts[1];
+    const edge = parts[2];
+
+    const bounds = resolvedBounds.get(elementId);
+    if (!bounds) continue;
+
+    // Sort by (portOrder, target projection along edge tangent)
+    const isHorizontalEdge = edge === 'top' || edge === 'bottom';
+    group.sort((a, b) => {
+      if (a.portOrder !== b.portOrder) return a.portOrder - b.portOrder;
+      // Sort by target projection to avoid crossings
+      return isHorizontalEdge
+        ? a.targetPt.x - b.targetPt.x
+        : a.targetPt.y - b.targetPt.y;
+    });
+
+    // Compute available edge span and spacing
+    const edgeLength = isHorizontalEdge ? bounds.w : bounds.h;
+    const usable = edgeLength - 2 * EDGE_MARGIN;
+    const totalSpread = (group.length - 1) * PORT_SPACING;
+    const spacing = totalSpread > usable
+      ? usable / (group.length - 1)
+      : PORT_SPACING;
+
+    const startOffset = -((group.length - 1) * spacing / 2);
+
+    for (let i = 0; i < group.length; i++) {
+      const entry = group[i];
+      const info = connectorInfos[entry.idx];
+      const offset = startOffset + i * spacing;
+
+      // Check for explicit pixel offset override
+      const explicitOffset = direction === 'from'
+        ? (info.el.props.fromPortOffset as number | undefined)
+        : (info.el.props.toPortOffset as number | undefined);
+
+      const appliedOffset = explicitOffset ?? offset;
+
+      // Apply offset to the anchor point along the edge tangent
+      if (direction === 'from') {
+        if (isHorizontalEdge) {
+          info.fromPt.x += appliedOffset;
+        } else {
+          info.fromPt.y += appliedOffset;
+        }
+      } else {
+        if (isHorizontalEdge) {
+          info.toPt.x += appliedOffset;
+        } else {
+          info.toPt.y += appliedOffset;
+        }
+      }
+    }
+  }
+
+  // Second pass: route connectors with obstacles and cache waypoints
+  for (const info of connectorInfos) {
+    const { id, el, fromId, toId, fromAnchor, toAnchor, fromPt, toPt } = info;
+
+    // Build obstacle list excluding the connector's own from/to elements
+    const obstacles: Rect[] = [];
+    for (const obs of obstacleRects) {
+      if (obs.id === fromId || obs.id === toId) continue;
+      obstacles.push(obs.rect);
+    }
+
+    // Route with obstacles for elbow connectors
+    const connType = el.props.connectorType || 'straight';
+    let waypoints: Point[] | undefined;
+    if (connType === 'elbow') {
+      const route = routeConnector({ from: fromPt, to: toPt, obstacles });
+      waypoints = route.waypoints;
+    }
+
+    // Compute connector bounds
+    let connMinX = Math.min(fromPt.x, toPt.x);
+    let connMinY = Math.min(fromPt.y, toPt.y);
+    let connMaxX = Math.max(fromPt.x, toPt.x);
+    let connMaxY = Math.max(fromPt.y, toPt.y);
+
+    if (waypoints) {
+      for (const wp of waypoints) {
+        if (wp.x < connMinX) connMinX = wp.x;
+        if (wp.y < connMinY) connMinY = wp.y;
+        if (wp.x > connMaxX) connMaxX = wp.x;
+        if (wp.y > connMaxY) connMaxY = wp.y;
+      }
+    }
+
+    // For curved connectors, account for control point bounds
+    if (connType === 'curved') {
+      const dist = Math.sqrt((toPt.x - fromPt.x) ** 2 + (toPt.y - fromPt.y) ** 2);
+      const cpOff = Math.min(200, Math.max(40, dist * 0.4));
+      const cx1 = fromPt.x + fromPt.dx * cpOff;
+      const cy1 = fromPt.y + fromPt.dy * cpOff;
+      const cx2 = toPt.x + toPt.dx * cpOff;
+      const cy2 = toPt.y + toPt.dy * cpOff;
+      connMinX = Math.min(connMinX, cx1, cx2);
+      connMinY = Math.min(connMinY, cy1, cy2);
+      connMaxX = Math.max(connMaxX, cx1, cx2);
+      connMaxY = Math.max(connMaxY, cy1, cy2);
+    }
+
     resolvedBounds.set(id, {
       x: connMinX,
       y: connMinY,
@@ -251,7 +450,7 @@ export function finalize({
       h: connMaxY - connMinY,
     });
 
-    // Store resolved connector data in the scene element and update resolved bounds
+    // Store resolved connector data in the scene element
     if (sceneElements[id]) {
       const connBounds = {
         x: connMinX,
@@ -260,7 +459,6 @@ export function finalize({
         h: connMaxY - connMinY,
       };
       sceneElements[id].resolved = { ...connBounds };
-      // Connectors are root elements, so localResolved === resolved
       sceneElements[id].localResolved = { ...connBounds };
       sceneElements[id]._connectorResolved = {
         from: fromPt,
@@ -269,6 +467,7 @@ export function finalize({
         toId,
         fromAnchor,
         toAnchor,
+        waypoints,
       };
     }
   }
