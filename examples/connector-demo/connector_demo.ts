@@ -512,47 +512,47 @@ const slide7: SlideDefinition = {
   background: C.bg,
   elements: [
     title('Connector Types & Styles'),
-    subtitle('Straight, curved, and elbow connectors with various styling options'),
+    subtitle('Straight, curved, elbow, and orthogonal connectors with various styling options'),
 
-    // Row 1: types
+    // Row 1: types — 4 columns at x ≈ 250, 650, 1050, 1500
     el(`<p style="font-size:22px;color:${C.accent1};font-weight:600">Straight</p>`, {
-      id: 's7-t1', layer: 'bg', x: 300, y: 220, anchor: 'tc',
+      id: 's7-t1', layer: 'bg', x: 270, y: 220, anchor: 'tc',
     }),
-    box('s7-a1', 'A', 180, 300),
-    box('s7-b1', 'B', 420, 450),
+    box('s7-a1', 'A', 160, 300),
+    box('s7-b1', 'B', 380, 450),
     connect('s7-a1', 's7-b1', {
       id: 's7-sc', type: 'straight', arrow: 'end', color: C.accent1, thickness: 3,
       fromAnchor: 'cr', toAnchor: 'cl',
     }),
 
     el(`<p style="font-size:22px;color:${C.accent2};font-weight:600">Curved</p>`, {
-      id: 's7-t2', layer: 'bg', x: 750, y: 220, anchor: 'tc',
+      id: 's7-t2', layer: 'bg', x: 680, y: 220, anchor: 'tc',
     }),
-    box('s7-a2', 'A', 630, 300),
-    box('s7-b2', 'B', 870, 450),
+    box('s7-a2', 'A', 570, 300),
+    box('s7-b2', 'B', 790, 450),
     connect('s7-a2', 's7-b2', {
       id: 's7-cv', type: 'curved', arrow: 'end', color: C.accent2, thickness: 3,
       fromAnchor: 'cr', toAnchor: 'cl',
     }),
 
     el(`<p style="font-size:22px;color:${C.accent4};font-weight:600">Elbow</p>`, {
-      id: 's7-t3', layer: 'bg', x: 1200, y: 220, anchor: 'tc',
+      id: 's7-t3', layer: 'bg', x: 1090, y: 220, anchor: 'tc',
     }),
-    box('s7-a3', 'A', 1080, 300),
-    box('s7-b3', 'B', 1320, 450),
+    box('s7-a3', 'A', 980, 300),
+    box('s7-b3', 'B', 1200, 450),
     connect('s7-a3', 's7-b3', {
       id: 's7-el', type: 'elbow', arrow: 'end', color: C.accent4, thickness: 3,
       fromAnchor: 'bc', toAnchor: 'cl', cornerRadius: 12,
     }),
 
-    el(`<p style="font-size:22px;color:${C.accent3};font-weight:600">Elbow + Radius</p>`, {
+    el(`<p style="font-size:22px;color:${C.accent3};font-weight:600">Orthogonal</p>`, {
       id: 's7-t4', layer: 'bg', x: 1650, y: 220, anchor: 'tc',
     }),
-    box('s7-a4', 'A', 1530, 300),
-    box('s7-b4', 'B', 1770, 450),
+    box('s7-a4', 'A', 1550, 290),
+    box('s7-b4', 'B', 1750, 450),
     connect('s7-a4', 's7-b4', {
-      id: 's7-er', type: 'elbow', arrow: 'end', color: C.accent3, thickness: 3,
-      fromAnchor: 'bc', toAnchor: 'cl', cornerRadius: 20,
+      id: 's7-er', type: 'orthogonal', arrow: 'end', color: C.accent3, thickness: 3,
+      fromAnchor: 'bc', toAnchor: 'tc', cornerRadius: 12,
     }),
 
     // Row 2: arrow types and styles
