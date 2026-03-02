@@ -426,8 +426,10 @@ export function finalize({
       // Stub length must clear the arrowhead so the path straightens out
       // before entering the marker. Marker is 8×8 in viewBox 0-10 and
       // scales with strokeWidth (SVG default markerUnits="strokeWidth").
+      // Also account for cornerRadius which trims into the stub.
       const thickness = (el.props.thickness as number) ?? 2;
-      const stubLength = Math.max(30, 8 * thickness + 10);
+      const cornerRadius = (el.props.cornerRadius as number) ?? 0;
+      const stubLength = Math.max(50, 12 * thickness + cornerRadius + 20);
       const route = routeConnector({
         from: fromPt, to: toPt, obstacles,
         orthogonal: connType === 'orthogonal',

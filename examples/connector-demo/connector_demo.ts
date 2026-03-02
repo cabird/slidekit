@@ -291,11 +291,11 @@ const slide4: SlideDefinition = {
     }),
 
     // Right side: backward elbow with radius
-    box('s4-bk1', 'Response', 1650, 720, { w: 160, h: 70 }),
+    box('s4-bk1', 'Response', 1650, 700, { w: 160, h: 70 }),
     box('s4-bk2', 'Request', 1650, 900, { w: 160, h: 70 }),
     connect('s4-bk2', 's4-bk1', {
       id: 's4-bkc', type: 'orthogonal', arrow: 'end', color: C.accent5, thickness: 2,
-      fromAnchor: 'tc', toAnchor: 'bc', cornerRadius: 12,
+      fromAnchor: 'cr', toAnchor: 'cr', cornerRadius: 12,
       label: 'returns',
       labelStyle: { color: C.accent5, fontSize: '15px' },
     }),
