@@ -1123,15 +1123,30 @@ Returns the current safe zone rectangle.
 
 ### `splitRect(rect, options?)`
 
-Splits a rectangle into two sub-rectangles (left and right).
+Splits a rectangle into left and right sub-rectangles. This is a convenience function for **two-column slide layouts** — e.g., image on the left with content on the right, or vice versa. Combine with `safeRect()` to divide the safe zone into precise column regions.
 
 **Signature:** `splitRect(rect: Rect, options?: { ratio?: number, gap?: number | string }): { left: Rect, right: Rect }`
 
 | Param | Type | Default | Description |
 |---|---|---|---|
-| `rect` | `Rect` | — | The rectangle to split |
+| `rect` | `Rect` | — | The rectangle to split (typically `safeRect()`) |
 | `options.ratio` | `number` | `0.5` | Fraction of usable width for the left side (0–1) |
 | `options.gap` | `number \| string` | `0` | Gap between left and right (px or spacing token) |
+
+```typescript
+// Image-left / content-right layout (55% / 45% split with 40px gap)
+const { left, right } = splitRect(safeRect(), { ratio: 0.55, gap: 40 });
+const img = figure('photo.png', { ...left });
+const content = vstack({ x: right.x, y: right.y, w: right.w }, [
+  el('Heading', { style: { fontSize: 48 } }),
+  el('Body text here...', { w: right.w }),
+]);
+
+// Equal halves with spacing token gap
+const { left: colA, right: colB } = splitRect(safeRect(), { gap: 'md' });
+```
+
+> ✅ **Pattern:** Use `splitRect()` instead of manually computing column widths — it handles gap arithmetic and rounding correctly. This also produces lint-friendly layouts since elements get explicit coordinates rather than being inside stacks the linter can't resolve.
 
 ### `getConfig()`
 
