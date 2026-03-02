@@ -1,6 +1,6 @@
 # SlideKit: The Definitive AI Authoring Guide
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `068e7d3` (2026-03-02)
 
 A comprehensive guide for AI agents creating presentations with SlideKit. Read this once before building any slides.
 
@@ -12,65 +12,11 @@ SlideKit is a coordinate-based presentation library that renders elements on a f
 
 **Key mental model:** You are a layout engine, not a CSS author. Every element has a known position and size. SlideKit doesn't reflow elements automatically, but the DOM still measures text — so you must render first, then inspect actual dimensions, then correct.
 
-### The Safe Zone
+For the full conceptual overview, see [OVERVIEW.md](OVERVIEW.md). For every function signature, property, and type, see [API.md](API.md).
 
-Content must stay within an inset from each edge — **120px left/right, 90px top/bottom**:
+**The Safe Zone:** Content must stay within 120px left/right and 90px top/bottom. Use `safeRect()` to get `{ x: 120, y: 90, w: 1680, h: 900 }`. Background (`layer: 'bg'`) elements are exempt. Overlay elements are typically decorative but the linter currently flags them (see Section 4).
 
-| Edge   | Min | Max  |
-|--------|-----|------|
-| x      | 120 | 1800 |
-| y      | 90  | 990  |
-
-Use `safeRect()` to get these as a `Rect`: `{ x: 120, y: 90, w: 1680, h: 900 }`.
-
-Background (`layer: 'bg'`) elements are exempt from safe-zone checks. Overlay (`layer: 'overlay'`) elements are typically decorative and placed at edges intentionally, but the linter currently flags them (known limitation — see Section 4).
-
-### Core Primitives
-
-| Function | Purpose |
-|----------|---------|
-| `el(content, props)` | Basic element — text, HTML, decorative shapes |
-| `group(children, props)` | Groups elements so they move together |
-| `vstack(children, props)` | Vertical stack with automatic spacing |
-| `hstack(children, props)` | Horizontal stack with automatic spacing |
-| `panel(children, props)` | Styled container with padding, fill, border, radius |
-| `figure(id, src, rect, opts)` | Image container with background, padding, caption |
-| `connect(fromId, toId, opts)` | Connector line/arrow between elements |
-| `cardGrid(cards, opts)` | Grid layout using rows of hstacks |
-
-### Relative Positioning Helpers
-
-| Function | What it does |
-|----------|-------------|
-| `below(refId, { gap })` | Place below reference element |
-| `above(refId, { gap })` | Place above reference element |
-| `rightOf(refId, { gap })` | Place to the right of reference |
-| `leftOf(refId, { gap })` | Place to the left of reference |
-| `placeBetween(refA, refB)` | Center between two references |
-| `centerIn(refId)` | Center inside a reference |
-| `centerVWith(refId)` | Vertically center with reference |
-| `centerHWith(refId)` | Horizontally center with reference |
-| `alignTopWith(refId)` | Align top edge with reference |
-| `alignBottomWith(refId)` | Align bottom edge with reference |
-
-### Transforms (Post-Layout Adjustments)
-
-```typescript
-transforms: [
-  alignLeft(['a', 'b', 'c']),      // Align left edges
-  alignCenterH(['a', 'b', 'c']),   // Align horizontal centers
-  distributeH(['a', 'b', 'c'], { startX: 100, endX: 1800 }),  // Spread horizontally
-  matchHeight(['a', 'b', 'c']),    // Equalize heights
-]
-```
-
-### Anchor System
-
-Elements have a 9-point anchor: `tl`, `tc`, `tr`, `cl`, `cc`, `cr`, `bl`, `bc`, `br`. The anchor point is placed at the element's `(x, y)` coordinate.
-
-### Layers
-
-Three rendering layers (back to front): `bg` → `content` → `overlay`.
+**Three rendering layers** (back to front): `bg` → `content` → `overlay`.
 
 ---
 
@@ -339,14 +285,17 @@ el('E', { y: placeBetween('A', 'B'), h: 70 }); // fits
 
 Check for `between_no_fit` warnings in the layout result.
 
-### Pitfall 4: `dash` on Connectors Must Be an Array
+### Pitfall 4: `dash` on Connectors Must Be an SVG String
 
 ```typescript
-// ❌ Silently produces solid line
+// ❌ Silently produces solid line (comma-separated)
 connect('a', 'b', { dash: '6,4' });
 
-// ✅ Correct
+// ❌ Wrong type — dash expects a string, not an array
 connect('a', 'b', { dash: [6, 4] });
+
+// ✅ Correct — SVG stroke-dasharray string (space-separated)
+connect('a', 'b', { dash: '6 4' });
 ```
 
 ### Pitfall 5: Transforms Only Move Explicitly-Passed Elements

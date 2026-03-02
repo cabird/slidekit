@@ -1,6 +1,6 @@
 # SlideKit API Reference
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `068e7d3` (2026-03-02)
 
 > **Read [OVERVIEW.md](OVERVIEW.md) first** for conceptual understanding — what SlideKit is, why it exists, and how the three-phase pipeline (specification, layout solve, render) works.
 
@@ -265,7 +265,7 @@ vstack([
 ], { id: 's2-text', x: 120, y: 310, gap: 'md' });
 ```
 
-> ⚠️ **Anti-pattern:** The linter cannot resolve child positions inside `hstack()`/`cardGrid()`. For lint-friendly multi-column layouts, compute positions explicitly with `splitRect()` or manual arithmetic. See [Pro Pattern 4 in the Authoring Guide](../docs/slidekit_guide/AI_AUTHORING_GUIDE.md).
+> ⚠️ **Anti-pattern:** The linter cannot resolve child positions inside `hstack()`/`cardGrid()`. For lint-friendly multi-column layouts, compute positions explicitly with `splitRect()` or manual arithmetic. See [Pro Pattern 4 in the Authoring Guide](AI_AUTHORING_GUIDE.md).
 > ```js
 > // ❌ Linter sees all children at same position → false overlap errors
 > hstack([panel([...]), panel([...])], { gap: 20 });
@@ -602,6 +602,26 @@ el('', {
 });
 ```
 
+### Convenience Property Mapping
+
+Element props support shorthand convenience properties that map to CSS equivalents. These are applied to the rendered container alongside `style` properties.
+
+| Prop        | CSS Equivalent       |
+|-------------|---------------------|
+| `color`     | `color`             |
+| `font`      | `fontFamily`        |
+| `size`      | `fontSize` (+ "px") |
+| `weight`    | `fontWeight`        |
+| `fill`      | `background`        |
+| `radius`    | `borderRadius`      |
+| `border`    | `border`            |
+| `align`     | `textAlign`         |
+| `shadow`    | `boxShadow`         |
+
+If both a convenience prop and `style` specify the same CSS property, `style` wins.
+
+Text-specific convenience properties: `font`, `size`, `weight`, `color`, `lineHeight`, `letterSpacing`, `align`, `overflow`, `maxLines`, `fit`.
+
 ### Blocked Properties
 
 These CSS properties are blocked from the `style` pass-through because they conflict with SlideKit's positioning system. Using a blocked property emits a warning with a prescriptive suggestion.
@@ -692,6 +712,20 @@ SlideKit injects a baseline stylesheet inside every `el()` container that:
 User inline styles always win over the baseline.
 
 > ✅ **Pattern:** For text on semi-transparent colored backgrounds, use opacity ≥ 0.25. Opacity 0.15 consistently fails contrast checks (the linter flags contrast ratios below 4.5:1).
+
+### Theme CSS
+
+SlideKit elements can reference CSS classes via the `className` property. These classes must exist in a loaded stylesheet (via `<link>` tag or inline `<style>` block).
+
+**The CSS-Only Rule:** Theme CSS files should contain **only visual styling properties** — backgrounds, gradients, colors, borders, shadows, typography, filters, animations, transitions, and CSS custom properties. They should **never** contain layout properties (`position`, `display`, `width`, `height`, `margin`, `padding`, `flex`, `grid`). SlideKit strips layout properties from inline styles with warnings, but class-based layout properties apply silently and conflict with SlideKit's positioning.
+
+```js
+// className must match a class in a loaded stylesheet
+el("", { x: 100, y: 200, w: 400, h: 300, className: "glass-card" });
+
+// Multiple classes
+el("", { x: 100, y: 200, w: 400, h: 300, className: "glass-card glow-accent" });
+```
 
 ---
 

@@ -1,6 +1,6 @@
 # SlideKit Overview
 
-> **Current as of:** `cb951cf` (2026-03-02)
+> **Current as of:** `068e7d3` (2026-03-02)
 
 ## What Is SlideKit?
 
@@ -217,4 +217,5 @@ All source files are TypeScript (`.ts`). Type definitions are centralized in `sr
 ## Next Steps
 
 - **[API.md](API.md)** — Full API reference with every function signature, property table, defaults, and return shapes. Start here to write code.
-- **[examples/](examples/)** — Runnable example files demonstrating common patterns (title slides, card rows, connectors, grids, and more). Open `examples/run.html?example=title-slide` in a browser to see any example rendered live.
+- **[AI Authoring Guide](AI_AUTHORING_GUIDE.md)** — Workflow guide for AI agents — render→inspect→correct loop, pitfalls, and proven patterns.
+- **[examples/](../slidekit/examples/)** — Runnable example files demonstrating common patterns (title slides, card rows, connectors, grids, and more). Open `examples/run.html?example=title-slide` in a browser to see any example rendered live.
