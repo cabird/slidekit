@@ -1,5 +1,7 @@
 # SlideKit
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 A coordinate-based slide layout library for AI agents and humans. SlideKit gives you direct control over where every element is placed on a 1920x1080 canvas, with text measurement, auto-fit sizing, collision detection, and structured validation -- eliminating the CSS layout debugging loops that plague AI-generated presentations.
 
 ## Quick Start

@@ -1,5 +1,7 @@
 # SlideKit Architecture
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 This document explains how SlideKit works at the implementation level. It is written for developers who want to understand, debug, or extend the codebase. It goes beyond the API surface described in [API.md](API.md) and the conceptual model in [OVERVIEW.md](OVERVIEW.md) to explain the actual code paths, data structures, and design decisions.
 
 ---

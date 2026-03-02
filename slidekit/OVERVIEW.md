@@ -1,5 +1,7 @@
 # SlideKit Overview
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 ## What Is SlideKit?
 
 SlideKit is a JavaScript library for building presentation slides using explicit coordinates on a fixed canvas, rather than CSS auto-layout. You tell it exactly where every element goes — position, size, and styling — and it handles rendering, validation, and feedback.

@@ -1,5 +1,7 @@
 # SlideKit Linter: Improvement Specification
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 Prioritized changes to improve the linter's signal-to-noise ratio from ~4% to a target of >50%.
 
 Based on analysis of 1269+ findings across two presentations (16-slide "about" deck, 17-slide academic deck) and an 18-slide stress test.

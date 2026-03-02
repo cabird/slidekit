@@ -1,5 +1,7 @@
 # SlideKit: The Definitive AI Authoring Guide
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 A comprehensive guide for AI agents creating presentations with SlideKit. Read this once before building any slides.
 
 ---

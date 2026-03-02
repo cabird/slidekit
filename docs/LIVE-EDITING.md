@@ -1,5 +1,7 @@
 # SlideKit Live Editing via AI + MCP
 
+> **Current as of:** `cb951cf` (2026-03-02)
+
 ## The Discovery
 
 SlideKit presentations can be **edited live in the browser** by an AI agent using MCP (Model Context Protocol) tools like Playwright or Chrome DevTools. No code changes, no rebuilds, no special tooling needed — the existing architecture already supports it.
