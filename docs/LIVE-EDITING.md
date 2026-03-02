@@ -154,6 +154,19 @@ This works because of these SlideKit design decisions:
 
 4. **Text reflow** — Changing an element's width doesn't re-measure text content. The text may overflow or leave gaps.
 
+## Future: Full Mutation API (Phase 2 Vision)
+
+The current live-editing approach manipulates the DOM directly, which means changes are visual-only and reset on page refresh. Phase 2 envisions a **scene-model-level mutation API** that goes through SlideKit's constraint solver, enabling persistent round-trip editing:
+
+- **`sk.nudge(id, {dx, dy})`** — shift an element while preserving outgoing constraints (dependents follow)
+- **`sk.setProp(id, prop, value)`** — change style/content properties (font size, color, fill)
+- **`sk.setFrame(id, {x, y, w, h})`** — set absolute position, dependents follow
+- **`sk.detach(id)`** — break all constraints, convert to fully absolute positioning
+- **`sk.batch(() => { ... })`** — group multiple mutations into a single re-solve
+- **`sk.export()`** — serialize the mutated scene back to a SlideKit spec (round-trip)
+
+The key difference from current DOM manipulation: mutations flow through the scene model and constraint graph, so `below()`/`rightOf()` relationships are preserved or explicitly broken. Export produces a valid SlideKit spec that reproduces the edited layout on next render.
+
 ## Future Possibilities
 
 See [LIVE-EDITING-IDEAS.md](./LIVE-EDITING-IDEAS.md) for brainstormed extensions of this capability.

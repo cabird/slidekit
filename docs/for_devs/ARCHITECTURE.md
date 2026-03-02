@@ -779,6 +779,10 @@ The same CSS is applied in both contexts:
 
 This parity is what ensures `measure()` and `render()` agree on dimensions.
 
+### CSS Specificity Strategy
+
+SlideKit uses a **triple-attribute-selector** strategy (`[data-sk-type="el"]×3`) to override Reveal.js styles with high specificity. This is by design — Reveal.js applies aggressive default styles to headings, paragraphs, images, and other elements. Rather than fighting these with inline style overrides on individual elements, all Reveal CSS resets belong in `_baselineCSS()` in `style.js`. If an element has unexpected margins, padding, or font sizes, the fix goes in `_baselineCSS()`, not in individual slide code.
+
 ---
 
 ## Extension Points
