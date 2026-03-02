@@ -17,10 +17,36 @@ SlideKit takes a different approach — it uses Reveal.js as its rendering backe
 
 ## Quick Start
 
-```bash
-npm install && npm run build
-python -m http.server 8000     # ES modules require a server — file:// won't work
+### Option 1 — Direct from GitHub (simplest)
+
+You can reference the built bundle directly in your HTML without installing anything:
+
+```html
+<script type="module">
+  import * as sk from 'https://cdn.jsdelivr.net/gh/CABird/slidekit@main/slidekit/dist/slidekit.bundle.js';
+</script>
 ```
+
+Or download it directly:
+```
+https://raw.githubusercontent.com/CABird/slidekit/main/slidekit/dist/slidekit.bundle.js
+```
+
+### Option 2 — Local development
+
+```bash
+git clone https://github.com/CABird/slidekit.git
+cd slidekit
+npm install
+npm run build
+```
+
+Then serve locally (ES modules require a server — `file://` won't work):
+```bash
+python -m http.server 8000
+```
+
+### Example
 
 Create an HTML file:
 

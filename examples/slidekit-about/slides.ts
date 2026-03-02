@@ -1942,7 +1942,7 @@ w: 800, h: 400`,
         }),
 
         // Footer
-        el(`<p style="font-family:${FONT};font-size:18px;color:${C.textTer};text-align:center;">github.com/anthropics/slidekit</p>`, {
+        el(`<p style="font-family:${FONT};font-size:18px;color:${C.textTer};text-align:center;">github.com/CABird/slidekit</p>`, {
           id: 's16-footer',
           x: 960, y: 960,
           w: 400, anchor: 'bc',
