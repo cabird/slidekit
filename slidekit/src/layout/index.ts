@@ -37,7 +37,17 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
   const collisionThreshold = options.collisionThreshold ?? 0;
 
   // Flatten elements to a map for easy lookup
-  const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals } = flattenElements(elements);
+  const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds } = flattenElements(elements);
+
+  // Report duplicate IDs as errors — they silently clobber resolved positions
+  for (const [id, count] of duplicateIds) {
+    errors.push({
+      type: 'duplicate-id',
+      id,
+      count,
+      message: `Duplicate id '${id}': ${count} elements share this id. Each element must have a unique id.`,
+    });
+  }
 
   // =========================================================================
   // Phase 1: Resolve Intrinsic Sizes

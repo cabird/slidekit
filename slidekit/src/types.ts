@@ -669,6 +669,8 @@ export interface FlattenResult {
   groupChildren: Map<string, string[]>;
   /** IDs of synthetic panel-internal elements. */
   panelInternals: Set<string>;
+  /** IDs that appear more than once (id -> count). Empty if no duplicates. */
+  duplicateIds: Map<string, number>;
 }
 
 // =============================================================================

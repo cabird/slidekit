@@ -1,7 +1,7 @@
-// slidekit/src/version.ts
-var VERSION = true ? "0.2.0" : "dev";
+// src/version.ts
+var VERSION = typeof __SK_VERSION__ !== "undefined" ? __SK_VERSION__ : "dev";
 
-// slidekit/src/state.ts
+// src/state.ts
 var state = {
   idCounter: 0,
   config: null,
@@ -14,7 +14,7 @@ var state = {
   transformIdCounter: 0
 };
 
-// slidekit/src/id.ts
+// src/id.ts
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -23,7 +23,7 @@ function nextId() {
   return `sk-${state.idCounter}`;
 }
 
-// slidekit/src/spacing.ts
+// src/spacing.ts
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -46,7 +46,7 @@ function getSpacing(token) {
   return resolveSpacing(token);
 }
 
-// slidekit/src/elements.ts
+// src/elements.ts
 var COMMON_DEFAULTS = {
   x: 0,
   y: 0,
@@ -134,7 +134,7 @@ function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer
   });
 }
 
-// slidekit/src/anchor.ts
+// src/anchor.ts
 var VALID_ANCHORS = /* @__PURE__ */ new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
 function resolveAnchor(x, y, w, h, anchor) {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
@@ -167,7 +167,7 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// slidekit/src/style.ts
+// src/style.ts
 function toCamelCase(name) {
   if (name.startsWith("--")) return name;
   if (!name.includes("-")) return name;
@@ -626,7 +626,7 @@ function getShadowPresets() {
   return { ...SHADOWS };
 }
 
-// slidekit/src/config.ts
+// src/config.ts
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -777,7 +777,7 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// slidekit/src/dom-helpers.ts
+// src/dom-helpers.ts
 function applyStyleToDOM(domEl, styleObj) {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
@@ -788,7 +788,7 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
-// slidekit/src/measure.ts
+// src/measure.ts
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -856,7 +856,7 @@ async function measure(html, props = {}) {
   return result;
 }
 
-// slidekit/src/relative.ts
+// src/relative.ts
 function normalizeGapArg(arg) {
   if (typeof arg === "string" || typeof arg === "number") {
     return { gap: arg };
@@ -907,7 +907,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
-// slidekit/src/assertions.ts
+// src/assertions.ts
 function mustGet(map, key, msg) {
   const value = map.get(key);
   if (value === void 0) {
@@ -916,7 +916,7 @@ function mustGet(map, key, msg) {
   return value;
 }
 
-// slidekit/src/transforms.ts
+// src/transforms.ts
 function nextTransformId() {
   state.transformIdCounter += 1;
   return `transform-${state.transformIdCounter}`;
@@ -1173,7 +1173,7 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
-// slidekit/src/lint.ts
+// src/lint.ts
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -1243,6 +1243,26 @@ function absoluteBoundsOf(el2, elements) {
 function normLayer(el2) {
   const layer = el2?.authored?.props?.layer;
   return layer === "bg" || layer === "overlay" || layer === "content" ? layer : "content";
+}
+function ruleDuplicateId(slideData) {
+  const findings = [];
+  const errors = slideData.layout.errors;
+  if (!Array.isArray(errors)) return findings;
+  for (const err of errors) {
+    if (err.type === "duplicate-id") {
+      const id = err.id;
+      const count = err.count;
+      findings.push({
+        rule: "duplicate-id",
+        severity: "error",
+        elementId: id,
+        message: `Duplicate id '${id}': ${count} elements share this id. Each element must have a unique id.`,
+        detail: { duplicateId: id, count },
+        suggestion: `Rename elements so each has a unique id. '${id}' is used by ${count} elements.`
+      });
+    }
+  }
+  return findings;
 }
 function isConnectorEndpointPair(a, b) {
   if (a.type === "connector") {
@@ -2290,6 +2310,8 @@ function lintSlide(slideData, slideElement = null) {
   const elements = slideData.layout.elements;
   if (!elements || typeof elements !== "object") return [];
   const findings = [
+    // Duplicate ID check runs first — duplicates cause cascading issues
+    ...ruleDuplicateId(slideData),
     ...ruleChildOverflow(elements),
     ...ruleNonAncestorOverlap(elements),
     ...ruleCanvasOverflow(elements),
@@ -2352,7 +2374,7 @@ function lintDeck(skData, sections = null) {
   return findings;
 }
 
-// slidekit/src/connectorRouting.ts
+// src/connectorRouting.ts
 var DEFAULT_STUB_LENGTH = 30;
 var DEFAULT_CLEARANCE = 15;
 function routeConnector(options) {
@@ -2602,7 +2624,7 @@ function deduplicatePoints(points) {
   return result;
 }
 
-// slidekit/src/renderer.ts
+// src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -3018,7 +3040,7 @@ async function render(slides, options = {}) {
   return { sections, layouts };
 }
 
-// slidekit/src/compounds.ts
+// src/compounds.ts
 function connect(fromId, toId, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
@@ -3204,7 +3226,7 @@ function figure(opts = {}) {
   return result;
 }
 
-// slidekit/src/utilities.ts
+// src/utilities.ts
 function deepClone(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -3352,7 +3374,7 @@ function rotatedAABB(w, h, degrees) {
   };
 }
 
-// slidekit/src/layout/helpers.ts
+// src/layout/helpers.ts
 function isRelMarker(value) {
   return value !== null && typeof value === "object" && typeof value._rel === "string";
 }
@@ -3369,8 +3391,10 @@ function flattenElements(elements) {
   const stackChildren = /* @__PURE__ */ new Map();
   const groupChildren = /* @__PURE__ */ new Map();
   const panelInternals = /* @__PURE__ */ new Set();
+  const idCounts = /* @__PURE__ */ new Map();
   function walk(els, parentGroupId) {
     for (const el2 of els) {
+      idCounts.set(el2.id, (idCounts.get(el2.id) || 0) + 1);
       flatMap.set(el2.id, el2);
       if (parentGroupId) {
         groupParent.set(el2.id, parentGroupId);
@@ -3415,7 +3439,11 @@ function flattenElements(elements) {
     }
   }
   walk(elements, null);
-  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals };
+  const duplicateIds = /* @__PURE__ */ new Map();
+  for (const [id, count] of idCounts) {
+    if (count > 1) duplicateIds.set(id, count);
+  }
+  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
 }
 function getRelRef(marker) {
   if (!isRelMarker(marker)) return null;
@@ -3492,7 +3520,7 @@ function computeAABBIntersection(a, b) {
   return null;
 }
 
-// slidekit/src/layout/overflow.ts
+// src/layout/overflow.ts
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -3535,12 +3563,12 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
   }
 }
 
-// slidekit/src/types.ts
+// src/types.ts
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
 
-// slidekit/src/layout/intrinsics.ts
+// src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
   if (type === "el" && (props.h === void 0 || props.h === null)) {
@@ -3786,7 +3814,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 
-// slidekit/src/layout/positions.ts
+// src/layout/positions.ts
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -4179,7 +4207,7 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
   return { resolvedBounds, sortedOrder };
 }
 
-// slidekit/src/layout/finalize.ts
+// src/layout/finalize.ts
 function finalize({
   sortedOrder,
   flatMap,
@@ -4661,14 +4689,22 @@ function finalize({
   };
 }
 
-// slidekit/src/layout/index.ts
+// src/layout/index.ts
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
   const elements = slideDefinition.elements || [];
   const transforms = slideDefinition.transforms || [];
   const collisionThreshold = options.collisionThreshold ?? 0;
-  const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals } = flattenElements(elements);
+  const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds } = flattenElements(elements);
+  for (const [id, count] of duplicateIds) {
+    errors.push({
+      type: "duplicate-id",
+      id,
+      count,
+      message: `Duplicate id '${id}': ${count} elements share this id. Each element must have a unique id.`
+    });
+  }
   const { authoredSpecs, resolvedSizes, hasErrors } = await resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, warnings);
   if (hasErrors) {
     return {
@@ -4745,7 +4781,7 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 
-// slidekit/slidekit.ts
+// slidekit.ts
 _setLayoutFn(layout);
 var SlideKit = {
   VERSION,
@@ -4878,4 +4914,3 @@ export {
   splitRect,
   vstack
 };
-//# sourceMappingURL=slidekit.bundle.js.map

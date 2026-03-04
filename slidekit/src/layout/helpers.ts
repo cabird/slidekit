@@ -47,9 +47,11 @@ export function flattenElements(elements: SlideElement[]): FlattenResult {
   const stackChildren = new Map<string, string[]>(); // stackId -> [childId, ...]
   const groupChildren = new Map<string, string[]>(); // groupId -> [childId, ...]
   const panelInternals = new Set<string>(); // IDs of synthetic panel elements (bgRect, childStack)
+  const idCounts = new Map<string, number>(); // id -> occurrence count
 
   function walk(els: SlideElement[], parentGroupId: string | null): void {
     for (const el of els) {
+      idCounts.set(el.id, (idCounts.get(el.id) || 0) + 1);
       flatMap.set(el.id, el);
       if (parentGroupId) {
         groupParent.set(el.id, parentGroupId);
@@ -103,7 +105,14 @@ export function flattenElements(elements: SlideElement[]): FlattenResult {
   }
 
   walk(elements, null);
-  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals };
+
+  // Build duplicate IDs map (only IDs that appear more than once)
+  const duplicateIds = new Map<string, number>();
+  for (const [id, count] of idCounts) {
+    if (count > 1) duplicateIds.set(id, count);
+  }
+
+  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
 }
 
 /**

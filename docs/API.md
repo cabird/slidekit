@@ -1106,6 +1106,16 @@ interface LintFinding {
 }
 ```
 
+### Lint Rules
+
+#### `duplicate-id` (severity: error)
+
+Detects when two or more elements on the same slide share the same `id`. Duplicate IDs cause the second element to silently overwrite the first in the scene graph, leading to hard-to-debug layout corruption. This rule runs before all other rules since duplicate IDs can cause cascading issues.
+
+```
+Duplicate id 'foo': 3 elements share this id. Each element must have a unique id.
+```
+
 ### `window.sk` Lint API
 
 After `render()`, linting is available on the scene model:

@@ -5,14 +5,14 @@ import { lintSlide, lintDeck } from '../slidekit.js';
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function mockSlide(id, elements) {
+function mockSlide(id, elements, opts = {}) {
   return {
     id,
     layout: {
       elements,
-      warnings: [],
-      errors: [],
-      collisions: [],
+      warnings: opts.warnings || [],
+      errors: opts.errors || [],
+      collisions: opts.collisions || [],
     },
   };
 }
@@ -1261,5 +1261,81 @@ describe('lint: unbalanced-trailing-whitespace', () => {
     const f = findings.filter(f => f.rule === 'unbalanced-trailing-whitespace');
     // topGap clamped to 1, bottomGap = 990-190 = 800 → ratio = 800 → should fire
     assert.equal(f.length, 1, 'should detect imbalance even when touching edge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// duplicate-id
+// ---------------------------------------------------------------------------
+
+describe('lint: duplicate-id', () => {
+  it('reports error when two elements share the same id', () => {
+    const elements = {
+      foo: mockElement('foo', { x: 200, y: 200, w: 400, h: 200 }),
+    };
+    const errors = [
+      { type: 'duplicate-id', id: 'foo', count: 2, message: "Duplicate id 'foo': 2 elements share this id. Each element must have a unique id." },
+    ];
+    const findings = lintSlide(mockSlide('s1', elements, { errors }));
+    const dupes = findings.filter(f => f.rule === 'duplicate-id');
+    assert.equal(dupes.length, 1);
+    assert.equal(dupes[0].severity, 'error');
+    assert.equal(dupes[0].elementId, 'foo');
+    assert.equal(dupes[0].detail.duplicateId, 'foo');
+    assert.equal(dupes[0].detail.count, 2);
+  });
+
+  it('reports error for each duplicate group', () => {
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 200, h: 100 }),
+      b: mockElement('b', { x: 500, y: 200, w: 200, h: 100 }),
+    };
+    const errors = [
+      { type: 'duplicate-id', id: 'a', count: 2, message: "Duplicate id 'a': 2 elements share this id. Each element must have a unique id." },
+      { type: 'duplicate-id', id: 'b', count: 3, message: "Duplicate id 'b': 3 elements share this id. Each element must have a unique id." },
+    ];
+    const findings = lintSlide(mockSlide('s1', elements, { errors }));
+    const dupes = findings.filter(f => f.rule === 'duplicate-id');
+    assert.equal(dupes.length, 2, 'should report one finding per duplicate group');
+    const aFinding = dupes.find(f => f.detail.duplicateId === 'a');
+    const bFinding = dupes.find(f => f.detail.duplicateId === 'b');
+    assert.equal(aFinding.detail.count, 2);
+    assert.equal(bFinding.detail.count, 3);
+  });
+
+  it('reports no finding when all ids are unique', () => {
+    const elements = {
+      x: mockElement('x', { x: 200, y: 200, w: 200, h: 100 }),
+      y: mockElement('y', { x: 500, y: 200, w: 200, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const dupes = findings.filter(f => f.rule === 'duplicate-id');
+    assert.equal(dupes.length, 0, 'no duplicates should produce no findings');
+  });
+
+  it('does not trigger for elements with no id issues', () => {
+    // Elements without IDs are not possible in the scene graph (id is required),
+    // but errors array may have non-duplicate-id entries — should be ignored
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 200, h: 100 }),
+    };
+    const errors = [
+      { type: 'some-other-error', message: 'unrelated error' },
+    ];
+    const findings = lintSlide(mockSlide('s1', elements, { errors }));
+    const dupes = findings.filter(f => f.rule === 'duplicate-id');
+    assert.equal(dupes.length, 0, 'non-duplicate-id errors should be ignored');
+  });
+
+  it('duplicate-id findings appear before other rules', () => {
+    const elements = {
+      overflow: mockElement('overflow', { x: 1900, y: 100, w: 200, h: 100 }),
+    };
+    const errors = [
+      { type: 'duplicate-id', id: 'overflow', count: 2, message: "Duplicate id 'overflow': 2 elements share this id." },
+    ];
+    const findings = lintSlide(mockSlide('s1', elements, { errors }));
+    assert.equal(findings.length > 1, true, 'should have multiple findings');
+    assert.equal(findings[0].rule, 'duplicate-id', 'duplicate-id should be the first finding');
   });
 });

@@ -137,6 +137,27 @@ function normLayer(el: SceneElement): 'bg' | 'content' | 'overlay' {
 // Rule implementations
 // ---------------------------------------------------------------------------
 
+function ruleDuplicateId(slideData: LintSlideData): LintFinding[] {
+  const findings: LintFinding[] = [];
+  const errors = slideData.layout.errors;
+  if (!Array.isArray(errors)) return findings;
+  for (const err of errors) {
+    if (err.type === 'duplicate-id') {
+      const id = err.id as string;
+      const count = err.count as number;
+      findings.push({
+        rule: 'duplicate-id',
+        severity: 'error',
+        elementId: id,
+        message: `Duplicate id '${id}': ${count} elements share this id. Each element must have a unique id.`,
+        detail: { duplicateId: id, count },
+        suggestion: `Rename elements so each has a unique id. '${id}' is used by ${count} elements.`,
+      });
+    }
+  }
+  return findings;
+}
+
 /** Check if one element is a connector and the other is one of its endpoints. */
 function isConnectorEndpointPair(a: SceneElement, b: SceneElement): boolean {
   if (a.type === 'connector') {
@@ -1397,6 +1418,8 @@ export function lintSlide(slideData: LintSlideData, slideElement: HTMLElement | 
   if (!elements || typeof elements !== 'object') return [];
 
   const findings: LintFinding[] = [
+    // Duplicate ID check runs first — duplicates cause cascading issues
+    ...ruleDuplicateId(slideData),
     ...ruleChildOverflow(elements),
     ...ruleNonAncestorOverlap(elements),
     ...ruleCanvasOverflow(elements),
