@@ -5,8 +5,19 @@ import {
   el, group,
   resolveAnchor, filterStyle,
   init, safeRect, getConfig, resetIdCounter, _resetForTests,
-  getSpacing, splitRect,
+  getSpacing, splitRect, VERSION,
 } from '../slidekit.js';
+
+// =============================================================================
+// VERSION export
+// =============================================================================
+
+describe("VERSION", () => {
+  it("exports a semver string", () => {
+    assert.equal(typeof VERSION, "string");
+    assert.ok(/^\d+\.\d+\.\d+$/.test(VERSION), `VERSION "${VERSION}" should be semver`);
+  });
+});
 
 // =============================================================================
 // el() factory

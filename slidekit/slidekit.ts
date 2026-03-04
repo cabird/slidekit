@@ -2,6 +2,7 @@
 // ES Module — all exports are named
 
 // Re-exports — barrel file exposing all public API from src/ modules
+export { VERSION } from './src/version.js';
 export { resetIdCounter } from './src/id.js';
 export { el, group, vstack, hstack, cardGrid } from './src/elements.js';
 export { VALID_ANCHORS, resolveAnchor } from './src/anchor.js';
@@ -34,6 +35,7 @@ import { render } from './src/renderer.js';
 import { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
 import { grid, snap, repeat, resolvePercentage, rotatedAABB } from './src/utilities.js';
 import { lintSlide, lintDeck } from './src/lint.js';
+import { VERSION } from './src/version.js';
 
 // Inject layout function into renderer (avoids circular import)
 _setLayoutFn(layout);
@@ -43,6 +45,7 @@ _setLayoutFn(layout);
 // =============================================================================
 
 const SlideKit = {
+  VERSION,
   el,
   group,
   resolveAnchor,

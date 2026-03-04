@@ -1,3 +1,6 @@
+// slidekit/src/version.ts
+var VERSION = true ? "0.2.0" : "dev";
+
 // slidekit/src/state.ts
 var state = {
   idCounter: 0,
@@ -4745,6 +4748,7 @@ async function layout(slideDefinition, options = {}) {
 // slidekit/slidekit.ts
 _setLayoutFn(layout);
 var SlideKit = {
+  VERSION,
   el,
   group,
   resolveAnchor,
@@ -4808,6 +4812,7 @@ var SlideKit = {
 var slidekit_default = SlideKit;
 export {
   VALID_ANCHORS,
+  VERSION,
   _resetForTests,
   above,
   alignBottom,

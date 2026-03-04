@@ -1,6 +1,6 @@
 {
   "name": "slidekit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A coordinate-based slide layout library built on Reveal.js, designed for AI agents and humans",
   "author": "Christian Bird",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "coordinate-based"
   ],
   "scripts": {
-    "build": "esbuild slidekit/slidekit.ts --bundle --format=esm --outfile=slidekit/dist/slidekit.bundle.js --sourcemap && esbuild slidekit/slidekit.ts --bundle --format=esm --minify --outfile=slidekit/dist/slidekit.bundle.min.js --sourcemap && esbuild slidekit/src/debug.ts --bundle --format=esm --outfile=slidekit/dist/slidekit-debug.bundle.js --sourcemap",
+    "build": "node build.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint slidekit/src/",
     "test": "node run-tests.js"
