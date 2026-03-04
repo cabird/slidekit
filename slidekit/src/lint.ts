@@ -1219,15 +1219,15 @@ function ruleMinVerticalGap(elements: Record<string, SceneElement>): LintFinding
       const fontSizeA = getFontSize(elA);
       const fontSizeB = getFontSize(elB);
       const smallerFont = Math.min(fontSizeA, fontSizeB);
-      const multiplier = isMultiLine(elA) ? 2.0 : 1.5;
-      const minGap = Math.round(smallerFont * multiplier);
+      const multiplier = isMultiLine(elA) ? 1.0 : 0.75;
+      const minGap = Math.min(36, Math.round(smallerFont * multiplier));
 
       if (gap < minGap) {
         const aId = elA.id;
         const bId = elB.id;
         findings.push({
           rule: 'min-vertical-gap',
-          severity: 'warning',
+          severity: gap < THRESHOLDS.minGap ? 'warning' : 'info',
           elementId: elA.id,
           message: `Gap between "${aId}" and "${bId}" is ${gap}px (minimum recommended: ${minGap}px based on font sizes)`,
           detail: { elementA: aId, elementB: bId, gap, minGap, fontSizeA, fontSizeB, multiplier },
@@ -1259,11 +1259,14 @@ function ruleHorizontalCenterConsistency(elements: Record<string, SceneElement>)
 
   if (candidates.length < 2) return findings;
 
-  // Count how many elements are centered
+  // Count how many elements are centered, excluding small decorative elements
+  const isDecorative = (b: Rect) => b.w < 20 || b.h < 12 || b.w * b.h < 2000;
   const withBounds = candidates.map(el => ({
     el,
     bounds: localBoundsOf(el),
-  })).filter((e): e is { el: SceneElement; bounds: Rect } => e.bounds != null && e.bounds.w > 0);
+  })).filter((e): e is { el: SceneElement; bounds: Rect } =>
+    e.bounds != null && e.bounds.w > 0 && !isDecorative(e.bounds)
+  );
 
   if (withBounds.length < 2) return findings;
 
@@ -1343,6 +1346,42 @@ function ruleUnbalancedTrailingWhitespace(elements: Record<string, SceneElement>
   return findings;
 }
 
+function rulePanelContentSurplus(slideEl: HTMLElement | null): LintFinding[] {
+  const findings: LintFinding[] = [];
+  if (!slideEl) return findings;
+  const SURPLUS_RATIO = 2.0;
+
+  // Find panel containers by their data attribute
+  const panels = slideEl.querySelectorAll('[data-sk-compound="panel"]');
+  for (const panel of panels) {
+    const panelEl = panel as HTMLElement;
+    const panelHeight = panelEl.clientHeight;
+    if (panelHeight <= 0) continue;
+
+    // Measure actual content height via scrollHeight of the inner content stack
+    const contentStack = panelEl.querySelector('[data-sk-type="vstack"], [data-sk-type="hstack"]') as HTMLElement | null;
+    if (!contentStack) continue;
+
+    const contentHeight = contentStack.scrollHeight;
+    if (contentHeight <= 0) continue;
+
+    const ratio = panelHeight / contentHeight;
+    if (ratio > SURPLUS_RATIO) {
+      const skId = panelEl.getAttribute('data-sk-id');
+      const surplus = panelHeight - contentHeight;
+      findings.push({
+        rule: 'panel-content-surplus',
+        severity: 'info',
+        elementId: skId,
+        message: `Panel "${skId}" is ${Math.round(ratio)}× taller than its content (${surplus}px unused)`,
+        detail: { panelHeight, contentHeight, ratio, surplus },
+        suggestion: `Omit explicit h or reduce panel height — content only needs ~${contentHeight}px`,
+      });
+    }
+  }
+  return findings;
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -1394,6 +1433,7 @@ export function lintSlide(slideData: LintSlideData, slideElement: HTMLElement | 
       ...ruleImageUpscaled(slideElement),
       ...ruleAspectRatioDistortion(slideElement),
       ...ruleHeadingSizeInversion(slideElement),
+      ...rulePanelContentSurplus(slideElement),
     );
   }
 
