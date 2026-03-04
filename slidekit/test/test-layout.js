@@ -1837,6 +1837,153 @@ describe("vstack vAlign — main-axis alignment", () => {
 });
 
 // =============================================================================
+// vstack — variable-height children with text wrapping
+// =============================================================================
+
+describe("vstack — variable-height children with text wrapping", () => {
+  const SHORT_TEXT = '<p style="font-size:20px;margin:0;line-height:1.4">Short line.</p>';
+  const MEDIUM_TEXT = '<p style="font-size:20px;margin:0;line-height:1.4">This is a medium-length paragraph that should wrap to about two lines inside a reasonably narrow container.</p>';
+  const LONG_TEXT = '<p style="font-size:20px;margin:0;line-height:1.4">This is a significantly longer paragraph of text that is specifically designed to wrap across multiple lines when rendered inside a narrow container. It contains enough words to ensure that the browser will need at least three or four lines to display the full content.</p>';
+
+  it("children with different text lengths get different measured heights", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const stack = vstack([
+        el(SHORT_TEXT, { id: "short", w: 400 }),
+        el(LONG_TEXT, { id: "long", w: 400 }),
+        el(MEDIUM_TEXT, { id: "med", w: 400 }),
+      ], { id: "vs", x: 0, y: 0, w: 400, gap: 0 });
+      const scene = await layout({ elements: [stack] });
+
+      const hShort = scene.elements["short"].resolved.h;
+      const hLong = scene.elements["long"].resolved.h;
+      const hMed = scene.elements["med"].resolved.h;
+
+      assert.ok(hShort > 0, "short child should have positive height");
+      assert.ok(hLong > 0, "long child should have positive height");
+      assert.ok(hMed > 0, "medium child should have positive height");
+
+      // Long text wraps more, so it should be taller than short text
+      assert.ok(hLong > hShort, `long (${hLong}) should be taller than short (${hShort})`);
+      // Long text should be taller than medium text
+      assert.ok(hLong > hMed, `long (${hLong}) should be taller than medium (${hMed})`);
+      // Medium text should be taller than short text
+      assert.ok(hMed > hShort, `medium (${hMed}) should be taller than short (${hShort})`);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("child that wraps to multiple lines is taller than single-line child", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const stack = vstack([
+        el(SHORT_TEXT, { id: "one-line", w: 500 }),
+        el(LONG_TEXT, { id: "multi-line", w: 500 }),
+      ], { id: "vs", x: 0, y: 0, w: 500, gap: 0 });
+      const scene = await layout({ elements: [stack] });
+
+      const hOneLine = scene.elements["one-line"].resolved.h;
+      const hMultiLine = scene.elements["multi-line"].resolved.h;
+
+      assert.ok(hMultiLine > hOneLine,
+        `multi-line height (${hMultiLine}) should exceed single-line height (${hOneLine})`);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("positioning accounts for wrapped height of preceding child", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const stack = vstack([
+        el(LONG_TEXT, { id: "first", w: 400 }),
+        el(SHORT_TEXT, { id: "second", w: 400 }),
+      ], { id: "vs", x: 50, y: 100, w: 400, gap: 0 });
+      const scene = await layout({ elements: [stack] });
+
+      const first = scene.elements["first"].resolved;
+      const second = scene.elements["second"].resolved;
+
+      // Second child's y must start at or after the first child's bottom edge
+      assert.ok(second.y >= first.y + first.h,
+        `second.y (${second.y}) should be >= first.y (${first.y}) + first.h (${first.h})`);
+      // With gap=0, it should be exactly at the bottom edge
+      assert.equal(second.y, first.y + first.h,
+        `second.y (${second.y}) should equal first.y + first.h (${first.y + first.h})`);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("stack total height includes all wrapped content plus gaps", async () => {
+    _resetForTests();
+    await init();
+    try {
+      const GAP = 12;
+      const stack = vstack([
+        el(SHORT_TEXT, { id: "c1", w: 400 }),
+        el(LONG_TEXT, { id: "c2", w: 400 }),
+        el(MEDIUM_TEXT, { id: "c3", w: 400 }),
+      ], { id: "vs", x: 0, y: 0, w: 400, gap: GAP });
+      const scene = await layout({ elements: [stack] });
+
+      const h1 = scene.elements["c1"].resolved.h;
+      const h2 = scene.elements["c2"].resolved.h;
+      const h3 = scene.elements["c3"].resolved.h;
+      const stackH = scene.elements["vs"].resolved.h;
+
+      const expectedH = h1 + GAP + h2 + GAP + h3;
+      assert.equal(stackH, expectedH,
+        `stack height (${stackH}) should equal sum of children + gaps (${expectedH})`);
+    } finally {
+      _resetForTests();
+    }
+  });
+
+  it("stretch alignment re-measures wrapped height at stretched width", async () => {
+    _resetForTests();
+    await init();
+    try {
+      // Children have narrow authored widths; stack is wider with align:'stretch'.
+      // Stretching to a wider width should change how text wraps, so heights
+      // get re-measured at the stretched width.
+      const stack = vstack([
+        el(LONG_TEXT, { id: "narrow", w: 200 }),
+        el(SHORT_TEXT, { id: "short-s", w: 200 }),
+      ], { id: "vs-stretch", x: 0, y: 0, w: 500, gap: 0, align: 'stretch' });
+      const scene = await layout({ elements: [stack] });
+
+      const narrow = scene.elements["narrow"].resolved;
+      const shortS = scene.elements["short-s"].resolved;
+
+      // Both children should be stretched to the stack width
+      assert.equal(narrow.w, 500,
+        `stretched child width (${narrow.w}) should equal stack width (500)`);
+      assert.equal(shortS.w, 500,
+        `stretched child width (${shortS.w}) should equal stack width (500)`);
+
+      // Heights should be positive (re-measured at new width)
+      assert.ok(narrow.h > 0, "re-measured height should be positive");
+      assert.ok(shortS.h > 0, "re-measured height should be positive");
+
+      // The long text at 500px wide should still be taller than the short text
+      assert.ok(narrow.h > shortS.h,
+        `long text height (${narrow.h}) should exceed short text height (${shortS.h}) even at stretched width`);
+
+      // Second child should be positioned after the first
+      assert.equal(shortS.y, narrow.y + narrow.h,
+        `second child y (${shortS.y}) should equal first.y + first.h (${narrow.y + narrow.h})`);
+    } finally {
+      _resetForTests();
+    }
+  });
+});
+
+// =============================================================================
 // Main-axis alignment: hstack hAlign
 // =============================================================================
 

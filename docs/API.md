@@ -118,6 +118,8 @@ el('<p style="font:700 52px/1.1 Inter;color:#fff;text-align:center">Hello World<
 
 > ⚠️ **Anti-pattern:** Omitting `w` on text elements does **not** collapse to zero — `measure()` computes the natural (unconstrained) width, so the text renders on a single long line without wrapping. This is fine for short labels but long text may overflow the slide. Always set `w` explicitly for paragraph text or use `w: 'fill'` inside a container to get proper line wrapping.
 
+> ✅ **Pattern:** When `h` is omitted, SlideKit measures the element's actual rendered height from the DOM via `measure()`. This is strongly preferred for text elements (headings, body text, subtitles) — specifying an explicit `h` overrides DOM measurement and frequently causes text-overflow bugs. Only specify `h` for fixed-size containers like panels, image frames, or terminal blocks.
+
 > ℹ️ **Note:** Use the element prop `overflow` (e.g., `{ overflow: 'clip' }`), not CSS `style: { overflow: 'hidden' }`. CSS overflow properties are blocked by `filterStyle()` — see [Blocked Properties](#blocked-properties).
 
 > ✅ **Pattern:** Use `layer: 'bg'` for full-bleed backgrounds and `layer: 'overlay'` for decorative edge elements (corner brackets, framing). Both layers are exempt from safe-zone content rules.
@@ -1211,6 +1213,17 @@ const { left: colA, right: colB } = splitRect(safeRect(), { gap: 'md' });
 ```
 
 > ✅ **Pattern:** Use `splitRect()` instead of manually computing column widths — it handles gap arithmetic and rounding correctly. This also produces lint-friendly layouts since elements get explicit coordinates rather than being inside stacks the linter can't resolve.
+
+> ⚠️ **Anti-pattern:** The returned `left.h` and `right.h` represent the maximum available height, not the recommended content height. Omit `h` on content containers (panels, vstacks, text blocks) placed within these regions to let auto-sizing determine the correct height. Use `h: left.h` only on full-bleed elements that genuinely need to fill the column — such as images with `fit: 'cover'` or background rects on `layer: 'bg'`.
+> ```js
+> const { left, right } = splitRect(safeRect(), { ratio: 0.5, gap: 40 });
+> // ❌ Content panel fills entire column height — pushes content apart
+> panel([...], { x: left.x, y: left.y, w: left.w, h: left.h, fill: '#1a1a3e' });
+> // ✅ Content panel auto-sizes to fit its children
+> panel([...], { x: left.x, y: left.y, w: left.w, fill: '#1a1a3e' });
+> // ✅ Full-height image — h: right.h is correct here
+> figure({ src: './photo.png', x: right.x, y: right.y, w: right.w, h: right.h, fit: 'cover' });
+> ```
 
 ### `getConfig()`
 

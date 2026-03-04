@@ -61,7 +61,7 @@ const slides: SlideDefinition[] = [
     background: '#0a0a1a',
     elements: [
       el('<h2 style="color:#fff;font-size:48px;">Key Point</h2>', {
-        id: 'heading', x: safe.x, y: safe.y, w: safe.w, h: 70,
+        id: 'heading', x: safe.x, y: safe.y, w: safe.w,
       }),
       el('<p style="color:#ccc;font-size:24px;">Details go here.</p>', {
         id: 'body', x: safe.x, y: below('heading', { gap: 24 }), w: 800,
@@ -132,7 +132,51 @@ After rebuilding, append `?v=<timestamp>` to the bundle script src, or hard-relo
 
 ---
 
-## 3. The Render → Inspect → Correct Workflow
+## 3. Height Rules: Let Auto-Height Work
+
+SlideKit measures element heights from the DOM automatically when `h` is omitted. **Never specify `h` on text elements** — doing so overrides DOM measurement and is the leading cause of text-overflow bugs.
+
+### Don't
+
+- Specify `h` on text elements (headings, body text, subtitles) — this overrides DOM measurement and causes overflow
+- Calculate height mathematically (e.g., `fontSize * lineHeight`) — browser font metrics make this inaccurate
+- Specify `h` just to do positioning math — use `below()` chaining instead
+- Specify `h` just to vertically center — use `vAlign: 'center'` inside a `vstack` or `panel` instead
+- Use `h: left.h` or `h: right.h` from `splitRect()` on panels or content containers — these are the full column height, not the content height
+
+### Do
+
+- **Omit `h` on all text elements** — SlideKit measures from the browser automatically
+- **Always specify `w` on text elements** — this constrains wrapping so height measurement is accurate
+- Use `below('prev-id', { gap: 'md' })` to chain vertical positioning without knowing heights
+- Use `vstack` with `vAlign: 'center'` to center content blocks vertically
+- Only specify `h` when you genuinely want a fixed-size container (panels, terminal blocks, image frames)
+- Use `splitRect()` for `x`/`y`/`w` positioning but omit `h` on content containers to let them auto-size
+- If you need a fixed-height region (e.g., a background panel), use `h: left.h` only on the background rect with `layer: 'bg'`, not on the content container
+
+### Before / After
+
+```typescript
+// ❌ Manual heights — overflow bugs, brittle
+el('<h2 style="font:700 48px Inter;color:#fff">Section Title</h2>', {
+  id: 'heading', x: safe.x, y: safe.y, w: safe.w, h: 70,
+});
+el('<p style="font:400 24px Inter;color:#ccc">Body text here.</p>', {
+  id: 'body', x: safe.x, y: safe.y + 70 + 24, w: 800, h: 120,
+});
+
+// ✅ Auto-height — SlideKit measures from the DOM, below() chains positioning
+el('<h2 style="font:700 48px Inter;color:#fff">Section Title</h2>', {
+  id: 'heading', x: safe.x, y: safe.y, w: safe.w,
+});
+el('<p style="font:400 24px Inter;color:#ccc">Body text here.</p>', {
+  id: 'body', x: safe.x, y: below('heading', { gap: 'md' }), w: 800,
+});
+```
+
+---
+
+## 4. The Render → Inspect → Correct Workflow
 
 **This is the most important section.** You cannot know exact rendered dimensions until after the browser renders. Always follow this loop:
 
@@ -189,7 +233,7 @@ Rebuild, re-render, re-check until zero actionable findings.
 
 ---
 
-## 4. The Linter: What's Useful, What's Noise
+## 5. The Linter: What's Useful, What's Noise
 
 ### Signal-to-Noise Summary
 
@@ -236,7 +280,7 @@ The linter produces many findings. Based on extensive testing, here's what matte
 
 ---
 
-## 5. Known Pitfalls (Critical — Read Before Coding)
+## 6. Known Pitfalls (Critical — Read Before Coding)
 
 ### Pitfall 1: `leftOf` Labels Appear Far from Their Reference
 
@@ -365,7 +409,7 @@ figure('fig', src, { x: 960 - 1020/2, w: 1020 });
 
 ---
 
-## 6. Field-Discovered Anti-Patterns
+## 7. Field-Discovered Anti-Patterns
 
 These anti-patterns were found by AI agents building real SlideKit presentations. Each was discovered through actual failures during the render → inspect → correct loop.
 
@@ -511,7 +555,7 @@ el('Caption', { y: below('chart', { gap: 40 }), ... }); // Breathable
 
 ---
 
-## 7. Field-Discovered Pro Patterns
+## 8. Field-Discovered Pro Patterns
 
 These patterns were found to work well by AI agents building real presentations.
 
@@ -667,7 +711,7 @@ el('🎯', { style: { background: 'rgba(16,185,129,0.25)' } });
 
 ---
 
-## 8. Sub-Agent Orchestration for Presentations
+## 9. Sub-Agent Orchestration for Presentations
 
 When building a presentation, use sub-agents extensively to preserve the orchestrator's context window.
 
@@ -711,7 +755,7 @@ When building a presentation, use sub-agents extensively to preserve the orchest
 
 ---
 
-## 9. Visual Validation via MCP
+## 10. Visual Validation via MCP
 
 ### Taking Screenshots
 
@@ -763,7 +807,7 @@ Playwright (headless Chromium) and the user's browser may produce slightly diffe
 
 ---
 
-## 10. Common Design Patterns
+## 11. Common Design Patterns
 
 ### Title Slide
 - Large centered text (`anchor: 'tc'`, `fontSize: 72-96px`)
@@ -810,7 +854,7 @@ connect('source', 'target', {
 
 ---
 
-## 11. Quick Reference: What to Check
+## 12. Quick Reference: What to Check
 
 ### Before Committing Any Slide
 
@@ -833,7 +877,7 @@ connect('source', 'target', {
 - [ ] Font count reasonable (≤ 4 font families)
 - [ ] Heading sizes consistent within slide types
 
-## 12. Generating PDFs with Decktape
+## 13. Generating PDFs with Decktape
 
 Use [decktape](https://github.com/astefanutti/decktape) to export finished presentations to PDF. This is useful for sharing, archiving, and visual review.
 
