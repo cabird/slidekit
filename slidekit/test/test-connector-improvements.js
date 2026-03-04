@@ -99,14 +99,10 @@ describe("Connector Improvements: obstacle avoidance", () => {
 
 describe("Connector Improvements: port spreading sort order", () => {
   it("connectors from bottom edge sort by target x to avoid crossings", () => {
-    // Simulate: two connectors from bottom of boxA,
-    // one going to a target at x=200, one at x=600
-    // After sorting by target x, the left target should get left port
     const targets = [
       { targetX: 600, label: "right" },
       { targetX: 200, label: "left" },
     ];
-    // Sort by target x (simulating the port spreading logic)
     targets.sort((a, b) => a.targetX - b.targetX);
     assert.equal(targets[0].label, "left", "left target should come first");
     assert.equal(targets[1].label, "right", "right target should come second");
@@ -133,6 +129,68 @@ describe("Connector Improvements: port spreading sort order", () => {
     });
     assert.equal(entries[0].label, "A", "lower portOrder comes first");
     assert.equal(entries[1].label, "B", "higher portOrder comes second");
+  });
+});
+
+// =============================================================================
+// 2b. Port Spreading Offset Math (tests the actual spacing algorithm)
+// =============================================================================
+
+describe("Connector Improvements: port spreading offset computation", () => {
+  // Mirror the production spreading constants and algorithm from finalize.ts
+  const PORT_SPACING = 14;
+  const EDGE_MARGIN = 8;
+
+  function computeSpreadOffsets(count, edgeLength) {
+    const usable = edgeLength - 2 * EDGE_MARGIN;
+    const totalSpread = (count - 1) * PORT_SPACING;
+    const spacing = totalSpread > usable
+      ? usable / (count - 1)
+      : PORT_SPACING;
+    const startOffset = -((count - 1) * spacing / 2);
+    const offsets = [];
+    for (let i = 0; i < count; i++) {
+      offsets.push(startOffset + i * spacing);
+    }
+    return { offsets, spacing };
+  }
+
+  it("two connectors are spread symmetrically around center", () => {
+    const { offsets } = computeSpreadOffsets(2, 120);
+    assert.equal(offsets.length, 2);
+    // Should be symmetric: -7 and +7
+    assert.within(offsets[0], -PORT_SPACING / 2, 0.01, "first offset");
+    assert.within(offsets[1], PORT_SPACING / 2, 0.01, "second offset");
+    // Sum should be zero (centered)
+    assert.within(offsets[0] + offsets[1], 0, 0.01, "offsets sum to zero");
+  });
+
+  it("three connectors get evenly spaced offsets", () => {
+    const { offsets } = computeSpreadOffsets(3, 200);
+    assert.equal(offsets.length, 3);
+    assert.within(offsets[0], -PORT_SPACING, 0.01, "first");
+    assert.within(offsets[1], 0, 0.01, "center");
+    assert.within(offsets[2], PORT_SPACING, 0.01, "last");
+  });
+
+  it("spacing compresses when edge is too small for full PORT_SPACING", () => {
+    // Edge of 30px, margin 8 each side = 14px usable, 3 connectors need 28px at full spacing
+    const { offsets, spacing } = computeSpreadOffsets(3, 30);
+    const usable = 30 - 2 * EDGE_MARGIN; // 14
+    assert.ok(spacing < PORT_SPACING, "spacing should be compressed");
+    assert.within(spacing, usable / 2, 0.01, "spacing = usable / (count-1)");
+    // All offsets should still be within usable range
+    const min = offsets[0];
+    const max = offsets[offsets.length - 1];
+    assert.ok(max - min <= usable, "total spread fits within usable edge");
+  });
+
+  it("single connector gets zero offset (no spreading needed)", () => {
+    // The production code skips single-connector groups,
+    // but if we ran the math, offset should be 0
+    const { offsets } = computeSpreadOffsets(1, 120);
+    assert.equal(offsets.length, 1);
+    assert.within(offsets[0], 0, 0.01, "single connector centered");
   });
 });
 
@@ -268,7 +326,8 @@ describe("Connector Improvements: rounded elbow path generation", () => {
   });
 });
 
-// Standalone implementation for testing (mirrors renderer's buildRoundedElbowPath)
+// Standalone implementation for testing — mirrors renderer's buildRoundedElbowPath exactly.
+// Uses angle-based fillet math so arc radius is correct for any turn angle, not just 90°.
 function buildRoundedElbowPathTest(points, radius) {
   if (points.length < 2) return '';
   if (points.length === 2) {
@@ -284,9 +343,8 @@ function buildRoundedElbowPathTest(points, radius) {
 
     const len1 = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
     const len2 = Math.sqrt((next.x - curr.x) ** 2 + (next.y - curr.y) ** 2);
-    const rEff = Math.min(radius, len1 / 2, len2 / 2);
 
-    if (rEff < 1) {
+    if (len1 < 0.5 || len2 < 0.5) {
       d += ` L ${curr.x} ${curr.y}`;
       continue;
     }
@@ -296,16 +354,41 @@ function buildRoundedElbowPathTest(points, radius) {
     const ux2 = (next.x - curr.x) / len2;
     const uy2 = (next.y - curr.y) / len2;
 
-    const enterX = curr.x - ux1 * rEff;
-    const enterY = curr.y - uy1 * rEff;
-    const exitX = curr.x + ux2 * rEff;
-    const exitY = curr.y + uy2 * rEff;
-
     const cross = ux1 * uy2 - uy1 * ux2;
+    const dot = ux1 * ux2 + uy1 * uy2;
+    const absCross = Math.abs(cross);
+
+    // Skip arc for near-collinear segments
+    if (absCross < 0.01) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    // tan(β/2) = |cross| / (1 - dot), where β is the opening angle
+    const tanHalf = absCross / (1 - dot);
+    let trim = radius / tanHalf;
+
+    const maxTrim = Math.min(len1 / 2, len2 / 2);
+    if (trim > maxTrim) {
+      trim = maxTrim;
+    }
+
+    const arcRadius = trim * tanHalf;
+
+    if (trim < 1 || arcRadius < 1) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+
+    const enterX = curr.x - ux1 * trim;
+    const enterY = curr.y - uy1 * trim;
+    const exitX = curr.x + ux2 * trim;
+    const exitY = curr.y + uy2 * trim;
+
     const sweep = cross > 0 ? 1 : 0;
 
     d += ` L ${enterX} ${enterY}`;
-    d += ` A ${rEff} ${rEff} 0 0 ${sweep} ${exitX} ${exitY}`;
+    d += ` A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${exitX} ${exitY}`;
   }
 
   const last = points[points.length - 1];

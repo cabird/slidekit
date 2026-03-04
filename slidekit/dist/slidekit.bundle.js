@@ -2736,12 +2736,12 @@ function buildConnectorSVG(from, to, connProps) {
     const result = pts.map((p) => ({ ...p }));
     const first = result[0];
     const next = result[1];
-    const dx = first.x - next.x;
-    const dy = first.y - next.y;
+    const dx = next.x - first.x;
+    const dy = next.y - first.y;
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len > amount * 2) {
-      first.x -= dx / len * amount;
-      first.y -= dy / len * amount;
+      first.x += dx / len * amount;
+      first.y += dy / len * amount;
     }
     return result;
   };
@@ -3242,6 +3242,7 @@ function connect(fromId, toId, props = {}) {
     labelPosition: rest.labelPosition,
     labelOffset: rest.labelOffset,
     cornerRadius: rest.cornerRadius,
+    obstacleMargin: rest.obstacleMargin,
     fromId,
     toId,
     // Common props
@@ -4553,8 +4554,8 @@ function finalize({
       });
     }
   }
-  const PORT_SPACING = 14;
-  const EDGE_MARGIN = 8;
+  const DEFAULT_PORT_SPACING = 14;
+  const DEFAULT_EDGE_MARGIN = 8;
   for (const [key, group2] of portGroups) {
     if (group2.length <= 1) {
       if (group2.length === 1) {
@@ -4582,6 +4583,9 @@ function finalize({
     const edge = parts[2];
     const bounds = resolvedBounds.get(elementId);
     if (!bounds) continue;
+    const targetEl = flatMap.get(elementId);
+    const PORT_SPACING = targetEl?.props.portSpacing ?? DEFAULT_PORT_SPACING;
+    const EDGE_MARGIN = targetEl?.props.edgeMargin ?? DEFAULT_EDGE_MARGIN;
     const isHorizontalEdge = edge === "top" || edge === "bottom";
     group2.sort((a, b) => {
       if (a.portOrder !== b.portOrder) return a.portOrder - b.portOrder;
@@ -4615,7 +4619,7 @@ function finalize({
   }
   for (const info of connectorInfos) {
     const { id, el: el2, fromId, toId, fromAnchor, toAnchor, fromPt, toPt } = info;
-    const margin = 200;
+    const margin = el2.props.obstacleMargin ?? 200;
     const pathMinX = Math.min(fromPt.x, toPt.x) - margin;
     const pathMaxX = Math.max(fromPt.x, toPt.x) + margin;
     const pathMinY = Math.min(fromPt.y, toPt.y) - margin;

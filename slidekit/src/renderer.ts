@@ -210,12 +210,12 @@ function buildConnectorSVG(
     const result = pts.map(p => ({...p}));
     const first = result[0];
     const next = result[1];
-    const dx = first.x - next.x;
-    const dy = first.y - next.y;
+    const dx = next.x - first.x;
+    const dy = next.y - first.y;
     const len = Math.sqrt(dx * dx + dy * dy);
     if (len > amount * 2) {
-      first.x -= (dx / len) * amount;
-      first.y -= (dy / len) * amount;
+      first.x += (dx / len) * amount;
+      first.y += (dy / len) * amount;
     }
     return result;
   };

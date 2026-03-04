@@ -310,8 +310,8 @@ export function finalize({
 
   // Apply port spreading: when multiple connectors share an edge, distribute
   // them along it. Sort by portOrder, then by target projection to avoid crossings.
-  const PORT_SPACING = 14; // px between spread ports
-  const EDGE_MARGIN = 8;   // px margin from edge corners
+  const DEFAULT_PORT_SPACING = 14; // px between spread ports
+  const DEFAULT_EDGE_MARGIN = 8;   // px margin from edge corners
 
   for (const [key, group] of portGroups) {
     // For single-connector groups, only apply if there's an explicit offset
@@ -345,6 +345,11 @@ export function finalize({
 
     const bounds = resolvedBounds.get(elementId);
     if (!bounds) continue;
+
+    // Per-element port spreading overrides
+    const targetEl = flatMap.get(elementId);
+    const PORT_SPACING = (targetEl?.props.portSpacing as number) ?? DEFAULT_PORT_SPACING;
+    const EDGE_MARGIN = (targetEl?.props.edgeMargin as number) ?? DEFAULT_EDGE_MARGIN;
 
     // Sort by (portOrder, target projection along edge tangent)
     const isHorizontalEdge = edge === 'top' || edge === 'bottom';
@@ -403,7 +408,7 @@ export function finalize({
     // Only include obstacles that are within a reasonable bounding region
     // of the connector's path (expanded by a margin). Far-away elements
     // on the slide shouldn't affect routing.
-    const margin = 200;
+    const margin = (el.props.obstacleMargin as number) ?? 200;
     const pathMinX = Math.min(fromPt.x, toPt.x) - margin;
     const pathMaxX = Math.max(fromPt.x, toPt.x) + margin;
     const pathMinY = Math.min(fromPt.y, toPt.y) - margin;

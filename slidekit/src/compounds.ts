@@ -50,6 +50,8 @@ export interface ConnectorInputProps {
   labelOffset?: { x?: number; y?: number };
   /** Corner radius for elbow connectors (px). 0 = sharp corners (default). */
   cornerRadius?: number;
+  /** Obstacle search margin (px) around the connector bounding box. Default 200. */
+  obstacleMargin?: number;
   layer?: string;
   opacity?: number;
   style?: Record<string, unknown>;
@@ -90,6 +92,7 @@ export function connect(fromId: string, toId: string, props: ConnectorInputProps
     labelPosition: rest.labelPosition,
     labelOffset: rest.labelOffset,
     cornerRadius: rest.cornerRadius,
+    obstacleMargin: rest.obstacleMargin,
     fromId,
     toId,
     // Common props

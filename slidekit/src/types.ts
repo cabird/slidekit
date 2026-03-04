@@ -210,6 +210,8 @@ export interface ConnectorProps {
   labelOffset?: { x?: number; y?: number };
   /** Corner radius for elbow connectors (px). 0 = sharp corners (default). */
   cornerRadius?: number;
+  /** Obstacle search margin (px) around the connector bounding box. Default 200. */
+  obstacleMargin?: number;
   /** Source element ID. */
   fromId: string;
   /** Target element ID. */
