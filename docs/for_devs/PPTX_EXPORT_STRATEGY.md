@@ -356,6 +356,7 @@ background layer instead.
 | `box-shadow` | `Shape.Shadow.*` | Approximate |
 | `linear-gradient(...)` | `Fill.TwoColorGradient` | Approximate |
 | `transform: rotate(Xdeg)` | `Shape.Rotation` | Exact |
+| `flipH` / `flipV` props | `Shape.HorizontalFlip` / `Shape.VerticalFlip` | Exact |
 | `backdrop-filter: blur()` | No equivalent | Not supported |
 | `clip-path` (complex) | No equivalent | Not supported |
 | `mix-blend-mode` | No equivalent | Not supported |

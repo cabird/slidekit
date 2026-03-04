@@ -1,6 +1,6 @@
 # SlideKit Layout Cookbook — Quick Reference
 
-A concise, scannable reference of **45 slide composition patterns**. Use this to pick the right layout for any slide you need to build.
+A concise, scannable reference of **47 slide composition patterns**. Use this to pick the right layout for any slide you need to build.
 
 ## SlideKit Essentials
 
@@ -99,7 +99,7 @@ SlideKit **blocks** certain CSS properties in `style: {}`. Using them will cause
 | `style: { position: '...' }` | Implicit — all elements are absolute | Just set `x`, `y` |
 | `style: { display: '...' }` | Use `vstack`, `hstack`, `group` | `vstack([...], { gap: 'sm' })` |
 | `style: { overflow: '...' }` | Not supported; size elements correctly | Set `w` and `h` to contain content |
-| `style: { transform: '...' }` | `rotate` prop (for rotation) | `{ rotate: 15 }` |
+| `style: { transform: '...' }` | `rotate`, `flipH`, `flipV` props | `{ rotate: 15 }`, `{ flipH: true }` |
 
 **Why this matters:** Sub-agents consistently use `style: { height: '...' }` despite documentation warnings. Always use SlideKit props for layout dimensions.
 
@@ -199,6 +199,8 @@ A common and non-obvious failure: using your accent color for **both** text and 
 | 43 | j2 | Agenda | J: Utility | `below`, dot leaders, `rightOf` |
 | 44 | j3 | Closing | J: Utility | `figure(layer:'bg')`, overlay, `below` |
 | 45 | j4 | Team Cards | J: Utility | col calc, `panel`, `figure`, `below` |
+| 46 | k7 | Crop-to-Shape (clip-path) | K: Bonus | `el`, CSS `clip-path`, `object-fit` |
+| 47 | k8 | Flip Horizontal / Vertical | K: Bonus | `el`, `flipH`, `flipV` |
 
 ---
 
@@ -1500,3 +1502,96 @@ el('<div style="width:100%;height:100%;border-radius:50%;background:#accent;opac
 ```
 
 **Variations:** Use 2–4 dots in a cluster. Vary sizes (8–16px) and opacities. Position near content edges to create visual anchoring.
+
+---
+
+### K7: Crop-to-Shape via CSS clip-path
+
+**Intent:** Crop images to circles, rounded rectangles, diamonds, or arbitrary polygons — achieving PowerPoint-like "crop to shape" effects using pure CSS.
+
+**Visual:** An image clipped to a non-rectangular shape, creating visual interest without editing the source file.
+
+**Key detail:** Always pair `clip-path` with `object-fit: cover` and explicit `w`/`h` on the element. Without `object-fit: cover`, the image may letterbox inside the clipped shape. Without explicit dimensions, the clip region is unpredictable.
+
+**Circular headshot:**
+```javascript
+el('<img src="./headshot.jpg" style="width:100%;height:100%;object-fit:cover;clip-path:circle(50%)">', {
+  id: 'avatar', x: 100, y: 200, w: 200, h: 200,
+});
+```
+
+**Rounded rectangle** (alternative to `containerRadius` on `figure()`):
+```javascript
+el('<img src="./card-bg.jpg" style="width:100%;height:100%;object-fit:cover;clip-path:inset(0 round 24px)">', {
+  id: 'rounded-img', x: 400, y: 200, w: 600, h: 400,
+});
+```
+> For simple rounded corners, `borderRadius` on the container or `containerRadius` on `figure()` is simpler. Use `clip-path: inset(0 round ...)` when you need different radii per corner (e.g., `inset(0 round 24px 24px 0 0)` for top-only rounding).
+
+**Diamond:**
+```javascript
+el('<img src="./photo.jpg" style="width:100%;height:100%;object-fit:cover;clip-path:polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)">', {
+  id: 'diamond', x: 800, y: 200, w: 300, h: 300,
+});
+```
+
+**Custom polygon** (chevron/arrow shape):
+```javascript
+el('<img src="./banner.jpg" style="width:100%;height:100%;object-fit:cover;clip-path:polygon(0% 0%, 85% 0%, 100% 50%, 85% 100%, 0% 100%)">', {
+  id: 'chevron', x: 100, y: 500, w: 400, h: 200,
+});
+```
+
+**Variations:** Any shape is achievable via `polygon()`. Use an online clip-path generator to design complex shapes visually, then paste the value. Combine with `shadow` on a wrapper element for drop shadows on clipped shapes (shadows applied to the clipped element itself will be clipped away).
+
+**Pairs well with:** J4 team cards (circular avatars), A5 narrow sidebar (portrait crops), I3 magazine editorial (creative framing).
+
+---
+
+### K8: Flip Horizontal / Vertical
+
+**Intent:** Mirror elements horizontally or vertically using SlideKit's `flipH` and `flipV` props — useful for creating symmetrical designs, reversing directional icons, or decorative mirrored pairs.
+
+**Visual:** An element rendered as its mirror image along the horizontal or vertical axis.
+
+**Mirror an image horizontally:**
+```javascript
+el('<img src="./arrow-right.svg" style="width:100%;height:100%">', {
+  id: 'arrow-left', x: 200, y: 300, w: 100, h: 50, flipH: true,
+});
+```
+
+**Mirror vertically (reflection effect):**
+```javascript
+// Original element
+el('<img src="./logo.png" style="width:100%;height:100%;object-fit:contain">', {
+  id: 'logo', x: 860, y: 300, w: 200, h: 100,
+});
+// Reflected copy below with reduced opacity
+el('<img src="./logo.png" style="width:100%;height:100%;object-fit:contain">', {
+  id: 'logo-reflection', x: 860, y: 400, w: 200, h: 100, flipV: true, opacity: 0.2,
+});
+```
+
+**Decorative mirrored pairs** (symmetrical design):
+```javascript
+// Original arrow pointing right
+el('<img src="./arrow.svg" style="width:100%;height:100%">', {
+  id: 'arrow-right', x: 1060, y: 500, w: 100, h: 50,
+});
+// Mirrored copy pointing left
+el('<img src="./arrow.svg" style="width:100%;height:100%">', {
+  id: 'arrow-left', x: 760, y: 500, w: 100, h: 50, flipH: true,
+});
+```
+
+**Combine with rotation:**
+```javascript
+el('<img src="./decorative.svg" style="width:100%;height:100%">', {
+  id: 'deco', x: 400, y: 300, w: 120, h: 120, rotate: 45, flipH: true,
+});
+```
+
+**Key detail:** `flipH` applies `scaleX(-1)` and `flipV` applies `scaleY(-1)`. Both can be combined with `rotate` — transforms are applied in order: rotation first, then flip. These are SlideKit props, not CSS — do not use `style: { transform: 'scaleX(-1)' }` (transform is a blocked CSS property).
+
+**Pairs well with:** Symmetrical layouts (E3 corner brackets, I2 radial hub-spoke), decorative accent elements (K6 dots), process flow diagrams (G2) where arrows need to point both directions.

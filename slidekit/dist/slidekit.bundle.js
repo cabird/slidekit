@@ -263,6 +263,8 @@ var KNOWN_LAYOUT_PROPS = /* @__PURE__ */ new Set([
   "style",
   "opacity",
   "rotate",
+  "flipH",
+  "flipV",
   "className",
   "shadow",
   "z",
@@ -3066,8 +3068,20 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
   if (props.opacity !== void 0 && props.opacity !== 1) {
     div.style.opacity = String(props.opacity);
   }
-  if (props.rotate !== void 0 && props.rotate !== 0) {
-    div.style.transform = `rotate(${props.rotate}deg)`;
+  {
+    const transformParts = [];
+    if (props.rotate !== void 0 && props.rotate !== 0) {
+      transformParts.push(`rotate(${props.rotate}deg)`);
+    }
+    if (props.flipH) {
+      transformParts.push("scaleX(-1)");
+    }
+    if (props.flipV) {
+      transformParts.push("scaleY(-1)");
+    }
+    if (transformParts.length > 0) {
+      div.style.transform = transformParts.join(" ");
+    }
   }
   if (props.className) {
     div.className = props.className;

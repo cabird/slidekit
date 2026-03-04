@@ -156,6 +156,8 @@ classDiagram
         +string className
         +string overflow = "visible"
         +number rotate
+        +boolean flipH
+        +boolean flipV
     }
 
     class RelMarker {
@@ -771,7 +773,7 @@ Modules import `state` and read/write its properties directly. There is no event
 - **Display**: `display` (SlideKit needs block/flex control)
 - **Overflow**: `overflow`, `overflowX`, `overflowY` (SlideKit manages via `overflow` prop)
 - **Margin**: All margin properties (breaks absolute positioning)
-- **Transform**: `transform`, `translate`, `rotate`, `scale` (SlideKit owns via `rotate` prop)
+- **Transform**: `transform`, `translate`, `rotate`, `scale` (SlideKit owns via `rotate`, `flipH`, `flipV` props)
 - **Containment**: `contain`, `contentVisibility` (can suppress layout/paint)
 
 Vendor-prefixed variants (e.g., `WebkitTransform`) are also caught by `stripVendorPrefix()`.

@@ -115,7 +115,7 @@ PowerPoint-style alignment and distribution operations work on arrays of element
 - **Grid system** with configurable columns and gutters for consistent cross-slide alignment.
 - **Snap** to round positions to grid increments.
 - **Percentage sugar** for positions and sizes, resolved to pixels during layout solve.
-- **Rotation** for images and decorative shapes.
+- **Rotation and flip** for images and decorative shapes (`rotate`, `flipH`, `flipV`).
 - **Repeat/duplicate** to create grids of similar elements with position offsets.
 
 ## Live Editing and Round-Trip

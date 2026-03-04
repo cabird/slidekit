@@ -133,6 +133,10 @@ export interface ElementProps {
   opacity?: number;
   /** Rotation in degrees. */
   rotate?: number;
+  /** Flip horizontally (applies scaleX(-1)). */
+  flipH?: boolean;
+  /** Flip vertically (applies scaleY(-1)). */
+  flipV?: boolean;
   /** CSS class name(s). */
   className?: string;
   /** Shadow (CSS box-shadow string or object). */

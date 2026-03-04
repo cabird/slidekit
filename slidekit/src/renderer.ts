@@ -617,9 +617,21 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
     div.style.opacity = String(props.opacity);
   }
 
-  // M8.4: Rotate — apply via CSS transform (dedicated prop, not user style)
-  if (props.rotate !== undefined && props.rotate !== 0) {
-    div.style.transform = `rotate(${props.rotate}deg)`;
+  // M8.4: Transform — combine rotate and flip into a single CSS transform
+  {
+    const transformParts: string[] = [];
+    if (props.rotate !== undefined && props.rotate !== 0) {
+      transformParts.push(`rotate(${props.rotate}deg)`);
+    }
+    if (props.flipH) {
+      transformParts.push('scaleX(-1)');
+    }
+    if (props.flipV) {
+      transformParts.push('scaleY(-1)');
+    }
+    if (transformParts.length > 0) {
+      div.style.transform = transformParts.join(' ');
+    }
   }
 
   // Apply className

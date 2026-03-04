@@ -1157,3 +1157,138 @@ describe("P0.2: DOM overflow detection", () => {
     });
   });
 });
+
+// =============================================================================
+// flipH / flipV — Rendering
+// =============================================================================
+
+describe("flipH / flipV — rendering", () => {
+  it("flipH applies scaleX(-1)", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "fh1", x: 100, y: 100, w: 200, h: 100, flipH: true, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="fh1"]');
+      assert.ok(div, "flipped element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(transform.includes("scaleX(-1)"), `transform should contain scaleX(-1), got "${transform}"`);
+    });
+  });
+
+  it("flipV applies scaleY(-1)", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "fv1", x: 100, y: 100, w: 200, h: 100, flipV: true, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="fv1"]');
+      assert.ok(div, "flipped element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(transform.includes("scaleY(-1)"), `transform should contain scaleY(-1), got "${transform}"`);
+    });
+  });
+
+  it("both flipH and flipV combined", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "fb1", x: 100, y: 100, w: 200, h: 100, flipH: true, flipV: true, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="fb1"]');
+      assert.ok(div, "double-flipped element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(transform.includes("scaleX(-1)"), `transform should contain scaleX(-1), got "${transform}"`);
+      assert.ok(transform.includes("scaleY(-1)"), `transform should contain scaleY(-1), got "${transform}"`);
+    });
+  });
+
+  it("flipH + rotate combined", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "fr1", x: 100, y: 100, w: 200, h: 100, flipH: true, rotate: 45, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="fr1"]');
+      assert.ok(div, "flip+rotate element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(transform.includes("rotate(45deg)"), `transform should contain rotate(45deg), got "${transform}"`);
+      assert.ok(transform.includes("scaleX(-1)"), `transform should contain scaleX(-1), got "${transform}"`);
+    });
+  });
+
+  it("no flip by default — no scaleX/scaleY in transform", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "nf1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="nf1"]');
+      assert.ok(div, "element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(!transform || (!transform.includes("scaleX") && !transform.includes("scaleY")),
+        `transform should not contain scaleX or scaleY, got "${transform}"`);
+    });
+  });
+
+  it("flipH: false is same as omitted — no scaleX in transform", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "ff1", x: 100, y: 100, w: 200, h: 100, flipH: false, style: { background: "#333" } }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="ff1"]');
+      assert.ok(div, "element should be rendered");
+      const transform = div.style.transform;
+      assert.ok(!transform || !transform.includes("scaleX"),
+        `transform should not contain scaleX when flipH is false, got "${transform}"`);
+    });
+  });
+
+  it("flipH/flipV not flagged as misplaced CSS props", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          el('', { id: "mc1", x: 100, y: 100, w: 200, h: 100, flipH: true, flipV: true, style: { background: "#333" } }),
+        ],
+      }];
+      const { layouts } = await render(slides, { container });
+      // Check that no styleWarnings of type misplaced_css_prop exist for flipH/flipV
+      const sceneEntry = layouts[0].elements["mc1"];
+      const misplacedWarnings = (sceneEntry?.styleWarnings || []).filter(
+        w => w.type === "misplaced_css_prop" && (w.property === "flipH" || w.property === "flipV")
+      );
+      assert.equal(misplacedWarnings.length, 0, "flipH/flipV should not be flagged as misplaced CSS props");
+    });
+  });
+
+  it("flipH/flipV on group elements", async () => {
+    await withContainer(async (container) => {
+      const slides = [{
+        elements: [
+          group([
+            el('', { id: "gc1", x: 0, y: 0, w: 100, h: 50 }),
+          ], { id: "fg1", x: 100, y: 100, w: 200, h: 100, flipH: true, flipV: true }),
+        ],
+      }];
+      await render(slides, { container });
+      const div = container.querySelector('[data-sk-id="fg1"]');
+      assert.ok(div, "flipped group should be rendered");
+      const transform = div.style.transform;
+      assert.ok(transform.includes("scaleX(-1)"), `group transform should contain scaleX(-1), got "${transform}"`);
+      assert.ok(transform.includes("scaleY(-1)"), `group transform should contain scaleY(-1), got "${transform}"`);
+    });
+  });
+});

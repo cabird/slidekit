@@ -95,7 +95,7 @@ const KNOWN_LAYOUT_PROPS: ReadonlySet<string> = new Set([
   // Layout
   "anchor", "layer", "valign", "overflow",
   // Visual (SlideKit-owned)
-  "style", "opacity", "rotate", "className", "shadow", "z",
+  "style", "opacity", "rotate", "flipH", "flipV", "className", "shadow", "z",
   // Stack / group
   "gap", "align", "bounds", "scale", "clip",
   // Internal

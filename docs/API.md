@@ -87,6 +87,8 @@ el('<p style="font:700 52px/1.1 Inter;color:#fff;text-align:center">Hello World<
 | `valign` | `VAlign` | `"top"` | Vertical alignment of content within the element's box: `"top"`, `"center"`, `"bottom"` |
 | `opacity` | `number` | `1` | Element opacity (0–1) |
 | `rotate` | `number` | — | Rotation in degrees |
+| `flipH` | `boolean` | — | Flip element horizontally (applies `scaleX(-1)`) |
+| `flipV` | `boolean` | — | Flip element vertically (applies `scaleY(-1)`) |
 | `overflow` | `OverflowPolicy` | `"visible"` | Overflow policy (see below) |
 | `shadow` | `string` | — | Shadow preset name or CSS `box-shadow` value. Resolved via `resolveShadow()`. |
 | `z` | `number` | — | Explicit z-order within the same layer (higher = in front) |
@@ -178,6 +180,8 @@ All element types share these properties via `COMMON_DEFAULTS`:
 | `maxW` | `number` | — | Maximum width constraint |
 | `maxH` | `number` | — | Maximum height constraint |
 | `rotate` | `number` | — | Rotation in degrees |
+| `flipH` | `boolean` | — | Flip element horizontally (applies `scaleX(-1)`) |
+| `flipV` | `boolean` | — | Flip element vertically (applies `scaleY(-1)`) |
 
 ---
 
@@ -1419,7 +1423,7 @@ Key types for users building presentations:
 | Type | Description |
 |---|---|
 | `InputProps` | `ElementProps & { id?: string }` — input type for all element factory functions |
-| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `valign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
+| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `valign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `flipH`, `flipV`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
 | `CardGridOptions` | `InputProps & { cols?: number }` |
 | `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, layer?, opacity?, style?, className? }` |
 | `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border?, vAlign? }` |
