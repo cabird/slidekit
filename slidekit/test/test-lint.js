@@ -173,6 +173,38 @@ describe('lint: non-ancestor-overlap', () => {
     const overlaps = findings.filter(f => f.rule === 'non-ancestor-overlap');
     assert.equal(overlaps.length, 0);
   });
+
+  it('does not flag when either element has allowOverlap: true', () => {
+    const elements = {
+      bg: mockElement('bg', { x: 100, y: 100, w: 400, h: 400 }, { props: { allowOverlap: true } }),
+      content: mockElement('content', { x: 200, y: 200, w: 200, h: 200 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const overlaps = findings.filter(f => f.rule === 'non-ancestor-overlap');
+    assert.equal(overlaps.length, 0, 'allowOverlap should suppress overlap finding');
+  });
+
+  it('does not flag two full-bleed background elements', () => {
+    const elements = {
+      bgRect: mockElement('bgRect', { x: 0, y: 0, w: 1920, h: 1080 }),
+      bgImg: mockElement('bgImg', { x: 0, y: 0, w: 1920, h: 1080 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const overlaps = findings.filter(f => f.rule === 'non-ancestor-overlap');
+    assert.equal(overlaps.length, 0, 'full-bleed pairs should be skipped');
+  });
+
+  it('does not flag containment when container has panel-like styles', () => {
+    const elements = {
+      panel: mockElement('panel', { x: 100, y: 100, w: 600, h: 400 }, {
+        props: { style: { backgroundColor: '#1a1a3e', border: '1px solid rgba(255,255,255,0.1)' } },
+      }),
+      content: mockElement('content', { x: 150, y: 150, w: 200, h: 200 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const overlaps = findings.filter(f => f.rule === 'non-ancestor-overlap');
+    assert.equal(overlaps.length, 0, 'containment with panel styles should be skipped');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -524,7 +556,7 @@ describe('lint: lintSlide with slideElement', () => {
     };
     const slide = mockSlide('s1', elements);
     const findings = lintSlide(slide);
-    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'image-upscaled', 'aspect-ratio-distortion', 'heading-size-inversion', 'low-contrast'];
+    const domRules = ['text-overflow', 'font-too-small', 'font-too-large', 'line-too-long', 'line-height-tight', 'image-upscaled', 'aspect-ratio-distortion', 'heading-size-inversion', 'panel-content-surplus'];
     const domFindings = findings.filter(f => domRules.includes(f.rule));
     assert.equal(domFindings.length, 0, 'DOM rules should not run without slideElement');
   });
@@ -599,6 +631,26 @@ describe('lint: font-too-small (DOM)', () => {
     assert.equal(small.length, 1);
     assert.equal(small[0].severity, 'warning');
     assert.equal(small[0].detail.threshold, 18);
+
+    document.body.removeChild(container);
+  });
+
+  it('detects small font on inner span (TreeWalker)', () => {
+    const container = document.createElement('section');
+    const el = document.createElement('div');
+    el.setAttribute('data-sk-id', 'inner-span');
+    el.setAttribute('data-sk-type', 'el');
+    el.style.fontSize = '24px'; // container says 24px
+    el.style.position = 'absolute';
+    el.innerHTML = '<span style="font-size:10px">Tiny inner text</span>';
+    container.appendChild(el);
+    document.body.appendChild(container);
+
+    const slide = mockSlide('s1', {});
+    const findings = lintSlide(slide, container);
+    const small = findings.filter(f => f.rule === 'font-too-small');
+    assert.equal(small.length, 1, 'should detect small font on inner span, not container');
+    assert.equal(small[0].detail.fontSize, 10);
 
     document.body.removeChild(container);
   });
@@ -837,6 +889,34 @@ describe('lint: aspect-ratio-distortion (DOM)', () => {
       if (img.naturalWidth > 0) img.onload();
     });
   });
+
+  it('does not flag distorted image with object-fit: contain', () => {
+    const container = document.createElement('section');
+    const canvas = document.createElement('canvas');
+    canvas.width = 10;
+    canvas.height = 10;
+    const imgSrc = canvas.toDataURL();
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    img.style.width = '200px';
+    img.style.height = '100px';
+    img.style.objectFit = 'contain';
+    img.style.position = 'absolute';
+    container.appendChild(img);
+    document.body.appendChild(container);
+
+    return new Promise(resolve => {
+      img.onload = () => {
+        const slide = mockSlide('s1', {});
+        const findings = lintSlide(slide, container);
+        const distorted = findings.filter(f => f.rule === 'aspect-ratio-distortion');
+        assert.equal(distorted.length, 0, 'object-fit: contain should skip distortion check');
+        document.body.removeChild(container);
+        resolve();
+      };
+      if (img.naturalWidth > 0) img.onload();
+    });
+  });
 });
 
 describe('lint: heading-size-inversion (DOM)', () => {
@@ -915,68 +995,7 @@ describe('lint: heading-size-inversion (DOM)', () => {
   });
 });
 
-describe('lint: low-contrast (DOM)', () => {
-  it('detects low contrast text', () => {
-    const container = document.createElement('section');
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-id', 'low-con');
-    el.style.color = 'rgb(200, 200, 200)';
-    el.style.backgroundColor = 'rgb(210, 210, 210)';
-    el.style.position = 'absolute';
-    el.textContent = 'Hard to read';
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const lowCon = findings.filter(f => f.rule === 'low-contrast');
-    assert.equal(lowCon.length >= 1, true, 'should detect low contrast');
-    assert.equal(lowCon[0].severity, 'warning');
-    assert.equal(lowCon[0].elementId, 'low-con');
-    assert.equal(lowCon[0].detail.threshold, 3.0);
-
-    document.body.removeChild(container);
-  });
-
-  it('does not flag high contrast text', () => {
-    const container = document.createElement('section');
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-id', 'high-con');
-    el.style.color = 'rgb(0, 0, 0)';
-    el.style.backgroundColor = 'rgb(255, 255, 255)';
-    el.style.position = 'absolute';
-    el.textContent = 'Easy to read';
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const lowCon = findings.filter(f => f.rule === 'low-contrast');
-    assert.equal(lowCon.length, 0);
-
-    document.body.removeChild(container);
-  });
-
-  it('walks up parent chain for transparent backgrounds', () => {
-    const container = document.createElement('section');
-    container.style.backgroundColor = 'rgb(200, 200, 200)';
-    const el = document.createElement('div');
-    el.setAttribute('data-sk-id', 'transparent-bg');
-    el.style.color = 'rgb(190, 190, 190)';
-    el.style.backgroundColor = 'transparent';
-    el.style.position = 'absolute';
-    el.textContent = 'Low contrast against parent';
-    container.appendChild(el);
-    document.body.appendChild(container);
-
-    const slide = mockSlide('s1', {});
-    const findings = lintSlide(slide, container);
-    const lowCon = findings.filter(f => f.rule === 'low-contrast');
-    assert.equal(lowCon.length >= 1, true, 'should detect low contrast via parent bg');
-
-    document.body.removeChild(container);
-  });
-});
+// low-contrast rule removed — visual verifier handles contrast checks
 
 // ---------------------------------------------------------------------------
 // Cross-slide: title-position-drift (Rule 23)
@@ -1095,5 +1114,152 @@ describe('lint: content-underutilized', () => {
     const findings = lintSlide(mockSlide('s1', elements));
     const f = findings.filter(f => f.rule === 'content-underutilized');
     assert.equal(f.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// min-vertical-gap
+// ---------------------------------------------------------------------------
+
+describe('lint: min-vertical-gap', () => {
+  it('flags siblings with gap below threshold', () => {
+    // Two text elements 5px apart, font ~24px → minGap = min(36, 24*0.75) = 18px
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+      b: mockElement('b', { x: 200, y: 235, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gap = findings.filter(f => f.rule === 'min-vertical-gap');
+    assert.equal(gap.length, 1, 'should flag 5px gap');
+    assert.equal(gap[0].detail.gap, 5);
+  });
+
+  it('does not flag adequate gap', () => {
+    // 30px gap with 24px font → minGap = 18px, so 30 > 18 → no finding
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+      b: mockElement('b', { x: 200, y: 260, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gap = findings.filter(f => f.rule === 'min-vertical-gap');
+    assert.equal(gap.length, 0);
+  });
+
+  it('severity is warning when gap < 8px, info otherwise', () => {
+    // 5px gap → warning (< minGap threshold of 8)
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+      b: mockElement('b', { x: 200, y: 235, w: 400, h: 30 }, { props: { style: { fontSize: '24px' } } }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gap = findings.filter(f => f.rule === 'min-vertical-gap');
+    assert.equal(gap.length, 1);
+    assert.equal(gap[0].severity, 'warning', 'gap < 8px should be warning');
+  });
+
+  it('caps minGap at 36px', () => {
+    // 60px font → 60*0.75 = 45 but capped at 36. Gap of 37px → no finding.
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 400, h: 70 }, { props: { style: { fontSize: '60px' } } }),
+      b: mockElement('b', { x: 200, y: 307, w: 400, h: 70 }, { props: { style: { fontSize: '60px' } } }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const gap = findings.filter(f => f.rule === 'min-vertical-gap');
+    assert.equal(gap.length, 0, 'gap of 37px should pass with 36px cap');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// horizontal-center-consistency
+// ---------------------------------------------------------------------------
+
+describe('lint: horizontal-center-consistency', () => {
+  it('flags off-center element on a centered-layout slide', () => {
+    // 3 elements centered, 1 off-center
+    const elements = {
+      a: mockElement('a', { x: 660, y: 100, w: 600, h: 60 }), // center = 960 ✓
+      b: mockElement('b', { x: 660, y: 200, w: 600, h: 60 }), // center = 960 ✓
+      c: mockElement('c', { x: 660, y: 300, w: 600, h: 60 }), // center = 960 ✓
+      d: mockElement('d', { x: 200, y: 400, w: 300, h: 60 }), // center = 350 ✗ (610px off)
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const center = findings.filter(f => f.rule === 'horizontal-center-consistency');
+    assert.equal(center.length, 1, 'should flag off-center element');
+    assert.equal(center[0].elementId, 'd');
+  });
+
+  it('excludes small decorative elements', () => {
+    // 3 centered + 1 thin accent bar off-center
+    const elements = {
+      a: mockElement('a', { x: 660, y: 100, w: 600, h: 60 }),
+      b: mockElement('b', { x: 660, y: 200, w: 600, h: 60 }),
+      c: mockElement('c', { x: 660, y: 300, w: 600, h: 60 }),
+      accent: mockElement('accent', { x: 200, y: 400, w: 80, h: 4 }), // area = 320 < 2000
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const center = findings.filter(f => f.rule === 'horizontal-center-consistency');
+    assert.equal(center.length, 0, 'decorative accent bar should be excluded');
+  });
+
+  it('does not flag non-centered-layout slides', () => {
+    // Most elements NOT centered → not a centered layout
+    const elements = {
+      a: mockElement('a', { x: 100, y: 100, w: 400, h: 60 }),
+      b: mockElement('b', { x: 800, y: 200, w: 400, h: 60 }),
+      c: mockElement('c', { x: 200, y: 300, w: 300, h: 60 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const center = findings.filter(f => f.rule === 'horizontal-center-consistency');
+    assert.equal(center.length, 0, 'should not flag non-centered layout');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unbalanced-trailing-whitespace (block-level vertical balance)
+// ---------------------------------------------------------------------------
+
+describe('lint: unbalanced-trailing-whitespace', () => {
+  it('detects top-heavy whitespace', () => {
+    // Content positioned near bottom of safe zone
+    // Safe zone: y=90..990. Content at y=700 → topGap=610, bottomGap clamped by content height
+    const elements = {
+      a: mockElement('a', { x: 200, y: 700, w: 1400, h: 200 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'unbalanced-trailing-whitespace');
+    assert.equal(f.length, 1, 'should detect top-heavy whitespace');
+    assert.equal(f[0].detail.direction, 'top-heavy whitespace');
+  });
+
+  it('detects bottom-heavy whitespace', () => {
+    // Content positioned near top of safe zone
+    const elements = {
+      a: mockElement('a', { x: 200, y: 100, w: 1400, h: 200 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'unbalanced-trailing-whitespace');
+    assert.equal(f.length, 1, 'should detect bottom-heavy whitespace');
+    assert.equal(f[0].detail.direction, 'bottom-heavy whitespace');
+  });
+
+  it('reports no finding when content is vertically balanced', () => {
+    // Content centered in safe zone
+    const elements = {
+      a: mockElement('a', { x: 200, y: 200, w: 1400, h: 600 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'unbalanced-trailing-whitespace');
+    assert.equal(f.length, 0, 'balanced content should not trigger');
+  });
+
+  it('handles content touching safe zone edge', () => {
+    // Content at exact top of safe zone (y=90) with empty bottom
+    const elements = {
+      a: mockElement('a', { x: 200, y: 90, w: 1400, h: 100 }),
+    };
+    const findings = lintSlide(mockSlide('s1', elements));
+    const f = findings.filter(f => f.rule === 'unbalanced-trailing-whitespace');
+    // topGap clamped to 1, bottomGap = 990-190 = 800 → ratio = 800 → should fire
+    assert.equal(f.length, 1, 'should detect imbalance even when touching edge');
   });
 });

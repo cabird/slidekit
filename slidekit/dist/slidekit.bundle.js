@@ -1,4 +1,4 @@
-// src/state.ts
+// slidekit/src/state.ts
 var state = {
   idCounter: 0,
   config: null,
@@ -11,7 +11,7 @@ var state = {
   transformIdCounter: 0
 };
 
-// src/id.ts
+// slidekit/src/id.ts
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -20,7 +20,7 @@ function nextId() {
   return `sk-${state.idCounter}`;
 }
 
-// src/spacing.ts
+// slidekit/src/spacing.ts
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -43,7 +43,7 @@ function getSpacing(token) {
   return resolveSpacing(token);
 }
 
-// src/elements.ts
+// slidekit/src/elements.ts
 var COMMON_DEFAULTS = {
   x: 0,
   y: 0,
@@ -131,7 +131,7 @@ function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer
   });
 }
 
-// src/anchor.ts
+// slidekit/src/anchor.ts
 var VALID_ANCHORS = /* @__PURE__ */ new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
 function resolveAnchor(x, y, w, h, anchor) {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
@@ -164,7 +164,7 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// src/style.ts
+// slidekit/src/style.ts
 function toCamelCase(name) {
   if (name.startsWith("--")) return name;
   if (!name.includes("-")) return name;
@@ -623,7 +623,7 @@ function getShadowPresets() {
   return { ...SHADOWS };
 }
 
-// src/config.ts
+// slidekit/src/config.ts
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -774,7 +774,7 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// src/dom-helpers.ts
+// slidekit/src/dom-helpers.ts
 function applyStyleToDOM(domEl, styleObj) {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
@@ -785,7 +785,7 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
-// src/measure.ts
+// slidekit/src/measure.ts
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -853,7 +853,7 @@ async function measure(html, props = {}) {
   return result;
 }
 
-// src/relative.ts
+// slidekit/src/relative.ts
 function normalizeGapArg(arg) {
   if (typeof arg === "string" || typeof arg === "number") {
     return { gap: arg };
@@ -904,7 +904,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
-// src/assertions.ts
+// slidekit/src/assertions.ts
 function mustGet(map, key, msg) {
   const value = map.get(key);
   if (value === void 0) {
@@ -913,7 +913,7 @@ function mustGet(map, key, msg) {
   return value;
 }
 
-// src/transforms.ts
+// slidekit/src/transforms.ts
 function nextTransformId() {
   state.transformIdCounter += 1;
   return `transform-${state.transformIdCounter}`;
@@ -1170,7 +1170,7 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
-// src/lint.ts
+// slidekit/src/lint.ts
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -1184,7 +1184,6 @@ var THRESHOLDS = {
   maxRootElements: 15,
   imageUpscaleMax: 1.1,
   aspectRatioTolerance: 0.01,
-  contrastMin: 3,
   titlePositionDrift: 20,
   maxFontFamilies: 3,
   marginRatioMax: 0.25
@@ -1304,6 +1303,7 @@ function ruleNonAncestorOverlap(elements) {
     if (!absCache.has(e.id)) absCache.set(e.id, absoluteBoundsOf(e, elements));
     return absCache.get(e.id);
   }
+  const canvasArea = CANVAS.w * CANVAS.h;
   const withSize = els.filter((e) => {
     const b = cachedAbsBounds(e);
     return b && b.w > 0 && b.h > 0;
@@ -1313,6 +1313,7 @@ function ruleNonAncestorOverlap(elements) {
     for (let j = i + 1; j < withSize.length; j++) {
       const a = withSize[i];
       const b = withSize[j];
+      if (a.authored?.props?.allowOverlap || b.authored?.props?.allowOverlap) continue;
       const layerA = normLayer(a);
       const layerB = normLayer(b);
       if (layerA !== layerB) continue;
@@ -1321,6 +1322,18 @@ function ruleNonAncestorOverlap(elements) {
       const ba = cachedAbsBounds(a);
       const bb = cachedAbsBounds(b);
       if (!rectsOverlap(ba, bb)) continue;
+      const areaA = ba.w * ba.h;
+      const areaB = bb.w * bb.h;
+      if (areaA >= canvasArea * 0.95 && areaB >= canvasArea * 0.95) continue;
+      const aContainsB = ba.x <= bb.x && ba.y <= bb.y && ba.x + ba.w >= bb.x + bb.w && ba.y + ba.h >= bb.y + bb.h;
+      const bContainsA = bb.x <= ba.x && bb.y <= ba.y && bb.x + bb.w >= ba.x + ba.w && bb.y + bb.h >= ba.y + ba.h;
+      if (aContainsB || bContainsA) {
+        const container = aContainsB ? a : b;
+        const cProps = container.authored?.props;
+        const cStyle = cProps?.style || {};
+        const hasPanelStyle = cStyle.backdropFilter || cStyle.border || cStyle.boxShadow || typeof cStyle.backgroundColor === "string" && cStyle.backgroundColor !== "transparent";
+        if (hasPanelStyle) continue;
+      }
       const key = [a.id, b.id].sort().join("|");
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1678,8 +1691,8 @@ function ruleTextOverflow(slideEl) {
   if (!slideEl) return findings;
   const els = slideEl.querySelectorAll('[data-sk-type="el"]');
   for (const el2 of els) {
-    const overflowY = el2.scrollHeight > el2.clientHeight + 1;
-    const overflowX = el2.scrollWidth > el2.clientWidth + 1;
+    const overflowY = el2.scrollHeight > el2.clientHeight + 2;
+    const overflowX = el2.scrollWidth > el2.clientWidth + 2;
     if (overflowY || overflowX) {
       findings.push({
         rule: "text-overflow",
@@ -1700,19 +1713,39 @@ function ruleTextOverflow(slideEl) {
   }
   return findings;
 }
+function findTextBearingDescendants(container) {
+  const results = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const seen = /* @__PURE__ */ new Set();
+  let node;
+  while (node = walker.nextNode()) {
+    if (!node.textContent || !node.textContent.trim()) continue;
+    const parent = node.parentElement;
+    if (parent && !seen.has(parent)) {
+      seen.add(parent);
+      results.push(parent);
+    }
+  }
+  return results;
+}
 function ruleFontTooSmall(slideEl) {
   const findings = [];
   if (!slideEl) return findings;
-  for (const el2 of findSkTextElements(slideEl)) {
-    if (!el2.textContent || !el2.textContent.trim()) continue;
-    const fontSize = parseFloat(getComputedStyle(el2).fontSize);
-    if (fontSize < THRESHOLDS.minFontSize) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const container of findSkTextElements(slideEl)) {
+    const skId = container.getAttribute("data-sk-id");
+    if (!skId || seen.has(skId)) continue;
+    const textEls = findTextBearingDescendants(container);
+    if (textEls.length === 0) continue;
+    const minFont = Math.min(...textEls.map((e) => parseFloat(getComputedStyle(e).fontSize)));
+    if (minFont < THRESHOLDS.minFontSize) {
+      seen.add(skId);
       findings.push({
         rule: "font-too-small",
         severity: "warning",
-        elementId: el2.getAttribute("data-sk-id"),
-        message: `Font size ${fontSize}px is below minimum ${THRESHOLDS.minFontSize}px`,
-        detail: { fontSize, threshold: THRESHOLDS.minFontSize },
+        elementId: skId,
+        message: `Font size ${minFont}px is below minimum ${THRESHOLDS.minFontSize}px`,
+        detail: { fontSize: minFont, threshold: THRESHOLDS.minFontSize },
         suggestion: `Increase font size to at least ${THRESHOLDS.minFontSize}px`
       });
     }
@@ -1722,16 +1755,21 @@ function ruleFontTooSmall(slideEl) {
 function ruleFontTooLarge(slideEl) {
   const findings = [];
   if (!slideEl) return findings;
-  for (const el2 of findSkTextElements(slideEl)) {
-    if (!el2.textContent || !el2.textContent.trim()) continue;
-    const fontSize = parseFloat(getComputedStyle(el2).fontSize);
-    if (fontSize > THRESHOLDS.maxFontSize) {
+  const seen = /* @__PURE__ */ new Set();
+  for (const container of findSkTextElements(slideEl)) {
+    const skId = container.getAttribute("data-sk-id");
+    if (!skId || seen.has(skId)) continue;
+    const textEls = findTextBearingDescendants(container);
+    if (textEls.length === 0) continue;
+    const maxFont = Math.max(...textEls.map((e) => parseFloat(getComputedStyle(e).fontSize)));
+    if (maxFont > THRESHOLDS.maxFontSize) {
+      seen.add(skId);
       findings.push({
         rule: "font-too-large",
         severity: "info",
-        elementId: el2.getAttribute("data-sk-id"),
-        message: `Font size ${fontSize}px exceeds maximum ${THRESHOLDS.maxFontSize}px`,
-        detail: { fontSize, threshold: THRESHOLDS.maxFontSize },
+        elementId: skId,
+        message: `Font size ${maxFont}px exceeds maximum ${THRESHOLDS.maxFontSize}px`,
+        detail: { fontSize: maxFont, threshold: THRESHOLDS.maxFontSize },
         suggestion: `Decrease font size to at most ${THRESHOLDS.maxFontSize}px`
       });
     }
@@ -1785,27 +1823,6 @@ function ruleLineHeightTight(slideEl) {
   }
   return findings;
 }
-function parseColor(str) {
-  if (!str || str === "transparent") return null;
-  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!m) return null;
-  const a = m[4] !== void 0 ? parseFloat(m[4]) : 1;
-  if (a < 0.1) return null;
-  return { r: parseInt(m[1]) / 255, g: parseInt(m[2]) / 255, b: parseInt(m[3]) / 255 };
-}
-function relativeLuminance(c) {
-  const sRGB = [c.r, c.g, c.b].map(
-    (v) => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
-  );
-  return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
-}
-function contrastRatio(c1, c2) {
-  const l1 = relativeLuminance(c1);
-  const l2 = relativeLuminance(c2);
-  const lighter = Math.max(l1, l2);
-  const darker = Math.min(l1, l2);
-  return (lighter + 0.05) / (darker + 0.05);
-}
 function ruleImageUpscaled(slideEl) {
   const findings = [];
   if (!slideEl) return findings;
@@ -1840,6 +1857,8 @@ function ruleAspectRatioDistortion(slideEl) {
   const imgs = slideEl.querySelectorAll("img");
   for (const img of imgs) {
     if (img.naturalWidth === 0 || img.naturalHeight === 0) continue;
+    const objectFit = getComputedStyle(img).objectFit;
+    if (objectFit === "contain" || objectFit === "cover") continue;
     const naturalRatio = img.naturalWidth / img.naturalHeight;
     const renderedRatio = img.clientWidth / img.clientHeight;
     const distortion = Math.abs(renderedRatio - naturalRatio) / naturalRatio;
@@ -1884,48 +1903,6 @@ function ruleHeadingSizeInversion(slideEl) {
         message: `h${higher} (${higherSize}px) should be larger than h${lower} (${lowerSize}px)`,
         detail: { largerHeading: `h${higher}`, largerSize: higherSize, smallerHeading: `h${lower}`, smallerSize: lowerSize },
         suggestion: `h${higher} (${higherSize}px) should be larger than h${lower} (${lowerSize}px)`
-      });
-    }
-  }
-  return findings;
-}
-function ruleLowContrast(slideEl) {
-  const findings = [];
-  if (!slideEl) return findings;
-  const els = slideEl.querySelectorAll("*");
-  for (const el2 of els) {
-    if (!el2.textContent || !el2.textContent.trim()) continue;
-    if (el2.children.length > 0) {
-      let hasDirectText = false;
-      for (const node of el2.childNodes) {
-        if (node.nodeType === 3 && node.textContent.trim()) {
-          hasDirectText = true;
-          break;
-        }
-      }
-      if (!hasDirectText) continue;
-    }
-    const style = getComputedStyle(el2);
-    const textColor = parseColor(style.color);
-    if (!textColor) continue;
-    let bgColor = null;
-    let current = el2;
-    while (current && current !== document.documentElement) {
-      bgColor = parseColor(getComputedStyle(current).backgroundColor);
-      if (bgColor) break;
-      current = current.parentElement;
-    }
-    if (!bgColor) continue;
-    const ratio = contrastRatio(textColor, bgColor);
-    if (ratio < THRESHOLDS.contrastMin) {
-      const ancestor = el2.closest("[data-sk-id]");
-      findings.push({
-        rule: "low-contrast",
-        severity: "warning",
-        elementId: ancestor ? ancestor.getAttribute("data-sk-id") : null,
-        message: `Low contrast ratio ${ratio.toFixed(2)}:1 (minimum: ${THRESHOLDS.contrastMin}:1)`,
-        detail: { textColor: style.color, bgColor: getComputedStyle(current).backgroundColor, contrastRatio: ratio, threshold: THRESHOLDS.contrastMin },
-        suggestion: `Increase contrast between text and background (current: ${ratio.toFixed(2)}:1, minimum: ${THRESHOLDS.contrastMin}:1)`
       });
     }
   }
@@ -2183,14 +2160,14 @@ function ruleMinVerticalGap(elements) {
       const fontSizeA = getFontSize(elA);
       const fontSizeB = getFontSize(elB);
       const smallerFont = Math.min(fontSizeA, fontSizeB);
-      const multiplier = isMultiLine(elA) ? 2 : 1.5;
-      const minGap = Math.round(smallerFont * multiplier);
+      const multiplier = isMultiLine(elA) ? 1 : 0.75;
+      const minGap = Math.min(36, Math.round(smallerFont * multiplier));
       if (gap < minGap) {
         const aId = elA.id;
         const bId = elB.id;
         findings.push({
           rule: "min-vertical-gap",
-          severity: "warning",
+          severity: gap < THRESHOLDS.minGap ? "warning" : "info",
           elementId: elA.id,
           message: `Gap between "${aId}" and "${bId}" is ${gap}px (minimum recommended: ${minGap}px based on font sizes)`,
           detail: { elementA: aId, elementB: bId, gap, minGap, fontSizeA, fontSizeB, multiplier },
@@ -2213,10 +2190,13 @@ function ruleHorizontalCenterConsistency(elements) {
     (el2) => !el2._internal && el2.parentId == null && normLayer(el2) !== "bg" && normLayer(el2) !== "overlay" && el2.type !== "connector"
   );
   if (candidates.length < 2) return findings;
+  const isDecorative = (b) => b.w < 20 || b.h < 12 || b.w * b.h < 2e3;
   const withBounds = candidates.map((el2) => ({
     el: el2,
     bounds: localBoundsOf(el2)
-  })).filter((e) => e.bounds != null && e.bounds.w > 0);
+  })).filter(
+    (e) => e.bounds != null && e.bounds.w > 0 && !isDecorative(e.bounds)
+  );
   if (withBounds.length < 2) return findings;
   const centeredCount = withBounds.filter(({ bounds }) => {
     const centerX = bounds.x + bounds.w / 2;
@@ -2245,44 +2225,59 @@ function ruleHorizontalCenterConsistency(elements) {
 }
 function ruleUnbalancedTrailingWhitespace(elements) {
   const findings = [];
-  const SAFE_BOTTOM = 990;
-  const SUGGESTION_RATIO = 3;
-  const WARNING_RATIO = 5;
-  const candidates = Object.values(elements).filter(
+  const SAFE_TOP = SAFE_ZONE.y;
+  const SAFE_BOTTOM = SAFE_ZONE.y + SAFE_ZONE.h;
+  const WARN_RATIO = 2.5;
+  const ERROR_RATIO = 4;
+  const roots = Object.values(elements).filter(
     (el2) => !el2._internal && el2.parentId == null && normLayer(el2) !== "bg" && normLayer(el2) !== "overlay" && el2.type !== "connector"
   );
-  const withBounds = candidates.map((el2) => ({
-    el: el2,
-    bounds: localBoundsOf(el2)
-  })).filter((e) => e.bounds != null && e.bounds.w > 0 && e.bounds.h > 0);
-  withBounds.sort((a, b) => a.bounds.y - b.bounds.y);
-  for (let i = 0; i < withBounds.length; i++) {
-    const { el: el2, bounds } = withBounds[i];
-    let aboveBounds = null;
-    for (let j = i - 1; j >= 0; j--) {
-      const candidate = withBounds[j].bounds;
-      if (candidate.y + candidate.h <= bounds.y) {
-        aboveBounds = candidate;
-        break;
-      }
-    }
-    if (!aboveBounds) continue;
-    const gapAbove = bounds.y - (aboveBounds.y + aboveBounds.h);
-    const spaceBelow = SAFE_BOTTOM - (bounds.y + bounds.h);
-    if (spaceBelow <= 0 || gapAbove <= 0) continue;
-    const ratio = spaceBelow / gapAbove;
-    if (ratio > SUGGESTION_RATIO) {
-      const id = el2.id;
-      const optimalGap = Math.round((gapAbove + spaceBelow) * 0.35);
+  const allBounds = roots.map((el2) => localBoundsOf(el2)).filter((b) => b != null && b.w > 0 && b.h > 0);
+  if (allBounds.length === 0) return findings;
+  const contentTop = Math.min(...allBounds.map((b) => b.y));
+  const contentBottom = Math.max(...allBounds.map((b) => b.y + b.h));
+  const topGap = Math.max(1, contentTop - SAFE_TOP);
+  const bottomGap = Math.max(1, SAFE_BOTTOM - contentBottom);
+  const ratio = topGap > bottomGap ? topGap / bottomGap : bottomGap / topGap;
+  const direction = topGap > bottomGap ? "top-heavy whitespace" : "bottom-heavy whitespace";
+  if (ratio > WARN_RATIO) {
+    findings.push({
+      rule: "unbalanced-trailing-whitespace",
+      severity: ratio > ERROR_RATIO ? "warning" : "info",
+      elementId: "slide",
+      message: `Content block has ${direction} (${Math.round(topGap)}px top vs ${Math.round(bottomGap)}px bottom, ratio: ${ratio.toFixed(1)}\xD7)`,
+      detail: { topGap: Math.round(topGap), bottomGap: Math.round(bottomGap), ratio, direction },
+      bounds: { x: SAFE_ZONE.x, y: contentTop, w: SAFE_ZONE.w, h: contentBottom - contentTop },
+      parentBounds: SAFE_ZONE,
+      suggestion: `Redistribute vertical spacing for better balance`
+    });
+  }
+  return findings;
+}
+function rulePanelContentSurplus(slideEl) {
+  const findings = [];
+  if (!slideEl) return findings;
+  const SURPLUS_RATIO = 2;
+  const panels = slideEl.querySelectorAll('[data-sk-compound="panel"]');
+  for (const panel2 of panels) {
+    const panelEl = panel2;
+    const panelHeight = panelEl.clientHeight;
+    if (panelHeight <= 0) continue;
+    const contentStack = panelEl.querySelector('[data-sk-type="vstack"], [data-sk-type="hstack"]');
+    if (!contentStack) continue;
+    const contentHeight = contentStack.scrollHeight;
+    if (contentHeight <= 0) continue;
+    const ratio = panelHeight / contentHeight;
+    if (ratio > SURPLUS_RATIO) {
+      const skId = panelEl.getAttribute("data-sk-id");
+      const surplus = panelHeight - contentHeight;
       findings.push({
-        rule: "unbalanced-trailing-whitespace",
-        severity: ratio > WARNING_RATIO ? "warning" : "info",
-        elementId: id,
-        message: `Element "${id}" has ${spaceBelow}px below vs ${gapAbove}px above (ratio: ${ratio.toFixed(1)}\xD7). Consider increasing gap for balance.`,
-        detail: { elementId: id, gapAbove, spaceBelow, ratio, optimalGap },
-        bounds,
-        parentBounds: null,
-        suggestion: `Increase gap above to ~${optimalGap}px for better vertical balance`
+        rule: "panel-content-surplus",
+        severity: "info",
+        elementId: skId,
+        message: `Panel "${skId}" is ${Math.round(ratio)}\xD7 taller than its content (${surplus}px unused)`,
+        detail: { panelHeight, contentHeight, ratio, surplus },
+        suggestion: `Omit explicit h or reduce panel height \u2014 content only needs ~${contentHeight}px`
       });
     }
   }
@@ -2325,7 +2320,7 @@ function lintSlide(slideData, slideElement = null) {
       ...ruleImageUpscaled(slideElement),
       ...ruleAspectRatioDistortion(slideElement),
       ...ruleHeadingSizeInversion(slideElement),
-      ...ruleLowContrast(slideElement)
+      ...rulePanelContentSurplus(slideElement)
     );
   }
   return findings;
@@ -2354,7 +2349,7 @@ function lintDeck(skData, sections = null) {
   return findings;
 }
 
-// src/connectorRouting.ts
+// slidekit/src/connectorRouting.ts
 var DEFAULT_STUB_LENGTH = 30;
 var DEFAULT_CLEARANCE = 15;
 function routeConnector(options) {
@@ -2604,7 +2599,7 @@ function deduplicatePoints(points) {
   return result;
 }
 
-// src/renderer.ts
+// slidekit/src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -3020,7 +3015,7 @@ async function render(slides, options = {}) {
   return { sections, layouts };
 }
 
-// src/compounds.ts
+// slidekit/src/compounds.ts
 function connect(fromId, toId, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
@@ -3206,7 +3201,7 @@ function figure(opts = {}) {
   return result;
 }
 
-// src/utilities.ts
+// slidekit/src/utilities.ts
 function deepClone(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -3354,7 +3349,7 @@ function rotatedAABB(w, h, degrees) {
   };
 }
 
-// src/layout/helpers.ts
+// slidekit/src/layout/helpers.ts
 function isRelMarker(value) {
   return value !== null && typeof value === "object" && typeof value._rel === "string";
 }
@@ -3494,7 +3489,7 @@ function computeAABBIntersection(a, b) {
   return null;
 }
 
-// src/layout/overflow.ts
+// slidekit/src/layout/overflow.ts
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -3537,12 +3532,12 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
   }
 }
 
-// src/types.ts
+// slidekit/src/types.ts
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
 
-// src/layout/intrinsics.ts
+// slidekit/src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
   if (type === "el" && (props.h === void 0 || props.h === null)) {
@@ -3788,7 +3783,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 
-// src/layout/positions.ts
+// slidekit/src/layout/positions.ts
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -4181,7 +4176,7 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
   return { resolvedBounds, sortedOrder };
 }
 
-// src/layout/finalize.ts
+// slidekit/src/layout/finalize.ts
 function finalize({
   sortedOrder,
   flatMap,
@@ -4663,7 +4658,7 @@ function finalize({
   };
 }
 
-// src/layout/index.ts
+// slidekit/src/layout/index.ts
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
@@ -4747,7 +4742,7 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 
-// slidekit.ts
+// slidekit/slidekit.ts
 _setLayoutFn(layout);
 var SlideKit = {
   el,
@@ -4878,3 +4873,4 @@ export {
   splitRect,
   vstack
 };
+//# sourceMappingURL=slidekit.bundle.js.map
