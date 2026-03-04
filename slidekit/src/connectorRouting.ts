@@ -23,6 +23,8 @@ export interface RouteOptions {
   obstacles?: Rect[];
   stubLength?: number;
   clearance?: number;
+  /** When true, only produce axis-aligned (horizontal/vertical) segments. */
+  orthogonal?: boolean;
 }
 
 export interface RouteResult {
@@ -47,13 +49,29 @@ export function routeConnector(options: RouteOptions): RouteResult {
     obstacles = [],
     stubLength = DEFAULT_STUB_LENGTH,
     clearance = DEFAULT_CLEARANCE,
+    orthogonal = false,
   } = options;
 
   const fromPt: Point = { x: from.x, y: from.y };
   const toPt: Point = { x: to.x, y: to.y };
 
-  const fromStub = computeStubEnd(from, stubLength);
-  const toStub = computeStubEnd(to, stubLength);
+  // Clamp stub length when opposing stubs would cross each other.
+  // This happens when both anchors face each other but the gap is
+  // shorter than 2 × stubLength (e.g. bc→tc with boxes close together).
+  let effectiveStub = stubLength;
+  const dot = from.dx * to.dx + from.dy * to.dy;
+  if (dot < 0) {
+    // Opposing directions — compute the gap along the stub axis
+    const gapX = (to.x - from.x) * Math.sign(from.dx);
+    const gapY = (to.y - from.y) * Math.sign(from.dy);
+    const gap = Math.abs(from.dx) > Math.abs(from.dy) ? gapX : gapY;
+    if (gap > 0 && gap < 2 * stubLength) {
+      effectiveStub = Math.max(10, gap / 2 - 2);
+    }
+  }
+
+  const fromStub = computeStubEnd(from, effectiveStub);
+  const toStub = computeStubEnd(to, effectiveStub);
 
   const fromDir = normalizeDirection(from.dx, from.dy);
   const toDir = normalizeDirection(to.dx, to.dy);
@@ -66,7 +84,7 @@ export function routeConnector(options: RouteOptions): RouteResult {
   const p1 = fromSegments[fromSegments.length - 1];
   const q1 = toSegments[toSegments.length - 1];
 
-  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance);
+  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance, orthogonal);
 
   // Assemble full path: from → stub segments → middle → reverse(to stub segments) → to
   const toSegmentsReversed = [...toSegments].reverse();
@@ -193,6 +211,7 @@ function findBestRoute(
   d2: { dx: number; dy: number },
   obstacles: Rect[],
   clearance: number,
+  orthogonal: boolean = false,
 ): Point[] {
   const candidates: Point[][] = [];
 
@@ -205,8 +224,10 @@ function findBestRoute(
     const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
     candidates.push(...uCandidates);
   } else {
-    // Direct segment
-    candidates.push([]);
+    // Direct segment — skip for orthogonal mode (would create diagonal)
+    if (!orthogonal) {
+      candidates.push([]);
+    }
 
     // L-bend variants
     candidates.push([{ x: q1.x, y: p1.y }]);

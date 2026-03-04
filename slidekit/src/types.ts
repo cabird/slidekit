@@ -50,7 +50,7 @@ export type ProvenanceSource =
   | "authored" | "measured" | "stack" | "constraint" | "transform" | "default";
 
 /** Connector line types. */
-export type ConnectorType = "straight" | "curved" | "elbow";
+export type ConnectorType = "straight" | "curved" | "elbow" | "orthogonal";
 
 /** Arrow placement. */
 export type ArrowType = "none" | "end" | "start" | "both";
@@ -200,10 +200,26 @@ export interface ConnectorProps {
   fromAnchor?: AnchorPoint;
   /** Anchor point on the target element. */
   toAnchor?: AnchorPoint;
+  /** Pixel offset along the edge tangent for port spreading (from end). Positive = right/down. */
+  fromPortOffset?: number;
+  /** Pixel offset along the edge tangent for port spreading (to end). Positive = right/down. */
+  toPortOffset?: number;
+  /** Sort order hint for auto port spreading (from end). Lower values = further left/up. */
+  fromPortOrder?: number;
+  /** Sort order hint for auto port spreading (to end). Lower values = further left/up. */
+  toPortOrder?: number;
   /** Optional text label on the connector. */
   label?: string | null;
   /** Style for the label text. */
   labelStyle?: Record<string, unknown>;
+  /** Position of the label along the path (0 = start, 1 = end, default 0.5). */
+  labelPosition?: number;
+  /** Pixel offset of the label from the path point. */
+  labelOffset?: { x?: number; y?: number };
+  /** Corner radius for elbow connectors (px). 0 = sharp corners (default). */
+  cornerRadius?: number;
+  /** Obstacle search margin (px) around the connector bounding box. Default 200. */
+  obstacleMargin?: number;
   /** Source element ID. */
   fromId: string;
   /** Target element ID. */
@@ -534,6 +550,8 @@ export interface SceneElement {
     toId: string;
     fromAnchor: string;
     toAnchor: string;
+    /** Cached elbow waypoints from layout (avoids re-routing in renderer). */
+    waypoints?: Point[];
   };
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;

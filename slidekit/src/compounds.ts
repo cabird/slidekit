@@ -34,8 +34,24 @@ export interface ConnectorInputProps {
   dash?: string | null;
   fromAnchor?: string;
   toAnchor?: string;
+  /** Pixel offset along the edge tangent for port spreading (from end). */
+  fromPortOffset?: number;
+  /** Pixel offset along the edge tangent for port spreading (to end). */
+  toPortOffset?: number;
+  /** Sort order hint for auto port spreading (from end). */
+  fromPortOrder?: number;
+  /** Sort order hint for auto port spreading (to end). */
+  toPortOrder?: number;
   label?: string | null;
   labelStyle?: Record<string, unknown>;
+  /** Position of the label along the path (0 = start, 1 = end, default 0.5). */
+  labelPosition?: number;
+  /** Pixel offset of the label from the path point. */
+  labelOffset?: { x?: number; y?: number };
+  /** Corner radius for elbow connectors (px). 0 = sharp corners (default). */
+  cornerRadius?: number;
+  /** Obstacle search margin (px) around the connector bounding box. Default 200. */
+  obstacleMargin?: number;
   layer?: string;
   opacity?: number;
   style?: Record<string, unknown>;
@@ -67,8 +83,16 @@ export function connect(fromId: string, toId: string, props: ConnectorInputProps
     dash: rest.dash || null,
     fromAnchor: rest.fromAnchor || "cr",
     toAnchor: rest.toAnchor || "cl",
+    fromPortOffset: rest.fromPortOffset,
+    toPortOffset: rest.toPortOffset,
+    fromPortOrder: rest.fromPortOrder,
+    toPortOrder: rest.toPortOrder,
     label: rest.label || null,
     labelStyle: rest.labelStyle || {},
+    labelPosition: rest.labelPosition,
+    labelOffset: rest.labelOffset,
+    cornerRadius: rest.cornerRadius,
+    obstacleMargin: rest.obstacleMargin,
     fromId,
     toId,
     // Common props

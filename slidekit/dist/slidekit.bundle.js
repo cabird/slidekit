@@ -1,7 +1,7 @@
-// src/version.ts
-var VERSION = typeof __SK_VERSION__ !== "undefined" ? __SK_VERSION__ : "dev";
+// slidekit/src/version.ts
+var VERSION = true ? "0.2.0" : "dev";
 
-// src/state.ts
+// slidekit/src/state.ts
 var state = {
   idCounter: 0,
   config: null,
@@ -14,7 +14,7 @@ var state = {
   transformIdCounter: 0
 };
 
-// src/id.ts
+// slidekit/src/id.ts
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -23,7 +23,7 @@ function nextId() {
   return `sk-${state.idCounter}`;
 }
 
-// src/spacing.ts
+// slidekit/src/spacing.ts
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -46,7 +46,7 @@ function getSpacing(token) {
   return resolveSpacing(token);
 }
 
-// src/elements.ts
+// slidekit/src/elements.ts
 var COMMON_DEFAULTS = {
   x: 0,
   y: 0,
@@ -134,7 +134,7 @@ function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer
   });
 }
 
-// src/anchor.ts
+// slidekit/src/anchor.ts
 var VALID_ANCHORS = /* @__PURE__ */ new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
 function resolveAnchor(x, y, w, h, anchor) {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
@@ -167,7 +167,7 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// src/style.ts
+// slidekit/src/style.ts
 function toCamelCase(name) {
   if (name.startsWith("--")) return name;
   if (!name.includes("-")) return name;
@@ -626,7 +626,7 @@ function getShadowPresets() {
   return { ...SHADOWS };
 }
 
-// src/config.ts
+// slidekit/src/config.ts
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -777,7 +777,7 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// src/dom-helpers.ts
+// slidekit/src/dom-helpers.ts
 function applyStyleToDOM(domEl, styleObj) {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
@@ -788,7 +788,7 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
-// src/measure.ts
+// slidekit/src/measure.ts
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -856,7 +856,7 @@ async function measure(html, props = {}) {
   return result;
 }
 
-// src/relative.ts
+// slidekit/src/relative.ts
 function normalizeGapArg(arg) {
   if (typeof arg === "string" || typeof arg === "number") {
     return { gap: arg };
@@ -907,7 +907,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
-// src/assertions.ts
+// slidekit/src/assertions.ts
 function mustGet(map, key, msg) {
   const value = map.get(key);
   if (value === void 0) {
@@ -916,7 +916,7 @@ function mustGet(map, key, msg) {
   return value;
 }
 
-// src/transforms.ts
+// slidekit/src/transforms.ts
 function nextTransformId() {
   state.transformIdCounter += 1;
   return `transform-${state.transformIdCounter}`;
@@ -1173,7 +1173,7 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
-// src/lint.ts
+// slidekit/src/lint.ts
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -2374,7 +2374,7 @@ function lintDeck(skData, sections = null) {
   return findings;
 }
 
-// src/connectorRouting.ts
+// slidekit/src/connectorRouting.ts
 var DEFAULT_STUB_LENGTH = 30;
 var DEFAULT_CLEARANCE = 15;
 function routeConnector(options) {
@@ -2383,19 +2383,30 @@ function routeConnector(options) {
     to,
     obstacles = [],
     stubLength = DEFAULT_STUB_LENGTH,
-    clearance = DEFAULT_CLEARANCE
+    clearance = DEFAULT_CLEARANCE,
+    orthogonal = false
   } = options;
   const fromPt = { x: from.x, y: from.y };
   const toPt = { x: to.x, y: to.y };
-  const fromStub = computeStubEnd(from, stubLength);
-  const toStub = computeStubEnd(to, stubLength);
+  let effectiveStub = stubLength;
+  const dot = from.dx * to.dx + from.dy * to.dy;
+  if (dot < 0) {
+    const gapX = (to.x - from.x) * Math.sign(from.dx);
+    const gapY = (to.y - from.y) * Math.sign(from.dy);
+    const gap = Math.abs(from.dx) > Math.abs(from.dy) ? gapX : gapY;
+    if (gap > 0 && gap < 2 * stubLength) {
+      effectiveStub = Math.max(10, gap / 2 - 2);
+    }
+  }
+  const fromStub = computeStubEnd(from, effectiveStub);
+  const toStub = computeStubEnd(to, effectiveStub);
   const fromDir = normalizeDirection(from.dx, from.dy);
   const toDir = normalizeDirection(to.dx, to.dy);
   const fromSegments = buildStubSegments(fromPt, fromStub, from.dx, from.dy);
   const toSegments = buildStubSegments(toPt, toStub, to.dx, to.dy);
   const p1 = fromSegments[fromSegments.length - 1];
   const q1 = toSegments[toSegments.length - 1];
-  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance);
+  const middle = findBestRoute(p1, fromDir, q1, toDir, obstacles, clearance, orthogonal);
   const toSegmentsReversed = [...toSegments].reverse();
   const waypoints = deduplicatePoints([
     fromPt,
@@ -2457,14 +2468,16 @@ function polylineIntersectsObstacles(points, obstacles, clearance) {
   }
   return false;
 }
-function findBestRoute(p1, d1, q1, d2, obstacles, clearance) {
+function findBestRoute(p1, d1, q1, d2, obstacles, clearance, orthogonal = false) {
   const candidates = [];
   const caseType = classifyCase(p1, d1, q1, d2);
   if (caseType === "backward" || caseType === "same-direction") {
     const uCandidates = computeAllChannelRoutes(p1, d1, q1, d2, obstacles, clearance);
     candidates.push(...uCandidates);
   } else {
-    candidates.push([]);
+    if (!orthogonal) {
+      candidates.push([]);
+    }
     candidates.push([{ x: q1.x, y: p1.y }]);
     candidates.push([{ x: p1.x, y: q1.y }]);
     const midX = (p1.x + q1.x) / 2;
@@ -2624,7 +2637,7 @@ function deduplicatePoints(points) {
   return result;
 }
 
-// src/renderer.ts
+// slidekit/src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -2670,9 +2683,15 @@ function buildConnectorSVG(from, to, connProps) {
   let maxX = Math.max(from.x, to.x) + padding;
   let maxY = Math.max(from.y, to.y) + padding;
   let elbowWaypoints = null;
-  if (connType === "elbow") {
-    const route = routeConnector({ from, to });
-    elbowWaypoints = route.waypoints;
+  if (connType === "elbow" || connType === "orthogonal") {
+    if (connProps._cachedWaypoints) {
+      elbowWaypoints = connProps._cachedWaypoints;
+    } else {
+      const cornerRadius = connProps.cornerRadius ?? 0;
+      const stubLength = Math.max(40, markerSize * thickness + cornerRadius + 15);
+      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal", stubLength });
+      elbowWaypoints = route.waypoints;
+    }
     for (const wp of elbowWaypoints) {
       if (wp.x < minX) minX = wp.x;
       if (wp.y < minY) minY = wp.y;
@@ -2680,13 +2699,14 @@ function buildConnectorSVG(from, to, connProps) {
       if (wp.y > maxY) maxY = wp.y;
     }
   }
+  let cpOffset = 0;
   if (connType === "curved") {
     const dist = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
-    const cpOff = dist * 0.4;
-    const cx1 = from.x + from.dx * cpOff;
-    const cy1 = from.y + from.dy * cpOff;
-    const cx2 = to.x + to.dx * cpOff;
-    const cy2 = to.y + to.dy * cpOff;
+    cpOffset = Math.min(200, Math.max(40, dist * 0.4));
+    const cx1 = from.x + from.dx * cpOffset;
+    const cy1 = from.y + from.dy * cpOffset;
+    const cx2 = to.x + to.dx * cpOffset;
+    const cy2 = to.y + to.dy * cpOffset;
     minX = Math.min(minX, cx1, cx2);
     minY = Math.min(minY, cy1, cy2);
     maxX = Math.max(maxX, cx1, cx2);
@@ -2707,17 +2727,18 @@ function buildConnectorSVG(from, to, connProps) {
   const color = connProps.color || "#ffffff";
   const dash = connProps.dash;
   const arrow = connProps.arrow || "end";
+  const arrowRefX = 5;
+  const arrowTrim = (10 - arrowRefX) / 10 * markerSize * thickness;
   const defs = document.createElementNS(ns, "defs");
-  const uniqueSuffix = connProps._markerId || Math.random().toString(36).slice(2, 10);
-  const markerId = `sk-arrow-${uniqueSuffix}`;
+  const markerId = `sk-arrow-${connProps._markerId || "default"}`;
   if (arrow !== "none") {
     const marker = document.createElementNS(ns, "marker");
     marker.setAttribute("id", markerId);
     marker.setAttribute("viewBox", "0 0 10 10");
-    marker.setAttribute("refX", "10");
+    marker.setAttribute("refX", String(arrowRefX));
     marker.setAttribute("refY", "5");
-    marker.setAttribute("markerWidth", "8");
-    marker.setAttribute("markerHeight", "8");
+    marker.setAttribute("markerWidth", String(markerSize));
+    marker.setAttribute("markerHeight", String(markerSize));
     marker.setAttribute("orient", "auto-start-reverse");
     const polygon = document.createElementNS(ns, "polygon");
     polygon.setAttribute("points", "0,0 10,5 0,10");
@@ -2726,34 +2747,82 @@ function buildConnectorSVG(from, to, connProps) {
     defs.appendChild(marker);
   }
   svg.appendChild(defs);
+  const trimEnd = (pts, amount) => {
+    if (pts.length < 2 || amount <= 0) return pts;
+    const result = pts.map((p) => ({ ...p }));
+    const last = result[result.length - 1];
+    const prev = result[result.length - 2];
+    const dx = last.x - prev.x;
+    const dy = last.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > amount * 2) {
+      last.x -= dx / len * amount;
+      last.y -= dy / len * amount;
+    }
+    return result;
+  };
+  const trimStart = (pts, amount) => {
+    if (pts.length < 2 || amount <= 0) return pts;
+    const result = pts.map((p) => ({ ...p }));
+    const first = result[0];
+    const next = result[1];
+    const dx = next.x - first.x;
+    const dy = next.y - first.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > amount * 2) {
+      first.x += dx / len * amount;
+      first.y += dy / len * amount;
+    }
+    return result;
+  };
+  const hasEndArrow = arrow === "end" || arrow === "both";
+  const hasStartArrow = arrow === "start" || arrow === "both";
   let pathEl;
   if (connType === "straight") {
+    let pts = [{ x: lx1, y: ly1 }, { x: lx2, y: ly2 }];
+    if (hasEndArrow) pts = trimEnd(pts, arrowTrim);
+    if (hasStartArrow) pts = trimStart(pts, arrowTrim);
     pathEl = document.createElementNS(ns, "line");
-    pathEl.setAttribute("x1", String(lx1));
-    pathEl.setAttribute("y1", String(ly1));
-    pathEl.setAttribute("x2", String(lx2));
-    pathEl.setAttribute("y2", String(ly2));
+    pathEl.setAttribute("x1", String(pts[0].x));
+    pathEl.setAttribute("y1", String(pts[0].y));
+    pathEl.setAttribute("x2", String(pts[1].x));
+    pathEl.setAttribute("y2", String(pts[1].y));
   } else {
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      const dist = Math.sqrt((lx2 - lx1) ** 2 + (ly2 - ly1) ** 2);
-      const cpOffset = dist * 0.4;
+      let startPt = { x: lx1, y: ly1 };
+      let endPt = { x: lx2, y: ly2 };
+      if (hasStartArrow) {
+        const trimmed = trimStart([startPt, { x: lx1 + from.dx * cpOffset, y: ly1 + from.dy * cpOffset }], arrowTrim);
+        startPt = trimmed[0];
+      }
+      if (hasEndArrow) {
+        const trimmed = trimEnd([{ x: lx2 + to.dx * cpOffset, y: ly2 + to.dy * cpOffset }, endPt], arrowTrim);
+        endPt = trimmed[trimmed.length - 1];
+      }
       const cx1 = lx1 + from.dx * cpOffset;
       const cy1 = ly1 + from.dy * cpOffset;
       const cx2 = lx2 + to.dx * cpOffset;
       const cy2 = ly2 + to.dy * cpOffset;
-      d = `M ${lx1} ${ly1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${lx2} ${ly2}`;
-    } else if (connType === "elbow") {
+      d = `M ${startPt.x} ${startPt.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${endPt.x} ${endPt.y}`;
+    } else if (connType === "elbow" || connType === "orthogonal") {
       const waypoints = elbowWaypoints;
-      const localWaypoints = waypoints.map((p) => ({
+      let localWaypoints = waypoints.map((p) => ({
         x: p.x - minX,
         y: p.y - minY
       }));
+      if (hasEndArrow) localWaypoints = trimEnd(localWaypoints, arrowTrim);
+      if (hasStartArrow) localWaypoints = trimStart(localWaypoints, arrowTrim);
       if (localWaypoints.length >= 2) {
-        d = `M ${localWaypoints[0].x} ${localWaypoints[0].y}`;
-        for (let i = 1; i < localWaypoints.length; i++) {
-          d += ` L ${localWaypoints[i].x} ${localWaypoints[i].y}`;
+        const cornerRadius = connProps.cornerRadius ?? 0;
+        if (cornerRadius > 0 && localWaypoints.length >= 3) {
+          d = buildRoundedElbowPath(localWaypoints, cornerRadius);
+        } else {
+          d = `M ${localWaypoints[0].x} ${localWaypoints[0].y}`;
+          for (let i = 1; i < localWaypoints.length; i++) {
+            d += ` L ${localWaypoints[i].x} ${localWaypoints[i].y}`;
+          }
         }
       } else {
         d = `M ${lx1} ${ly1} L ${lx2} ${ly2}`;
@@ -2776,27 +2845,68 @@ function buildConnectorSVG(from, to, connProps) {
   svg.appendChild(pathEl);
   if (connProps.label) {
     const labelStyle = connProps.labelStyle || {};
-    const labelSize = labelStyle.size ?? 14;
+    const labelSize = labelStyle.size ?? labelStyle.fontSize ?? 14;
     const labelColor = labelStyle.color ?? "#999999";
-    const labelFont = labelStyle.font || "Inter";
-    const labelWeight = labelStyle.weight ?? 400;
+    const labelFont = labelStyle.font || labelStyle.fontFamily || "Inter";
+    const labelWeight = labelStyle.weight ?? labelStyle.fontWeight ?? 400;
+    const labelPosition = connProps.labelPosition ?? 0.5;
+    const labelOffsetX = connProps.labelOffset?.x ?? 0;
+    const labelOffsetY = connProps.labelOffset?.y ?? -8;
     let midLX, midLY;
-    if (connType === "elbow") {
-      const midX = (lx1 + lx2) / 2;
-      midLX = midX;
-      midLY = (ly1 + ly2) / 2;
+    let segAngle = 0;
+    if ((connType === "elbow" || connType === "orthogonal") && elbowWaypoints && elbowWaypoints.length >= 2) {
+      const localWaypoints = elbowWaypoints.map((p) => ({ x: p.x - minX, y: p.y - minY }));
+      const pt = pointAlongPolyline(localWaypoints, labelPosition);
+      midLX = pt.x;
+      midLY = pt.y;
+      const segInfo = segmentAtFraction(localWaypoints, labelPosition);
+      if (segInfo) {
+        const dx = segInfo.p2.x - segInfo.p1.x;
+        const dy = segInfo.p2.y - segInfo.p1.y;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) > 0.5) {
+          segAngle = -90;
+        }
+      }
     } else {
-      midLX = (lx1 + lx2) / 2;
-      midLY = (ly1 + ly2) / 2;
+      midLX = lx1 + (lx2 - lx1) * labelPosition;
+      midLY = ly1 + (ly2 - ly1) * labelPosition;
+      if (Math.abs(lx2 - lx1) < Math.abs(ly2 - ly1) * 0.3) {
+        segAngle = -90;
+      }
     }
+    const approxCharWidth = (typeof labelSize === "number" ? labelSize : 14) * 0.6;
+    const textWidth = connProps.label.length * approxCharWidth + 8;
+    const textHeight = (typeof labelSize === "number" ? labelSize : 14) + 6;
+    const bgRect = document.createElementNS(ns, "rect");
+    const bgX = midLX + labelOffsetX - textWidth / 2;
+    const bgY = midLY + labelOffsetY - textHeight + 2;
+    bgRect.setAttribute("x", String(bgX));
+    bgRect.setAttribute("y", String(bgY));
+    bgRect.setAttribute("width", String(textWidth));
+    bgRect.setAttribute("height", String(textHeight));
+    bgRect.setAttribute("fill", connProps._bgColor || "#0a0a1a");
+    bgRect.setAttribute("rx", "3");
+    if (segAngle !== 0) {
+      bgRect.setAttribute(
+        "transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`
+      );
+    }
+    svg.appendChild(bgRect);
     const textNode = document.createElementNS(ns, "text");
-    textNode.setAttribute("x", String(midLX));
-    textNode.setAttribute("y", String(midLY - 8));
+    textNode.setAttribute("x", String(midLX + labelOffsetX));
+    textNode.setAttribute("y", String(midLY + labelOffsetY));
     textNode.setAttribute("text-anchor", "middle");
     textNode.setAttribute("font-family", `"${labelFont}", sans-serif`);
     textNode.setAttribute("font-size", String(labelSize));
     textNode.setAttribute("font-weight", String(labelWeight));
     textNode.setAttribute("fill", labelColor);
+    if (segAngle !== 0) {
+      textNode.setAttribute(
+        "transform",
+        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`
+      );
+    }
     textNode.textContent = connProps.label;
     svg.appendChild(textNode);
   }
@@ -2809,6 +2919,103 @@ function buildConnectorSVG(from, to, connProps) {
   wrapper.style.pointerEvents = "none";
   wrapper.appendChild(svg);
   return wrapper;
+}
+function pointAlongPolyline(points, t) {
+  if (points.length < 2) return points[0] || { x: 0, y: 0 };
+  const segLengths = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    segLengths.push(len);
+    totalLength += len;
+  }
+  if (totalLength === 0) return points[0];
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      const segFraction = segLengths[i] > 0 ? (targetLength - accumulated) / segLengths[i] : 0;
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * segFraction,
+        y: points[i].y + (points[i + 1].y - points[i].y) * segFraction
+      };
+    }
+    accumulated += segLengths[i];
+  }
+  return points[points.length - 1];
+}
+function segmentAtFraction(points, t) {
+  if (points.length < 2) return null;
+  const segLengths = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    segLengths.push(Math.sqrt(dx * dx + dy * dy));
+    totalLength += segLengths[i];
+  }
+  if (totalLength === 0) return null;
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      return { p1: points[i], p2: points[i + 1] };
+    }
+    accumulated += segLengths[i];
+  }
+  return { p1: points[points.length - 2], p2: points[points.length - 1] };
+}
+function buildRoundedElbowPath(points, radius) {
+  if (points.length < 2) return "";
+  if (points.length === 2) {
+    return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
+  }
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    const len1 = Math.sqrt((curr.x - prev.x) ** 2 + (curr.y - prev.y) ** 2);
+    const len2 = Math.sqrt((next.x - curr.x) ** 2 + (next.y - curr.y) ** 2);
+    if (len1 < 0.5 || len2 < 0.5) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+    const ux1 = (curr.x - prev.x) / len1;
+    const uy1 = (curr.y - prev.y) / len1;
+    const ux2 = (next.x - curr.x) / len2;
+    const uy2 = (next.y - curr.y) / len2;
+    const cross = ux1 * uy2 - uy1 * ux2;
+    const dot = ux1 * ux2 + uy1 * uy2;
+    const absCross = Math.abs(cross);
+    if (absCross < 0.01) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+    const tanHalf = absCross / (1 - dot);
+    let trim = radius / tanHalf;
+    const maxTrim = Math.min(len1 / 2, len2 / 2);
+    if (trim > maxTrim) {
+      trim = maxTrim;
+    }
+    const arcRadius = trim * tanHalf;
+    if (trim < 1 || arcRadius < 1) {
+      d += ` L ${curr.x} ${curr.y}`;
+      continue;
+    }
+    const enterX = curr.x - ux1 * trim;
+    const enterY = curr.y - uy1 * trim;
+    const exitX = curr.x + ux2 * trim;
+    const exitY = curr.y + uy2 * trim;
+    const sweep = cross > 0 ? 1 : 0;
+    d += ` L ${enterX} ${enterY}`;
+    d += ` A ${arcRadius} ${arcRadius} 0 0 ${sweep} ${exitX} ${exitY}`;
+  }
+  const last = points[points.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+  return d;
 }
 function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, offsetY = 0) {
   const { type } = element;
@@ -2919,7 +3126,11 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
         const svgWrapper = buildConnectorSVG(
           connectorData.from,
           connectorData.to,
-          { ...props, _markerId: element.id }
+          {
+            ...props,
+            _markerId: element.id,
+            _cachedWaypoints: connectorData.waypoints
+          }
         );
         svgWrapper.setAttribute("data-sk-id", element.id);
         svgWrapper.style.zIndex = String(zIndex);
@@ -3040,7 +3251,7 @@ async function render(slides, options = {}) {
   return { sections, layouts };
 }
 
-// src/compounds.ts
+// slidekit/src/compounds.ts
 function connect(fromId, toId, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
@@ -3052,8 +3263,16 @@ function connect(fromId, toId, props = {}) {
     dash: rest.dash || null,
     fromAnchor: rest.fromAnchor || "cr",
     toAnchor: rest.toAnchor || "cl",
+    fromPortOffset: rest.fromPortOffset,
+    toPortOffset: rest.toPortOffset,
+    fromPortOrder: rest.fromPortOrder,
+    toPortOrder: rest.toPortOrder,
     label: rest.label || null,
     labelStyle: rest.labelStyle || {},
+    labelPosition: rest.labelPosition,
+    labelOffset: rest.labelOffset,
+    cornerRadius: rest.cornerRadius,
+    obstacleMargin: rest.obstacleMargin,
     fromId,
     toId,
     // Common props
@@ -3226,7 +3445,7 @@ function figure(opts = {}) {
   return result;
 }
 
-// src/utilities.ts
+// slidekit/src/utilities.ts
 function deepClone(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -3374,7 +3593,7 @@ function rotatedAABB(w, h, degrees) {
   };
 }
 
-// src/layout/helpers.ts
+// slidekit/src/layout/helpers.ts
 function isRelMarker(value) {
   return value !== null && typeof value === "object" && typeof value._rel === "string";
 }
@@ -3520,7 +3739,7 @@ function computeAABBIntersection(a, b) {
   return null;
 }
 
-// src/layout/overflow.ts
+// slidekit/src/layout/overflow.ts
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -3563,12 +3782,12 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
   }
 }
 
-// src/types.ts
+// slidekit/src/types.ts
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
 
-// src/layout/intrinsics.ts
+// slidekit/src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
   if (type === "el" && (props.h === void 0 || props.h === null)) {
@@ -3814,7 +4033,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 
-// src/layout/positions.ts
+// slidekit/src/layout/positions.ts
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -4207,7 +4426,7 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
   return { resolvedBounds, sortedOrder };
 }
 
-// src/layout/finalize.ts
+// slidekit/src/layout/finalize.ts
 function finalize({
   sortedOrder,
   flatMap,
@@ -4319,6 +4538,28 @@ function finalize({
       rootIds.push(id);
     }
   }
+  const obstacleRects = [];
+  for (const id of sortedOrder) {
+    const el2 = mustGet(flatMap, id, `flatMap missing element: ${id}`);
+    if (el2.type === "connector") continue;
+    if (el2.type === "vstack" || el2.type === "hstack") continue;
+    if (panelInternals.has(id)) continue;
+    if (el2.props.layer === "bg") continue;
+    const bounds = resolvedBounds.get(id);
+    if (!bounds || bounds.w <= 0 || bounds.h <= 0) continue;
+    obstacleRects.push({ id, rect: bounds });
+  }
+  const connectorInfos = [];
+  function anchorEdge(anchor) {
+    const row = anchor[0];
+    const col = anchor[1];
+    if (row === "t") return "top";
+    if (row === "b") return "bottom";
+    if (col === "l") return "left";
+    if (col === "r") return "right";
+    return "center";
+  }
+  const portGroups = /* @__PURE__ */ new Map();
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     if (el2.type !== "connector") continue;
@@ -4364,14 +4605,145 @@ function finalize({
         toPt.dy = tdy >= 0 ? 1 : -1;
       }
     }
-    const route = routeConnector({ from: fromPt, to: toPt });
-    let connMinX = Infinity, connMinY = Infinity;
-    let connMaxX = -Infinity, connMaxY = -Infinity;
-    for (const wp of route.waypoints) {
-      if (wp.x < connMinX) connMinX = wp.x;
-      if (wp.y < connMinY) connMinY = wp.y;
-      if (wp.x > connMaxX) connMaxX = wp.x;
-      if (wp.y > connMaxY) connMaxY = wp.y;
+    const idx = connectorInfos.length;
+    connectorInfos.push({ id, el: el2, fromId, toId, fromAnchor, toAnchor, fromPt, toPt, fromBounds, toBounds });
+    const fromEdge = anchorEdge(fromAnchor);
+    if (fromEdge !== "center") {
+      const key = `from:${fromId}:${fromEdge}`;
+      if (!portGroups.has(key)) portGroups.set(key, []);
+      portGroups.get(key).push({
+        idx,
+        targetPt: { x: toPt.x, y: toPt.y },
+        portOrder: el2.props.fromPortOrder ?? 0
+      });
+    }
+    const toEdge = anchorEdge(toAnchor);
+    if (toEdge !== "center") {
+      const key = `to:${toId}:${toEdge}`;
+      if (!portGroups.has(key)) portGroups.set(key, []);
+      portGroups.get(key).push({
+        idx,
+        targetPt: { x: fromPt.x, y: fromPt.y },
+        portOrder: el2.props.toPortOrder ?? 0
+      });
+    }
+  }
+  const DEFAULT_PORT_SPACING = 14;
+  const DEFAULT_EDGE_MARGIN = 8;
+  for (const [key, group2] of portGroups) {
+    if (group2.length <= 1) {
+      if (group2.length === 1) {
+        const parts2 = key.split(":");
+        const direction2 = parts2[0];
+        const info = connectorInfos[group2[0].idx];
+        const explicitOffset = direction2 === "from" ? info.el.props.fromPortOffset : info.el.props.toPortOffset;
+        if (explicitOffset !== void 0) {
+          const edge2 = parts2[2];
+          const isHorizontalEdge2 = edge2 === "top" || edge2 === "bottom";
+          if (direction2 === "from") {
+            if (isHorizontalEdge2) info.fromPt.x += explicitOffset;
+            else info.fromPt.y += explicitOffset;
+          } else {
+            if (isHorizontalEdge2) info.toPt.x += explicitOffset;
+            else info.toPt.y += explicitOffset;
+          }
+        }
+      }
+      continue;
+    }
+    const parts = key.split(":");
+    const direction = parts[0];
+    const elementId = parts[1];
+    const edge = parts[2];
+    const bounds = resolvedBounds.get(elementId);
+    if (!bounds) continue;
+    const targetEl = flatMap.get(elementId);
+    const PORT_SPACING = targetEl?.props.portSpacing ?? DEFAULT_PORT_SPACING;
+    const EDGE_MARGIN = targetEl?.props.edgeMargin ?? DEFAULT_EDGE_MARGIN;
+    const isHorizontalEdge = edge === "top" || edge === "bottom";
+    group2.sort((a, b) => {
+      if (a.portOrder !== b.portOrder) return a.portOrder - b.portOrder;
+      return isHorizontalEdge ? a.targetPt.x - b.targetPt.x : a.targetPt.y - b.targetPt.y;
+    });
+    const edgeLength = isHorizontalEdge ? bounds.w : bounds.h;
+    const usable = edgeLength - 2 * EDGE_MARGIN;
+    const totalSpread = (group2.length - 1) * PORT_SPACING;
+    const spacing = totalSpread > usable ? usable / (group2.length - 1) : PORT_SPACING;
+    const startOffset = -((group2.length - 1) * spacing / 2);
+    for (let i = 0; i < group2.length; i++) {
+      const entry = group2[i];
+      const info = connectorInfos[entry.idx];
+      const offset = startOffset + i * spacing;
+      const explicitOffset = direction === "from" ? info.el.props.fromPortOffset : info.el.props.toPortOffset;
+      const appliedOffset = explicitOffset ?? offset;
+      if (direction === "from") {
+        if (isHorizontalEdge) {
+          info.fromPt.x += appliedOffset;
+        } else {
+          info.fromPt.y += appliedOffset;
+        }
+      } else {
+        if (isHorizontalEdge) {
+          info.toPt.x += appliedOffset;
+        } else {
+          info.toPt.y += appliedOffset;
+        }
+      }
+    }
+  }
+  for (const info of connectorInfos) {
+    const { id, el: el2, fromId, toId, fromAnchor, toAnchor, fromPt, toPt } = info;
+    const margin = el2.props.obstacleMargin ?? 200;
+    const pathMinX = Math.min(fromPt.x, toPt.x) - margin;
+    const pathMaxX = Math.max(fromPt.x, toPt.x) + margin;
+    const pathMinY = Math.min(fromPt.y, toPt.y) - margin;
+    const pathMaxY = Math.max(fromPt.y, toPt.y) + margin;
+    const obstacles = [];
+    for (const obs of obstacleRects) {
+      if (obs.id === fromId || obs.id === toId) continue;
+      const r = obs.rect;
+      if (r.x + r.w < pathMinX || r.x > pathMaxX) continue;
+      if (r.y + r.h < pathMinY || r.y > pathMaxY) continue;
+      obstacles.push(r);
+    }
+    const connType = el2.props.connectorType || "straight";
+    let waypoints;
+    if (connType === "elbow" || connType === "orthogonal") {
+      const thickness = el2.props.thickness ?? 2;
+      const cornerRadius = el2.props.cornerRadius ?? 0;
+      const stubLength = Math.max(40, 8 * thickness + cornerRadius + 15);
+      const route = routeConnector({
+        from: fromPt,
+        to: toPt,
+        obstacles,
+        orthogonal: connType === "orthogonal",
+        stubLength
+      });
+      waypoints = route.waypoints;
+    }
+    let connMinX = Math.min(fromPt.x, toPt.x);
+    let connMinY = Math.min(fromPt.y, toPt.y);
+    let connMaxX = Math.max(fromPt.x, toPt.x);
+    let connMaxY = Math.max(fromPt.y, toPt.y);
+    if (waypoints) {
+      for (const wp of waypoints) {
+        if (wp.x < connMinX) connMinX = wp.x;
+        if (wp.y < connMinY) connMinY = wp.y;
+        if (wp.x > connMaxX) connMaxX = wp.x;
+        if (wp.y > connMaxY) connMaxY = wp.y;
+      }
+    }
+    if (connType === "curved") {
+      const dist = Math.sqrt((toPt.x - fromPt.x) ** 2 + (toPt.y - fromPt.y) ** 2);
+      const cpOff = Math.min(200, Math.max(40, dist * 0.4));
+      const cx1 = fromPt.x + fromPt.dx * cpOff;
+      const cy1 = fromPt.y + fromPt.dy * cpOff;
+      const cx2 = toPt.x + toPt.dx * cpOff;
+      const cy2 = toPt.y + toPt.dy * cpOff;
+      connMinX = Math.min(connMinX, cx1, cx2);
+      connMinY = Math.min(connMinY, cy1, cy2);
+      connMaxX = Math.max(connMaxX, cx1, cx2);
+      connMaxY = Math.max(connMaxY, cy1, cy2);
     }
     resolvedBounds.set(id, {
       x: connMinX,
@@ -4394,7 +4766,8 @@ function finalize({
         fromId,
         toId,
         fromAnchor,
-        toAnchor
+        toAnchor,
+        waypoints
       };
     }
   }
@@ -4689,7 +5062,7 @@ function finalize({
   };
 }
 
-// src/layout/index.ts
+// slidekit/src/layout/index.ts
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
@@ -4781,7 +5154,7 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 
-// slidekit.ts
+// slidekit/slidekit.ts
 _setLayoutFn(layout);
 var SlideKit = {
   VERSION,
@@ -4914,3 +5287,4 @@ export {
   splitRect,
   vstack
 };
+//# sourceMappingURL=slidekit.bundle.js.map
