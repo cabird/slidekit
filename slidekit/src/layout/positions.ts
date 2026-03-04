@@ -419,6 +419,23 @@ export async function resolvePositions(
             curY += cs.h + gap;
           }
         }
+
+        // Main-axis alignment (vAlign): shift all children vertically within the stack's height
+        const vAlign = el.props.vAlign;
+        if (vAlign && vAlign !== "top" && childIds.length > 0) {
+          // Compute total content height: curY has advanced past the last child + one trailing gap
+          const totalContentH = curY - stackY - (childIds.length > 0 ? gap : 0);
+          // Only apply if the stack has an authored height larger than content
+          const stackAuthH = authoredSpecs.get(id)?.props?.h;
+          if (stackAuthH !== undefined && stackAuthH !== null && h > totalContentH) {
+            const slack = h - totalContentH;
+            const offsetY = vAlign === "center" ? slack / 2 : slack; // 'bottom'
+            for (const cid of childIds) {
+              const bounds = mustGet(resolvedBounds, cid, `resolvedBounds missing vstack child for vAlign: ${cid}`);
+              resolvedBounds.set(cid, { x: bounds.x, y: bounds.y + offsetY, w: bounds.w, h: bounds.h });
+            }
+          }
+        }
       } else {
         // hstack
         const align = el.props.align || "top";
@@ -479,6 +496,23 @@ export async function resolvePositions(
             }
             resolvedBounds.set(cid, { x: curX, y: childY, w: cs.w, h: cs.h });
             curX += cs.w + gap;
+          }
+        }
+
+        // Main-axis alignment (hAlign): shift all children horizontally within the stack's width
+        const hAlign = el.props.hAlign;
+        if (hAlign && hAlign !== "left" && childIds.length > 0) {
+          // Compute total content width: curX has advanced past the last child + one trailing gap
+          const totalContentW = curX - stackX - (childIds.length > 0 ? gap : 0);
+          // Only apply if the stack has an authored width larger than content
+          const stackAuthW = authoredSpecs.get(id)?.props?.w;
+          if (stackAuthW !== undefined && stackAuthW !== null && w > totalContentW) {
+            const slack = w - totalContentW;
+            const offsetX = hAlign === "center" ? slack / 2 : slack; // 'right'
+            for (const cid of childIds) {
+              const bounds = mustGet(resolvedBounds, cid, `resolvedBounds missing hstack child for hAlign: ${cid}`);
+              resolvedBounds.set(cid, { x: bounds.x + offsetX, y: bounds.y, w: bounds.w, h: bounds.h });
+            }
           }
         }
       }

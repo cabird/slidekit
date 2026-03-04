@@ -128,6 +128,9 @@ export interface PanelInputProps extends InputProps {
   radius?: number | string;
   /** Border CSS string. */
   border?: string;
+  /** Main-axis (vertical) alignment of panel content within the panel's height.
+   *  Passed through to the internal vstack. */
+  vAlign?: 'top' | 'center' | 'bottom';
 }
 
 /**
@@ -166,12 +169,18 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
   });
 
   // Build the vstack for the children
-  const childStack = vstack(resolvedChildren, {
+  // Pass through align (cross-axis) and vAlign (main-axis) if provided
+  const vstackProps: Record<string, unknown> = {
     x: padding,
     y: padding,
     w: contentW,
     gap,
-  });
+  };
+  if (rest.align !== undefined) vstackProps.align = rest.align;
+  if (rest.vAlign !== undefined) vstackProps.vAlign = rest.vAlign;
+  // When panel has explicit h, pass content height to the vstack so vAlign can work
+  if (panelH != null) vstackProps.h = Math.max(0, panelH - 2 * padding);
+  const childStack = vstack(resolvedChildren, vstackProps);
 
   // Build the background element
   const bgStyle: Record<string, unknown> = { ...(rest.style || {}) };

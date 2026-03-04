@@ -539,6 +539,28 @@ hstack([panel(...), panel(...), panel(...)], { align: 'stretch', gap: 20 });
 
 **Caveat:** May still produce linter false positives since the linter can't fully resolve hstack positions.
 
+### Pro Pattern 2a: Main-Axis Alignment (`vAlign` / `hAlign`) for Centering Content in Stacks
+
+Use `vAlign` on `vstack` (or `hAlign` on `hstack`) to center or bottom/right-align the content block within a stack that has explicit dimensions. This is the "center content in a fixed-height region" pattern.
+
+```typescript
+// Center a few lines of text vertically in a 600px column
+vstack([
+  el('<p style="font:700 36px Inter;color:#fff">Title</p>', { w: 800 }),
+  el('<p style="font:400 24px Inter;color:#ccc">Subtitle</p>', { w: 800 }),
+], { x: safe.x, y: safe.y, w: 800, h: 600, vAlign: 'center', gap: 16 });
+
+// Center content in a panel
+panel([
+  el('<p style="color:#fff">Centered content</p>', { w: 'fill' }),
+], { x: 200, y: 200, w: 500, h: 400, vAlign: 'center', fill: '#1a1a3e' });
+```
+
+**Key points:**
+- `vAlign` requires explicit `h` on the vstack (or panel). Without it, the stack auto-sizes to content and there is no slack to shift.
+- `hAlign` requires explicit `w` on the hstack. Same logic.
+- `align` (cross-axis) and `vAlign`/`hAlign` (main-axis) are orthogonal and can be combined.
+
 ### Pro Pattern 3: `splitRect()` for Two-Column Layouts
 
 ```typescript

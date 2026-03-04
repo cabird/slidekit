@@ -199,7 +199,8 @@ Stacks items vertically (top to bottom) with configurable gap and alignment.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `gap` | `number \| string` | `0` | Vertical gap between items (px or [spacing token](#spacing)) |
-| `align` | `HAlign` | `"left"` | Horizontal alignment: `"left"`, `"center"`, `"right"`, `"stretch"` |
+| `align` | `HAlign` | `"left"` | Cross-axis (horizontal) alignment: `"left"`, `"center"`, `"right"`, `"stretch"` |
+| `vAlign` | `VAlign` | `"top"` | Main-axis (vertical) alignment: `"top"`, `"center"`, `"bottom"`. Positions the content block within the stack's height. Requires explicit `h` on the vstack; ignored when height is auto-computed from children. |
 
 Plus all [common properties](#common-properties). If the stack has `w` and a child lacks `w`, the child inherits the stack's width.
 
@@ -214,9 +215,34 @@ Stacks items horizontally (left to right) with configurable gap and alignment.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `gap` | `number \| string` | `0` | Horizontal gap between items (px or [spacing token](#spacing)) |
-| `align` | `HStackAlign` | `"top"` | Vertical alignment: `"top"`, `"middle"`, `"bottom"`, `"stretch"` |
+| `align` | `HStackAlign` | `"top"` | Cross-axis (vertical) alignment: `"top"`, `"middle"`, `"bottom"`, `"stretch"` |
+| `hAlign` | `string` | `"left"` | Main-axis (horizontal) alignment: `"left"`, `"center"`, `"right"`. Positions the content block within the stack's width. Requires explicit `w` on the hstack; ignored when width is auto-computed from children. |
 
 Plus all [common properties](#common-properties).
+
+#### Main-Axis Alignment (`vAlign` / `hAlign`)
+
+The `align` property controls cross-axis alignment (perpendicular to the stacking direction). The `vAlign` and `hAlign` properties control main-axis alignment (along the stacking direction) — positioning the entire content block within the stack's explicit dimension.
+
+```js
+// Center content vertically in a 600px tall vstack
+vstack([
+  el('<p>Line 1</p>', { w: 400 }),
+  el('<p>Line 2</p>', { w: 400 }),
+], { h: 600, vAlign: 'center', gap: 16 });
+
+// Right-align content horizontally in a 1000px wide hstack
+hstack([
+  el('A', { w: 100, h: 50 }),
+  el('B', { w: 100, h: 50 }),
+], { w: 1000, hAlign: 'right', gap: 20 });
+```
+
+> **Important:** `vAlign` requires an explicit `h` on the vstack (and `hAlign` requires an explicit `w` on the hstack). When the stack's size is auto-computed from children, there is no slack to shift content, so the property is a no-op.
+
+> **Backward compatibility:** Both `vAlign` and `hAlign` default to their start positions (`'top'` and `'left'` respectively). Existing stacks without these properties are unaffected.
+
+> **Combined usage:** `align` (cross-axis) and `vAlign`/`hAlign` (main-axis) are orthogonal and can be used together. For example, `vstack([...], { h: 600, w: 800, align: 'center', vAlign: 'center' })` centers children both horizontally and vertically.
 
 #### `align: 'stretch'`
 
@@ -294,6 +320,7 @@ Creates a visual container with a background, padding, and vertically stacked ch
 | `fill` | `string` | — | Background color/gradient (maps to CSS `background`) |
 | `radius` | `number \| string` | — | Border radius (number → px, string → pass through) |
 | `border` | `string` | — | CSS border shorthand |
+| `vAlign` | `VAlign` | `"top"` | Main-axis (vertical) alignment of panel content: `"top"`, `"center"`, `"bottom"`. Passed through to the internal vstack. Requires explicit `h` on the panel. |
 
 Plus all [common properties](#common-properties).
 
@@ -1368,8 +1395,8 @@ Key types for users building presentations:
 | Type | Description |
 |---|---|
 | `InputProps` | `ElementProps & { id?: string }` — input type for all element factory functions |
-| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `valign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `gap`, `align`, `bounds`, `scale`, `clip` |
+| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `valign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
 | `CardGridOptions` | `InputProps & { cols?: number }` |
 | `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, layer?, opacity?, style?, className? }` |
-| `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border? }` |
+| `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border?, vAlign? }` |
 | `FigureInputProps` | `{ id?, src?, x?, y?, w?, h?, anchor?, layer?, containerFill?, containerRadius?, containerPadding?, caption?, captionGap?, fit?, style? }` |

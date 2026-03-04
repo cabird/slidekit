@@ -67,7 +67,7 @@ Elements can be positioned relative to other elements — "24px below the title,
 
 Vertical and horizontal stack primitives let you say "stack these items with 20px gaps" without manually chaining relative position calls. They resolve to absolute coordinates — they're syntactic sugar over the coordinate system, not CSS flexbox.
 
-**Prefer `vstack` for text columns.** When you have a sequence of text elements (eyebrow, headline, body, etc.), use a `vstack` instead of chaining `below()` calls. The vstack declares position and gap once, makes reordering trivial, and eliminates ID-reference boilerplate. Reserve `below()` for one-off positioning between unrelated elements. Stacks also support `align: 'stretch'` to make all children the same size along the cross axis — useful for equal-height card rows.
+**Prefer `vstack` for text columns.** When you have a sequence of text elements (eyebrow, headline, body, etc.), use a `vstack` instead of chaining `below()` calls. The vstack declares position and gap once, makes reordering trivial, and eliminates ID-reference boilerplate. Reserve `below()` for one-off positioning between unrelated elements. Stacks also support `align: 'stretch'` to make all children the same size along the cross axis — useful for equal-height card rows. Main-axis alignment (`vAlign` on vstack, `hAlign` on hstack) positions the content block within the stack's explicit dimension — for example, vertically centering a few lines of text in a fixed-height column.
 
 ### Safe Zone
 

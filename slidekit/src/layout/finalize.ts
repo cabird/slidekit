@@ -5,6 +5,7 @@
 import { state } from '../state.js';
 import { getAnchorPoint } from '../compounds.js';
 import { rotatedAABB } from '../utilities.js';
+import { resolveSpacing } from '../spacing.js';
 import { buildProvenance, computeAABBIntersection } from './helpers.js';
 import { mustGet } from '../assertions.js';
 import { isPanelElement } from '../types.js';
@@ -549,10 +550,22 @@ export function finalize({
 
     const childStack = (el.children || [])[1];
     if (!childStack) continue;
-    const stackSizes = resolvedSizes.get(childStack.id);
-    if (!stackSizes) continue;
 
-    const contentH = stackSizes.h + 2 * config.padding;
+    // Compute actual content height from the vstack's children sizes + gaps,
+    // rather than using stackSizes.h which may be an explicit value (e.g. when
+    // vAlign passes h through to the inner vstack for main-axis alignment).
+    const vstackChildIds = stackChildren.get(childStack.id) || [];
+    let naturalContentH = 0;
+    const vstackGap = resolveSpacing((childStack.props?.gap ?? 0) as number | string);
+    for (let i = 0; i < vstackChildIds.length; i++) {
+      const cs = resolvedSizes.get(vstackChildIds[i]);
+      if (cs) {
+        naturalContentH += cs.h;
+        if (i > 0) naturalContentH += vstackGap;
+      }
+    }
+
+    const contentH = naturalContentH + 2 * config.padding;
     const authoredH = config.panelH;
     if (contentH > authoredH) {
       warnings.push({

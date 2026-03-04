@@ -1,4 +1,4 @@
-// slidekit/src/state.ts
+// src/state.ts
 var state = {
   idCounter: 0,
   config: null,
@@ -11,7 +11,7 @@ var state = {
   transformIdCounter: 0
 };
 
-// slidekit/src/id.ts
+// src/id.ts
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -20,7 +20,7 @@ function nextId() {
   return `sk-${state.idCounter}`;
 }
 
-// slidekit/src/spacing.ts
+// src/spacing.ts
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -43,7 +43,7 @@ function getSpacing(token) {
   return resolveSpacing(token);
 }
 
-// slidekit/src/elements.ts
+// src/elements.ts
 var COMMON_DEFAULTS = {
   x: 0,
   y: 0,
@@ -131,7 +131,7 @@ function cardGrid(items, { id, cols = 2, gap = 0, x = 0, y = 0, w, anchor, layer
   });
 }
 
-// slidekit/src/anchor.ts
+// src/anchor.ts
 var VALID_ANCHORS = /* @__PURE__ */ new Set(["tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"]);
 function resolveAnchor(x, y, w, h, anchor) {
   if (typeof anchor !== "string" || !VALID_ANCHORS.has(anchor)) {
@@ -164,7 +164,7 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// slidekit/src/style.ts
+// src/style.ts
 function toCamelCase(name) {
   if (name.startsWith("--")) return name;
   if (!name.includes("-")) return name;
@@ -623,7 +623,7 @@ function getShadowPresets() {
   return { ...SHADOWS };
 }
 
-// slidekit/src/config.ts
+// src/config.ts
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -774,7 +774,7 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// slidekit/src/dom-helpers.ts
+// src/dom-helpers.ts
 function applyStyleToDOM(domEl, styleObj) {
   for (const [key, value] of Object.entries(styleObj)) {
     if (key.startsWith("--")) {
@@ -785,7 +785,7 @@ function applyStyleToDOM(domEl, styleObj) {
   }
 }
 
-// slidekit/src/measure.ts
+// src/measure.ts
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -853,18 +853,28 @@ async function measure(html, props = {}) {
   return result;
 }
 
-// slidekit/src/relative.ts
+// src/relative.ts
+function normalizeGapArg(arg) {
+  if (typeof arg === "string" || typeof arg === "number") {
+    return { gap: arg };
+  }
+  return arg;
+}
 function below(refId, opts = {}) {
-  return { _rel: "below", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+  const o = normalizeGapArg(opts);
+  return { _rel: "below", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 function above(refId, opts = {}) {
-  return { _rel: "above", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+  const o = normalizeGapArg(opts);
+  return { _rel: "above", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 function rightOf(refId, opts = {}) {
-  return { _rel: "rightOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+  const o = normalizeGapArg(opts);
+  return { _rel: "rightOf", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 function leftOf(refId, opts = {}) {
-  return { _rel: "leftOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+  const o = normalizeGapArg(opts);
+  return { _rel: "leftOf", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 function centerVWith(refId) {
   return { _rel: "centerV", ref: refId };
@@ -894,7 +904,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 
-// slidekit/src/assertions.ts
+// src/assertions.ts
 function mustGet(map, key, msg) {
   const value = map.get(key);
   if (value === void 0) {
@@ -903,7 +913,7 @@ function mustGet(map, key, msg) {
   return value;
 }
 
-// slidekit/src/transforms.ts
+// src/transforms.ts
 function nextTransformId() {
   state.transformIdCounter += 1;
   return `transform-${state.transformIdCounter}`;
@@ -1160,7 +1170,7 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
-// slidekit/src/lint.ts
+// src/lint.ts
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -2344,7 +2354,7 @@ function lintDeck(skData, sections = null) {
   return findings;
 }
 
-// slidekit/src/connectorRouting.ts
+// src/connectorRouting.ts
 var DEFAULT_STUB_LENGTH = 30;
 var DEFAULT_CLEARANCE = 15;
 function routeConnector(options) {
@@ -2594,7 +2604,7 @@ function deduplicatePoints(points) {
   return result;
 }
 
-// slidekit/src/renderer.ts
+// src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -3010,7 +3020,7 @@ async function render(slides, options = {}) {
   return { sections, layouts };
 }
 
-// slidekit/src/compounds.ts
+// src/compounds.ts
 function connect(fromId, toId, props = {}) {
   const { id: customId, ...rest } = props;
   const id = customId || nextId();
@@ -3081,12 +3091,16 @@ function panel(children, props = {}) {
     }
     return child;
   });
-  const childStack = vstack(resolvedChildren, {
+  const vstackProps = {
     x: padding,
     y: padding,
     w: contentW,
     gap
-  });
+  };
+  if (rest.align !== void 0) vstackProps.align = rest.align;
+  if (rest.vAlign !== void 0) vstackProps.vAlign = rest.vAlign;
+  if (panelH != null) vstackProps.h = Math.max(0, panelH - 2 * padding);
+  const childStack = vstack(resolvedChildren, vstackProps);
   const bgStyle = { ...rest.style || {} };
   if (rest.fill) bgStyle.background = rest.fill;
   if (rest.radius !== void 0) bgStyle.borderRadius = typeof rest.radius === "number" ? `${rest.radius}px` : rest.radius;
@@ -3192,7 +3206,7 @@ function figure(opts = {}) {
   return result;
 }
 
-// slidekit/src/utilities.ts
+// src/utilities.ts
 function deepClone(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -3340,7 +3354,7 @@ function rotatedAABB(w, h, degrees) {
   };
 }
 
-// slidekit/src/layout/helpers.ts
+// src/layout/helpers.ts
 function isRelMarker(value) {
   return value !== null && typeof value === "object" && typeof value._rel === "string";
 }
@@ -3370,6 +3384,10 @@ function flattenElements(elements) {
           panelInternals.add(el2.children[0].id);
           panelInternals.add(el2.children[1].id);
         }
+        if (el2._compound === "figure" && el2.children.length >= 2) {
+          panelInternals.add(el2.children[0].id);
+          panelInternals.add(el2.children[1].id);
+        }
         walk(el2.children, el2.id);
       }
       if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
@@ -3384,6 +3402,10 @@ function flattenElements(elements) {
             const gcIds = child.children.map((c) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
+            if (child._compound === "figure" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
               panelInternals.add(child.children[1].id);
             }
@@ -3472,7 +3494,7 @@ function computeAABBIntersection(a, b) {
   return null;
 }
 
-// slidekit/src/layout/overflow.ts
+// src/layout/overflow.ts
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -3515,12 +3537,12 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
   }
 }
 
-// slidekit/src/types.ts
+// src/types.ts
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
 
-// slidekit/src/layout/intrinsics.ts
+// src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
   if (type === "el" && (props.h === void 0 || props.h === null)) {
@@ -3766,7 +3788,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 
-// slidekit/src/layout/positions.ts
+// src/layout/positions.ts
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -4075,6 +4097,19 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
             curY += cs.h + gap;
           }
         }
+        const vAlign = el2.props.vAlign;
+        if (vAlign && vAlign !== "top" && childIds.length > 0) {
+          const totalContentH = curY - stackY - (childIds.length > 0 ? gap : 0);
+          const stackAuthH = authoredSpecs.get(id)?.props?.h;
+          if (stackAuthH !== void 0 && stackAuthH !== null && h > totalContentH) {
+            const slack = h - totalContentH;
+            const offsetY = vAlign === "center" ? slack / 2 : slack;
+            for (const cid of childIds) {
+              const bounds = mustGet(resolvedBounds, cid, `resolvedBounds missing vstack child for vAlign: ${cid}`);
+              resolvedBounds.set(cid, { x: bounds.x, y: bounds.y + offsetY, w: bounds.w, h: bounds.h });
+            }
+          }
+        }
       } else {
         const align = el2.props.align || "top";
         let curX = stackX;
@@ -4127,13 +4162,26 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
             curX += cs.w + gap;
           }
         }
+        const hAlign = el2.props.hAlign;
+        if (hAlign && hAlign !== "left" && childIds.length > 0) {
+          const totalContentW = curX - stackX - (childIds.length > 0 ? gap : 0);
+          const stackAuthW = authoredSpecs.get(id)?.props?.w;
+          if (stackAuthW !== void 0 && stackAuthW !== null && w > totalContentW) {
+            const slack = w - totalContentW;
+            const offsetX = hAlign === "center" ? slack / 2 : slack;
+            for (const cid of childIds) {
+              const bounds = mustGet(resolvedBounds, cid, `resolvedBounds missing hstack child for hAlign: ${cid}`);
+              resolvedBounds.set(cid, { x: bounds.x + offsetX, y: bounds.y, w: bounds.w, h: bounds.h });
+            }
+          }
+        }
       }
     }
   }
   return { resolvedBounds, sortedOrder };
 }
 
-// slidekit/src/layout/finalize.ts
+// src/layout/finalize.ts
 function finalize({
   sortedOrder,
   flatMap,
@@ -4526,9 +4574,17 @@ function finalize({
     if (!config || config.panelH == null) continue;
     const childStack = (el2.children || [])[1];
     if (!childStack) continue;
-    const stackSizes = resolvedSizes.get(childStack.id);
-    if (!stackSizes) continue;
-    const contentH = stackSizes.h + 2 * config.padding;
+    const vstackChildIds = stackChildren.get(childStack.id) || [];
+    let naturalContentH = 0;
+    const vstackGap = resolveSpacing(childStack.props?.gap ?? 0);
+    for (let i = 0; i < vstackChildIds.length; i++) {
+      const cs = resolvedSizes.get(vstackChildIds[i]);
+      if (cs) {
+        naturalContentH += cs.h;
+        if (i > 0) naturalContentH += vstackGap;
+      }
+    }
+    const contentH = naturalContentH + 2 * config.padding;
     const authoredH = config.panelH;
     if (contentH > authoredH) {
       warnings.push({
@@ -4607,7 +4663,7 @@ function finalize({
   };
 }
 
-// slidekit/src/layout/index.ts
+// src/layout/index.ts
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
@@ -4691,7 +4747,7 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 
-// slidekit/slidekit.ts
+// slidekit.ts
 _setLayoutFn(layout);
 var SlideKit = {
   el,
@@ -4822,4 +4878,3 @@ export {
   splitRect,
   vstack
 };
-//# sourceMappingURL=slidekit.bundle.js.map

@@ -10,49 +10,64 @@ interface RelGapOpts {
   gap?: number | string;
 }
 
+/** Accepted second argument: either an options object or a bare gap value. */
+type GapArg = RelGapOpts | number | string;
+
+/** Normalize a bare gap value (string or number) into a RelGapOpts object. */
+function normalizeGapArg(arg: GapArg): RelGapOpts {
+  if (typeof arg === 'string' || typeof arg === 'number') {
+    return { gap: arg };
+  }
+  return arg;
+}
+
 /**
  * Position Y below a referenced element with an optional gap.
  * Returns a deferred value marker resolved during layout solve.
  *
  * @param refId - ID of the element to position relative to
- * @param opts - Options
+ * @param opts - Options object or bare gap value (spacing token or px number)
  * @returns A RelMarker with _rel: "below"
  */
-export function below(refId: string, opts: RelGapOpts = {}): RelMarker {
-  return { _rel: "below", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+export function below(refId: string, opts: GapArg = {}): RelMarker {
+  const o = normalizeGapArg(opts);
+  return { _rel: "below", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 
 /**
  * Position Y above a referenced element with an optional gap.
  *
  * @param refId - ID of the element to position relative to
- * @param opts - Options
+ * @param opts - Options object or bare gap value (spacing token or px number)
  * @returns A RelMarker with _rel: "above"
  */
-export function above(refId: string, opts: RelGapOpts = {}): RelMarker {
-  return { _rel: "above", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+export function above(refId: string, opts: GapArg = {}): RelMarker {
+  const o = normalizeGapArg(opts);
+  return { _rel: "above", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 
 /**
  * Position X to the right of a referenced element with an optional gap.
  *
  * @param refId - ID of the element to position relative to
- * @param opts - Options
+ * @param opts - Options object or bare gap value (spacing token or px number)
  * @returns A RelMarker with _rel: "rightOf"
  */
-export function rightOf(refId: string, opts: RelGapOpts = {}): RelMarker {
-  return { _rel: "rightOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+export function rightOf(refId: string, opts: GapArg = {}): RelMarker {
+  const o = normalizeGapArg(opts);
+  return { _rel: "rightOf", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 
 /**
  * Position X to the left of a referenced element with an optional gap.
  *
  * @param refId - ID of the element to position relative to
- * @param opts - Options
+ * @param opts - Options object or bare gap value (spacing token or px number)
  * @returns A RelMarker with _rel: "leftOf"
  */
-export function leftOf(refId: string, opts: RelGapOpts = {}): RelMarker {
-  return { _rel: "leftOf", ref: refId, gap: resolveSpacing(opts.gap ?? 0) };
+export function leftOf(refId: string, opts: GapArg = {}): RelMarker {
+  const o = normalizeGapArg(opts);
+  return { _rel: "leftOf", ref: refId, gap: resolveSpacing(o.gap ?? 0) };
 }
 
 /**

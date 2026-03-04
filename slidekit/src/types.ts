@@ -147,6 +147,10 @@ export interface ElementProps {
   gap?: number | string;
   /** Alignment of children within a stack. */
   align?: HAlign | HStackAlign | string;
+  /** Main-axis alignment for vstack: positions content block within the stack's height. */
+  vAlign?: VAlign;
+  /** Main-axis alignment for hstack: positions content block within the stack's width. */
+  hAlign?: 'left' | 'center' | 'right';
 
   // -- Group-specific --
   /** Group bounds mode ("hug" = shrink-wrap to children). */

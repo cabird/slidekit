@@ -81,6 +81,69 @@ describe("M3.2: relative positioning helpers — marker shape", () => {
     assert.equal(m.gap, 0);
   });
 
+  // -- Bare gap argument (string or number) --
+
+  it("below() accepts bare pixel number as gap", () => {
+    const m = below("ref1", 24);
+    assert.equal(m._rel, "below");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 24);
+  });
+
+  it("below() accepts bare spacing token as gap", () => {
+    const m = below("ref1", "sm");
+    assert.equal(m._rel, "below");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 16); // sm = 16px
+  });
+
+  it("above() accepts bare pixel number as gap", () => {
+    const m = above("ref1", 10);
+    assert.equal(m._rel, "above");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 10);
+  });
+
+  it("above() accepts bare spacing token as gap", () => {
+    const m = above("ref1", "md");
+    assert.equal(m._rel, "above");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 24); // md = 24px
+  });
+
+  it("rightOf() accepts bare pixel number as gap", () => {
+    const m = rightOf("ref1", 30);
+    assert.equal(m._rel, "rightOf");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 30);
+  });
+
+  it("rightOf() accepts bare spacing token as gap", () => {
+    const m = rightOf("ref1", "lg");
+    assert.equal(m._rel, "rightOf");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 32); // lg = 32px
+  });
+
+  it("leftOf() accepts bare pixel number as gap", () => {
+    const m = leftOf("ref1", 15);
+    assert.equal(m._rel, "leftOf");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 15);
+  });
+
+  it("leftOf() accepts bare spacing token as gap", () => {
+    const m = leftOf("ref1", "xs");
+    assert.equal(m._rel, "leftOf");
+    assert.equal(m.ref, "ref1");
+    assert.equal(m.gap, 8); // xs = 8px
+  });
+
+  it("below() with bare 0 gives gap of 0", () => {
+    const m = below("ref1", 0);
+    assert.equal(m.gap, 0);
+  });
+
   it("centerVWith() returns a _rel marker with correct shape", () => {
     const m = centerVWith("ref1");
     assert.equal(m._rel, "centerV");
@@ -1113,6 +1176,88 @@ describe("P1.1: below() with spacing token", () => {
 });
 
 // =============================================================================
+// Bare gap argument — layout integration tests
+// =============================================================================
+
+describe("Bare gap argument — layout integration", () => {
+  it("below('ref', 'sm') positions with 16px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", "sm"), w: 200, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // anchor bottom = 100 + 50 = 150; + sm (16) = 166
+    assert.equal(scene.elements["target"].resolved.y, 166);
+  });
+
+  it("below('ref', 24) positions with 24px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", 24), w: 200, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // anchor bottom = 100 + 50 = 150; + 24 = 174
+    assert.equal(scene.elements["target"].resolved.y, 174);
+  });
+
+  it("above('ref', 'md') positions with 24px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 100, y: 200, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 100, y: above("anchor", "md"), w: 200, h: 80 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // above: y = ref.y - ownH - gap = 200 - 80 - 24 = 96
+    assert.equal(scene.elements["target"].resolved.y, 96);
+  });
+
+  it("rightOf('ref', 16) positions with 16px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: rightOf("anchor", 16), y: 100, w: 150, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // rightOf: x = ref.x + ref.w + gap = 100 + 200 + 16 = 316
+    assert.equal(scene.elements["target"].resolved.x, 316);
+  });
+
+  it("leftOf('ref', 'xs') positions with 8px gap", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 300, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: leftOf("anchor", "xs"), y: 100, w: 100, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // leftOf: x = ref.x - ownW - gap = 300 - 100 - 8 = 192
+    assert.equal(scene.elements["target"].resolved.x, 192);
+  });
+
+  it("bare gap gives same result as object form", async () => {
+    _resetForTests();
+    await init();
+    const a1 = el('', { id: "a1", x: 100, y: 100, w: 200, h: 50 });
+    const t1 = el('', { id: "t1", x: 100, y: below("a1", "lg"), w: 200, h: 50 });
+
+    const a2 = el('', { id: "a2", x: 100, y: 100, w: 200, h: 50 });
+    const t2 = el('', { id: "t2", x: 100, y: below("a2", { gap: "lg" }), w: 200, h: 50 });
+
+    const scene1 = await layout({ elements: [a1, t1] });
+    _resetForTests();
+    await init();
+    const scene2 = await layout({ elements: [a2, t2] });
+
+    assert.equal(
+      scene1.elements["t1"].resolved.y,
+      scene2.elements["t2"].resolved.y,
+      "bare 'lg' and { gap: 'lg' } should produce the same y position"
+    );
+  });
+});
+
+// =============================================================================
 // P1.2: Hierarchical Scene Model
 // =============================================================================
 
@@ -1585,5 +1730,268 @@ describe("P2.5: group({ bounds: 'hug' })", () => {
     assert.equal(resolved.h, 200);
     assert.equal(resolved.x, 0);
     assert.equal(resolved.y, 0);
+  });
+});
+
+// =============================================================================
+// Main-axis alignment: vstack vAlign
+// =============================================================================
+
+describe("vstack vAlign — main-axis alignment", () => {
+  it("vAlign:'top' positions children same as default (backward compat)", async () => {
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+      el('', { id: "c2", w: 100, h: 60 }),
+    ], { id: "vs", x: 100, y: 100, w: 200, h: 400, gap: 10, vAlign: 'top' });
+    const scene = await layout({ elements: [stack] });
+
+    // Same as default: c1 at y=100, c2 at y=150
+    assert.equal(scene.elements["c1"].resolved.y, 100);
+    assert.equal(scene.elements["c2"].resolved.y, 150);
+  });
+
+  it("vAlign:'center' centers content block vertically within bounds", async () => {
+    // Stack h=400, content = 40+10+60 = 110, slack = 290, offset = 145
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+      el('', { id: "c2", w: 100, h: 60 }),
+    ], { id: "vs", x: 100, y: 100, w: 200, h: 400, gap: 10, vAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 40 + 10 + 60; // 110
+    const slack = 400 - totalContent;   // 290
+    const offset = slack / 2;           // 145
+    assert.equal(scene.elements["c1"].resolved.y, 100 + offset);
+    assert.equal(scene.elements["c2"].resolved.y, 100 + offset + 40 + 10);
+  });
+
+  it("vAlign:'center' works with multiple children and gaps", async () => {
+    // Stack h=500, content = 50+20+50+20+50 = 190, slack = 310, offset = 155
+    const stack = vstack([
+      el('', { id: "a", w: 100, h: 50 }),
+      el('', { id: "b", w: 100, h: 50 }),
+      el('', { id: "c", w: 100, h: 50 }),
+    ], { id: "vs", x: 0, y: 0, w: 200, h: 500, gap: 20, vAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 50 + 20 + 50 + 20 + 50; // 190
+    const slack = 500 - totalContent;               // 310
+    const offset = slack / 2;                        // 155
+    assert.equal(scene.elements["a"].resolved.y, 0 + offset);
+    assert.equal(scene.elements["b"].resolved.y, 0 + offset + 50 + 20);
+    assert.equal(scene.elements["c"].resolved.y, 0 + offset + 50 + 20 + 50 + 20);
+  });
+
+  it("vAlign:'bottom' pushes content to bottom of bounds", async () => {
+    // Stack h=400, content = 40+10+60 = 110, slack = 290
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+      el('', { id: "c2", w: 100, h: 60 }),
+    ], { id: "vs", x: 100, y: 100, w: 200, h: 400, gap: 10, vAlign: 'bottom' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 40 + 10 + 60; // 110
+    const slack = 400 - totalContent;   // 290
+    assert.equal(scene.elements["c1"].resolved.y, 100 + slack);
+    assert.equal(scene.elements["c2"].resolved.y, 100 + slack + 40 + 10);
+    // Verify last child's bottom edge is at stack bottom
+    assert.equal(scene.elements["c2"].resolved.y + 60, 100 + 400);
+  });
+
+  it("vAlign:'center' combined with align:'center' centers both axes", async () => {
+    // Stack w=400, h=400. Child w=100, h=50.
+    // Cross-axis (align): childX = stackX + (400-100)/2 = 250
+    // Main-axis (vAlign): content=50, slack=350, offset=175
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 50 }),
+    ], { id: "vs", x: 100, y: 100, w: 400, h: 400, align: 'center', vAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    assert.equal(scene.elements["c1"].resolved.x, 100 + (400 - 100) / 2);
+    assert.equal(scene.elements["c1"].resolved.y, 100 + (400 - 50) / 2);
+  });
+
+  it("vAlign with no explicit h is a no-op (content fills exactly)", async () => {
+    // No h on stack — stack height = sum of children + gaps
+    // vAlign should have no effect because there's no slack
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+      el('', { id: "c2", w: 100, h: 60 }),
+    ], { id: "vs", x: 100, y: 100, w: 200, gap: 10, vAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    // Should be same as default positioning
+    assert.equal(scene.elements["c1"].resolved.y, 100);
+    assert.equal(scene.elements["c2"].resolved.y, 150);
+  });
+
+  it("vAlign default is top (no vAlign prop)", async () => {
+    const stack = vstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+    ], { id: "vs", x: 100, y: 100, w: 200, h: 400 });
+    const scene = await layout({ elements: [stack] });
+
+    // Default: no offset applied
+    assert.equal(scene.elements["c1"].resolved.y, 100);
+  });
+});
+
+// =============================================================================
+// Main-axis alignment: hstack hAlign
+// =============================================================================
+
+describe("hstack hAlign — main-axis alignment", () => {
+  it("hAlign:'left' positions children same as default (backward compat)", async () => {
+    const stack = hstack([
+      el('', { id: "c1", w: 80, h: 40 }),
+      el('', { id: "c2", w: 120, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, w: 600, h: 200, gap: 20, hAlign: 'left' });
+    const scene = await layout({ elements: [stack] });
+
+    // Same as default: c1 at x=100, c2 at x=200
+    assert.equal(scene.elements["c1"].resolved.x, 100);
+    assert.equal(scene.elements["c2"].resolved.x, 200);
+  });
+
+  it("hAlign:'center' centers content block horizontally within bounds", async () => {
+    // Stack w=600, content = 80+20+120 = 220, slack = 380, offset = 190
+    const stack = hstack([
+      el('', { id: "c1", w: 80, h: 40 }),
+      el('', { id: "c2", w: 120, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, w: 600, h: 200, gap: 20, hAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 80 + 20 + 120; // 220
+    const slack = 600 - totalContent;     // 380
+    const offset = slack / 2;              // 190
+    assert.equal(scene.elements["c1"].resolved.x, 100 + offset);
+    assert.equal(scene.elements["c2"].resolved.x, 100 + offset + 80 + 20);
+  });
+
+  it("hAlign:'center' works with multiple children and gaps", async () => {
+    // Stack w=800, content = 100+20+100+20+100 = 340, slack = 460, offset = 230
+    const stack = hstack([
+      el('', { id: "a", w: 100, h: 40 }),
+      el('', { id: "b", w: 100, h: 40 }),
+      el('', { id: "c", w: 100, h: 40 }),
+    ], { id: "hs", x: 0, y: 0, w: 800, h: 200, gap: 20, hAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 100 + 20 + 100 + 20 + 100; // 340
+    const slack = 800 - totalContent;                   // 460
+    const offset = slack / 2;                            // 230
+    assert.equal(scene.elements["a"].resolved.x, 0 + offset);
+    assert.equal(scene.elements["b"].resolved.x, 0 + offset + 100 + 20);
+    assert.equal(scene.elements["c"].resolved.x, 0 + offset + 100 + 20 + 100 + 20);
+  });
+
+  it("hAlign:'right' pushes content to right of bounds", async () => {
+    // Stack w=600, content = 80+20+120 = 220, slack = 380
+    const stack = hstack([
+      el('', { id: "c1", w: 80, h: 40 }),
+      el('', { id: "c2", w: 120, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, w: 600, h: 200, gap: 20, hAlign: 'right' });
+    const scene = await layout({ elements: [stack] });
+
+    const totalContent = 80 + 20 + 120; // 220
+    const slack = 600 - totalContent;     // 380
+    assert.equal(scene.elements["c1"].resolved.x, 100 + slack);
+    assert.equal(scene.elements["c2"].resolved.x, 100 + slack + 80 + 20);
+    // Verify last child's right edge is at stack right
+    assert.equal(scene.elements["c2"].resolved.x + 120, 100 + 600);
+  });
+
+  it("hAlign:'center' combined with align:'middle' centers both axes", async () => {
+    // Stack w=600, h=200. Child w=100, h=40.
+    // Cross-axis (align middle): childY = stackY + (200-40)/2 = 180
+    // Main-axis (hAlign center): content=100, slack=500, offset=250
+    const stack = hstack([
+      el('', { id: "c1", w: 100, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, w: 600, h: 200, align: 'middle', hAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    assert.equal(scene.elements["c1"].resolved.x, 100 + (600 - 100) / 2);
+    assert.equal(scene.elements["c1"].resolved.y, 100 + (200 - 40) / 2);
+  });
+
+  it("hAlign with no explicit w is a no-op (content fills exactly)", async () => {
+    // No w on stack — stack width = sum of children + gaps
+    // hAlign should have no effect because there's no slack
+    const stack = hstack([
+      el('', { id: "c1", w: 80, h: 40 }),
+      el('', { id: "c2", w: 120, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, gap: 20, hAlign: 'center' });
+    const scene = await layout({ elements: [stack] });
+
+    // Should be same as default positioning
+    assert.equal(scene.elements["c1"].resolved.x, 100);
+    assert.equal(scene.elements["c2"].resolved.x, 200);
+  });
+
+  it("hAlign default is left (no hAlign prop)", async () => {
+    const stack = hstack([
+      el('', { id: "c1", w: 80, h: 40 }),
+    ], { id: "hs", x: 100, y: 100, w: 600, h: 200 });
+    const scene = await layout({ elements: [stack] });
+
+    // Default: no offset applied
+    assert.equal(scene.elements["c1"].resolved.x, 100);
+  });
+});
+
+// =============================================================================
+// Main-axis alignment: panel vAlign passthrough
+// =============================================================================
+
+describe("panel vAlign — passthrough to inner vstack", () => {
+  it("panel with vAlign:'center' centers its content vertically", async () => {
+    // Panel: w=300, h=400, padding=24 (default)
+    // Content area height = 400 - 2*24 = 352
+    // Child: h=40, gap=16 (default), total content = 40
+    // slack = 352 - 40 = 312, offset = 156
+    const p = panel(
+      [el('', { id: "pc1", w: 200, h: 40 })],
+      { id: "pnl", x: 100, y: 100, w: 300, h: 400, vAlign: 'center' }
+    );
+    const scene = await layout({ elements: [p] });
+
+    // The panel's child vstack is at (padding, padding) = (24, 24) within the group
+    // The vstack has h = 400 - 2*24 = 352
+    // Content = 40, slack = 312, offset = 156
+    // Child y in absolute coords: group.y(100) + vstack.y(24) + offset(156) = 280
+    const pc1 = scene.elements["pc1"];
+    assert.ok(pc1, "panel child should exist");
+    // Verify the child is centered within the panel's content area
+    // Group at y=100, vstack at y=24 relative to group
+    // vstack content starts at group.y + padding = 124
+    // Content h = 40, content area h = 352
+    // Center offset = (352 - 40) / 2 = 156
+    // So child y = 124 + 156 = 280 (absolute) or 24 + 156 = 180 (relative to group)
+    // Since panel children positions are group-relative in the scene graph:
+    const expectedOffset = (352 - 40) / 2;
+    assert.equal(pc1.resolved.y, 24 + expectedOffset);
+  });
+
+  it("panel with both align and vAlign passes both through correctly", async () => {
+    // Panel: w=400, h=400, padding=24
+    // Content area: w = 400 - 48 = 352, h = 400 - 48 = 352
+    // Child: w=100, h=40
+    // align:'center' => cross-axis centering within content width
+    // vAlign:'bottom' => main-axis bottom alignment within content height
+    const p = panel(
+      [el('', { id: "pc1", w: 100, h: 40 })],
+      { id: "pnl", x: 0, y: 0, w: 400, h: 400, align: 'center', vAlign: 'bottom' }
+    );
+    const scene = await layout({ elements: [p] });
+
+    const pc1 = scene.elements["pc1"];
+    assert.ok(pc1, "panel child should exist");
+
+    // vAlign: 'bottom' => offset = 352 - 40 = 312
+    // child y = padding(24) + 312 = 336
+    assert.equal(pc1.resolved.y, 24 + (352 - 40));
+
+    // align: 'center' => child x = padding + (contentW - childW)/2 = 24 + (352-100)/2 = 24 + 126 = 150
+    assert.equal(pc1.resolved.x, 24 + (352 - 100) / 2);
   });
 });
