@@ -53,7 +53,6 @@ const THRESHOLDS = {
   maxRootElements: 15,
   imageUpscaleMax: 1.10,
   aspectRatioTolerance: 0.01,
-  contrastMin: 3.0,
   titlePositionDrift: 20,
   maxFontFamilies: 3,
   marginRatioMax: 0.25,
@@ -210,6 +209,8 @@ function ruleNonAncestorOverlap(elements: Record<string, SceneElement>): LintFin
     return absCache.get(e.id)!;
   }
 
+  const canvasArea = CANVAS.w * CANVAS.h;
+
   const withSize = els.filter(e => {
     const b = cachedAbsBounds(e);
     return b && b.w > 0 && b.h > 0;
@@ -220,6 +221,10 @@ function ruleNonAncestorOverlap(elements: Record<string, SceneElement>): LintFin
     for (let j = i + 1; j < withSize.length; j++) {
       const a = withSize[i];
       const b = withSize[j];
+
+      // Skip if either element opts out of overlap checking
+      if (a.authored?.props?.allowOverlap || b.authored?.props?.allowOverlap) continue;
+
       // Skip elements on different layers — they intentionally stack
       const layerA = normLayer(a);
       const layerB = normLayer(b);
@@ -234,6 +239,26 @@ function ruleNonAncestorOverlap(elements: Record<string, SceneElement>): LintFin
       const ba = cachedAbsBounds(a)!;
       const bb = cachedAbsBounds(b)!;
       if (!rectsOverlap(ba, bb)) continue;
+
+      // Skip full-bleed background pairs (both cover ≥95% of canvas)
+      const areaA = ba.w * ba.h;
+      const areaB = bb.w * bb.h;
+      if (areaA >= canvasArea * 0.95 && areaB >= canvasArea * 0.95) continue;
+
+      // Skip when one element fully contains the other and has panel-like styles
+      // (backdropFilter, semi-transparent bg, border) — indicates intentional layering
+      const aContainsB = ba.x <= bb.x && ba.y <= bb.y &&
+        ba.x + ba.w >= bb.x + bb.w && ba.y + ba.h >= bb.y + bb.h;
+      const bContainsA = bb.x <= ba.x && bb.y <= ba.y &&
+        bb.x + bb.w >= ba.x + ba.w && bb.y + bb.h >= ba.y + ba.h;
+      if (aContainsB || bContainsA) {
+        const container = aContainsB ? a : b;
+        const cProps = container.authored?.props;
+        const cStyle = (cProps?.style || {}) as Record<string, unknown>;
+        const hasPanelStyle = cStyle.backdropFilter || cStyle.border || cStyle.boxShadow ||
+          (typeof cStyle.backgroundColor === 'string' && cStyle.backgroundColor !== 'transparent');
+        if (hasPanelStyle) continue;
+      }
 
       const key = [a.id, b.id].sort().join('|');
       if (seen.has(key)) continue;
@@ -645,8 +670,8 @@ function ruleTextOverflow(slideEl: HTMLElement | null): LintFinding[] {
   if (!slideEl) return findings;
   const els = slideEl.querySelectorAll('[data-sk-type="el"]');
   for (const el of els) {
-    const overflowY = el.scrollHeight > el.clientHeight + 1;
-    const overflowX = el.scrollWidth > el.clientWidth + 1;
+    const overflowY = el.scrollHeight > el.clientHeight + 2;
+    const overflowX = el.scrollWidth > el.clientWidth + 2;
     if (overflowY || overflowX) {
       findings.push({
         rule: 'text-overflow',
@@ -668,19 +693,46 @@ function ruleTextOverflow(slideEl: HTMLElement | null): LintFinding[] {
   return findings;
 }
 
+/**
+ * Find all text-bearing descendant elements inside a sk container.
+ * Walks the DOM tree to find elements with direct text node children,
+ * so we measure actual rendered font sizes rather than container defaults.
+ */
+function findTextBearingDescendants(container: Element): Element[] {
+  const results: Element[] = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+  const seen = new Set<Element>();
+  let node: Text | null;
+  while ((node = walker.nextNode() as Text | null)) {
+    if (!node.textContent || !node.textContent.trim()) continue;
+    const parent = node.parentElement;
+    if (parent && !seen.has(parent)) {
+      seen.add(parent);
+      results.push(parent);
+    }
+  }
+  return results;
+}
+
 function ruleFontTooSmall(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
   if (!slideEl) return findings;
-  for (const el of findSkTextElements(slideEl)) {
-    if (!el.textContent || !el.textContent.trim()) continue;
-    const fontSize = parseFloat(getComputedStyle(el).fontSize);
-    if (fontSize < THRESHOLDS.minFontSize) {
+  const seen = new Set<string>();
+  for (const container of findSkTextElements(slideEl)) {
+    const skId = container.getAttribute('data-sk-id');
+    if (!skId || seen.has(skId)) continue;
+    // Walk inner text-bearing elements for actual font sizes
+    const textEls = findTextBearingDescendants(container);
+    if (textEls.length === 0) continue;
+    const minFont = Math.min(...textEls.map(e => parseFloat(getComputedStyle(e).fontSize)));
+    if (minFont < THRESHOLDS.minFontSize) {
+      seen.add(skId);
       findings.push({
         rule: 'font-too-small',
         severity: 'warning',
-        elementId: el.getAttribute('data-sk-id'),
-        message: `Font size ${fontSize}px is below minimum ${THRESHOLDS.minFontSize}px`,
-        detail: { fontSize, threshold: THRESHOLDS.minFontSize },
+        elementId: skId,
+        message: `Font size ${minFont}px is below minimum ${THRESHOLDS.minFontSize}px`,
+        detail: { fontSize: minFont, threshold: THRESHOLDS.minFontSize },
         suggestion: `Increase font size to at least ${THRESHOLDS.minFontSize}px`,
       });
     }
@@ -691,16 +743,21 @@ function ruleFontTooSmall(slideEl: HTMLElement | null): LintFinding[] {
 function ruleFontTooLarge(slideEl: HTMLElement | null): LintFinding[] {
   const findings: LintFinding[] = [];
   if (!slideEl) return findings;
-  for (const el of findSkTextElements(slideEl)) {
-    if (!el.textContent || !el.textContent.trim()) continue;
-    const fontSize = parseFloat(getComputedStyle(el).fontSize);
-    if (fontSize > THRESHOLDS.maxFontSize) {
+  const seen = new Set<string>();
+  for (const container of findSkTextElements(slideEl)) {
+    const skId = container.getAttribute('data-sk-id');
+    if (!skId || seen.has(skId)) continue;
+    const textEls = findTextBearingDescendants(container);
+    if (textEls.length === 0) continue;
+    const maxFont = Math.max(...textEls.map(e => parseFloat(getComputedStyle(e).fontSize)));
+    if (maxFont > THRESHOLDS.maxFontSize) {
+      seen.add(skId);
       findings.push({
         rule: 'font-too-large',
         severity: 'info',
-        elementId: el.getAttribute('data-sk-id'),
-        message: `Font size ${fontSize}px exceeds maximum ${THRESHOLDS.maxFontSize}px`,
-        detail: { fontSize, threshold: THRESHOLDS.maxFontSize },
+        elementId: skId,
+        message: `Font size ${maxFont}px exceeds maximum ${THRESHOLDS.maxFontSize}px`,
+        detail: { fontSize: maxFont, threshold: THRESHOLDS.maxFontSize },
         suggestion: `Decrease font size to at most ${THRESHOLDS.maxFontSize}px`,
       });
     }
@@ -764,35 +821,7 @@ function ruleLineHeightTight(slideEl: HTMLElement | null): LintFinding[] {
 // Color helpers (for contrast checking)
 // ---------------------------------------------------------------------------
 
-interface RGBColor {
-  r: number;
-  g: number;
-  b: number;
-}
-
-function parseColor(str: string): RGBColor | null {
-  if (!str || str === 'transparent') return null;
-  const m = str.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-  if (!m) return null;
-  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
-  if (a < 0.1) return null;
-  return { r: parseInt(m[1]) / 255, g: parseInt(m[2]) / 255, b: parseInt(m[3]) / 255 };
-}
-
-function relativeLuminance(c: RGBColor): number {
-  const sRGB = [c.r, c.g, c.b].map(v =>
-    v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
-  );
-  return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
-}
-
-function contrastRatio(c1: RGBColor, c2: RGBColor): number {
-  const l1 = relativeLuminance(c1);
-  const l2 = relativeLuminance(c2);
-  const lighter = Math.max(l1, l2);
-  const darker = Math.min(l1, l2);
-  return (lighter + 0.05) / (darker + 0.05);
-}
+// (low-contrast rule and color helpers removed — visual verifier handles contrast)
 
 // ---------------------------------------------------------------------------
 // Image & Visual Hierarchy rules (Rules 19–22)
@@ -833,6 +862,9 @@ function ruleAspectRatioDistortion(slideEl: HTMLElement | null): LintFinding[] {
   const imgs = slideEl.querySelectorAll('img');
   for (const img of imgs) {
     if (img.naturalWidth === 0 || img.naturalHeight === 0) continue;
+    // object-fit: contain/cover handles aspect ratio in CSS — no visual distortion
+    const objectFit = getComputedStyle(img).objectFit;
+    if (objectFit === 'contain' || objectFit === 'cover') continue;
     const naturalRatio = img.naturalWidth / img.naturalHeight;
     const renderedRatio = img.clientWidth / img.clientHeight;
     const distortion = Math.abs(renderedRatio - naturalRatio) / naturalRatio;
@@ -887,50 +919,6 @@ function ruleHeadingSizeInversion(slideEl: HTMLElement | null): LintFinding[] {
   return findings;
 }
 
-function ruleLowContrast(slideEl: HTMLElement | null): LintFinding[] {
-  const findings: LintFinding[] = [];
-  if (!slideEl) return findings;
-  const els = slideEl.querySelectorAll('*');
-  for (const el of els) {
-    if (!el.textContent || !el.textContent.trim()) continue;
-    // Only check leaf text nodes — skip containers whose text comes from children
-    if (el.children.length > 0) {
-      let hasDirectText = false;
-      for (const node of el.childNodes) {
-        if (node.nodeType === 3 && node.textContent!.trim()) { hasDirectText = true; break; }
-      }
-      if (!hasDirectText) continue;
-    }
-
-    const style = getComputedStyle(el);
-    const textColor = parseColor(style.color);
-    if (!textColor) continue;
-
-    // Walk up to find actual background
-    let bgColor: RGBColor | null = null;
-    let current: Element | null = el;
-    while (current && current !== document.documentElement) {
-      bgColor = parseColor(getComputedStyle(current).backgroundColor);
-      if (bgColor) break;
-      current = current.parentElement;
-    }
-    if (!bgColor) continue;
-
-    const ratio = contrastRatio(textColor, bgColor);
-    if (ratio < THRESHOLDS.contrastMin) {
-      const ancestor = el.closest('[data-sk-id]');
-      findings.push({
-        rule: 'low-contrast',
-        severity: 'warning',
-        elementId: ancestor ? ancestor.getAttribute('data-sk-id') : null,
-        message: `Low contrast ratio ${ratio.toFixed(2)}:1 (minimum: ${THRESHOLDS.contrastMin}:1)`,
-        detail: { textColor: style.color, bgColor: getComputedStyle(current!).backgroundColor, contrastRatio: ratio, threshold: THRESHOLDS.contrastMin },
-        suggestion: `Increase contrast between text and background (current: ${ratio.toFixed(2)}:1, minimum: ${THRESHOLDS.contrastMin}:1)`,
-      });
-    }
-  }
-  return findings;
-}
 
 // ---------------------------------------------------------------------------
 // Cross-slide consistency rules (23–25) — deck-level only
@@ -1310,12 +1298,13 @@ function ruleHorizontalCenterConsistency(elements: Record<string, SceneElement>)
 
 function ruleUnbalancedTrailingWhitespace(elements: Record<string, SceneElement>): LintFinding[] {
   const findings: LintFinding[] = [];
-  const SAFE_BOTTOM = 990; // safe zone bottom (SAFE_ZONE.y + SAFE_ZONE.h)
-  const SUGGESTION_RATIO = 3.0;
-  const WARNING_RATIO = 5.0;
+  const SAFE_TOP = SAFE_ZONE.y;
+  const SAFE_BOTTOM = SAFE_ZONE.y + SAFE_ZONE.h;
+  const WARN_RATIO = 2.5;
+  const ERROR_RATIO = 4.0;
 
-  // Consider root-level content elements, skip bg/overlay and connectors
-  const candidates = Object.values(elements).filter(el =>
+  // Compute bounding box of ALL root content elements (block-level check)
+  const roots = Object.values(elements).filter(el =>
     !el._internal &&
     el.parentId == null &&
     normLayer(el) !== 'bg' &&
@@ -1323,49 +1312,33 @@ function ruleUnbalancedTrailingWhitespace(elements: Record<string, SceneElement>
     el.type !== 'connector'
   );
 
-  const withBounds = candidates.map(el => ({
-    el,
-    bounds: localBoundsOf(el),
-  })).filter((e): e is { el: SceneElement; bounds: Rect } => e.bounds != null && e.bounds.w > 0 && e.bounds.h > 0);
+  const allBounds = roots
+    .map(el => localBoundsOf(el))
+    .filter((b): b is Rect => b != null && b.w > 0 && b.h > 0);
 
-  // Sort by y position
-  withBounds.sort((a, b) => a.bounds.y - b.bounds.y);
+  if (allBounds.length === 0) return findings;
 
-  for (let i = 0; i < withBounds.length; i++) {
-    const { el, bounds } = withBounds[i];
+  const contentTop = Math.min(...allBounds.map(b => b.y));
+  const contentBottom = Math.max(...allBounds.map(b => b.y + b.h));
 
-    // Find the element directly above (nearest with bottom edge above this element's top)
-    let aboveBounds: Rect | null = null;
-    for (let j = i - 1; j >= 0; j--) {
-      const candidate = withBounds[j].bounds;
-      if (candidate.y + candidate.h <= bounds.y) {
-        aboveBounds = candidate;
-        break;
-      }
-    }
+  const topGap = Math.max(1, contentTop - SAFE_TOP);
+  const bottomGap = Math.max(1, SAFE_BOTTOM - contentBottom);
 
-    if (!aboveBounds) continue;
+  // Check vertical centering of the content block within the safe zone
+  const ratio = topGap > bottomGap ? topGap / bottomGap : bottomGap / topGap;
+  const direction = topGap > bottomGap ? 'top-heavy whitespace' : 'bottom-heavy whitespace';
 
-    const gapAbove = bounds.y - (aboveBounds.y + aboveBounds.h);
-    const spaceBelow = SAFE_BOTTOM - (bounds.y + bounds.h);
-
-    if (spaceBelow <= 0 || gapAbove <= 0) continue;
-
-    const ratio = spaceBelow / gapAbove;
-    if (ratio > SUGGESTION_RATIO) {
-      const id = el.id;
-      const optimalGap = Math.round((gapAbove + spaceBelow) * 0.35);
-      findings.push({
-        rule: 'unbalanced-trailing-whitespace',
-        severity: ratio > WARNING_RATIO ? 'warning' : 'info',
-        elementId: id,
-        message: `Element "${id}" has ${spaceBelow}px below vs ${gapAbove}px above (ratio: ${ratio.toFixed(1)}×). Consider increasing gap for balance.`,
-        detail: { elementId: id, gapAbove, spaceBelow, ratio, optimalGap },
-        bounds,
-        parentBounds: null,
-        suggestion: `Increase gap above to ~${optimalGap}px for better vertical balance`,
-      });
-    }
+  if (ratio > WARN_RATIO) {
+    findings.push({
+      rule: 'unbalanced-trailing-whitespace',
+      severity: ratio > ERROR_RATIO ? 'warning' : 'info',
+      elementId: 'slide',
+      message: `Content block has ${direction} (${Math.round(topGap)}px top vs ${Math.round(bottomGap)}px bottom, ratio: ${ratio.toFixed(1)}×)`,
+      detail: { topGap: Math.round(topGap), bottomGap: Math.round(bottomGap), ratio, direction },
+      bounds: { x: SAFE_ZONE.x, y: contentTop, w: SAFE_ZONE.w, h: contentBottom - contentTop },
+      parentBounds: SAFE_ZONE,
+      suggestion: `Redistribute vertical spacing for better balance`,
+    });
   }
   return findings;
 }
@@ -1421,7 +1394,6 @@ export function lintSlide(slideData: LintSlideData, slideElement: HTMLElement | 
       ...ruleImageUpscaled(slideElement),
       ...ruleAspectRatioDistortion(slideElement),
       ...ruleHeadingSizeInversion(slideElement),
-      ...ruleLowContrast(slideElement),
     );
   }
 

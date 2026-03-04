@@ -142,6 +142,10 @@ export interface ElementProps {
   /** Explicit z-order within the same layer. */
   z?: number;
 
+  // -- Lint hints --
+  /** When true, the linter allows this element to overlap with others without warning. */
+  allowOverlap?: boolean;
+
   // -- Stack-specific --
   /** Gap between stack children (px or spacing token). */
   gap?: number | string;

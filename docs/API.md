@@ -90,6 +90,7 @@ el('<p style="font:700 52px/1.1 Inter;color:#fff;text-align:center">Hello World<
 | `overflow` | `OverflowPolicy` | `"visible"` | Overflow policy (see below) |
 | `shadow` | `string` | — | Shadow preset name or CSS `box-shadow` value. Resolved via `resolveShadow()`. |
 | `z` | `number` | — | Explicit z-order within the same layer (higher = in front) |
+| `allowOverlap` | `boolean` | `false` | When `true`, the linter skips overlap checks involving this element |
 | `style` | `object` | `{}` | CSS pass-through properties (applied to the container div) |
 | `className` | `string` | `""` | CSS class name(s) |
 
@@ -1120,7 +1121,7 @@ const issues = findings.filter(f => f.severity !== 'info');
 
 > ✅ **Pattern:** Run `window.sk.lint(slideId)` after every change during development (fast, per-slide). Run `window.sk.lintDeck()` once at the end for cross-slide consistency checks (title-position-drift, style-drift).
 
-> ✅ **Pattern:** Filter lint findings to actionable items: `findings.filter(f => f.severity !== 'info')`. Focus on `text-overflow`, `canvas-overflow`, and `low-contrast` (nearly 100% signal). Treat `non-ancestor-overlap` as noise unless two sibling content elements genuinely collide.
+> ✅ **Pattern:** Filter lint findings to actionable items: `findings.filter(f => f.severity !== 'info')`. Focus on `text-overflow`, `canvas-overflow`, and `non-ancestor-overlap`. Use `allowOverlap: true` on elements that intentionally overlap (e.g., background images, decorative layers).
 
 > ⚠️ **Anti-pattern:** Don't suppress overflow with `overflow: 'hidden'` or `style: { overflow: 'hidden' }` to silence lint findings — fix the actual dimensions instead. Hidden overflow means clipped content.
 
