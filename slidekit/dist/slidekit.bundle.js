@@ -1,5 +1,5 @@
 // slidekit/src/version.ts
-var VERSION = true ? "0.2.0" : "dev";
+var VERSION = true ? "0.2.1" : "dev";
 
 // slidekit/src/state.ts
 var state = {
