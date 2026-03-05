@@ -16,17 +16,3 @@ An AI agent can read this guide and automatically apply the necessary changes to
 ## 0.x / 1.x → 2.x
 
 _No breaking changes yet. This section will be populated when version 2.0 is released._
-
----
-
-## Changelog
-
-### 0.2.1
-- Added `flipH` and `flipV` props for horizontal/vertical mirroring
-- Added `minVersion` compatibility check in `init()`
-
-### 0.2.0
-- Added linting system (`lintSlide`, `lintDeck`)
-- Added `allowOverlap` prop
-- Added build-time version injection
-- Added connector improvements (orthogonal routing, obstacle avoidance)
