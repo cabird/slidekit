@@ -5,6 +5,7 @@ import { state } from './state.js';
 
 import { DEFAULT_SPACING, resolveSpacing } from './spacing.js';
 import { resetIdCounter } from './id.js';
+import { VERSION } from './version.js';
 import type { SlideKitConfig, FontDef, Rect } from './types.js';
 
 /**
@@ -18,6 +19,96 @@ interface InitConfig {
   minFontSize?: number;
   fonts?: FontDef[];
   spacing?: Record<string, number>;
+  /** Minimum compatible SlideKit version (semver string, e.g. "0.2.0"). */
+  minVersion?: string;
+}
+
+/**
+ * Result of a version compatibility check.
+ */
+export interface VersionCheckResult {
+  ok: boolean;
+  warning?: string;
+  error?: string;
+}
+
+/**
+ * Parse a semver string into its numeric components.
+ * Returns { major, minor, patch } or null if parsing fails.
+ */
+function parseSemver(v: string): { major: number; minor: number; patch: number } | null {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
+}
+
+/**
+ * Check whether the current SlideKit version is compatible with a
+ * requested minimum version.
+ *
+ * **Compatibility rules:**
+ * - Versions 0.x and 1.x are treated as the SAME compatibility group
+ *   (pre-1.0 is development, 1.0 is "this is stable now" -- not a breaking change).
+ * - From 2.0 onward, major version must match (2.x -> 3.0 is breaking).
+ * - Within any major version, minor bumps only add features -- always backward compatible.
+ * - If the current minor is lower than the requested minVersion's minor, warn (missing features).
+ *
+ * @param minVersion - The minimum version required (semver string)
+ * @param currentVersion - The currently loaded version (semver string)
+ * @returns { ok, warning?, error? }
+ */
+export function checkVersionCompatibility(minVersion: string, currentVersion: string): VersionCheckResult {
+  const min = parseSemver(minVersion);
+  const cur = parseSemver(currentVersion);
+
+  if (!min) {
+    return { ok: false, error: `Invalid minVersion format: "${minVersion}" (expected semver like "1.2.3")` };
+  }
+  if (!cur) {
+    return { ok: false, error: `Invalid current version format: "${currentVersion}" (expected semver like "1.2.3")` };
+  }
+
+  // 0.x and 1.x compatibility group
+  if (min.major <= 1 && cur.major <= 1) {
+    if (min.major === cur.major) {
+      // Same major within the group: check minor
+      if (cur.minor < min.minor) {
+        return {
+          ok: true,
+          warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`,
+        };
+      }
+      return { ok: true };
+    }
+    // Cross-major within the group (0.x <-> 1.x)
+    if (cur.major > min.major) {
+      // Current is 1.x, min is 0.x -- 1.x is a superset, always ok
+      return { ok: true };
+    }
+    // Current is 0.x, min is 1.x -- current may be missing features
+    return {
+      ok: true,
+      warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`,
+    };
+  }
+
+  // 2.0+ era: major must match
+  if (cur.major !== min.major) {
+    return {
+      ok: false,
+      error: `SlideKit ${currentVersion} is not compatible with minVersion ${minVersion} (major version mismatch). See docs/MIGRATION.md for upgrade guidance — an AI agent can use this guide to automatically update your presentation code.`,
+    };
+  }
+
+  // Same major (>= 2): check minor
+  if (cur.minor < min.minor) {
+    return {
+      ok: true,
+      warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`,
+    };
+  }
+
+  return { ok: true };
 }
 
 /**
@@ -39,6 +130,17 @@ export const DEFAULT_CONFIG: SlideKitConfig = {
  * @returns Resolves with the config when ready
  */
 export async function init(config: InitConfig = {}): Promise<SlideKitConfig> {
+  // Version compatibility check (before any other processing)
+  if (config.minVersion) {
+    const compat = checkVersionCompatibility(config.minVersion, VERSION);
+    if (compat.error) {
+      throw new Error(compat.error);
+    }
+    if (compat.warning) {
+      console.warn(compat.warning);
+    }
+  }
+
   const resolved: SlideKitConfig = {
     slide: { ...DEFAULT_CONFIG.slide, ...(config.slide || {}) },
     safeZone: { ...DEFAULT_CONFIG.safeZone, ...(config.safeZone || {}) },

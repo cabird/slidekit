@@ -8,7 +8,7 @@ export { el, group, vstack, hstack, cardGrid } from './src/elements.js';
 export { VALID_ANCHORS, resolveAnchor } from './src/anchor.js';
 export { filterStyle, resolveShadow, getShadowPresets } from './src/style.js';
 export { getSpacing } from './src/spacing.js';
-export { init, safeRect, splitRect, getConfig, isFontLoaded, getFontWarnings, _resetForTests } from './src/config.js';
+export { init, safeRect, splitRect, getConfig, isFontLoaded, getFontWarnings, checkVersionCompatibility, _resetForTests } from './src/config.js';
 export { clearMeasureCache, measure } from './src/measure.js';
 export { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, placeBetween } from './src/relative.js';
 export { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
@@ -26,7 +26,7 @@ import { _setLayoutFn } from './src/renderer.js';
 import { el, group, vstack, hstack } from './src/elements.js';
 import { resolveAnchor } from './src/anchor.js';
 import { filterStyle, resolveShadow, getShadowPresets } from './src/style.js';
-import { init, safeRect, getConfig, isFontLoaded, getFontWarnings, _resetForTests } from './src/config.js';
+import { init, safeRect, getConfig, isFontLoaded, getFontWarnings, checkVersionCompatibility, _resetForTests } from './src/config.js';
 import { resetIdCounter } from './src/id.js';
 import { measure, clearMeasureCache } from './src/measure.js';
 import { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn } from './src/relative.js';
@@ -59,6 +59,7 @@ const SlideKit = {
   clearMeasureCache,
   isFontLoaded,
   getFontWarnings,
+  checkVersionCompatibility,
   _resetForTests,
   // Layout solve and relative positioning
   layout,

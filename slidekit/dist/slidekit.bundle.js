@@ -629,6 +629,52 @@ function getShadowPresets() {
 }
 
 // slidekit/src/config.ts
+function parseSemver(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
+  if (!m) return null;
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) };
+}
+function checkVersionCompatibility(minVersion, currentVersion) {
+  const min = parseSemver(minVersion);
+  const cur = parseSemver(currentVersion);
+  if (!min) {
+    return { ok: false, error: `Invalid minVersion format: "${minVersion}" (expected semver like "1.2.3")` };
+  }
+  if (!cur) {
+    return { ok: false, error: `Invalid current version format: "${currentVersion}" (expected semver like "1.2.3")` };
+  }
+  if (min.major <= 1 && cur.major <= 1) {
+    if (min.major === cur.major) {
+      if (cur.minor < min.minor) {
+        return {
+          ok: true,
+          warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`
+        };
+      }
+      return { ok: true };
+    }
+    if (cur.major > min.major) {
+      return { ok: true };
+    }
+    return {
+      ok: true,
+      warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`
+    };
+  }
+  if (cur.major !== min.major) {
+    return {
+      ok: false,
+      error: `SlideKit ${currentVersion} is not compatible with minVersion ${minVersion} (major version mismatch). See docs/MIGRATION.md for upgrade guidance \u2014 an AI agent can use this guide to automatically update your presentation code.`
+    };
+  }
+  if (cur.minor < min.minor) {
+    return {
+      ok: true,
+      warning: `SlideKit ${currentVersion} may be missing features from minVersion ${minVersion}. See docs/MIGRATION.md for details on what changed between versions.`
+    };
+  }
+  return { ok: true };
+}
 var DEFAULT_CONFIG = {
   slide: { w: 1920, h: 1080 },
   safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
@@ -638,6 +684,15 @@ var DEFAULT_CONFIG = {
   spacing: { ...DEFAULT_SPACING }
 };
 async function init(config = {}) {
+  if (config.minVersion) {
+    const compat = checkVersionCompatibility(config.minVersion, VERSION);
+    if (compat.error) {
+      throw new Error(compat.error);
+    }
+    if (compat.warning) {
+      console.warn(compat.warning);
+    }
+  }
   const resolved = {
     slide: { ...DEFAULT_CONFIG.slide, ...config.slide || {} },
     safeZone: { ...DEFAULT_CONFIG.safeZone, ...config.safeZone || {} },
@@ -5185,6 +5240,7 @@ var SlideKit = {
   clearMeasureCache,
   isFontLoaded,
   getFontWarnings,
+  checkVersionCompatibility,
   _resetForTests,
   // Layout solve and relative positioning
   layout,
@@ -5255,6 +5311,7 @@ export {
   centerHWith,
   centerIn,
   centerVWith,
+  checkVersionCompatibility,
   clearMeasureCache,
   computeZOrder,
   connect,

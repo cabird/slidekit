@@ -1176,10 +1176,40 @@ await init({
 | `minFontSize` | `number` | `24` | Font sizes below this trigger readability warnings |
 | `spacing` | `Record<string, number>` | see [Spacing](#spacing) | Token-to-pixel map. Custom entries merge with defaults. |
 | `fonts` | `FontDef[]` | `[]` | `[{ family, weights, source }]` — fonts to preload |
+| `minVersion` | `string` | — | Minimum compatible SlideKit version (semver, e.g. `"0.2.1"`). Throws if incompatible. |
 
 **`FontDef`:** `{ family: string, weights?: number[], source?: string }`
 
-**Throws** if safe zone margins leave zero or negative usable area.
+**Throws** if safe zone margins leave zero or negative usable area, or if `minVersion` is incompatible (major version mismatch).
+
+#### Version Compatibility
+
+When `minVersion` is set, `init()` checks the running SlideKit version before doing anything else. The compatibility model:
+
+- **0.x and 1.x are the same compatibility group.** Pre-1.0 is development; 1.0 is "this is stable now" — not a breaking change. A presentation authored against `0.2.x` runs on `1.x` and vice versa.
+- **From 2.0 onward, major must match.** A `minVersion: "2.1.0"` presentation fails on SlideKit 3.x (and vice versa).
+- **Minor bumps are additive.** If the current minor is lower than the requested minor, a `console.warn` is emitted (the presentation may use features that don't exist yet), but execution continues.
+- **On breaking mismatch:** throws an `Error` with a pointer to `docs/MIGRATION.md`.
+
+```js
+await init({ minVersion: '0.2.1', slide: { w: 1920, h: 1080 } });
+```
+
+### `checkVersionCompatibility(minVersion, currentVersion)`
+
+Low-level version check used internally by `init()`. Useful for build tools or custom compatibility gates.
+
+**Signature:** `checkVersionCompatibility(minVersion: string, currentVersion: string): VersionCheckResult`
+
+**Returns:** `{ ok: boolean, warning?: string, error?: string }`
+
+```js
+const result = checkVersionCompatibility('0.2.1', '0.3.0');
+// { ok: true }
+
+const result2 = checkVersionCompatibility('2.0.0', '3.0.0');
+// { ok: false, error: "SlideKit 3.0.0 is not compatible with minVersion 2.0.0 ..." }
+```
 
 **`DEFAULT_CONFIG`** — the exported default configuration constant with all default values.
 
@@ -1408,6 +1438,7 @@ Key types for users building presentations:
 | `FontDef` | `{ family: string, weights?: number[], source?: string }` |
 | `SpacingScale` | `{ xs?, sm?, md?, lg?, xl?, section?, [key: string]: number }` |
 | `SlideDefinition` | `{ id?, background?, elements, transforms?, notes? }` |
+| `VersionCheckResult` | `{ ok: boolean, warning?: string, error?: string }` |
 
 ### Layout Types
 
