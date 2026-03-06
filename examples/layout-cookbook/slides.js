@@ -13,12 +13,12 @@ import {
 // -- Image Manifest --------------------------------------------------------------
 
 const IMAGES = {
-  heroBg:           './hero-bg.png',
-  landscapeBanner:  './landscape-banner.png',
-  squareFeature:    './square-feature.png',
-  portraitSidebar:  './portrait-sidebar.png',
-  smallIcon:        './small-icon-photo.png',
-  texturedOverlay:  './textured-overlay.png',
+  heroBg:           './hero-bg.jpg',
+  landscapeBanner:  './landscape-banner.jpg',
+  squareFeature:    './square-feature.jpg',
+  portraitSidebar:  './portrait-sidebar.jpg',
+  smallIcon:        './small-icon-photo.jpg',
+  texturedOverlay:  './textured-overlay.jpg',
 };
 
 // -- Design Tokens (Dark Theme) --------------------------------------------------
@@ -234,7 +234,7 @@ export async function run() {
           patternLabel('A3 · Image Left, Text Right', 'a3'),
 
           figure({
-            id: 'a3-photo', src: './landscape-banner.png',
+            id: 'a3-photo', src: './landscape-banner.jpg',
             x: left.x, y: safe.y, w: left.w, h: left.h,
             fit: 'cover', containerRadius: 12,
           }),
@@ -295,7 +295,7 @@ export async function run() {
           }),
 
           figure({
-            id: 'a4-photo', src: './square-feature.png',
+            id: 'a4-photo', src: './square-feature.jpg',
             x: right.x, y: safe.y, w: right.w, h: right.h,
             fit: 'cover', containerRadius: 12,
           }),
@@ -319,7 +319,7 @@ export async function run() {
           patternLabel('A5 · Narrow Sidebar', 'a5'),
 
           figure({
-            id: 'a5-portrait', src: './portrait-sidebar.png',
+            id: 'a5-portrait', src: './portrait-sidebar.jpg',
             x: left.x, y: safe.y, w: left.w, h: left.h,
             fit: 'cover', containerRadius: 12,
           }),
@@ -374,7 +374,7 @@ export async function run() {
           }),
 
           figure({
-            id: 'a6-right-img', src: './square-feature.png',
+            id: 'a6-right-img', src: './square-feature.jpg',
             x: right.x, y: safe.y, w: right.w, h: right.h,
             fit: 'cover',
           }),
@@ -408,7 +408,7 @@ export async function run() {
       elements: [
         patternLabel('B1 · Full-Bleed + Text Overlay', 'b1'),
 
-        el('<img src="./hero-bg.png" style="width:100%;height:100%;object-fit:cover;opacity:0.7">', {
+        el('<img src="./hero-bg.jpg" style="width:100%;height:100%;object-fit:cover;opacity:0.7">', {
           id: 'b1-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
         }),
 
@@ -435,7 +435,7 @@ export async function run() {
       elements: [
         patternLabel('B2 · Gradient Overlay', 'b2'),
 
-        el('<img src="./landscape-banner.png" style="width:100%;height:100%;object-fit:cover">', {
+        el('<img src="./landscape-banner.jpg" style="width:100%;height:100%;object-fit:cover">', {
           id: 'b2-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
         }),
 
@@ -466,7 +466,7 @@ export async function run() {
       elements: [
         patternLabel('B3 · Letterboxed Cinematic', 'b3'),
 
-        el('<img src="./landscape-banner.png" style="width:100%;height:100%;object-fit:cover">', {
+        el('<img src="./landscape-banner.jpg" style="width:100%;height:100%;object-fit:cover">', {
           id: 'b3-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
         }),
 
@@ -532,7 +532,7 @@ export async function run() {
         return [
           patternLabel('B5 · Full-Bleed + Inset Card', 'b5'),
 
-          el('<img src="./hero-bg.png" style="width:100%;height:100%;object-fit:cover;opacity:0.5">', {
+          el('<img src="./hero-bg.jpg" style="width:100%;height:100%;object-fit:cover;opacity:0.5">', {
             id: 'b5-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
           }),
 
@@ -1042,7 +1042,7 @@ export async function run() {
         return [
           patternLabel('E1 · Overlay Panel', 'e1'),
 
-          el('<img src="./textured-overlay.png" style="width:100%;height:100%;object-fit:cover;opacity:0.5">', {
+          el('<img src="./textured-overlay.jpg" style="width:100%;height:100%;object-fit:cover;opacity:0.5">', {
             id: 'e1-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
           }),
 
@@ -1174,7 +1174,7 @@ export async function run() {
       elements: [
         patternLabel('E4 · Floating Islands', 'e4'),
 
-        el('<img src="./hero-bg.png" style="width:100%;height:100%;object-fit:cover;opacity:0.35">', {
+        el('<img src="./hero-bg.jpg" style="width:100%;height:100%;object-fit:cover;opacity:0.35">', {
           id: 'e4-bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
         }),
 
@@ -2240,7 +2240,7 @@ export async function run() {
 
           // Central image
           figure({
-            id: 'l2-center-img', src: './square-feature.png',
+            id: 'l2-center-img', src: './square-feature.jpg',
             x: imgX, y: imgY, w: imgW, h: imgH,
             fit: 'cover', containerRadius: 16,
           }),
@@ -2436,14 +2436,14 @@ export async function run() {
 
           // Left image
           figure({
-            id: 'l5-img-left', src: './landscape-banner.png',
+            id: 'l5-img-left', src: './landscape-banner.jpg',
             x: left.x, y: left.y, w: left.w, h: left.h,
             fit: 'cover', containerRadius: 0,
           }),
 
           // Right image
           figure({
-            id: 'l5-img-right', src: './hero-bg.png',
+            id: 'l5-img-right', src: './hero-bg.jpg',
             x: right.x, y: right.y, w: right.w, h: right.h,
             fit: 'cover', containerRadius: 0,
           }),
@@ -2634,7 +2634,7 @@ export async function run() {
           patternLabel('M1 · Full-Bleed Left', 'm1'),
 
           figure({
-            id: 'm1-photo', src: './landscape-banner.png',
+            id: 'm1-photo', src: './landscape-banner.jpg',
             x: 0, y: 0, w: 960, h: 1080,
             fit: 'cover', containerRadius: 0,
           }),
@@ -2676,7 +2676,7 @@ export async function run() {
           patternLabel('M2 · Full-Bleed Right', 'm2'),
 
           figure({
-            id: 'm2-photo', src: './hero-bg.png',
+            id: 'm2-photo', src: './hero-bg.jpg',
             x: 960, y: 0, w: 960, h: 1080,
             fit: 'cover', containerRadius: 0,
           }),
@@ -2718,7 +2718,7 @@ export async function run() {
           patternLabel('M3 · Full-Bleed Top', 'm3'),
 
           figure({
-            id: 'm3-photo', src: './textured-overlay.png',
+            id: 'm3-photo', src: './textured-overlay.jpg',
             x: 0, y: 0, w: 1920, h: 540,
             fit: 'cover', containerRadius: 0,
           }),
@@ -2752,7 +2752,7 @@ export async function run() {
           patternLabel('M4 · Full-Bleed Bottom', 'm4'),
 
           figure({
-            id: 'm4-photo', src: './landscape-banner.png',
+            id: 'm4-photo', src: './landscape-banner.jpg',
             x: 0, y: 540, w: 1920, h: 540,
             fit: 'cover', containerRadius: 0,
           }),
