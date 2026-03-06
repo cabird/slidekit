@@ -36,6 +36,7 @@ Quick-reference rules organized by category. Scan these before building a slide.
 
 ### Positioning
 
+- **If you're doing math to position elements, you're probably doing it wrong.** SlideKit provides declarative positioning APIs — `below()`, `rightOf()`, `centerVWith()`, `centerHWith()`, `alignTopWith()`, `alignBottomWith()`, `alignLeftWith()`, `alignRightWith()`, `centerIn()` — that handle relative placement using actual rendered dimensions. Manual arithmetic (e.g., `y: fy + (pillH - circSize) / 2`) assumes fixed sizes that break when content changes. Always reach for the API first. If no API exists for what you need, note the gap in the API Wish List at the bottom of this file.
 - Use `below()` / `rightOf()` chaining instead of manual y/x arithmetic.
 - Prefer `vstack` over chained `below()` when building a text column (5+ sequential text elements).
 - Use `centerVWith()` for labels placed next to taller elements (e.g., description text beside a large number).
@@ -1594,32 +1595,6 @@ el('<img src="./decorative.svg" style="width:100%;height:100%">', {
 **Key detail:** `flipH` applies `scaleX(-1)` and `flipV` applies `scaleY(-1)`. Both can be combined with `rotate` — transforms are applied in order: rotation first, then flip. These are SlideKit props, not CSS — do not use `style: { transform: 'scaleX(-1)' }` (transform is a blocked CSS property).
 
 **Pairs well with:** Symmetrical layouts (E3 corner brackets, I2 radial hub-spoke), decorative accent elements (K6 dots), process flow diagrams (G2) where arrows need to point both directions.
-
----
-
-### K9: Vertically Centering an Icon Next to a Pill/Card
-
-**Intent:** Align an icon circle to the vertical center of an adjacent pill or card element whose height is determined by content flow.
-
-**Problem:** When placing an icon circle next to a pill bar, manual math like `y: fy + (pillH - circSize) / 2` assumes the pill renders at exactly `pillH` pixels. But if the pill's height is determined by CSS content flow (text wrapping), the actual height may differ, causing the icon to be vertically misaligned.
-
-**Fix:** Use `centerVWith(refId)` to anchor the icon's vertical center to the pill's actual rendered vertical center:
-
-```javascript
-// ❌ Manual math — breaks if pill text wraps
-el(iconHtml, {
-  id: `icon${i}`, x: col.x, y: fy + (pillH - circSize) / 2, w: circSize, h: circSize,
-});
-
-// ✅ API-based — always correct regardless of pill height
-el(iconHtml, {
-  id: `icon${i}`, x: col.x, y: centerVWith(`pill${i}`), w: circSize, h: circSize,
-});
-```
-
-**General rule:** If you're computing placement relative to another element using manual arithmetic, first check if there's a positioning API (`centerVWith`, `centerHWith`, `alignTopWith`, `alignBottomWith`, `below`, `rightOf`, etc.) that handles it declaratively. The API accounts for actual rendered dimensions; manual math assumes fixed sizes.
-
-**Pairs well with:** K5 pill/capsule layouts, D4 numbered lists (same vertical-centering principle), any layout with mixed-height siblings.
 
 ---
 
