@@ -484,18 +484,26 @@ connect('n-b', 'n-c', { arrow: 'end', color: '#2196f3',
   label: 'SQL', labelStyle: { size: 14, color: '#aaa', font: 'monospace' } }),
 ```
 
-### 6. Glass Panel
+### 6. Transforms (Align + Distribute)
 
 ```js
-panel([
-  el('<h3 style="font:600 28px Inter;color:#fff">Glass Card</h3>', { w: 'fill' }),
-  el('<p style="font:400 20px Inter;color:#ccc">Content with blur.</p>', { w: 'fill' }),
-], {
-  id: 'glass-card', x: 120, y: 200, w: 500,
-  padding: 'lg', gap: 'sm', fill: 'rgba(255,255,255,0.06)', radius: 12,
-  border: '1px solid rgba(255,255,255,0.1)',
-  style: { backdropFilter: 'blur(12px)' },
-})
+// Three boxes aligned and evenly distributed across the safe zone
+export default {
+  id: 'transform-demo', background: '#0a0a1a',
+  elements: [
+    el('<p style="font:600 24px Inter;color:#fff;text-align:center">A</p>',
+      { id: 'box-a', x: safe.x, y: 300, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+    el('<p style="font:600 24px Inter;color:#fff;text-align:center">B</p>',
+      { id: 'box-b', x: 600, y: 350, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+    el('<p style="font:600 24px Inter;color:#fff;text-align:center">C</p>',
+      { id: 'box-c', x: 1200, y: 280, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+  ],
+  transforms: [
+    alignTop(['box-a', 'box-b', 'box-c']),          // snap all to same y
+    matchWidth(['box-a', 'box-b', 'box-c']),         // equalize widths
+    distributeH(['box-a', 'box-b', 'box-c']),        // even horizontal spacing
+  ],
+};
 ```
 
 ---
