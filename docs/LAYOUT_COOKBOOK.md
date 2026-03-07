@@ -206,11 +206,17 @@ A common and non-obvious failure: using your accent color for **both** text and 
 
 ## Cover Slide
 
-### Title / Cover
+### T1: Title / Cover
 
 **Intent:** Opening or closing slide with dramatic visual impact.
 
 **Visual:** Full-bleed background image (opacity-dimmed) with large centered headline and subtitle.
+
+**Variations:** Swap background for solid gradient or video still. Add a subtitle line with `below()` for event/date context.
+
+**Pairs well with:** J3 closing slide as bookend.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -222,8 +228,6 @@ el('<p style="font:700 80px Inter;color:#fff;text-align:center">Title</p>', {
 });
 ```
 
-**Pairs well with:** J3 closing slide as bookend.
-
 ---
 
 ## A: Split Layouts
@@ -234,16 +238,18 @@ el('<p style="font:700 80px Inter;color:#fff;text-align:center">Title</p>', {
 
 **Visual:** Two equal-width panels spanning the safe zone with a gap between them.
 
+**Variations:** Try ratios 0.4–0.6 for subtle asymmetry. Use panel child widths of `w - 48` (2 × padding) for inner content.
+
+**Pairs well with:** `vstack` for text columns, `panel` for contained sections.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.5, gap: 40 });
 panel([...], { id: 'left-panel', x: left.x, y: below('title', 'lg'), w: left.w, padding: 'md', gap: 'sm', fill: C.surface, radius: 12 });
 panel([...], { id: 'right-panel', x: right.x, y: below('title', 'lg'), w: right.w, ... });
 ```
-
-**Variations:** Try ratios 0.4–0.6 for subtle asymmetry. Use panel child widths of `w - 48` (2 × padding) for inner content.
-
-**Pairs well with:** `vstack` for text columns, `panel` for contained sections.
 
 ---
 
@@ -253,6 +259,12 @@ panel([...], { id: 'right-panel', x: right.x, y: below('title', 'lg'), w: right.
 
 **Visual:** Left column contains navigation/ToC panel; right column has title + body paragraphs.
 
+**Variations:** Ratios 0.25–0.40 for sidebar. Place sidebar on either side.
+
+**Pairs well with:** `panel` for sidebar, chained `below()` for body paragraphs.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.35, gap: 40 });
@@ -260,10 +272,6 @@ panel([...nav items...], { id: 'sidebar', x: left.x, y: safe.y, w: left.w, paddi
 el('...title...', { id: 'main-title', x: right.x, y: safe.y, w: right.w });
 el('...body...', { id: 'body', x: right.x, y: below('main-title', 'md'), w: right.w });
 ```
-
-**Variations:** Ratios 0.25–0.40 for sidebar. Place sidebar on either side.
-
-**Pairs well with:** `panel` for sidebar, chained `below()` for body paragraphs.
 
 ---
 
@@ -273,6 +281,12 @@ el('...body...', { id: 'body', x: right.x, y: below('main-title', 'md'), w: righ
 
 **Visual:** `figure()` fills the left column; right column has eyebrow → title → body → stat chain.
 
+**Variations:** Ratio 0.40–0.50 depending on image importance. Add stat callout at bottom.
+
+**Pairs well with:** `figure`, `below()` chains for text hierarchy.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.45, gap: 40 });
@@ -281,10 +295,6 @@ el('...eyebrow...', { id: 'eyebrow', x: right.x, y: safe.y, w: right.w });
 el('...title...', { id: 'title', x: right.x, y: below('eyebrow', 'sm'), w: right.w });
 ```
 
-**Variations:** Ratio 0.40–0.50 depending on image importance. Add stat callout at bottom.
-
-**Pairs well with:** `figure`, `below()` chains for text hierarchy.
-
 ---
 
 ### A4: Text Left, Image Right
@@ -292,6 +302,12 @@ el('...title...', { id: 'title', x: right.x, y: below('eyebrow', 'sm'), w: right
 **Intent:** Narrative-first layout where text leads and image supports.
 
 **Visual:** Left column has title → body → inline stats; right column is a full-height `figure()`.
+
+**Variations:** Ratio 0.50–0.60 for text column. Omit stats for a simpler text-plus-image layout.
+
+**Pairs well with:** `rightOf()` for side-by-side stat columns, `below()` for vertical chains.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -305,8 +321,6 @@ el('...stat2-lbl...', { id: 'stat2-lbl', x: rightOf('stat1-lbl', 40), y: below('
 figure({ id: 'photo', src: './image.png', x: right.x, y: safe.y, w: right.w, h: right.h, fit: 'cover', containerRadius: 12 });
 ```
 
-**Pairs well with:** `rightOf()` for side-by-side stat columns, `below()` for vertical chains.
-
 ---
 
 ### A5: Narrow Sidebar (20/80)
@@ -315,16 +329,18 @@ figure({ id: 'photo', src: './image.png', x: right.x, y: safe.y, w: right.w, h: 
 
 **Visual:** Thin 20% column with portrait `figure()`; 80% column has name → role → bio.
 
+**Variations:** 0.15–0.25 for sidebar width. Good for accent color strips too.
+
+**Pairs well with:** `figure` for portraits, `below()` for text chain.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.20, gap: 'lg' });
 figure({ id: 'portrait', src: './portrait.png', x: left.x, y: safe.y, w: left.w, h: left.h, fit: 'cover', containerRadius: 12 });
 el('...name...', { id: 'name', x: right.x, y: safe.y, w: right.w });
 ```
-
-**Variations:** 0.15–0.25 for sidebar width. Good for accent color strips too.
-
-**Pairs well with:** `figure` for portraits, `below()` for text chain.
 
 ---
 
@@ -333,6 +349,12 @@ el('...name...', { id: 'name', x: right.x, y: safe.y, w: right.w });
 **Intent:** Bridging two concepts with a floating card that crosses the split boundary.
 
 **Visual:** No-gap 50/50 split (panel bg left, image right) with a centered card overlapping both.
+
+**Variations:** Adjust overlap card width (400–700px) and vertical position for different emphasis. Try asymmetric splits (40/60) with the card bridging the boundary.
+
+**Pairs well with:** `shadow: 'xl'` for depth, `border` for edge definition.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -347,8 +369,6 @@ panel([...], { id: 'overlap-card', x: overlapX, y: safe.y + safe.h / 2 - 100, w:
 
 **Key detail:** Use `z: 10` on the overlap card to ensure it renders above both halves. Use `gap: 0` in splitRect.
 
-**Pairs well with:** `shadow: 'xl'` for depth, `border` for edge definition.
-
 ---
 
 ## B: Full-Bleed / Hero
@@ -358,6 +378,10 @@ panel([...], { id: 'overlap-card', x: overlapX, y: safe.y + safe.h / 2 - 100, w:
 **Intent:** Dramatic hero moment with photo-driven storytelling.
 
 **Visual:** Full-screen image on `bg` layer; large headline and subtitle in lower-left safe zone.
+
+**Variations:** Place text in any corner by adjusting x/y within the safe zone. Use opacity 0.5–0.8 depending on image brightness.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -377,6 +401,10 @@ el('...subtitle...', { id: 'subtitle', x: safe.x, y: below('headline', 'sm'), w:
 **Intent:** Background image remains visible while ensuring text readability.
 
 **Visual:** Image on `bg` layer, gradient div on `overlay` layer fading from transparent to dark at bottom, text over it.
+
+**Variations:** Change gradient direction (`to right`, `to bottom`) to place text in different regions. Adjust opacity stops for stronger or subtler fade.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -400,6 +428,10 @@ el('...body...', { id: 'body', x: safe.x, y: below('title', 'sm'), w: 900 });
 
 **Visual:** Full image on `bg`; two solid black bars (top 160px, bottom 160px) on `overlay`; centered text in the visible strip.
 
+**Variations:** Adjust bar height (120–200px) for more/less cinematic ratio.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const strip = { x: 0, y: 160, w: 1920, h: 760 };
@@ -410,8 +442,6 @@ el('...title...', { id: 'title', x: 960, y: centerIn(strip).y, w: 1400, anchor: 
 el('...subtitle...', { id: 'subtitle', x: 960, y: below('title', 'sm'), w: 1400, anchor: 'tc' });
 ```
 
-**Variations:** Adjust bar height (120–200px) for more/less cinematic ratio.
-
 ---
 
 ### B4: Dramatic Typography
@@ -419,6 +449,12 @@ el('...subtitle...', { id: 'subtitle', x: 960, y: below('title', 'sm'), w: 1400,
 **Intent:** Pure typographic impact — no images, just words.
 
 **Visual:** Centered accent line → oversized headline (96px) → supporting text, all center-aligned.
+
+**Variations:** Font sizes 72–120px for headline. Use `<br>` for deliberate line breaks.
+
+**Pairs well with:** Accent-colored decorative lines, centered layout.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -434,10 +470,6 @@ el('<p style="font:400 28px Inter;...;text-align:center">Supporting text here.</
 });
 ```
 
-**Variations:** Font sizes 72–120px for headline. Use `<br>` for deliberate line breaks.
-
-**Pairs well with:** Accent-colored decorative lines, centered layout.
-
 ---
 
 ### B5: Full-Bleed + Inset Card
@@ -445,6 +477,10 @@ el('<p style="font:400 28px Inter;...;text-align:center">Supporting text here.</
 **Intent:** Call-to-action or key takeaway floating over imagery.
 
 **Visual:** Dimmed background image; centered floating panel with title, body, and CTA.
+
+**Variations:** Adjust card width (500–900px) for different content density. Offset card from center for asymmetric emphasis.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -470,6 +506,10 @@ panel([...], {
 
 **Visual:** Title at top; two equal panels in a content area below.
 
+**Variations:** Adjust ratio (0.4–0.6) for unequal card widths. Add a third row below for supplementary content.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const contentY = safe.y + 70 + 32;
@@ -488,6 +528,10 @@ panel([...], { id: 'card2', x: right.x, y: right.y, w: right.w, ... });
 **Intent:** Three equal feature/option cards in a row.
 
 **Visual:** Title → three evenly spaced panels with icon, title, and description each.
+
+**Variations:** Increase gap (32–48px) for breathing room or decrease (16–24px) for compact layouts. Add accent top-border per card for color coding.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -515,6 +559,10 @@ cards.map(c => panel([
 
 **Visual:** Four narrow panels with large number, label, and description.
 
+**Variations:** Use 3 or 5 columns by adjusting the formula. Add colored top-border accents per card for visual distinction.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const gap = 24;
@@ -540,6 +588,10 @@ hstack(items.map((item, i) => {
 
 **Visual:** 60% left column with one tall card (image + text); 40% right column with two stacked cards.
 
+**Variations:** Swap sides (large card right, small cards left). Use ratio 0.55–0.70 depending on image prominence. Try 1+3 with three stacked cards.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.6, gap: 'lg' });
@@ -559,6 +611,12 @@ panel([...], { id: 'small2', x: right.x, y: safe.y + smallCardH + 32, w: right.w
 
 **Visual:** 4 columns x 2 rows of icon + label cells using `group()`.
 
+**Variations:** Change to 3x2 or 5x2 grid by adjusting `cols`. Add a short description line below each label for more detail.
+
+**Pairs well with:** `group()` to bundle icon + label as a positioned unit.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const cols = 4, rows = 2, iconSize = 80, cellGap = 24;
@@ -576,8 +634,6 @@ items.map((label, i) => {
 });
 ```
 
-**Pairs well with:** `group()` to bundle icon + label as a positioned unit.
-
 ---
 
 ## D: Stacked / Sequential
@@ -587,6 +643,10 @@ items.map((label, i) => {
 **Intent:** Simple top-to-bottom content flow — eyebrow, headline, body, divider, footer.
 
 **Visual:** `vstack` auto-positions children vertically with consistent gap.
+
+**Variations:** Adjust gap (`'sm'` to `'xl'`) for tighter or looser stacking. Use `vAlign: 'center'` with explicit `h` for vertically centered content.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -610,6 +670,10 @@ vstack([
 
 **Visual:** Title, then repeating: divider, section title, description, all chained with `below()`.
 
+**Variations:** Use accent-colored dividers instead of neutral ones. Vary divider width (full-width vs. short centered rule) for different feels.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 sections.forEach((sec, i) => {
@@ -632,6 +696,10 @@ sections.forEach((sec, i) => {
 **Intent:** Chronological milestones with alternating left/right entries.
 
 **Visual:** Central vertical spine with dots at each milestone; entries alternate sides.
+
+**Variations:** Place all entries on one side for a simpler layout. Adjust entry spacing (120–200px) based on content length.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -657,6 +725,10 @@ connect('dot0', 'dotN', { type: 'straight', fromAnchor: 'bc', toAnchor: 'tc', co
 **Intent:** Ordered items with bold number callouts and aligned descriptions.
 
 **Visual:** Large numbers on left, description text vertically centered beside each number.
+
+**Variations:** Use accent-colored numbers with muted description text. Try circled numbers (panel with `radius: 9999`) for a different style.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -684,6 +756,10 @@ items.forEach((item, i) => {
 
 **Visual:** Full-bleed textured bg image; centered panel with rgba semi-transparent fill for frosted-glass effect.
 
+**Variations:** Adjust blur (10–30px) and opacity (0.7–0.85) for different glass effects. Position panel off-center for asymmetric compositions.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 el('<img src="./texture.png" style="width:100%;height:100%;object-fit:cover;opacity:0.5">', {
@@ -706,6 +782,10 @@ panel([...title, body...], {
 
 **Visual:** Three cards with increasing x/y offsets and z-index, creating a staircase effect.
 
+**Variations:** Change offset direction (right-to-left, bottom-to-top) for different cascade effects. Use 2–5 cards depending on content density.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const baseX = safe.x + 300, baseY = safe.y + 100;
@@ -727,6 +807,12 @@ cards.map((card, i) => panel([...], {
 
 **Visual:** L-shaped accent brackets at four corners on the overlay layer; centered headline and body inside.
 
+**Variations:** Adjust bracket size (40–80px) and thickness (2–4px). Use only two corners (top-left + bottom-right) for a diagonal emphasis.
+
+**Pairs well with:** Centered text content with extra inset margins.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 function bracket(cornerId, x, y, bottomH, rightV) {
@@ -745,8 +831,6 @@ bracket('bl', 160, 1080 - 120 - 60, true, false);
 bracket('br', 1920 - 160 - 60, 1080 - 120 - 60, true, true);
 ```
 
-**Pairs well with:** Centered text content with extra inset margins.
-
 ---
 
 ### E4: Full-Bleed + Floating Islands
@@ -754,6 +838,10 @@ bracket('br', 1920 - 160 - 60, 1080 - 120 - 60, true, true);
 **Intent:** Scattered stat/metric cards floating over a hero image.
 
 **Visual:** Dimmed bg image; 3 independently positioned panels showing different KPIs at different positions.
+
+**Variations:** Use 2–5 islands depending on data density. Vary island widths (300–500px) for visual hierarchy.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -778,6 +866,12 @@ panel([...], { id: 'island3', x: 700, y: 640, w: 460, ... });
 
 **Visual:** Oversized decorative `"` glyph (low opacity, overlay layer) → centered italic quote → right-aligned attribution.
 
+**Variations:** Adjust quote font size (28–44px) based on quote length. Omit decorative glyph for a cleaner look.
+
+**Pairs well with:** Decorative accent glyphs at very low opacity on the overlay layer.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 el('<p style="font:700 180px Inter;color:rgba(0,212,255,0.15);line-height:1">\u201C</p>', {
@@ -791,8 +885,6 @@ el('<p style="font:600 22px ...;text-align:right">— Attribution</p>', {
 });
 ```
 
-**Pairs well with:** Decorative accent glyphs at very low opacity on the overlay layer.
-
 ---
 
 ### F2: Asymmetric Pull Quote
@@ -800,6 +892,10 @@ el('<p style="font:600 22px ...;text-align:right">— Attribution</p>', {
 **Intent:** Editorial-style quote with separate attribution block.
 
 **Visual:** 65/35 split — italic quote on left, vertical accent divider, name/role/company stack on right (vertically centered).
+
+**Variations:** Flip the split (attribution left, quote right). Adjust ratio (0.55–0.70) based on quote length.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -824,6 +920,10 @@ vstack([...name, role, company...], {
 
 **Visual:** Huge accent-colored number (160px) centered, with label and context below.
 
+**Variations:** Font sizes 120–200px for the number. Use `letter-spacing: -4px` for tight numerals. Add a context line for extra depth.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 el('<p style="font:700 160px Inter;color:#00d4ff;text-align:center;letter-spacing:-4px;line-height:1">4.2B</p>', {
@@ -837,8 +937,6 @@ el('<p style="font:400 24px ...;text-align:center">Context sentence about the me
 });
 ```
 
-**Variations:** Font sizes 120–200px for the number. Use `letter-spacing: -4px` for tight numerals. Add a context line for extra depth.
-
 ---
 
 ### F4: Multi-Stat Row (4 Statistics)
@@ -846,6 +944,12 @@ el('<p style="font:400 24px ...;text-align:center">Context sentence about the me
 **Intent:** Dashboard-style row of 4 KPI columns.
 
 **Visual:** Centered title → four evenly spaced columns each with value, unit, and label.
+
+**Variations:** Use 2–6 columns by adjusting `cols`. Add divider lines between columns for visual separation.
+
+**Pairs well with:** `group()` with `bounds: 'hug'` for bundling stat columns with internal `below()` chains.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -861,8 +965,6 @@ stats.map((stat, i) => {
 });
 ```
 
-**Pairs well with:** `group()` with `bounds: 'hug'` for bundling stat columns with internal `below()` chains.
-
 ---
 
 ### F5: Title Hierarchy
@@ -870,6 +972,10 @@ stats.map((stat, i) => {
 **Intent:** Demonstrate/use typographic scale — eyebrow, title, subtitle, body.
 
 **Visual:** `vstack` with progressively larger/smaller text establishing visual hierarchy.
+
+**Variations:** Use left-aligned or center-aligned text. Constrain body width to 60–70% of safe width for better readability.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -892,6 +998,10 @@ vstack([
 **Intent:** Visualize proportional data as horizontal bars with labels and values.
 
 **Visual:** Left-aligned labels → background bar → proportional colored bar → value text.
+
+**Variations:** Use different bar colors per row for categorical data. Add animated grow effect by varying bar widths across slides.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -919,6 +1029,10 @@ bars.flatMap((bar, i) => {
 
 **Visual:** 4 evenly spaced step panels connected by curved arrows.
 
+**Variations:** Use 3–6 steps by adjusting `boxW`. Try vertical flow with `fromAnchor: 'bc'` / `toAnchor: 'tc'` for top-to-bottom processes.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const boxW = 280;
@@ -944,6 +1058,10 @@ steps.slice(0, -1).map((_, i) =>
 **Intent:** Side-by-side feature comparison (e.g., Free vs Pro tiers).
 
 **Visual:** Two columns with header row and alternating-background data rows.
+
+**Variations:** Add a third column for 3-tier comparisons. Use checkmark/cross icons instead of text values for feature matrices.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -974,6 +1092,10 @@ rows.flatMap((row, i) => {
 **Intent:** Four metric cards in a 2x2 grid with values, labels, and trends.
 
 **Visual:** Title → 2x2 grid of panels, each with emoji indicator, large value, label, and trend arrow.
+
+**Variations:** Use 3x2 for six metrics or 1x4 for a single-row dashboard. Add colored left-border accents per card to indicate status (green/yellow/red).
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1008,6 +1130,12 @@ metrics.map((m, i) => {
 
 **Visual:** Title → three equal-width `figure()`s with centered caption text below each.
 
+**Variations:** Use 2 or 4 images by adjusting `cols`. Vary image heights (300–600px) for different aspect ratios.
+
+**Pairs well with:** `below()` for caption placement relative to image.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const cols = 3, colGap = 24;
@@ -1021,8 +1149,6 @@ images.flatMap((img, i) => {
 });
 ```
 
-**Pairs well with:** `below()` for caption placement relative to image.
-
 ---
 
 ### H2: Hero Image + Text at Bottom
@@ -1030,6 +1156,10 @@ images.flatMap((img, i) => {
 **Intent:** Visual-first slide with text bar below the image.
 
 **Visual:** Full-width `figure()` (0-780px), gradient fade bar, title and description below.
+
+**Variations:** Adjust image height (600–850px) to control image-to-text ratio. Place text bar at top instead for a different emphasis.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1050,6 +1180,12 @@ el('...desc...', { id: 'desc', x: safe.x, y: below('title', 'sm'), w: safe.w * 0
 
 **Visual:** Full-width `figure()` taking 60% of safe height; `vstack` caption with title + body below.
 
+**Variations:** Adjust image height ratio (0.4–0.7 of safe height). Place caption alongside the image using `splitRect` for a side-by-side variant.
+
+**Pairs well with:** `vstack` for multi-element captions.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 figure({ id: 'photo', src: './image.png', x: safe.x, y: safe.y, w: safe.w, h: safe.h * 0.6, fit: 'cover', containerRadius: 16 });
@@ -1059,8 +1195,6 @@ vstack([
 ], { id: 'cap-stack', x: safe.x, y: below('photo', 'md'), w: safe.w, gap: 12 });
 ```
 
-**Pairs well with:** `vstack` for multi-element captions.
-
 ---
 
 ### H4: Before / After
@@ -1068,6 +1202,10 @@ vstack([
 **Intent:** Side-by-side comparison of two states with labels.
 
 **Visual:** 50/50 split with "Before" / "After" labels, full-height images, and a thin divider line.
+
+**Variations:** Use red/green label accents for negative/positive connotation. Add a "Change" callout panel overlapping the divider for emphasis.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1090,6 +1228,10 @@ figure({ id: 'img-after', src: './after.png', x: colR.x, y: imgY, w: colR.w, h: 
 **Intent:** Minimal content island in generous whitespace for emphasis.
 
 **Visual:** Small panel (600px wide) perfectly centered on the full canvas; contains decorative line, quote, attribution.
+
+**Variations:** Adjust island width (400–800px) based on content length. Use a subtle background gradient instead of solid fill for depth.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1115,6 +1257,10 @@ panel([
 **Intent:** Ecosystem or platform overview with central hub and satellite nodes.
 
 **Visual:** Central circular panel with radiating spoke panels arranged via trigonometry; dashed connectors.
+
+**Variations:** Use 4–8 spokes (prefer even numbers for symmetry). Adjust radius (200–350px) for tighter or looser arrangement.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1143,6 +1289,12 @@ spokes.map((s, i) => connect('hub', `spoke${i}`, { type: 'straight', color: s.co
 
 **Visual:** 30% tall portrait image on left; pull quote + body text on right; small detail image in bottom-right corner.
 
+**Variations:** Swap image to right side. Adjust image width (25–40% of safe width) for different text-to-image ratios.
+
+**Pairs well with:** Manual asymmetric positioning (no splitRect) for editorial feel.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 const imgW = Math.round(safe.w * 0.3);
@@ -1154,8 +1306,6 @@ el('...body text...', { id: 'body', x: rightX, y: below('pullquote', 40), w: rig
 figure({ id: 'detail', src: './detail.png', x: rightX + rightW - 200, y: safe.y + safe.h - 200, w: 180, h: 180, fit: 'cover', containerRadius: 12 });
 ```
 
-**Pairs well with:** Manual asymmetric positioning (no splitRect) for editorial feel.
-
 ---
 
 ## J: Utility
@@ -1165,6 +1315,10 @@ figure({ id: 'detail', src: './detail.png', x: rightX + rightW - 200, y: safe.y 
 **Intent:** Visual break between major sections with bold numbering.
 
 **Visual:** Huge semi-transparent section number on bg layer; centered title, accent line, and subtitle.
+
+**Variations:** Use a word (e.g., section name) instead of a number for the background watermark. Omit subtitle for a cleaner divider.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1186,6 +1340,10 @@ el('...subtitle...', { id: 'sub', x: safe.x, y: below('accent-line', 28), w: saf
 **Intent:** Structured agenda with numbered items, dot leaders, and times.
 
 **Visual:** Rows of: number, title, dot leader, time -- all on the same baseline.
+
+**Variations:** Omit dot leaders for a cleaner look. Highlight the current agenda item with an accent background or border.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1213,6 +1371,10 @@ items.flatMap((item, i) => {
 
 **Visual:** Background figure + dark overlay on `bg` layer; large "Thank You" text, accent line, contact info.
 
+**Variations:** Use a solid gradient background instead of an image. Add social media icons or QR code below contact info.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 figure({ id: 'bg', src: './hero.png', x: 0, y: 0, w: 1920, h: 1080, fit: 'cover', layer: 'bg' });
@@ -1233,6 +1395,10 @@ el('...contact info...', { id: 'contact', x: safe.x, y: below('line', 'md'), w: 
 **Intent:** Row of team member cards with avatar, name, role, and bio.
 
 **Visual:** 3 equal-width panels, each with circular avatar figure, name, role, divider, bio.
+
+**Variations:** Use 2 or 4 cards by adjusting `cols`. Add social links or email below bio for contact details.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1392,6 +1558,10 @@ These are advanced styling techniques that go beyond the core 45 patterns above.
 
 **Visual:** A frosted-glass panel with subtle border and blurred backdrop, floating over gradient or image backgrounds.
 
+**Variations:** Adjust opacity (0.08–0.18) and blur (10px–30px) for subtlety. Works best over colorful or gradient backgrounds.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 panel([], {
@@ -1406,8 +1576,6 @@ panel([], {
 });
 ```
 
-**Variations:** Adjust opacity (0.08–0.18) and blur (10px–30px) for subtlety. Works best over colorful or gradient backgrounds.
-
 ---
 
 ### K2: Gradient Orb Background System
@@ -1416,14 +1584,16 @@ panel([], {
 
 **Visual:** Multiple blurred radial gradients positioned at various spots, creating a glowing, atmospheric depth effect.
 
+**Variations:** Use 2–4 orbs with different colors and positions. Lower opacity (0.2–0.4) keeps them atmospheric. Great as a replacement for solid-color backgrounds.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 el('<div style="width:100%;height:100%;border-radius:50%;background:radial-gradient(circle,#7c3aed,#4f46e5,transparent);filter:blur(60px);opacity:0.4">', {
  id: 'orb-1', x: 200, y: 100, w: 600, h: 600, layer: 'bg'
 });
 ```
-
-**Variations:** Use 2–4 orbs with different colors and positions. Lower opacity (0.2–0.4) keeps them atmospheric. Great as a replacement for solid-color backgrounds.
 
 ---
 
@@ -1432,6 +1602,10 @@ el('<div style="width:100%;height:100%;border-radius:50%;background:radial-gradi
 **Intent:** Divide the slide into visually distinct zones, each with its own color and content.
 
 **Visual:** 3+ full-height vertical columns, each with its own background color, creating a "3 mini-slides in one" effect.
+
+**Variations:** Works well for roadmaps (past/present/future), category comparisons, or team sections. Add subtle gradient transitions between columns for a smoother look.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1445,8 +1619,6 @@ for (let i = 0; i < cols; i++) {
 }
 ```
 
-**Variations:** Works well for roadmaps (past/present/future), category comparisons, or team sections. Add subtle gradient transitions between columns for a smoother look.
-
 ---
 
 ### K4: CSS Texture Overlay (Blueprint/Grid Pattern)
@@ -1455,14 +1627,16 @@ for (let i = 0; i < cols; i++) {
 
 **Visual:** Repeating CSS pattern (stripes, dots, grid) overlaid on the background to evoke technical drawings, graph paper, or fabric textures.
 
+**Variations:** Combine horizontal + vertical lines for a full grid. Use `repeating-radial-gradient` for dot patterns. Layer multiple patterns at different opacities for complexity.
+
+#### Implementation
+
 **Key code:**
 ```javascript
 el('<div style="width:100%;height:100%;background:repeating-linear-gradient(90deg,transparent,transparent 119px,rgba(255,255,255,0.3) 119px,rgba(255,255,255,0.3) 120px)">', {
  id: 'grid-overlay', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg'
 });
 ```
-
-**Variations:** Combine horizontal + vertical lines for a full grid. Use `repeating-radial-gradient` for dot patterns. Layer multiple patterns at different opacities for complexity.
 
 ---
 
@@ -1471,6 +1645,10 @@ el('<div style="width:100%;height:100%;background:repeating-linear-gradient(90de
 **Intent:** Softer, more organic alternative to rectangular cards and panels.
 
 **Visual:** Fully-rounded pill shapes used as containers, creating a flowing, modern aesthetic distinct from sharp-cornered cards.
+
+**Variations:** Combine small circle icons (radius: 9999, equal w/h) with pill-shaped text containers. Alternate left/right positioning for visual rhythm.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1481,8 +1659,6 @@ panel([], {
 });
 ```
 
-**Variations:** Combine small circle icons (radius: 9999, equal w/h) with pill-shaped text containers. Alternate left/right positioning for visual rhythm.
-
 ---
 
 ### K6: Decorative Accent Dots
@@ -1490,6 +1666,10 @@ panel([], {
 **Intent:** Break up large whitespace with minimal geometric elements.
 
 **Visual:** Small colored dots or circles positioned asymmetrically to add visual weight and balance without content.
+
+**Variations:** Use 2–4 dots in a cluster. Vary sizes (8–16px) and opacities. Position near content edges to create visual anchoring.
+
+#### Implementation
 
 **Key code:**
 ```javascript
@@ -1501,8 +1681,6 @@ el('<div style="width:100%;height:100%;border-radius:50%;background:#accent;opac
 });
 ```
 
-**Variations:** Use 2–4 dots in a cluster. Vary sizes (8–16px) and opacities. Position near content edges to create visual anchoring.
-
 ---
 
 ### K7: Crop-to-Shape via CSS clip-path
@@ -1510,6 +1688,12 @@ el('<div style="width:100%;height:100%;border-radius:50%;background:#accent;opac
 **Intent:** Crop images to circles, rounded rectangles, diamonds, or arbitrary polygons — achieving PowerPoint-like "crop to shape" effects using pure CSS.
 
 **Visual:** An image clipped to a non-rectangular shape, creating visual interest without editing the source file.
+
+**Variations:** Any shape is achievable via `polygon()`. Use an online clip-path generator to design complex shapes visually, then paste the value. Combine with `shadow` on a wrapper element for drop shadows on clipped shapes (shadows applied to the clipped element itself will be clipped away).
+
+**Pairs well with:** J4 team cards (circular avatars), A5 narrow sidebar (portrait crops), I3 magazine editorial (creative framing).
+
+#### Implementation
 
 **Key detail:** Always pair `clip-path` with `object-fit: cover` and explicit `w`/`h` on the element. Without `object-fit: cover`, the image may letterbox inside the clipped shape. Without explicit dimensions, the clip region is unpredictable.
 
@@ -1542,10 +1726,6 @@ el('<img src="./banner.jpg" style="width:100%;height:100%;object-fit:cover;clip-
 });
 ```
 
-**Variations:** Any shape is achievable via `polygon()`. Use an online clip-path generator to design complex shapes visually, then paste the value. Combine with `shadow` on a wrapper element for drop shadows on clipped shapes (shadows applied to the clipped element itself will be clipped away).
-
-**Pairs well with:** J4 team cards (circular avatars), A5 narrow sidebar (portrait crops), I3 magazine editorial (creative framing).
-
 ---
 
 ### K8: Flip Horizontal / Vertical
@@ -1553,6 +1733,12 @@ el('<img src="./banner.jpg" style="width:100%;height:100%;object-fit:cover;clip-
 **Intent:** Mirror elements horizontally or vertically using SlideKit's `flipH` and `flipV` props — useful for creating symmetrical designs, reversing directional icons, or decorative mirrored pairs.
 
 **Visual:** An element rendered as its mirror image along the horizontal or vertical axis.
+
+**Variations:** Combine `flipH` and `flipV` together for a 180-degree rotation effect. Use with `opacity` for reflection-style designs.
+
+**Pairs well with:** Symmetrical layouts (E3 corner brackets, I2 radial hub-spoke), decorative accent elements (K6 dots), process flow diagrams (G2) where arrows need to point both directions.
+
+#### Implementation
 
 **Mirror an image horizontally:**
 ```javascript
@@ -1593,8 +1779,6 @@ el('<img src="./decorative.svg" style="width:100%;height:100%">', {
 ```
 
 **Key detail:** `flipH` applies `scaleX(-1)` and `flipV` applies `scaleY(-1)`. Both can be combined with `rotate` — transforms are applied in order: rotation first, then flip. These are SlideKit props, not CSS — do not use `style: { transform: 'scaleX(-1)' }` (transform is a blocked CSS property).
-
-**Pairs well with:** Symmetrical layouts (E3 corner brackets, I2 radial hub-spoke), decorative accent elements (K6 dots), process flow diagrams (G2) where arrows need to point both directions.
 
 ---
 
