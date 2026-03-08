@@ -27,6 +27,8 @@ export interface DebugOverlayOptions {
   showCollisions?: boolean;
   /** Show constraint/stack relationship arrows. Default: true. */
   showRelationships?: boolean;
+  /** Show the inspector panel sidebar. Default: true. */
+  showInspector?: boolean;
   /** Which slide to overlay (0-based). Default: 0. */
   slideIndex?: number;
 }
@@ -78,6 +80,12 @@ const TYPE_BORDER_COLORS: Record<DebugElementType, string> = {
 let _debugOverlay: HTMLDivElement | null = null;
 let _keyboardListenerAttached = false;
 let _lastToggleOptions: DebugOverlayOptions = {};
+
+// Inspector panel state
+let _inspectorPanel: HTMLDivElement | null = null;
+let _selectedElementId: string | null = null;
+let _clickHandlerAttached = false;
+let _currentSlideIndex = 0;
 
 /**
  * Current debug mode for keyboard cycling.
@@ -337,6 +345,20 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
   targetLayer.appendChild(overlay);
   _debugOverlay = overlay;
 
+  // Inspector panel
+  const showInspector = options.showInspector !== false;
+  if (showInspector) {
+    _currentSlideIndex = slideIndex;
+    _createInspectorPanel();
+    _attachClickHandler();
+
+    // Re-render previously selected element if any
+    if (_selectedElementId && sceneElements[_selectedElementId]) {
+      _renderElementDetail(_selectedElementId, slideIndex);
+      _updateSelectionHighlight(_selectedElementId, slideIndex);
+    }
+  }
+
   return overlay;
 }
 
@@ -346,6 +368,8 @@ export function removeDebugOverlay(): void {
     _debugOverlay.parentNode.removeChild(_debugOverlay);
   }
   _debugOverlay = null;
+  _removeInspectorPanel();
+  _detachClickHandler();
 }
 
 /** Check if a debug overlay is currently visible. */
@@ -602,6 +626,395 @@ function _buildRelationshipSVG(
 }
 
 // =============================================================================
+// Inspector Panel
+// =============================================================================
+
+/** Solid badge colors for provenance sources. */
+const PROVENANCE_COLORS: Record<string, string> = {
+  authored:   "#34a853",  // green
+  constraint: "#ff8c32",  // orange
+  stack:      "#a078ff",  // purple
+  measured:   "#4285f4",  // blue
+  transform:  "#fbc02d",  // yellow
+  default:    "#999",     // gray
+};
+
+/** Solid badge colors for element types. */
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  el:        "#4285f4",
+  text:      "#4285f4",
+  image:     "#34a853",
+  rect:      "#fbc004",
+  rule:      "#ea4335",
+  group:     "#7c5cbf",
+  vstack:    "#7c5cbf",
+  hstack:    "#7c5cbf",
+  connector: "#00bcd4",
+  panel:     "#7c5cbf",
+};
+
+/** Handle click events for element inspection. */
+function _handleInspectorClick(event: MouseEvent): void {
+  // Only act when debug overlay is visible
+  if (!_debugOverlay) return;
+
+  // Don't deselect when clicking inside the inspector panel
+  const target = event.target as HTMLElement;
+  if (target && target.closest('[data-sk-role="debug-inspector"]')) return;
+
+  // Walk up from target to find a data-sk-id element
+  const skEl = target?.closest('[data-sk-id]');
+  if (skEl) {
+    const id = skEl.getAttribute('data-sk-id');
+    if (id) {
+      _selectedElementId = id;
+      _renderElementDetail(id, _currentSlideIndex);
+      _updateSelectionHighlight(id, _currentSlideIndex);
+      return;
+    }
+  }
+
+  // Clicked empty space → deselect
+  _selectedElementId = null;
+  _renderEmptyState();
+  _updateSelectionHighlight(null, _currentSlideIndex);
+}
+
+/** Attach the click handler for the inspector. */
+function _attachClickHandler(): void {
+  if (_clickHandlerAttached) return;
+  document.addEventListener("click", _handleInspectorClick, true);
+  _clickHandlerAttached = true;
+}
+
+/** Detach the click handler for the inspector. */
+function _detachClickHandler(): void {
+  if (!_clickHandlerAttached) return;
+  document.removeEventListener("click", _handleInspectorClick, true);
+  _clickHandlerAttached = false;
+}
+
+/** Create and append the inspector panel to document.body. */
+function _createInspectorPanel(): HTMLDivElement {
+  const panel = document.createElement("div");
+  panel.setAttribute("data-sk-role", "debug-inspector");
+  panel.style.position = "fixed";
+  panel.style.top = "0";
+  panel.style.right = "0";
+  panel.style.width = "380px";
+  panel.style.height = "100vh";
+  panel.style.background = "rgba(20, 20, 28, 0.97)";
+  panel.style.color = "#e0e0e0";
+  panel.style.fontFamily = "'SF Mono', 'Fira Code', 'Consolas', monospace";
+  panel.style.fontSize = "12px";
+  panel.style.zIndex = "99999";
+  panel.style.overflowY = "auto";
+  panel.style.borderLeft = "1px solid rgba(255,255,255,0.1)";
+  panel.style.boxSizing = "border-box";
+
+  // Header
+  const header = document.createElement("div");
+  header.style.padding = "12px 16px";
+  header.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+  header.style.fontSize = "14px";
+  header.style.fontWeight = "600";
+  header.style.color = "#fff";
+  header.textContent = "Inspector";
+  panel.appendChild(header);
+
+  // Body (content area)
+  const body = document.createElement("div");
+  body.setAttribute("data-sk-inspector-body", "true");
+  body.style.padding = "8px 0";
+  panel.appendChild(body);
+
+  document.body.appendChild(panel);
+  _inspectorPanel = panel;
+
+  _renderEmptyState();
+
+  return panel;
+}
+
+/** Remove the inspector panel from DOM. */
+function _removeInspectorPanel(): void {
+  if (_inspectorPanel && _inspectorPanel.parentNode) {
+    _inspectorPanel.parentNode.removeChild(_inspectorPanel);
+  }
+  _inspectorPanel = null;
+}
+
+/** Show the empty state message in the panel body. */
+function _renderEmptyState(): void {
+  const body = _inspectorPanel?.querySelector('[data-sk-inspector-body]');
+  if (!body) return;
+  body.innerHTML = '';
+  const msg = document.createElement("div");
+  msg.style.padding = "24px 16px";
+  msg.style.color = "rgba(255,255,255,0.4)";
+  msg.style.textAlign = "center";
+  msg.style.fontStyle = "italic";
+  msg.textContent = "Click an element to inspect";
+  body.appendChild(msg);
+}
+
+/** Create a collapsible section for the inspector. */
+function _createSection(title: string, content: HTMLElement, collapsed = false): HTMLElement {
+  const section = document.createElement("div");
+  section.setAttribute("data-sk-inspector-section", title);
+  section.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
+
+  // Header
+  const hdr = document.createElement("div");
+  hdr.style.padding = "8px 16px";
+  hdr.style.cursor = "pointer";
+  hdr.style.display = "flex";
+  hdr.style.alignItems = "center";
+  hdr.style.userSelect = "none";
+  hdr.style.fontSize = "11px";
+  hdr.style.fontWeight = "600";
+  hdr.style.textTransform = "uppercase";
+  hdr.style.letterSpacing = "0.5px";
+  hdr.style.color = "rgba(255,255,255,0.6)";
+
+  const chevron = document.createElement("span");
+  chevron.setAttribute("data-sk-inspector-chevron", "true");
+  chevron.textContent = collapsed ? "\u25B6" : "\u25BC";
+  chevron.style.marginRight = "6px";
+  chevron.style.fontSize = "9px";
+  hdr.appendChild(chevron);
+
+  const titleSpan = document.createElement("span");
+  titleSpan.textContent = title;
+  hdr.appendChild(titleSpan);
+  section.appendChild(hdr);
+
+  // Content
+  const contentWrap = document.createElement("div");
+  contentWrap.setAttribute("data-sk-inspector-content", "true");
+  contentWrap.style.padding = "0 16px 8px";
+  contentWrap.style.display = collapsed ? "none" : "block";
+  contentWrap.appendChild(content);
+  section.appendChild(contentWrap);
+
+  // Toggle
+  hdr.addEventListener("click", () => {
+    const isHidden = contentWrap.style.display === "none";
+    contentWrap.style.display = isHidden ? "block" : "none";
+    chevron.textContent = isHidden ? "\u25BC" : "\u25B6";
+  });
+
+  return section;
+}
+
+/** Escape HTML special characters. */
+function _escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Build a colored badge span. */
+function _badge(text: string, color: string): string {
+  return `<span style="display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:${color};color:#fff;margin-left:4px;">${_escapeHtml(text)}</span>`;
+}
+
+/** Render the detail view for a selected element. */
+function _renderElementDetail(elementId: string, slideIndex: number): void {
+  const body = _inspectorPanel?.querySelector('[data-sk-inspector-body]');
+  if (!body) return;
+  body.innerHTML = '';
+
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk?.layouts?.[slideIndex]) return;
+
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneEl = layoutResult.elements[elementId];
+  if (!sceneEl) {
+    _renderEmptyState();
+    return;
+  }
+
+  // Section 1: Identity
+  const identityDiv = document.createElement("div");
+  const typeBadgeColor = TYPE_BADGE_COLORS[sceneEl.type] || "#666";
+  identityDiv.innerHTML = `
+    <div style="margin-bottom:6px;"><strong style="color:#fff;font-size:14px;">${_escapeHtml(sceneEl.id)}</strong>${_badge(sceneEl.type, typeBadgeColor)}</div>
+    <div style="margin-bottom:2px;">Parent: <span style="color:#aaa;">${sceneEl.parentId ?? "(root)"}</span></div>
+    ${sceneEl._internal ? '<div style="color:#ff8c32;">Internal element</div>' : ''}
+  `;
+  body.appendChild(_createSection("Identity", identityDiv));
+
+  // Section 2: Resolved Bounds
+  const boundsDiv = document.createElement("div");
+  const r = sceneEl.resolved;
+  boundsDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+    <tr><td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 0;">x</td><td style="color:#fff;">${r.x.toFixed(1)}</td>
+        <td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 16px;">y</td><td style="color:#fff;">${r.y.toFixed(1)}</td></tr>
+    <tr><td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 0;">w</td><td style="color:#fff;">${r.w.toFixed(1)}</td>
+        <td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 16px;">h</td><td style="color:#fff;">${r.h.toFixed(1)}</td></tr>
+  </table>`;
+  body.appendChild(_createSection("Resolved Bounds", boundsDiv));
+
+  // Section 3: Authored Props
+  const propsDiv = document.createElement("div");
+  const authored = sceneEl.authored;
+  if (authored?.props) {
+    const prov = sceneEl.provenance;
+    const lockedSources = new Set(["constraint", "stack", "transform"]);
+    let propsHtml = '';
+    for (const [key, val] of Object.entries(authored.props)) {
+      if (key.startsWith('_')) continue;
+
+      let displayVal: string;
+      if (val != null && typeof val === "object") {
+        displayVal = JSON.stringify(val);
+      } else {
+        displayVal = String(val ?? "");
+      }
+
+      // Determine if locked (constrained)
+      const axisProv = (prov as Record<string, {source?: string}>)?.[key];
+      const isLocked = axisProv && lockedSources.has(axisProv.source || "");
+
+      if (isLocked) {
+        propsHtml += `<div style="padding:2px 0;color:rgba(255,255,255,0.35);" data-sk-prop-status="locked">
+          <span style="margin-right:2px;">&#128274;</span>${_escapeHtml(key)}: ${_escapeHtml(displayVal)}</div>`;
+      } else {
+        propsHtml += `<div style="padding:2px 0;text-decoration:underline;text-decoration-style:dashed;text-underline-offset:2px;" data-sk-prop-status="editable">
+          ${_escapeHtml(key)}: ${_escapeHtml(displayVal)}</div>`;
+      }
+    }
+    propsDiv.innerHTML = propsHtml || '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+  } else {
+    propsDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+  }
+  body.appendChild(_createSection("Authored Props", propsDiv));
+
+  // Section 4: Provenance
+  const provDiv = document.createElement("div");
+  const prov = sceneEl.provenance;
+  let provHtml = '';
+  for (const axis of ["x", "y", "w", "h"] as const) {
+    const p = prov[axis];
+    if (!p) continue;
+    const color = PROVENANCE_COLORS[p.source] || "#999";
+    provHtml += `<div style="padding:3px 0;">${axis}: ${_badge(p.source, color)}`;
+
+    if (p.source === "constraint") {
+      provHtml += ` <span style="color:#aaa;">${_escapeHtml(p.type || "")} ref=${_escapeHtml(p.ref || "")}`;
+      if (p.gap !== undefined) provHtml += ` gap=${p.gap}`;
+      provHtml += `</span>`;
+    } else if (p.source === "stack") {
+      provHtml += ` <span style="color:#aaa;">stack=${_escapeHtml(p.stackId || "")}</span>`;
+    } else if (p.source === "transform" && p.original) {
+      provHtml += ` <span style="color:#aaa;">original: ${_escapeHtml(JSON.stringify(p.original))}</span>`;
+    } else if (p.source === "authored" && p.value !== undefined) {
+      provHtml += ` <span style="color:#aaa;">${_escapeHtml(String(p.value))}</span>`;
+    }
+
+    if (p.sourceAnchor) provHtml += ` <span style="color:#777;">src=${p.sourceAnchor}</span>`;
+    if (p.targetAnchor) provHtml += ` <span style="color:#777;">tgt=${p.targetAnchor}</span>`;
+    provHtml += `</div>`;
+  }
+  provDiv.innerHTML = provHtml;
+  body.appendChild(_createSection("Provenance", provDiv));
+
+  // Section 5: Relationships
+  const relsDiv = document.createElement("div");
+  const allEdges = _extractRelationshipEdges(layoutResult.elements);
+  const relEdges = allEdges.filter(e => e.fromId === elementId || e.toId === elementId);
+  if (relEdges.length > 0) {
+    let relsHtml = '';
+    for (const edge of relEdges) {
+      const dir = edge.toId === elementId ? "incoming" : "outgoing";
+      const arrow = dir === "incoming" ? "\u2190" : "\u2192";
+      const otherId = dir === "incoming" ? edge.fromId : edge.toId;
+      relsHtml += `<div style="padding:2px 0;">${arrow} <span style="color:#fff;">${_escapeHtml(otherId)}</span>
+        <span style="color:#aaa;">${_escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>
+        ${edge.gap !== undefined ? `<span style="color:#777;">gap=${edge.gap}</span>` : ''}
+      </div>`;
+    }
+    relsDiv.innerHTML = relsHtml;
+  } else {
+    relsDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+  }
+  body.appendChild(_createSection("Relationships", relsDiv));
+
+  // Section 6: CSS Pass-through Styles
+  const stylesDiv = document.createElement("div");
+  const styleObj = authored?.props?.style as Record<string, unknown> | undefined;
+  if (styleObj && Object.keys(styleObj).length > 0) {
+    let stylesHtml = '';
+    for (const [prop, val] of Object.entries(styleObj)) {
+      stylesHtml += `<div style="padding:1px 0;">${_escapeHtml(prop)}: <span style="color:#fff;">${_escapeHtml(String(val))}</span></div>`;
+    }
+    stylesDiv.innerHTML = stylesHtml;
+  } else {
+    stylesDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+  }
+  body.appendChild(_createSection("CSS Styles", stylesDiv, true));
+
+  // Section 7: Inner HTML (for el type elements)
+  const htmlDiv = document.createElement("div");
+  if (authored?.content) {
+    let content = authored.content;
+    if (content.length > 500) content = content.slice(0, 500) + "...";
+    htmlDiv.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#ccc;max-height:200px;overflow:auto;">${_escapeHtml(content)}</pre>`;
+  } else {
+    htmlDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+  }
+  body.appendChild(_createSection("Inner HTML", htmlDiv, true));
+}
+
+/** Update the selection highlight on the debug overlay. */
+function _updateSelectionHighlight(elementId: string | null, slideIndex: number): void {
+  // Remove existing selection highlight
+  if (_debugOverlay) {
+    const existing = _debugOverlay.querySelectorAll('[data-sk-debug="selection"]');
+    existing.forEach(el => el.remove());
+  }
+
+  if (!elementId || !_debugOverlay) return;
+
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk?.layouts?.[slideIndex]) return;
+
+  const sceneEl = sk.layouts[slideIndex].elements[elementId];
+  if (!sceneEl?.resolved) return;
+
+  const r = sceneEl.resolved;
+  const highlight = document.createElement("div");
+  highlight.setAttribute("data-sk-debug", "selection");
+  highlight.setAttribute("data-sk-debug-id", elementId);
+  highlight.style.position = "absolute";
+  highlight.style.left = `${r.x}px`;
+  highlight.style.top = `${r.y}px`;
+  highlight.style.width = `${r.w}px`;
+  highlight.style.height = `${r.h}px`;
+  highlight.style.border = "2px solid #fff";
+  highlight.style.boxShadow = "0 0 8px rgba(255,255,255,0.6)";
+  highlight.style.boxSizing = "border-box";
+  highlight.style.pointerEvents = "none";
+  highlight.style.zIndex = "10000";
+
+  _debugOverlay.appendChild(highlight);
+}
+
+/**
+ * Reset all debug state. Useful for testing.
+ */
+export function _resetDebugForTests(): void {
+  removeDebugOverlay();
+  _removeInspectorPanel();
+  _detachClickHandler();
+  _debugMode = 0;
+  _selectedElementId = null;
+}
+
+// =============================================================================
 // Namespace Export
 // =============================================================================
 
@@ -614,6 +1027,7 @@ const SlideKitDebug = {
   getDebugMode,
   enableKeyboardToggle,
   disableKeyboardToggle,
+  _resetDebugForTests,
 };
 
 export default SlideKitDebug;

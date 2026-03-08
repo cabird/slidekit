@@ -1467,3 +1467,417 @@ describe("debug overlay — relationship arrows", () => {
     });
   });
 });
+
+// =============================================================================
+// Inspector Panel — Panel Lifecycle
+// =============================================================================
+
+describe("inspector panel — lifecycle", () => {
+  it("panel appears when debug overlay is rendered", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "insp1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+      assert.ok(panel, "inspector panel should be in DOM");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("panel is removed when overlay is removed", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "insp2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+      mod.removeDebugOverlay();
+
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+      assert.equal(panel, null, "inspector panel should be removed from DOM");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("panel follows cycleDebugMode on/off", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "insp3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+
+      // Mode 0 → 1: panel visible
+      mod.cycleDebugMode();
+      assert.ok(document.querySelector('[data-sk-role="debug-inspector"]'), "panel should appear in mode 1");
+
+      // Mode 1 → 2: still visible
+      mod.cycleDebugMode();
+      assert.ok(document.querySelector('[data-sk-role="debug-inspector"]'), "panel should remain in mode 2");
+
+      // Mode 2 → 3: still visible
+      mod.cycleDebugMode();
+      assert.ok(document.querySelector('[data-sk-role="debug-inspector"]'), "panel should remain in mode 3");
+
+      // Mode 3 → 0: gone
+      mod.cycleDebugMode();
+      assert.equal(document.querySelector('[data-sk-role="debug-inspector"]'), null, "panel should be gone in mode 0");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("shows empty state initially", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "insp4", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body, "inspector body should exist");
+      assert.ok(body.textContent.includes("Click an element to inspect"), "should show empty state text");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("_resetDebugForTests clears panel and overlay", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "insp5", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      assert.ok(document.querySelector('[data-sk-role="debug-inspector"]'), "panel should exist");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible");
+
+      mod._resetDebugForTests();
+
+      assert.equal(document.querySelector('[data-sk-role="debug-inspector"]'), null, "panel should be removed after reset");
+      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should be hidden after reset");
+      assert.equal(mod.getDebugMode(), 0, "debug mode should be 0 after reset");
+    });
+  });
+});
+
+// =============================================================================
+// Inspector Panel — Element Selection
+// =============================================================================
+
+describe("inspector panel — element selection", () => {
+  it("click on element shows its ID in the panel", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "sel1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Simulate click on the element
+      const target = container.querySelector('[data-sk-id="sel1"]');
+      assert.ok(target, "element should be in DOM");
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body.textContent.includes("sel1"), "panel should show selected element ID");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("panel shows correct resolved bounds", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "sel2", x: 150, y: 250, w: 300, h: 200, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="sel2"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body.textContent.includes("150.0"), "should show x value");
+      assert.ok(body.textContent.includes("250.0"), "should show y value");
+      assert.ok(body.textContent.includes("300.0"), "should show w value");
+      assert.ok(body.textContent.includes("200.0"), "should show h value");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("click on empty space deselects", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "sel3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // First select an element
+      const target = container.querySelector('[data-sk-id="sel3"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      assert.ok(document.querySelector('[data-sk-inspector-body]').textContent.includes("sel3"), "should be selected");
+
+      // Click empty space (document body)
+      document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body.textContent.includes("Click an element to inspect"), "should show empty state after deselect");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("click inside panel does not deselect", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "sel4", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select an element
+      const target = container.querySelector('[data-sk-id="sel4"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      assert.ok(document.querySelector('[data-sk-inspector-body]').textContent.includes("sel4"), "should be selected");
+
+      // Click inside the inspector panel
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+      panel.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body.textContent.includes("sel4"), "should still show selected element after panel click");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("selection highlight appears on overlay", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "sel5", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="sel5"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const highlight = document.querySelector('[data-sk-debug="selection"]');
+      assert.ok(highlight, "selection highlight should appear");
+      assert.equal(highlight.getAttribute("data-sk-debug-id"), "sel5", "highlight should have correct ID");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("constrained props are marked as locked", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "lck-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "lck-b", x: 100, y: below("lck-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="lck-b"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const locked = document.querySelectorAll('[data-sk-prop-status="locked"]');
+      assert.ok(locked.length > 0, "should have at least one locked prop");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Inspector Panel — Content Sections
+// =============================================================================
+
+describe("inspector panel — content sections", () => {
+  it("CSS styles section shows style props", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "css1", x: 100, y: 100, w: 200, h: 100, style: { background: "#ff0000", borderRadius: "8px" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="css1"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const section = document.querySelector('[data-sk-inspector-section="CSS Styles"]');
+      assert.ok(section, "CSS Styles section should exist");
+      assert.ok(section.textContent.includes("background"), "should show background property");
+      assert.ok(section.textContent.includes("#ff0000"), "should show background value");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("Inner HTML section shows content", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('<h1>Hello World</h1>', { id: "htm1", x: 100, y: 100, w: 400, h: 200 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="htm1"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const section = document.querySelector('[data-sk-inspector-section="Inner HTML"]');
+      assert.ok(section, "Inner HTML section should exist");
+      assert.ok(section.textContent.includes("Hello World"), "should show HTML content");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("provenance shows constraint details for below()", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "prov-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "prov-b", x: 100, y: below("prov-a", { gap: 20 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="prov-b"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const section = document.querySelector('[data-sk-inspector-section="Provenance"]');
+      assert.ok(section, "Provenance section should exist");
+      assert.ok(section.textContent.includes("constraint"), "should show constraint source");
+      assert.ok(section.textContent.includes("below"), "should show constraint type");
+      assert.ok(section.textContent.includes("prov-a"), "should show reference element");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("relationships section shows edges", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "edge-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "edge-b", x: 100, y: below("edge-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="edge-b"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const section = document.querySelector('[data-sk-inspector-section="Relationships"]');
+      assert.ok(section, "Relationships section should exist");
+      assert.ok(section.textContent.includes("edge-a"), "should show related element");
+      assert.ok(section.textContent.includes("below"), "should show relationship type");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("sections are collapsible", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "coll1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const target = container.querySelector('[data-sk-id="coll1"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      // Identity section should be expanded by default
+      const identSection = document.querySelector('[data-sk-inspector-section="Identity"]');
+      assert.ok(identSection, "Identity section should exist");
+      const identContent = identSection.querySelector('[data-sk-inspector-content]');
+      assert.equal(identContent.style.display, "block", "Identity should be expanded");
+
+      // CSS Styles starts collapsed
+      const cssSection = document.querySelector('[data-sk-inspector-section="CSS Styles"]');
+      const cssContent = cssSection.querySelector('[data-sk-inspector-content]');
+      assert.equal(cssContent.style.display, "none", "CSS Styles should start collapsed");
+
+      // Click to expand
+      const cssChevron = cssSection.querySelector('[data-sk-inspector-chevron]');
+      cssChevron.parentElement.click();
+      assert.equal(cssContent.style.display, "block", "CSS Styles should expand after click");
+
+      // Click to collapse
+      cssChevron.parentElement.click();
+      assert.equal(cssContent.style.display, "none", "CSS Styles should collapse after second click");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Inspector Panel — showInspector option
+// =============================================================================
+
+describe("inspector panel — showInspector option", () => {
+  it("showInspector: false suppresses the panel", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "noinsp", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay({ showInspector: false });
+
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+      assert.equal(panel, null, "inspector panel should not exist when showInspector is false");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("namespace export includes _resetDebugForTests", async () => {
+    const mod = await import('../slidekit-debug.js');
+    assert.equal(typeof mod.default._resetDebugForTests, "function");
+  });
+});
