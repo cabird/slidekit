@@ -517,6 +517,10 @@ export interface Provenance {
   measuredAt?: Record<string, unknown>;
   /** Original authored values before resolution. */
   original?: Record<string, unknown> | Provenance;
+  /** Anchor point on the referenced element (e.g., "bc" for below). */
+  sourceAnchor?: string;
+  /** Anchor point on this element (e.g., "tc" for below). */
+  targetAnchor?: string;
 }
 
 /** A fully resolved element in the scene graph. */

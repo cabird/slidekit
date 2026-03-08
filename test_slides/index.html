@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SlideKit Inspector Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+  <script type="importmap">{"imports": {"../slidekit/slidekit.js": "../slidekit/dist/slidekit.bundle.js"}}</script>
+  <style>
+    body { margin: 0; }
+    .slidekit-layer { font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+
+  <script type="module">
+    try {
+      const mod = await import('./demo-slide.js');
+      await mod.run();
+
+      Reveal.initialize({
+        hash: true,
+        slideNumber: true,
+        transition: 'fade',
+        width: 1920,
+        height: 1080,
+        center: false,
+      });
+
+      // Enable debug overlay toggle with Ctrl+Alt+D
+      const debug = await import('../slidekit/dist/slidekit-debug.bundle.js');
+      debug.enableKeyboardToggle();
+
+      console.log('Demo loaded. Scene model at window.sk. Press Ctrl+Alt+D for debug overlay.');
+    } catch (err) {
+      console.error('Failed to load demo:', err);
+      document.querySelector('.slides').innerHTML = `
+        <section>
+          <div style="color:#ea4335;font-size:32px;padding:100px;text-align:center">
+            <p>Failed to load demo</p>
+            <pre style="font-size:18px;text-align:left;max-width:1200px;margin:40px auto;color:#ff9999">${err.stack || err.message}</pre>
+          </div>
+        </section>
+      `;
+    }
+  </script>
+</body>
+</html>

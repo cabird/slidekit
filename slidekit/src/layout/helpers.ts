@@ -198,6 +198,22 @@ export function resolveRelMarker(marker: RelMarker, axis: "x" | "y", refBounds: 
   }
 }
 
+/** Anchor pairs [sourceAnchor, targetAnchor] for each constraint type. */
+const _CONSTRAINT_ANCHORS: Record<string, [string, string]> = {
+  below:       ["bc", "tc"],
+  above:       ["tc", "bc"],
+  rightOf:     ["cr", "cl"],
+  leftOf:      ["cl", "cr"],
+  centerV:     ["cc", "cc"],
+  centerH:     ["cc", "cc"],
+  alignTop:    ["tc", "tc"],
+  alignBottom: ["bc", "bc"],
+  alignLeft:   ["cl", "cl"],
+  alignRight:  ["cr", "cr"],
+  centerIn:    ["cc", "cc"],
+  between:     ["bc", "cc"],
+};
+
 /**
  * Determine provenance source for a resolved value.
  *
@@ -215,6 +231,14 @@ export function buildProvenance(authoredValue: unknown, prop: string, element: S
     if (authoredValue.gap !== undefined) prov.gap = authoredValue.gap;
     if (authoredValue.bias !== undefined) prov.bias = authoredValue.bias;
     if (authoredValue.rect) prov.rect = authoredValue.rect;
+
+    // Record anchor points for debug relationship arrows
+    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
+    if (anchors) {
+      prov.sourceAnchor = anchors[0];
+      prov.targetAnchor = anchors[1];
+    }
+
     return prov;
   }
   if (wasMeasured && (prop === "w" || prop === "h")) {

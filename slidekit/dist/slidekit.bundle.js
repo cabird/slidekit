@@ -3774,6 +3774,20 @@ function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
       throw new Error(`Unknown _rel type: "${rel}"`);
   }
 }
+var _CONSTRAINT_ANCHORS = {
+  below: ["bc", "tc"],
+  above: ["tc", "bc"],
+  rightOf: ["cr", "cl"],
+  leftOf: ["cl", "cr"],
+  centerV: ["cc", "cc"],
+  centerH: ["cc", "cc"],
+  alignTop: ["tc", "tc"],
+  alignBottom: ["bc", "bc"],
+  alignLeft: ["cl", "cl"],
+  alignRight: ["cr", "cr"],
+  centerIn: ["cc", "cc"],
+  between: ["bc", "cc"]
+};
 function buildProvenance(authoredValue, prop, element, wasMeasured) {
   if (isRelMarker(authoredValue)) {
     const prov = { source: "constraint", type: authoredValue._rel };
@@ -3782,6 +3796,11 @@ function buildProvenance(authoredValue, prop, element, wasMeasured) {
     if (authoredValue.gap !== void 0) prov.gap = authoredValue.gap;
     if (authoredValue.bias !== void 0) prov.bias = authoredValue.bias;
     if (authoredValue.rect) prov.rect = authoredValue.rect;
+    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
+    if (anchors) {
+      prov.sourceAnchor = anchors[0];
+      prov.targetAnchor = anchors[1];
+    }
     return prov;
   }
   if (wasMeasured && (prop === "w" || prop === "h")) {
@@ -4523,8 +4542,8 @@ function finalize({
     if (stackParent.has(id)) {
       const parentStackId = mustGet(stackParent, id, `stackParent missing child: ${id}`);
       provenance = {
-        x: { source: "stack", stackId: parentStackId },
-        y: { source: "stack", stackId: parentStackId },
+        x: { source: "stack", stackId: parentStackId, sourceAnchor: "cc", targetAnchor: "cl" },
+        y: { source: "stack", stackId: parentStackId, sourceAnchor: "cc", targetAnchor: "cl" },
         w: buildProvenance(authored.props.w, "w", el2, sizes.wMeasured),
         h: buildProvenance(authored.props.h, "h", el2, sizes.hMeasured)
       };
@@ -5139,6 +5158,13 @@ async function layout(slideDefinition, options = {}) {
   const transforms = slideDefinition.transforms || [];
   const collisionThreshold = options.collisionThreshold ?? 0;
   const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds } = flattenElements(elements);
+  for (const [id, el2] of flatMap) {
+    if (typeof el2.props._rel === "string") {
+      console.warn(
+        `SlideKit warning: Element "${id}" has "_rel" as a top-level prop \u2014 this usually means a positioning function (below(), rightOf(), alignTopWith(), etc.) was spread (...below()) instead of assigned to x or y. Use y: below(...) or x: rightOf(...) instead.`
+      );
+    }
+  }
   for (const [id, count] of duplicateIds) {
     errors.push({
       type: "duplicate-id",

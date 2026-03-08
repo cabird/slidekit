@@ -72,8 +72,8 @@ export function finalize({
     if (stackParent.has(id)) {
       const parentStackId = mustGet(stackParent, id, `stackParent missing child: ${id}`);
       provenance = {
-        x: { source: "stack", stackId: parentStackId } as Provenance,
-        y: { source: "stack", stackId: parentStackId } as Provenance,
+        x: { source: "stack", stackId: parentStackId, sourceAnchor: "cc", targetAnchor: "cl" } as Provenance,
+        y: { source: "stack", stackId: parentStackId, sourceAnchor: "cc", targetAnchor: "cl" } as Provenance,
         w: buildProvenance(authored.props.w, "w", el, sizes.wMeasured),
         h: buildProvenance(authored.props.h, "h", el, sizes.hMeasured),
       };

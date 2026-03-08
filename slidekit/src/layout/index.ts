@@ -39,6 +39,15 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
   // Flatten elements to a map for easy lookup
   const { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds } = flattenElements(elements);
 
+  // Detect accidentally spread RelMarker objects (e.g. ...below() instead of y: below())
+  for (const [id, el] of flatMap) {
+    if (typeof el.props._rel === "string") {
+      console.warn(
+        `SlideKit warning: Element "${id}" has "_rel" as a top-level prop — this usually means a positioning function (below(), rightOf(), alignTopWith(), etc.) was spread (...below()) instead of assigned to x or y. Use y: below(...) or x: rightOf(...) instead.`
+      );
+    }
+  }
+
   // Report duplicate IDs as errors — they silently clobber resolved positions
   for (const [id, count] of duplicateIds) {
     errors.push({

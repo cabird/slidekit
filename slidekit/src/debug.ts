@@ -25,6 +25,8 @@ export interface DebugOverlayOptions {
   showAnchors?: boolean;
   /** Highlight collision areas. Default: true. */
   showCollisions?: boolean;
+  /** Show constraint/stack relationship arrows. Default: true. */
+  showRelationships?: boolean;
   /** Which slide to overlay (0-based). Default: 0. */
   slideIndex?: number;
 }
@@ -74,6 +76,86 @@ const TYPE_BORDER_COLORS: Record<DebugElementType, string> = {
 // =============================================================================
 
 let _debugOverlay: HTMLDivElement | null = null;
+let _keyboardListenerAttached = false;
+let _lastToggleOptions: DebugOverlayOptions = {};
+
+/**
+ * Current debug mode for keyboard cycling.
+ * 0 = off, 1 = boxes+labels, 2 = boxes+labels+relationships, 3 = relationships only
+ */
+let _debugMode = 0;
+
+/** The option presets for each debug mode (1-3). */
+const _DEBUG_MODE_OPTIONS: DebugOverlayOptions[] = [
+  {}, // placeholder for mode 0 (off)
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: false },
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: true },
+  { showBoxes: false, showIds: false, showAnchors: false, showSafeZone: false, showCollisions: false, showRelationships: true },
+];
+
+/** Get the current debug mode (0-3). Useful for testing. */
+export function getDebugMode(): number {
+  return _debugMode;
+}
+
+// =============================================================================
+// Keyboard Toggle
+// =============================================================================
+
+/** Internal keydown handler for Ctrl+Shift+D toggle. */
+function _handleDebugKeydown(event: KeyboardEvent): void {
+  // Skip if the user is typing in an input field
+  const target = event.target as HTMLElement;
+  if (target) {
+    const tagName = target.tagName;
+    if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
+      return;
+    }
+  }
+
+  if (event.ctrlKey && event.shiftKey && (event.key === "d" || event.key === "D")) {
+    event.preventDefault();
+    event.stopPropagation();
+    cycleDebugMode(_lastToggleOptions);
+  }
+}
+
+/**
+ * Cycle through debug overlay modes:
+ * off → boxes+labels → +relationships → relationships only → off
+ */
+export function cycleDebugMode(baseOptions: DebugOverlayOptions = {}): number {
+  _debugMode = (_debugMode + 1) % 4;
+
+  if (_debugMode === 0) {
+    removeDebugOverlay();
+  } else {
+    const modeOpts = _DEBUG_MODE_OPTIONS[_debugMode];
+    renderDebugOverlay({ ...baseOptions, ...modeOpts });
+  }
+
+  return _debugMode;
+}
+
+/**
+ * Enable keyboard toggle for the debug overlay (Ctrl+Shift+D).
+ * Cycles through: off → boxes+labels → +relationships → relationships only → off.
+ * Idempotent — only attaches the listener once.
+ */
+export function enableKeyboardToggle(options: DebugOverlayOptions = {}): void {
+  _lastToggleOptions = options;
+  if (_keyboardListenerAttached) return;
+  document.addEventListener("keydown", _handleDebugKeydown, true);
+  _keyboardListenerAttached = true;
+}
+
+/** Disable keyboard toggle and remove the listener. */
+export function disableKeyboardToggle(): void {
+  if (!_keyboardListenerAttached) return;
+  document.removeEventListener("keydown", _handleDebugKeydown, true);
+  _keyboardListenerAttached = false;
+  _debugMode = 0;
+}
 
 // =============================================================================
 // Public API
@@ -242,6 +324,15 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
     }
   }
 
+  // Show relationship arrows
+  const showRelationships = options.showRelationships !== false;
+  if (showRelationships) {
+    const relSvg = _buildRelationshipSVG(sceneElements, slideW, slideH);
+    if (relSvg) {
+      overlay.appendChild(relSvg);
+    }
+  }
+
   // Append overlay to the slidekit-layer
   targetLayer.appendChild(overlay);
   _debugOverlay = overlay;
@@ -328,6 +419,189 @@ function _getAnchorPosition(bounds: Rect, anchor: string): { x: number; y: numbe
 }
 
 // =============================================================================
+// Relationship Arrows
+// =============================================================================
+
+/** A relationship edge between two elements for debug visualization. */
+interface RelEdge {
+  fromId: string;
+  toId: string;
+  type: string;       // constraint type or "stack"
+  sourceAnchor: string;
+  targetAnchor: string;
+  gap?: number;
+  isStack: boolean;
+}
+
+/** Extract relationship edges from scene elements' provenance data. */
+function _extractRelationshipEdges(sceneElements: Record<string, SceneElement>): RelEdge[] {
+  const edges: RelEdge[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const [id, sceneEl] of Object.entries(sceneElements)) {
+    const prov = sceneEl.provenance;
+    if (!prov) continue;
+
+    for (const axis of ["x", "y"] as const) {
+      let p = prov[axis];
+      if (!p) continue;
+
+      // Unwrap transform wrapper to get the original constraint provenance
+      if (p.source === "transform" && p.original && typeof p.original === "object" && "source" in p.original) {
+        p = p.original as import('./types.js').Provenance;
+      }
+
+      if (p.source === "constraint" && p.ref && p.sourceAnchor && p.targetAnchor) {
+        // Skip centerIn — it references a rect, not an element
+        if (p.type === "centerIn") continue;
+
+        const key = `${p.ref}->${id}:${p.type}:${axis}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          edges.push({
+            fromId: p.ref,
+            toId: id,
+            type: p.type || "constraint",
+            sourceAnchor: p.sourceAnchor,
+            targetAnchor: p.targetAnchor,
+            gap: p.gap,
+            isStack: false,
+          });
+        }
+      } else if (p.source === "stack" && p.stackId && p.sourceAnchor && p.targetAnchor) {
+        // Deduplicate stack edges (appear on both x and y for same pair)
+        const key = `${p.stackId}->${id}:stack`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          edges.push({
+            fromId: p.stackId,
+            toId: id,
+            type: "stack",
+            sourceAnchor: p.sourceAnchor,
+            targetAnchor: p.targetAnchor,
+            isStack: true,
+          });
+        }
+      }
+    }
+  }
+
+  return edges;
+}
+
+/** Build an SVG element showing relationship arrows between elements. */
+function _buildRelationshipSVG(
+  sceneElements: Record<string, SceneElement>,
+  slideW: number,
+  slideH: number,
+): SVGSVGElement | null {
+  const edges = _extractRelationshipEdges(sceneElements);
+  if (edges.length === 0) return null;
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", String(slideW));
+  svg.setAttribute("height", String(slideH));
+  svg.setAttribute("data-sk-debug", "relationships");
+  svg.style.position = "absolute";
+  svg.style.left = "0";
+  svg.style.top = "0";
+  svg.style.pointerEvents = "none";
+  svg.style.overflow = "visible";
+
+  // Defs: arrowhead markers
+  const defs = document.createElementNS(NS, "defs");
+
+  const constraintMarker = document.createElementNS(NS, "marker");
+  constraintMarker.setAttribute("id", "sk-debug-arrow-constraint");
+  constraintMarker.setAttribute("viewBox", "0 0 10 7");
+  constraintMarker.setAttribute("refX", "10");
+  constraintMarker.setAttribute("refY", "3.5");
+  constraintMarker.setAttribute("markerWidth", "8");
+  constraintMarker.setAttribute("markerHeight", "6");
+  constraintMarker.setAttribute("orient", "auto-start-reverse");
+  const cPath = document.createElementNS(NS, "path");
+  cPath.setAttribute("d", "M 0 0 L 10 3.5 L 0 7 z");
+  cPath.setAttribute("fill", "rgba(255, 140, 50, 0.85)");
+  constraintMarker.appendChild(cPath);
+  defs.appendChild(constraintMarker);
+
+  const stackMarker = document.createElementNS(NS, "marker");
+  stackMarker.setAttribute("id", "sk-debug-arrow-stack");
+  stackMarker.setAttribute("viewBox", "0 0 10 7");
+  stackMarker.setAttribute("refX", "10");
+  stackMarker.setAttribute("refY", "3.5");
+  stackMarker.setAttribute("markerWidth", "8");
+  stackMarker.setAttribute("markerHeight", "6");
+  stackMarker.setAttribute("orient", "auto-start-reverse");
+  const sPath = document.createElementNS(NS, "path");
+  sPath.setAttribute("d", "M 0 0 L 10 3.5 L 0 7 z");
+  sPath.setAttribute("fill", "rgba(160, 120, 255, 0.7)");
+  stackMarker.appendChild(sPath);
+  defs.appendChild(stackMarker);
+
+  svg.appendChild(defs);
+
+  for (const edge of edges) {
+    const fromEl = sceneElements[edge.fromId];
+    const toEl = sceneElements[edge.toId];
+    if (!fromEl?.resolved || !toEl?.resolved) continue;
+
+    const fromPt = _getAnchorPosition(fromEl.resolved, edge.sourceAnchor);
+    const toPt = _getAnchorPosition(toEl.resolved, edge.targetAnchor);
+
+    const color = edge.isStack ? "rgba(160, 120, 255, 0.7)" : "rgba(255, 140, 50, 0.85)";
+    const markerId = edge.isStack ? "sk-debug-arrow-stack" : "sk-debug-arrow-constraint";
+
+    // Line
+    const line = document.createElementNS(NS, "line");
+    line.setAttribute("x1", String(fromPt.x));
+    line.setAttribute("y1", String(fromPt.y));
+    line.setAttribute("x2", String(toPt.x));
+    line.setAttribute("y2", String(toPt.y));
+    line.setAttribute("stroke", color);
+    line.setAttribute("stroke-width", "1.5");
+    line.setAttribute("marker-end", `url(#${markerId})`);
+    line.setAttribute("data-sk-debug", "rel-arrow");
+    line.setAttribute("data-sk-debug-from", edge.fromId);
+    line.setAttribute("data-sk-debug-to", edge.toId);
+    if (edge.isStack) {
+      line.setAttribute("stroke-dasharray", "6 3");
+    }
+    svg.appendChild(line);
+
+    // Label at midpoint
+    const midX = (fromPt.x + toPt.x) / 2;
+    const midY = (fromPt.y + toPt.y) / 2;
+    const labelText = edge.gap !== undefined ? `${edge.type} ${edge.gap}px` : edge.type;
+
+    // Background rect for label
+    const bgRect = document.createElementNS(NS, "rect");
+    const textWidth = labelText.length * 6 + 6;
+    bgRect.setAttribute("x", String(midX - textWidth / 2));
+    bgRect.setAttribute("y", String(midY - 7));
+    bgRect.setAttribute("width", String(textWidth));
+    bgRect.setAttribute("height", "14");
+    bgRect.setAttribute("rx", "2");
+    bgRect.setAttribute("fill", "rgba(0, 0, 0, 0.75)");
+    svg.appendChild(bgRect);
+
+    const text = document.createElementNS(NS, "text");
+    text.setAttribute("x", String(midX));
+    text.setAttribute("y", String(midY + 3));
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("fill", color);
+    text.setAttribute("font-size", "10");
+    text.setAttribute("font-family", "monospace");
+    text.setAttribute("data-sk-debug", "rel-label");
+    text.textContent = labelText;
+    svg.appendChild(text);
+  }
+
+  return svg;
+}
+
+// =============================================================================
 // Namespace Export
 // =============================================================================
 
@@ -336,6 +610,10 @@ const SlideKitDebug = {
   removeDebugOverlay,
   isDebugOverlayVisible,
   toggleDebugOverlay,
+  cycleDebugMode,
+  getDebugMode,
+  enableKeyboardToggle,
+  disableKeyboardToggle,
 };
 
 export default SlideKitDebug;

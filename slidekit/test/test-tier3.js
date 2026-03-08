@@ -2,9 +2,10 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  el, group, vstack,
+  el, group, vstack, hstack,
   render, layout, init,
   _resetForTests,
+  below, rightOf,
   grid, snap,
   resolvePercentage,
   resolveShadow, getShadowPresets,
@@ -1211,6 +1212,256 @@ describe("M8.1: debug overlay — config dimensions", () => {
       // Default config uses 1920x1080
       assert.equal(overlay.style.width, "1920px", "overlay width should match slide width");
       assert.equal(overlay.style.height, "1080px", "overlay height should match slide height");
+
+      mod.removeDebugOverlay();
+    });
+  });
+});
+
+// =============================================================================
+// Provenance anchor tests
+// =============================================================================
+
+describe("provenance anchors — constraint types", () => {
+  it("below() provenance has sourceAnchor 'bc' and targetAnchor 'tc'", async () => {
+    _resetForTests();
+    const a = el('', { id: "anc-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+    const b = el('', { id: "anc-b", x: 100, y: below("anc-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+    const scene = await layout({ elements: [a, b] });
+    const provY = scene.elements["anc-b"].provenance.y;
+    assert.equal(provY.source, "constraint");
+    assert.equal(provY.type, "below");
+    assert.equal(provY.sourceAnchor, "bc", "source anchor should be bc (ref bottom-center)");
+    assert.equal(provY.targetAnchor, "tc", "target anchor should be tc (elem top-center)");
+  });
+
+  it("rightOf() provenance has sourceAnchor 'cr' and targetAnchor 'cl'", async () => {
+    _resetForTests();
+    const a = el('', { id: "anc-c", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+    const b = el('', { id: "anc-d", x: rightOf("anc-c", { gap: 20 }), y: 100, w: 200, h: 100, style: { background: "#333" } });
+    const scene = await layout({ elements: [a, b] });
+    const provX = scene.elements["anc-d"].provenance.x;
+    assert.equal(provX.source, "constraint");
+    assert.equal(provX.type, "rightOf");
+    assert.equal(provX.sourceAnchor, "cr", "source anchor should be cr (ref center-right)");
+    assert.equal(provX.targetAnchor, "cl", "target anchor should be cl (elem center-left)");
+  });
+
+  it("element with no constraint has no anchor fields", async () => {
+    _resetForTests();
+    const a = el('', { id: "anc-plain", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+    const scene = await layout({ elements: [a] });
+    const provX = scene.elements["anc-plain"].provenance.x;
+    assert.equal(provX.source, "authored");
+    assert.equal(provX.sourceAnchor, undefined, "authored provenance should have no sourceAnchor");
+    assert.equal(provX.targetAnchor, undefined, "authored provenance should have no targetAnchor");
+  });
+
+  it("stack children have sourceAnchor and targetAnchor", async () => {
+    _resetForTests();
+    const child = el('', { id: "stk-child", w: 100, h: 50, style: { background: "#333" } });
+    const stack = vstack([child], { id: "stk-parent", x: 100, y: 100, w: 200, gap: 10 });
+    const scene = await layout({ elements: [stack] });
+    const provX = scene.elements["stk-child"].provenance.x;
+    assert.equal(provX.source, "stack");
+    assert.equal(provX.sourceAnchor, "cc", "stack sourceAnchor should be cc");
+    assert.equal(provX.targetAnchor, "cl", "stack targetAnchor should be cl");
+  });
+});
+
+// =============================================================================
+// Keyboard toggle tests
+// =============================================================================
+
+describe("debug overlay — keyboard toggle", () => {
+  it("exports enableKeyboardToggle, disableKeyboardToggle, cycleDebugMode, getDebugMode", async () => {
+    const mod = await import('../slidekit-debug.js');
+    assert.equal(typeof mod.enableKeyboardToggle, "function");
+    assert.equal(typeof mod.disableKeyboardToggle, "function");
+    assert.equal(typeof mod.cycleDebugMode, "function");
+    assert.equal(typeof mod.getDebugMode, "function");
+  });
+
+  it("namespace export includes keyboard and mode functions", async () => {
+    const mod = await import('../slidekit-debug.js');
+    assert.equal(typeof mod.default.enableKeyboardToggle, "function");
+    assert.equal(typeof mod.default.disableKeyboardToggle, "function");
+    assert.equal(typeof mod.default.cycleDebugMode, "function");
+    assert.equal(typeof mod.default.getDebugMode, "function");
+  });
+
+  it("Ctrl+Shift+D cycles through debug modes", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "kbd1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod.removeDebugOverlay();
+      mod.disableKeyboardToggle();
+      mod.enableKeyboardToggle();
+
+      const press = () => document.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "D", ctrlKey: true, shiftKey: true, bubbles: true,
+      }));
+
+      // Mode 0 -> 1: boxes + labels (no relationships)
+      press();
+      assert.equal(mod.getDebugMode(), 1, "mode should be 1 after first press");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 1");
+      let relSvg = document.querySelector('[data-sk-debug="relationships"]');
+      assert.equal(relSvg, null, "mode 1 should not show relationships");
+
+      // Mode 1 -> 2: boxes + labels + relationships
+      press();
+      assert.equal(mod.getDebugMode(), 2, "mode should be 2 after second press");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 2");
+
+      // Mode 2 -> 3: relationships only
+      press();
+      assert.equal(mod.getDebugMode(), 3, "mode should be 3 after third press");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 3");
+      const boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.equal(boxes.length, 0, "mode 3 should not show boxes");
+
+      // Mode 3 -> 0: off
+      press();
+      assert.equal(mod.getDebugMode(), 0, "mode should be 0 after fourth press");
+      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should be hidden in mode 0");
+
+      mod.disableKeyboardToggle();
+    });
+  });
+
+  it("does not fire when target is an input element", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "kbd2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod.removeDebugOverlay();
+      mod.disableKeyboardToggle();
+      mod.enableKeyboardToggle();
+
+      // Create an input and dispatch from it
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+
+      input.dispatchEvent(new KeyboardEvent("keydown", {
+        key: "D", ctrlKey: true, shiftKey: true, bubbles: true,
+      }));
+      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should NOT toggle when target is input");
+
+      document.body.removeChild(input);
+      mod.disableKeyboardToggle();
+    });
+  });
+});
+
+// =============================================================================
+// Relationship arrow tests
+// =============================================================================
+
+describe("debug overlay — relationship arrows", () => {
+  it("SVG with data-sk-debug='relationships' appears for below() constraint", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "rel-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "rel-b", x: 100, y: below("rel-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      assert.ok(overlay, "overlay should be rendered");
+
+      const relSvg = overlay.querySelector('[data-sk-debug="relationships"]');
+      assert.ok(relSvg, "should have relationships SVG");
+
+      mod.removeDebugOverlay();
+    });
+  });
+
+  it("arrow has correct data-sk-debug-from and data-sk-debug-to attributes", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "arr-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "arr-b", x: 100, y: below("arr-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      const arrow = overlay.querySelector('[data-sk-debug="rel-arrow"]');
+      assert.ok(arrow, "should have a rel-arrow element");
+      assert.equal(arrow.getAttribute("data-sk-debug-from"), "arr-a");
+      assert.equal(arrow.getAttribute("data-sk-debug-to"), "arr-b");
+
+      mod.removeDebugOverlay();
+    });
+  });
+
+  it("label contains constraint type and gap text", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "lbl-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "lbl-b", x: 100, y: below("lbl-a", { gap: 24 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      const label = overlay.querySelector('[data-sk-debug="rel-label"]');
+      assert.ok(label, "should have a rel-label element");
+      assert.ok(label.textContent.includes("below"), "label should contain constraint type");
+      assert.ok(label.textContent.includes("24"), "label should contain gap value");
+
+      mod.removeDebugOverlay();
+    });
+  });
+
+  it("showRelationships: false suppresses the SVG", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "norel-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "norel-b", x: 100, y: below("norel-a", { gap: 16 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay({ showRelationships: false });
+      const relSvg = overlay.querySelector('[data-sk-debug="relationships"]');
+      assert.equal(relSvg, null, "should not have relationships SVG when disabled");
+
+      mod.removeDebugOverlay();
+    });
+  });
+
+  it("element with both x and y constraints gets two arrows", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "dual-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "dual-b", x: rightOf("dual-a", { gap: 10 }), y: below("dual-a", { gap: 10 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      const arrows = overlay.querySelectorAll('[data-sk-debug="rel-arrow"][data-sk-debug-to="dual-b"]');
+      assert.equal(arrows.length, 2, "should have two arrows pointing to dual-b");
+
+      mod.removeDebugOverlay();
+    });
+  });
+
+  it("stack children show parent-to-child arrows", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const child1 = el('', { id: "stk-c1", w: 100, h: 50, style: { background: "#333" } });
+      const child2 = el('', { id: "stk-c2", w: 100, h: 50, style: { background: "#333" } });
+      const stack = vstack([child1, child2], { id: "stk-p", x: 100, y: 100, w: 200, gap: 10 });
+      await render([{ elements: [stack] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      const overlay = mod.renderDebugOverlay();
+      const arrows = overlay.querySelectorAll('[data-sk-debug="rel-arrow"][data-sk-debug-from="stk-p"]');
+      assert.ok(arrows.length >= 2, "should have arrows from stack parent to children");
 
       mod.removeDebugOverlay();
     });
