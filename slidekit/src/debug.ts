@@ -87,6 +87,11 @@ let _selectedElementId: string | null = null;
 let _clickHandlerAttached = false;
 let _currentSlideIndex = 0;
 
+// Viewport adjustment / resize state
+let _panelWidth = 380;
+let _resizeState: { active: boolean; startX: number; startWidth: number } | null = null;
+let _revealContainer: HTMLElement | null = null;
+
 /**
  * Current debug mode for keyboard cycling.
  * 0 = off, 1 = boxes+labels, 2 = boxes+labels+relationships, 3 = relationships only
@@ -626,6 +631,147 @@ function _buildRelationshipSVG(
 }
 
 // =============================================================================
+// Viewport Adjustment
+// =============================================================================
+
+/** Whether we switched Reveal to embedded mode for the inspector. */
+let _wasEmbedded = false;
+
+/** Shrink the slide viewport to make room for the inspector panel.
+ *
+ *  Strategy for Reveal.js: switch to `embedded` mode so Reveal reads
+ *  the `.reveal` container dimensions instead of forcing them to
+ *  `window.innerWidth`.  Width is set BEFORE `configure()` so that
+ *  Reveal's internal layout() call already sees the reduced container.
+ */
+function _adjustViewport(panelWidth: number): void {
+  // Try Reveal.js path first
+  if (!_revealContainer) {
+    _revealContainer = document.querySelector('.reveal') as HTMLElement | null;
+  }
+
+  if (_revealContainer) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Reveal = (window as any).Reveal;
+
+    // Set width FIRST so any subsequent layout() reads the reduced size
+    _revealContainer.style.width = `calc(100vw - ${panelWidth}px)`;
+    _revealContainer.style.height = '100vh';
+
+    if (Reveal) {
+      if (!_wasEmbedded && typeof Reveal.configure === 'function') {
+        // First call: switch to embedded mode.  configure() triggers
+        // layout() internally which will now see our reduced width.
+        _wasEmbedded = true;
+        Reveal.configure({ embedded: true });
+      } else if (typeof Reveal.layout === 'function') {
+        // Subsequent calls (drag resize): just re-layout
+        Reveal.layout();
+      }
+    }
+    return;
+  }
+
+  // Fallback for non-Reveal.js contexts: scale .slidekit-layer
+  const layer = document.querySelector('.slidekit-layer') as HTMLElement | null;
+  if (layer) {
+    const viewportWidth = window.innerWidth;
+    const sk = window.sk;
+    const slideW = sk?._config?.slide?.w ?? 1920;
+    const factor = (viewportWidth - panelWidth) / slideW;
+    layer.style.transform = `scale(${factor})`;
+    layer.style.transformOrigin = 'top left';
+  }
+}
+
+/** Restore the slide viewport to full width. */
+function _resetViewport(): void {
+  if (_revealContainer) {
+    _revealContainer.style.width = '';
+    _revealContainer.style.height = '';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const Reveal = (window as any).Reveal;
+
+    if (_wasEmbedded && Reveal && typeof Reveal.configure === 'function') {
+      // Restore non-embedded mode.  configure() triggers layout()
+      // internally which will re-adopt full-viewport sizing.
+      _wasEmbedded = false;
+      Reveal.configure({ embedded: false });
+    } else if (Reveal && typeof Reveal.layout === 'function') {
+      Reveal.layout();
+    }
+
+    _revealContainer = null;
+    return;
+  }
+
+  // Fallback cleanup
+  const layer = document.querySelector('.slidekit-layer') as HTMLElement | null;
+  if (layer) {
+    layer.style.transform = '';
+    layer.style.transformOrigin = '';
+  }
+}
+
+// =============================================================================
+// Resize Handle
+// =============================================================================
+
+/** Handle pointer-move during drag resize. */
+function _onResizeMove(event: PointerEvent): void {
+  if (!_resizeState?.active) return;
+  const newWidth = Math.min(600, Math.max(200, _resizeState.startWidth + (_resizeState.startX - event.clientX)));
+  _panelWidth = newWidth;
+  if (_inspectorPanel) {
+    _inspectorPanel.style.width = `${newWidth}px`;
+  }
+  _adjustViewport(newWidth);
+}
+
+/** Handle pointer-up to end drag resize. */
+function _onResizeUp(_event: PointerEvent): void {
+  if (!_resizeState?.active) return;
+  _resizeState = null;
+  document.removeEventListener('pointermove', _onResizeMove);
+  document.removeEventListener('pointerup', _onResizeUp);
+}
+
+/** Create the drag handle element for the left edge of the panel. */
+function _createResizeHandle(): HTMLDivElement {
+  const handle = document.createElement('div');
+  handle.setAttribute('data-sk-role', 'debug-inspector-handle');
+  handle.style.position = 'absolute';
+  handle.style.left = '0';
+  handle.style.top = '0';
+  handle.style.width = '6px';
+  handle.style.height = '100%';
+  handle.style.cursor = 'col-resize';
+  handle.style.zIndex = '1';
+  handle.style.display = 'flex';
+  handle.style.alignItems = 'center';
+  handle.style.justifyContent = 'center';
+
+  // Grip indicator (subtle dots)
+  const grip = document.createElement('div');
+  grip.style.width = '2px';
+  grip.style.height = '32px';
+  grip.style.borderRadius = '1px';
+  grip.style.background = 'rgba(0,0,0,0.18)';
+  handle.appendChild(grip);
+
+  handle.addEventListener('pointerdown', (event: PointerEvent) => {
+    event.preventDefault();
+    try { handle.setPointerCapture(event.pointerId); } catch (_e) { /* synthetic events */ }
+    _resizeState = { active: true, startX: event.clientX, startWidth: _panelWidth };
+    document.addEventListener('pointermove', _onResizeMove);
+    document.addEventListener('pointerup', _onResizeUp);
+  });
+
+  return handle;
+}
+
+// =============================================================================
 // Inspector Panel
 // =============================================================================
 
@@ -701,24 +847,27 @@ function _createInspectorPanel(): HTMLDivElement {
   panel.style.position = "fixed";
   panel.style.top = "0";
   panel.style.right = "0";
-  panel.style.width = "380px";
+  panel.style.width = `${_panelWidth}px`;
   panel.style.height = "100vh";
-  panel.style.background = "rgba(20, 20, 28, 0.97)";
-  panel.style.color = "#e0e0e0";
+  panel.style.background = "#f8f8fa";
+  panel.style.color = "#1a1a2e";
   panel.style.fontFamily = "'SF Mono', 'Fira Code', 'Consolas', monospace";
   panel.style.fontSize = "12px";
   panel.style.zIndex = "99999";
   panel.style.overflowY = "auto";
-  panel.style.borderLeft = "1px solid rgba(255,255,255,0.1)";
+  panel.style.borderLeft = "1px solid #ddd";
   panel.style.boxSizing = "border-box";
+
+  // Resize handle
+  panel.appendChild(_createResizeHandle());
 
   // Header
   const header = document.createElement("div");
   header.style.padding = "12px 16px";
-  header.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
+  header.style.borderBottom = "1px solid #ddd";
   header.style.fontSize = "14px";
   header.style.fontWeight = "600";
-  header.style.color = "#fff";
+  header.style.color = "#1a1a2e";
   header.textContent = "Inspector";
   panel.appendChild(header);
 
@@ -732,12 +881,14 @@ function _createInspectorPanel(): HTMLDivElement {
   _inspectorPanel = panel;
 
   _renderEmptyState();
+  _adjustViewport(_panelWidth);
 
   return panel;
 }
 
 /** Remove the inspector panel from DOM. */
 function _removeInspectorPanel(): void {
+  _resetViewport();
   if (_inspectorPanel && _inspectorPanel.parentNode) {
     _inspectorPanel.parentNode.removeChild(_inspectorPanel);
   }
@@ -751,7 +902,7 @@ function _renderEmptyState(): void {
   body.innerHTML = '';
   const msg = document.createElement("div");
   msg.style.padding = "24px 16px";
-  msg.style.color = "rgba(255,255,255,0.4)";
+  msg.style.color = "#888";
   msg.style.textAlign = "center";
   msg.style.fontStyle = "italic";
   msg.textContent = "Click an element to inspect";
@@ -762,7 +913,7 @@ function _renderEmptyState(): void {
 function _createSection(title: string, content: HTMLElement, collapsed = false): HTMLElement {
   const section = document.createElement("div");
   section.setAttribute("data-sk-inspector-section", title);
-  section.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
+  section.style.borderBottom = "1px solid #e8e8e8";
 
   // Header
   const hdr = document.createElement("div");
@@ -775,7 +926,7 @@ function _createSection(title: string, content: HTMLElement, collapsed = false):
   hdr.style.fontWeight = "600";
   hdr.style.textTransform = "uppercase";
   hdr.style.letterSpacing = "0.5px";
-  hdr.style.color = "rgba(255,255,255,0.6)";
+  hdr.style.color = "#777";
 
   const chevron = document.createElement("span");
   chevron.setAttribute("data-sk-inspector-chevron", "true");
@@ -841,8 +992,8 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
   const identityDiv = document.createElement("div");
   const typeBadgeColor = TYPE_BADGE_COLORS[sceneEl.type] || "#666";
   identityDiv.innerHTML = `
-    <div style="margin-bottom:6px;"><strong style="color:#fff;font-size:14px;">${_escapeHtml(sceneEl.id)}</strong>${_badge(sceneEl.type, typeBadgeColor)}</div>
-    <div style="margin-bottom:2px;">Parent: <span style="color:#aaa;">${sceneEl.parentId ?? "(root)"}</span></div>
+    <div style="margin-bottom:6px;"><strong style="color:#1a1a2e;font-size:14px;">${_escapeHtml(sceneEl.id)}</strong>${_badge(sceneEl.type, typeBadgeColor)}</div>
+    <div style="margin-bottom:2px;">Parent: <span style="color:#666;">${sceneEl.parentId ?? "(root)"}</span></div>
     ${sceneEl._internal ? '<div style="color:#ff8c32;">Internal element</div>' : ''}
   `;
   body.appendChild(_createSection("Identity", identityDiv));
@@ -851,10 +1002,10 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
   const boundsDiv = document.createElement("div");
   const r = sceneEl.resolved;
   boundsDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;">
-    <tr><td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 0;">x</td><td style="color:#fff;">${r.x.toFixed(1)}</td>
-        <td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 16px;">y</td><td style="color:#fff;">${r.y.toFixed(1)}</td></tr>
-    <tr><td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 0;">w</td><td style="color:#fff;">${r.w.toFixed(1)}</td>
-        <td style="color:rgba(255,255,255,0.5);padding:2px 8px 2px 16px;">h</td><td style="color:#fff;">${r.h.toFixed(1)}</td></tr>
+    <tr><td style="color:#999;padding:2px 8px 2px 0;">x</td><td style="color:#1a1a2e;">${r.x.toFixed(1)}</td>
+        <td style="color:#999;padding:2px 8px 2px 16px;">y</td><td style="color:#1a1a2e;">${r.y.toFixed(1)}</td></tr>
+    <tr><td style="color:#999;padding:2px 8px 2px 0;">w</td><td style="color:#1a1a2e;">${r.w.toFixed(1)}</td>
+        <td style="color:#999;padding:2px 8px 2px 16px;">h</td><td style="color:#1a1a2e;">${r.h.toFixed(1)}</td></tr>
   </table>`;
   body.appendChild(_createSection("Resolved Bounds", boundsDiv));
 
@@ -880,16 +1031,16 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
       const isLocked = axisProv && lockedSources.has(axisProv.source || "");
 
       if (isLocked) {
-        propsHtml += `<div style="padding:2px 0;color:rgba(255,255,255,0.35);" data-sk-prop-status="locked">
+        propsHtml += `<div style="padding:2px 0;color:#aaa;" data-sk-prop-status="locked">
           <span style="margin-right:2px;">&#128274;</span>${_escapeHtml(key)}: ${_escapeHtml(displayVal)}</div>`;
       } else {
-        propsHtml += `<div style="padding:2px 0;text-decoration:underline;text-decoration-style:dashed;text-underline-offset:2px;" data-sk-prop-status="editable">
+        propsHtml += `<div style="padding:2px 0;color:#1a1a2e;text-decoration:underline;text-decoration-style:dashed;text-underline-offset:2px;" data-sk-prop-status="editable">
           ${_escapeHtml(key)}: ${_escapeHtml(displayVal)}</div>`;
       }
     }
-    propsDiv.innerHTML = propsHtml || '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+    propsDiv.innerHTML = propsHtml || '<span style="color:#aaa;">(none)</span>';
   } else {
-    propsDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+    propsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(_createSection("Authored Props", propsDiv));
 
@@ -904,19 +1055,19 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
     provHtml += `<div style="padding:3px 0;">${axis}: ${_badge(p.source, color)}`;
 
     if (p.source === "constraint") {
-      provHtml += ` <span style="color:#aaa;">${_escapeHtml(p.type || "")} ref=${_escapeHtml(p.ref || "")}`;
+      provHtml += ` <span style="color:#666;">${_escapeHtml(p.type || "")} ref=${_escapeHtml(p.ref || "")}`;
       if (p.gap !== undefined) provHtml += ` gap=${p.gap}`;
       provHtml += `</span>`;
     } else if (p.source === "stack") {
-      provHtml += ` <span style="color:#aaa;">stack=${_escapeHtml(p.stackId || "")}</span>`;
+      provHtml += ` <span style="color:#666;">stack=${_escapeHtml(p.stackId || "")}</span>`;
     } else if (p.source === "transform" && p.original) {
-      provHtml += ` <span style="color:#aaa;">original: ${_escapeHtml(JSON.stringify(p.original))}</span>`;
+      provHtml += ` <span style="color:#666;">original: ${_escapeHtml(JSON.stringify(p.original))}</span>`;
     } else if (p.source === "authored" && p.value !== undefined) {
-      provHtml += ` <span style="color:#aaa;">${_escapeHtml(String(p.value))}</span>`;
+      provHtml += ` <span style="color:#666;">${_escapeHtml(String(p.value))}</span>`;
     }
 
-    if (p.sourceAnchor) provHtml += ` <span style="color:#777;">src=${p.sourceAnchor}</span>`;
-    if (p.targetAnchor) provHtml += ` <span style="color:#777;">tgt=${p.targetAnchor}</span>`;
+    if (p.sourceAnchor) provHtml += ` <span style="color:#999;">src=${p.sourceAnchor}</span>`;
+    if (p.targetAnchor) provHtml += ` <span style="color:#999;">tgt=${p.targetAnchor}</span>`;
     provHtml += `</div>`;
   }
   provDiv.innerHTML = provHtml;
@@ -932,14 +1083,14 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
       const otherId = dir === "incoming" ? edge.fromId : edge.toId;
-      relsHtml += `<div style="padding:2px 0;">${arrow} <span style="color:#fff;">${_escapeHtml(otherId)}</span>
-        <span style="color:#aaa;">${_escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>
-        ${edge.gap !== undefined ? `<span style="color:#777;">gap=${edge.gap}</span>` : ''}
+      relsHtml += `<div style="padding:2px 0;">${arrow} <span style="color:#1a1a2e;">${_escapeHtml(otherId)}</span>
+        <span style="color:#666;">${_escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>
+        ${edge.gap !== undefined ? `<span style="color:#999;">gap=${edge.gap}</span>` : ''}
       </div>`;
     }
     relsDiv.innerHTML = relsHtml;
   } else {
-    relsDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+    relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(_createSection("Relationships", relsDiv));
 
@@ -949,11 +1100,11 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
   if (styleObj && Object.keys(styleObj).length > 0) {
     let stylesHtml = '';
     for (const [prop, val] of Object.entries(styleObj)) {
-      stylesHtml += `<div style="padding:1px 0;">${_escapeHtml(prop)}: <span style="color:#fff;">${_escapeHtml(String(val))}</span></div>`;
+      stylesHtml += `<div style="padding:1px 0;">${_escapeHtml(prop)}: <span style="color:#1a1a2e;">${_escapeHtml(String(val))}</span></div>`;
     }
     stylesDiv.innerHTML = stylesHtml;
   } else {
-    stylesDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+    stylesDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(_createSection("CSS Styles", stylesDiv, true));
 
@@ -962,9 +1113,9 @@ function _renderElementDetail(elementId: string, slideIndex: number): void {
   if (authored?.content) {
     let content = authored.content;
     if (content.length > 500) content = content.slice(0, 500) + "...";
-    htmlDiv.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#ccc;max-height:200px;overflow:auto;">${_escapeHtml(content)}</pre>`;
+    htmlDiv.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#444;max-height:200px;overflow:auto;">${_escapeHtml(content)}</pre>`;
   } else {
-    htmlDiv.innerHTML = '<span style="color:rgba(255,255,255,0.3);">(none)</span>';
+    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(_createSection("Inner HTML", htmlDiv, true));
 }
@@ -1012,6 +1163,8 @@ export function _resetDebugForTests(): void {
   _detachClickHandler();
   _debugMode = 0;
   _selectedElementId = null;
+  _panelWidth = 380;
+  _resetViewport();
 }
 
 // =============================================================================

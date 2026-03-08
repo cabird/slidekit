@@ -1881,3 +1881,222 @@ describe("inspector panel — showInspector option", () => {
     assert.equal(typeof mod.default._resetDebugForTests, "function");
   });
 });
+
+// =============================================================================
+// Inspector Panel — Viewport Adjustment
+// =============================================================================
+
+describe("inspector panel — viewport adjustment", () => {
+  it("sets .reveal container width when inspector opens", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      // Create a fake .reveal container
+      const reveal = document.createElement("div");
+      reveal.className = "reveal";
+      reveal.style.width = "100%";
+      document.body.appendChild(reveal);
+
+      const e = el('', { id: "vp1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      assert.ok(reveal.style.width.includes("calc"), ".reveal width should be set to calc expression");
+      assert.ok(reveal.style.width.includes("380"), ".reveal width should account for panel width");
+
+      mod._resetDebugForTests();
+      document.body.removeChild(reveal);
+    });
+  });
+
+  it("restores .reveal container width when inspector closes", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const reveal = document.createElement("div");
+      reveal.className = "reveal";
+      reveal.style.width = "100%";
+      document.body.appendChild(reveal);
+
+      const e = el('', { id: "vp2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+      assert.ok(reveal.style.width.includes("calc"), "width should be adjusted");
+
+      mod.removeDebugOverlay();
+      assert.equal(reveal.style.width, "", ".reveal width should be restored");
+
+      mod._resetDebugForTests();
+      document.body.removeChild(reveal);
+    });
+  });
+
+  it("viewport adjusts on cycleDebugMode transitions", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const reveal = document.createElement("div");
+      reveal.className = "reveal";
+      document.body.appendChild(reveal);
+
+      const e = el('', { id: "vp3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+
+      // Mode 0 → 1: should adjust
+      mod.cycleDebugMode();
+      assert.ok(reveal.style.width.includes("calc"), "mode 1: reveal width should be adjusted");
+
+      // Mode 1 → 2: should remain adjusted
+      mod.cycleDebugMode();
+      assert.ok(reveal.style.width.includes("calc"), "mode 2: reveal width should still be adjusted");
+
+      // Mode 3 → 0: should restore
+      mod.cycleDebugMode(); // mode 3
+      mod.cycleDebugMode(); // mode 0
+      assert.equal(reveal.style.width, "", "mode 0: reveal width should be restored");
+
+      mod._resetDebugForTests();
+      document.body.removeChild(reveal);
+    });
+  });
+
+  it("showInspector: false does not adjust viewport", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const reveal = document.createElement("div");
+      reveal.className = "reveal";
+      reveal.style.width = "100%";
+      document.body.appendChild(reveal);
+
+      const e = el('', { id: "vp4", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay({ showInspector: false });
+
+      assert.equal(reveal.style.width, "100%", "reveal width should not change when showInspector is false");
+
+      mod._resetDebugForTests();
+      document.body.removeChild(reveal);
+    });
+  });
+});
+
+// =============================================================================
+// Inspector Panel — Resize Handle
+// =============================================================================
+
+describe("inspector panel — resize handle", () => {
+  it("drag handle element exists on panel", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "rh1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const handle = document.querySelector('[data-sk-role="debug-inspector-handle"]');
+      assert.ok(handle, "resize handle should exist on panel");
+      assert.equal(handle.style.cursor, "col-resize", "handle should have col-resize cursor");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("panel width changes with simulated pointer drag", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "rh2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const handle = document.querySelector('[data-sk-role="debug-inspector-handle"]');
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+      assert.ok(handle, "handle should exist");
+      assert.ok(panel, "panel should exist");
+
+      // Simulate drag: start at x=380, move left to x=280 → panel should widen by 100px
+      handle.dispatchEvent(new PointerEvent("pointerdown", { clientX: 380, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: 280, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointerup", { clientX: 280, bubbles: true }));
+
+      assert.equal(panel.style.width, "480px", "panel should be 480px after dragging left by 100");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("panel width is clamped to min/max bounds", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "rh3", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const handle = document.querySelector('[data-sk-role="debug-inspector-handle"]');
+      const panel = document.querySelector('[data-sk-role="debug-inspector"]');
+
+      // Drag far right (shrink past min): start at 380, move right to 700 → would be 380 - 320 = 60, clamped to 200
+      handle.dispatchEvent(new PointerEvent("pointerdown", { clientX: 380, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: 700, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointerup", { clientX: 700, bubbles: true }));
+      assert.equal(panel.style.width, "200px", "panel width should be clamped to 200px min");
+
+      // Reset and drag far left (grow past max)
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+      const handle2 = document.querySelector('[data-sk-role="debug-inspector-handle"]');
+      const panel2 = document.querySelector('[data-sk-role="debug-inspector"]');
+
+      handle2.dispatchEvent(new PointerEvent("pointerdown", { clientX: 380, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: -300, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointerup", { clientX: -300, bubbles: true }));
+      assert.equal(panel2.style.width, "600px", "panel width should be clamped to 600px max");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("viewport re-adjusts after drag", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const reveal = document.createElement("div");
+      reveal.className = "reveal";
+      document.body.appendChild(reveal);
+
+      const e = el('', { id: "rh4", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const handle = document.querySelector('[data-sk-role="debug-inspector-handle"]');
+
+      // Drag to widen the panel
+      handle.dispatchEvent(new PointerEvent("pointerdown", { clientX: 380, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointermove", { clientX: 280, bubbles: true }));
+      document.dispatchEvent(new PointerEvent("pointerup", { clientX: 280, bubbles: true }));
+
+      assert.ok(reveal.style.width.includes("480"), "reveal width should reflect new panel width of 480px");
+
+      mod._resetDebugForTests();
+      document.body.removeChild(reveal);
+    });
+  });
+});
