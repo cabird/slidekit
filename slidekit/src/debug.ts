@@ -78,8 +78,29 @@ export function getDebugMode(): number {
 
 /** Internal keydown handler for Ctrl+Shift+D toggle + undo/redo. */
 function _handleDebugKeydown(event: KeyboardEvent): void {
-  // Skip if the user is typing in an input field
   const target = event.target as HTMLElement;
+  const s = debugController.state;
+
+  // Intercept Ctrl+Z / Ctrl+Shift+Z on the inspector edit input so our
+  // undo/redo fires instead of the browser's native input undo.
+  if (target === s.editInputElement) {
+    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
+      return;
+    }
+    if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      undo();
+      return;
+    }
+    // Let all other keys pass through to the input normally
+    return;
+  }
+
+  // Skip if the user is typing in an input field (non-inspector inputs)
   if (target) {
     const tagName = target.tagName;
     if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
@@ -90,12 +111,12 @@ function _handleDebugKeydown(event: KeyboardEvent): void {
   if (event.ctrlKey && event.shiftKey && (event.key === "d" || event.key === "D")) {
     event.preventDefault();
     event.stopPropagation();
-    cycleDebugMode(debugController.state.lastToggleOptions);
+    cycleDebugMode(s.lastToggleOptions);
     return;
   }
 
   // Undo/redo when inspector is visible
-  if (debugController.state.inspectorPanel) {
+  if (s.inspectorPanel) {
     if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
       event.preventDefault();
       event.stopPropagation();

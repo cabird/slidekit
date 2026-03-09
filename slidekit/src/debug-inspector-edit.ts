@@ -51,6 +51,9 @@ function refreshInspectorDetail(elementId: string, slideIndex: number): void {
   debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
 }
 
+/** Monotonically increasing token to discard stale applyEdit results. */
+let _applySeq = 0;
+
 /**
  * Restore a prop row's text after editing, without rebuilding the entire panel.
  * This avoids detaching DOM elements that may have pending click events.
@@ -94,7 +97,12 @@ export async function applyEdit(
   // which has _layoutFn injected — the debug bundle is separate)
   const rerender = sk._rerenderSlide as (i: number, d: SlideDefinition) => Promise<LayoutResult>;
   if (!rerender) return;
+
+  // Sequence token: if a newer applyEdit starts before this one finishes
+  // the await, skip the UI refresh (the newer call will handle it).
+  const seq = ++_applySeq;
   await rerender(slideIndex, definition);
+  if (seq !== _applySeq) return;
 
   // Refresh debug overlay (re-reads from updated window.sk)
   const s = debugController.state;
@@ -249,6 +257,15 @@ export function commitEdit(
   s.editingPropKey = null;
   restorePropRowText(propKey, newValue);
   s.editInputElement = null;
+
+  // Deferred panel refresh: updates Resolved Bounds, Provenance, etc.
+  // Runs after the current event turn so it won't interfere with
+  // pending click events (blur fires before click in browsers).
+  queueMicrotask(() => {
+    if (s.editingPropKey === null && s.selectedElementId === elementId && s.inspectorPanel) {
+      refreshInspectorDetail(elementId, slideIndex);
+    }
+  });
 }
 
 /**
@@ -302,7 +319,6 @@ export async function undo(): Promise<void> {
 
   s.redoStack.push(entry);
   await applyEdit(entry.elementId, entry.propKey, entry.oldValue as number, entry.slideIndex);
-  refreshInspectorDetail(entry.elementId, entry.slideIndex);
 }
 
 /** Redo the last undone edit. */
@@ -313,7 +329,6 @@ export async function redo(): Promise<void> {
 
   s.undoStack.push(entry);
   await applyEdit(entry.elementId, entry.propKey, entry.newValue as number, entry.slideIndex);
-  refreshInspectorDetail(entry.elementId, entry.slideIndex);
 }
 
 // =============================================================================
