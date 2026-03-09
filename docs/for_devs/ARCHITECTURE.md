@@ -214,7 +214,7 @@ graph TD
 ```js
 COMMON_DEFAULTS = {
   x: 0, y: 0, anchor: "tl", layer: "content",
-  opacity: 1, style: null, className: "", valign: "top"
+  opacity: 1, style: null, className: "", vAlign: "top"
 }
 ```
 
@@ -612,7 +612,7 @@ flowchart TD
     B --> C[Filter user styles<br/>via filterStyle]
     C --> D[Create div with<br/>absolute positioning]
     D --> E{Element type?}
-    E -->|el| F[Set data-sk-type='el'<br/>Set innerHTML<br/>Apply valign flexbox]
+    E -->|el| F[Set data-sk-type='el'<br/>Set innerHTML<br/>Apply vAlign flexbox]
     E -->|group| G[computeZOrder for children<br/>Render each child recursively]
     E -->|vstack/hstack| H[computeZOrder for children<br/>Render with stack offset]
     E -->|connector| I[Build SVG via<br/>buildConnectorSVG]

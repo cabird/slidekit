@@ -84,7 +84,7 @@ el('<p style="font:700 52px/1.1 Inter;color:#fff;text-align:center">Hello World<
 | `maxH` | `number` | — | Maximum height constraint |
 | `anchor` | `AnchorPoint` | `"tl"` | Anchor point — see [Anchor System](#anchor-system) |
 | `layer` | `LayerName` | `"content"` | Render layer: `"bg"`, `"content"`, or `"overlay"` |
-| `valign` | `VAlign` | `"top"` | Vertical alignment of content within the element's box: `"top"`, `"center"`, `"bottom"` |
+| `vAlign` | `VAlign` | `"top"` | Vertical alignment of content within the element's box: `"top"`, `"center"`, `"bottom"` |
 | `opacity` | `number` | `1` | Element opacity (0–1) |
 | `rotate` | `number` | — | Rotation in degrees |
 | `flipH` | `boolean` | — | Flip element horizontally (applies `scaleX(-1)`) |
@@ -172,7 +172,7 @@ All element types share these properties via `COMMON_DEFAULTS`:
 | `anchor` | `AnchorPoint` | `"tl"` | Which point of the element sits at (x, y) |
 | `layer` | `LayerName` | `"content"` | Render layer: `"bg"`, `"content"`, `"overlay"` |
 | `opacity` | `number` | `1` | Element opacity (0–1) |
-| `valign` | `VAlign` | `"top"` | Vertical alignment of content within the element's box |
+| `vAlign` | `VAlign` | `"top"` | Vertical alignment of content within the element's box |
 | `style` | `object` | `{}` | CSS pass-through properties (fresh object per element) |
 | `className` | `string` | `""` | CSS class name(s) to apply |
 | `shadow` | `string` | — | Shadow preset name or CSS `box-shadow` value |
@@ -1454,7 +1454,7 @@ Key types for users building presentations:
 | Type | Description |
 |---|---|
 | `InputProps` | `ElementProps & { id?: string }` — input type for all element factory functions |
-| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `valign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `flipH`, `flipV`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
+| `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `vAlign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `flipH`, `flipV`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
 | `CardGridOptions` | `InputProps & { cols?: number }` |
 | `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, layer?, opacity?, style?, className? }` |
 | `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border?, vAlign? }` |

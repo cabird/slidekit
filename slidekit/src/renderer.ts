@@ -653,12 +653,12 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
     case "el": {
       // v2: Render arbitrary HTML content via innerHTML
       div.setAttribute("data-sk-type", "el");
-      // Vertical alignment via flexbox when valign is set and element has explicit height
-      const valign = props.valign;
-      if (valign && valign !== 'top' && props.h != null) {
+      // Vertical alignment via flexbox when vAlign is set and element has explicit height
+      const vAlign = props.vAlign;
+      if (vAlign && vAlign !== 'top' && props.h != null) {
         div.style.display = 'flex';
         div.style.flexDirection = 'column';
-        div.style.justifyContent = valign === 'center' ? 'center' : valign === 'bottom' ? 'flex-end' : 'flex-start';
+        div.style.justifyContent = vAlign === 'center' ? 'center' : vAlign === 'bottom' ? 'flex-end' : 'flex-start';
       }
       div.innerHTML = element.content || "";
       break;

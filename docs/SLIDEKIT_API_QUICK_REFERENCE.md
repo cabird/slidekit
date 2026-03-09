@@ -247,7 +247,7 @@ All element types share these properties:
 | `maxW`, `maxH` | `number` | -- | Max dimension constraints |
 | `anchor` | `AnchorPoint` | `"tl"` | Which point sits at (x, y) |
 | `layer` | `LayerName` | `"content"` | `"bg"`, `"content"`, `"overlay"` |
-| `valign` | `VAlign` | `"top"` | Content vertical alignment within box |
+| `vAlign` | `VAlign` | `"top"` | Content vertical alignment within box |
 | `overflow` | `OverflowPolicy` | `"visible"` | `"visible"`, `"warn"`, `"clip"`, `"error"` |
 | `style` | `object` | `{}` | CSS pass-through (see [Styling Rules](#styling-rules)) |
 | `opacity` | `number` | `1` | 0--1 |
@@ -471,13 +471,13 @@ figure({
 // Three nodes with labeled connectors
 el('<p style="font:600 24px Inter;color:#fff;text-align:center">Client</p>',
   { id: 'n-a', x: 300, y: 400, w: 200, h: 80,
-    style: { background: '#1a1a3e', borderRadius: '8px' }, valign: 'center' }),
+    style: { background: '#1a1a3e', borderRadius: '8px' }, vAlign: 'center' }),
 el('<p style="font:600 24px Inter;color:#fff;text-align:center">Server</p>',
   { id: 'n-b', x: 860, y: 400, w: 200, h: 80,
-    style: { background: '#1a1a3e', borderRadius: '8px' }, valign: 'center' }),
+    style: { background: '#1a1a3e', borderRadius: '8px' }, vAlign: 'center' }),
 el('<p style="font:600 24px Inter;color:#fff;text-align:center">Database</p>',
   { id: 'n-c', x: 1420, y: 400, w: 200, h: 80,
-    style: { background: '#1a1a3e', borderRadius: '8px' }, valign: 'center' }),
+    style: { background: '#1a1a3e', borderRadius: '8px' }, vAlign: 'center' }),
 connect('n-a', 'n-b', { arrow: 'end', color: '#4caf50',
   label: 'REST', labelStyle: { size: 14, color: '#aaa', font: 'monospace' } }),
 connect('n-b', 'n-c', { arrow: 'end', color: '#2196f3',
@@ -492,11 +492,11 @@ export default {
   id: 'transform-demo', background: '#0a0a1a',
   elements: [
     el('<p style="font:600 24px Inter;color:#fff;text-align:center">A</p>',
-      { id: 'box-a', x: safe.x, y: 300, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+      { id: 'box-a', x: safe.x, y: 300, w: 240, style: { background: '#1a1a3e' }, vAlign: 'center' }),
     el('<p style="font:600 24px Inter;color:#fff;text-align:center">B</p>',
-      { id: 'box-b', x: 600, y: 350, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+      { id: 'box-b', x: 600, y: 350, w: 240, style: { background: '#1a1a3e' }, vAlign: 'center' }),
     el('<p style="font:600 24px Inter;color:#fff;text-align:center">C</p>',
-      { id: 'box-c', x: 1200, y: 280, w: 240, style: { background: '#1a1a3e' }, valign: 'center' }),
+      { id: 'box-c', x: 1200, y: 280, w: 240, style: { background: '#1a1a3e' }, vAlign: 'center' }),
   ],
   transforms: [
     alignTop(['box-a', 'box-b', 'box-c']),          // snap all to same y

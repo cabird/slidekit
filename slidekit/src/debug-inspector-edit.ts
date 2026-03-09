@@ -1,6 +1,12 @@
-// Debug Inspector Edit — Inline number editing with live preview + undo/redo
+// Debug Inspector Edit — Inline editing with live preview + undo/redo
 //
-// Phase 1: numeric props only (x, y, w, h, opacity, rotate, gap, scale).
+// Supports:
+//  - Flat numeric props (x, y, w, h, opacity, rotate, scale) via number input
+//  - String enum props (align, vAlign, layer, etc.) via dropdown
+//  - Gap editing: spacing token dropdown + custom number fallback
+//    - Stack gap (element.props.gap) stores token string or number
+//    - Constraint gap (x.gap / y.gap on RelMarker) stores number
+//
 // Edit loop: mutate SlideElement.props → layout() → re-render DOM → refresh overlay.
 //
 // Uses debugController.callbacks for renderElementDetail and renderDebugOverlay
@@ -31,9 +37,63 @@ const EDITABLE_PROPS: Record<string, PropConfig> = {
   scale:   { step: 0.05, min: 0.01,  max: 10   },
 };
 
-/** Check if a property key is editable in Phase 1. */
+/** Config for constraint gap editing (x.gap / y.gap). */
+const GAP_EDIT_CONFIG: PropConfig = { step: 1, min: 0, max: 500 };
+
+/** Constraint types that have an editable gap parameter. */
+const GAP_CONSTRAINT_TYPES = new Set(['below', 'above', 'rightOf', 'leftOf']);
+
+/** Check if a property key is editable as a number input. */
 export function isEditableProp(key: string, value: unknown): boolean {
-  return key in EDITABLE_PROPS && typeof value === 'number';
+  return key in EDITABLE_PROPS && key !== 'gap' && typeof value === 'number';
+}
+
+/** Check if a constraint type supports gap editing. */
+export function isEditableGap(constraintType: string): boolean {
+  return GAP_CONSTRAINT_TYPES.has(constraintType);
+}
+
+// =============================================================================
+// Enum props config
+// =============================================================================
+
+/** Default spacing tokens (used as fallback when window.sk._config is unavailable). */
+const DEFAULT_SPACING_TOKENS: Record<string, number> = {
+  xs: 8, sm: 16, md: 24, lg: 32, xl: 48, section: 80,
+};
+
+/** Get the active spacing token map from window.sk._config or defaults. */
+function getSpacingTokens(): Array<{ token: string; px: number }> {
+  const sk = (window as any).sk;
+  const scale: Record<string, number> = sk?._config?.spacing || DEFAULT_SPACING_TOKENS;
+  return Object.entries(scale).map(([token, px]) => ({ token, px }));
+}
+
+/**
+ * Get the valid string options for an enum property.
+ * Returns null if the property is not a string-enum prop.
+ * `elementType` is needed because `align` has different values for vstack vs hstack.
+ */
+export function getEnumOptions(propKey: string, elementType: string): string[] | null {
+  switch (propKey) {
+    case 'align':
+      if (elementType === 'vstack') return ['left', 'center', 'right', 'stretch'];
+      if (elementType === 'hstack') return ['top', 'middle', 'bottom', 'stretch'];
+      return null;
+    case 'vAlign':  return ['top', 'center', 'bottom'];
+    case 'hAlign':  return ['left', 'center', 'right'];
+    case 'overflow': return ['visible', 'warn', 'clip', 'error'];
+    case 'layer':   return ['bg', 'content', 'overlay'];
+    case 'anchor':  return ['tl', 'tc', 'tr', 'cl', 'cc', 'cr', 'bl', 'bc', 'br'];
+    case 'connectorType': return ['straight', 'curved', 'elbow', 'orthogonal'];
+    case 'arrow':   return ['none', 'end', 'start', 'both'];
+    default:        return null;
+  }
+}
+
+/** Check if propKey is a gap property that should use the token dropdown. */
+export function isGapProp(key: string): boolean {
+  return key === 'gap';
 }
 
 // =============================================================================
@@ -66,8 +126,12 @@ function restorePropRowText(propKey: string, value: unknown): void {
   const propDiv = input.parentElement;
   if (!propDiv) return;
 
-  // Restore the original text + dashed-underline style
-  propDiv.textContent = `${propKey}: ${value ?? ''}`;
+  // Constraint gap rows use "gap=N" format; regular props use "key: N"
+  if (propKey.endsWith('.gap')) {
+    propDiv.textContent = `gap=${value ?? ''}`;
+  } else {
+    propDiv.textContent = `${propKey}: ${value ?? ''}`;
+  }
   propDiv.style.textDecoration = 'underline';
   propDiv.style.textDecorationStyle = 'dashed';
   propDiv.style.textUnderlineOffset = '2px';
@@ -80,7 +144,7 @@ function restorePropRowText(propKey: string, value: unknown): void {
 export async function applyEdit(
   elementId: string,
   propKey: string,
-  newValue: number,
+  newValue: number | string,
   slideIndex: number,
 ): Promise<void> {
   const sk = (window as any).sk;
@@ -90,8 +154,16 @@ export async function applyEdit(
   const element = findElement(definition, elementId);
   if (!element) return;
 
-  // Mutate the live definition
-  (element.props as Record<string, unknown>)[propKey] = newValue;
+  // Mutate the live definition — handle nested gap paths (e.g. "x.gap")
+  if (propKey.endsWith('.gap')) {
+    const axis = propKey.split('.')[0];
+    const marker = (element.props as Record<string, unknown>)[axis];
+    if (marker && typeof marker === 'object' && '_rel' in (marker as Record<string, unknown>)) {
+      (marker as Record<string, unknown>).gap = newValue;
+    }
+  } else {
+    (element.props as Record<string, unknown>)[propKey] = newValue;
+  }
 
   // Re-layout + re-render (call through window.sk to use the main bundle's copy
   // which has _layoutFn injected — the debug bundle is separate)
@@ -139,7 +211,8 @@ export function startEdit(
     cancelEdit();
   }
 
-  const config = EDITABLE_PROPS[propKey];
+  // Look up config — constraint gap paths use GAP_EDIT_CONFIG
+  const config = propKey.endsWith('.gap') ? GAP_EDIT_CONFIG : EDITABLE_PROPS[propKey];
   if (!config) return;
 
   // Read the live value from the definition — the click handler's captured
@@ -147,10 +220,25 @@ export function startEdit(
   const sk = (window as any).sk;
   const def = sk?._definitions?.[slideIndex];
   if (def) {
-    const el = findElement(def, elementId);
-    if (el) {
-      const live = (el.props as Record<string, unknown>)[propKey];
-      if (typeof live === 'number') currentValue = live;
+    const foundEl = findElement(def, elementId);
+    if (foundEl) {
+      let live: unknown;
+      if (propKey.endsWith('.gap')) {
+        const axis = propKey.split('.')[0];
+        const marker = (foundEl.props as Record<string, unknown>)[axis];
+        if (marker && typeof marker === 'object') {
+          live = (marker as Record<string, unknown>).gap;
+        }
+      } else {
+        live = (foundEl.props as Record<string, unknown>)[propKey];
+      }
+      if (typeof live === 'number') {
+        currentValue = live;
+      } else if (propKey === 'gap' && typeof live === 'string') {
+        // Gap stored as token string — resolve to px for number input
+        const match = getSpacingTokens().find(t => t.token === live);
+        if (match) currentValue = match.px;
+      }
     }
   }
 
@@ -174,7 +262,7 @@ export function startEdit(
   // Replace prop text with input
   propDiv.textContent = '';
   const label = document.createElement('span');
-  label.textContent = `${propKey}: `;
+  label.textContent = propKey.endsWith('.gap') ? 'gap=' : `${propKey}: `;
   label.style.color = '#999';
   propDiv.appendChild(label);
   propDiv.appendChild(input);
@@ -274,7 +362,7 @@ export function commitEdit(
 async function cancelEditRestore(
   elementId: string,
   propKey: string,
-  originalValue: number,
+  originalValue: number | string,
   slideIndex: number,
 ): Promise<void> {
   const s = debugController.state;
@@ -318,7 +406,7 @@ export async function undo(): Promise<void> {
   if (!entry) return;
 
   s.redoStack.push(entry);
-  await applyEdit(entry.elementId, entry.propKey, entry.oldValue as number, entry.slideIndex);
+  await applyEdit(entry.elementId, entry.propKey, entry.oldValue as number | string, entry.slideIndex);
 }
 
 /** Redo the last undone edit. */
@@ -328,7 +416,240 @@ export async function redo(): Promise<void> {
   if (!entry) return;
 
   s.undoStack.push(entry);
-  await applyEdit(entry.elementId, entry.propKey, entry.newValue as number, entry.slideIndex);
+  await applyEdit(entry.elementId, entry.propKey, entry.newValue as number | string, entry.slideIndex);
+}
+
+// =============================================================================
+// Enum dropdown editing
+// =============================================================================
+
+/** Shared select element style. */
+const SELECT_STYLE = `
+  padding: 2px 4px; font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  border: 1px solid #4a9eff; border-radius: 3px;
+  background: #fff; color: #1a1a2e; outline: none;
+  box-shadow: 0 0 3px rgba(74, 158, 255, 0.3);
+  cursor: pointer;
+`;
+
+/**
+ * Start editing a string-enum property. Creates an inline <select> dropdown
+ * replacing the property text in the inspector panel.
+ */
+export function startEnumEdit(
+  elementId: string,
+  propKey: string,
+  currentValue: string,
+  options: string[],
+  propDiv: HTMLElement,
+  slideIndex: number,
+): void {
+  const s = debugController.state;
+  if (s.editingPropKey !== null) cancelEdit();
+
+  // Read live value from definition
+  const sk = (window as any).sk;
+  const def = sk?._definitions?.[slideIndex];
+  if (def) {
+    const foundEl = findElement(def, elementId);
+    if (foundEl) {
+      const live = (foundEl.props as Record<string, unknown>)[propKey];
+      if (typeof live === 'string') currentValue = live;
+    }
+  }
+
+  const originalValue = currentValue;
+
+  // Create select
+  const select = document.createElement('select');
+  select.style.cssText = SELECT_STYLE;
+  for (const opt of options) {
+    const option = document.createElement('option');
+    option.value = opt;
+    option.textContent = opt;
+    if (opt === currentValue) option.selected = true;
+    select.appendChild(option);
+  }
+
+  // Replace prop text with select
+  propDiv.textContent = '';
+  const label = document.createElement('span');
+  label.textContent = `${propKey}: `;
+  label.style.color = '#999';
+  propDiv.appendChild(label);
+  propDiv.appendChild(select);
+  propDiv.style.textDecoration = 'none';
+
+  // Store editing state
+  s.editingPropKey = propKey;
+  s.editInputElement = select;
+
+  select.focus();
+
+  // Commit immediately on selection change
+  select.addEventListener('change', () => {
+    const newVal = select.value;
+    applyEdit(elementId, propKey, newVal, slideIndex);
+    commitEdit(elementId, propKey, originalValue, newVal, slideIndex);
+  });
+
+  // Escape → cancel
+  select.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+    }
+  });
+
+  // Blur → cancel (user clicked away without selecting)
+  select.addEventListener('blur', () => {
+    if (s.editingPropKey !== propKey) return;
+    cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+  });
+}
+
+// =============================================================================
+// Gap token dropdown editing
+// =============================================================================
+
+/**
+ * Start editing a gap property with a spacing token dropdown.
+ * Works for both stack gap (stores token string) and constraint gap (stores number).
+ *
+ * @param propKey - "gap" for stack gap, "x.gap"/"y.gap" for constraint gap
+ */
+export function startGapTokenEdit(
+  elementId: string,
+  propKey: string,
+  currentValue: number | string,
+  propDiv: HTMLElement,
+  slideIndex: number,
+): void {
+  const s = debugController.state;
+  if (s.editingPropKey !== null) cancelEdit();
+
+  const isConstraintGap = propKey.endsWith('.gap');
+  const tokens = getSpacingTokens();
+
+  // Read live value from definition
+  const sk = (window as any).sk;
+  const def = sk?._definitions?.[slideIndex];
+  if (def) {
+    const foundEl = findElement(def, elementId);
+    if (foundEl) {
+      let live: unknown;
+      if (isConstraintGap) {
+        const axis = propKey.split('.')[0];
+        const marker = (foundEl.props as Record<string, unknown>)[axis];
+        if (marker && typeof marker === 'object') {
+          live = (marker as Record<string, unknown>).gap;
+        }
+      } else {
+        live = (foundEl.props as Record<string, unknown>)[propKey];
+      }
+      if (live !== undefined) currentValue = live as number | string;
+    }
+  }
+
+  const originalValue = currentValue;
+
+  // Resolve current value to find matching token
+  let currentPx: number;
+  let matchingToken: string | null = null;
+  if (typeof currentValue === 'string') {
+    const match = tokens.find(t => t.token === currentValue);
+    currentPx = match?.px ?? 0;
+    matchingToken = match ? currentValue : null;
+  } else {
+    currentPx = currentValue;
+    const match = tokens.find(t => t.px === currentValue);
+    matchingToken = match?.token ?? null;
+  }
+
+  // Create select
+  const select = document.createElement('select');
+  select.style.cssText = SELECT_STYLE;
+
+  // If current value doesn't match a token, show it as a placeholder
+  if (!matchingToken) {
+    const placeholder = document.createElement('option');
+    placeholder.value = '__current__';
+    placeholder.textContent = `${currentPx} (custom)`;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
+  }
+
+  // Token options
+  for (const { token, px } of tokens) {
+    const option = document.createElement('option');
+    option.value = token;
+    option.textContent = `${token} (${px})`;
+    if (matchingToken === token) option.selected = true;
+    select.appendChild(option);
+  }
+
+  // Custom option
+  const customOpt = document.createElement('option');
+  customOpt.value = '__custom__';
+  customOpt.textContent = 'Custom\u2026';
+  select.appendChild(customOpt);
+
+  // Replace prop text with select
+  propDiv.textContent = '';
+  const label = document.createElement('span');
+  label.textContent = isConstraintGap ? 'gap=' : `${propKey}: `;
+  label.style.color = '#999';
+  propDiv.appendChild(label);
+  propDiv.appendChild(select);
+  propDiv.style.textDecoration = 'none';
+
+  // Store editing state
+  s.editingPropKey = propKey;
+  s.editInputElement = select;
+
+  select.focus();
+
+  // Handle selection
+  select.addEventListener('change', () => {
+    const val = select.value;
+
+    // "Custom..." → switch to number input
+    if (val === '__custom__') {
+      s.editingPropKey = null;
+      s.editInputElement = null;
+      startEdit(elementId, propKey, currentPx, propDiv, slideIndex);
+      return;
+    }
+
+    // Re-selecting current custom value → no-op, close dropdown
+    if (val === '__current__') {
+      s.editingPropKey = null;
+      restorePropRowText(propKey, currentValue);
+      s.editInputElement = null;
+      return;
+    }
+
+    // Token selected — determine what value to store
+    const tokenPx = tokens.find(t => t.token === val)?.px ?? 0;
+    const newVal: number | string = isConstraintGap ? tokenPx : val;
+    applyEdit(elementId, propKey, newVal, slideIndex);
+    commitEdit(elementId, propKey, originalValue, newVal, slideIndex);
+  });
+
+  // Escape → cancel
+  select.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+    }
+  });
+
+  // Blur → cancel
+  select.addEventListener('blur', () => {
+    if (s.editingPropKey !== propKey) return;
+    cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+  });
 }
 
 // =============================================================================

@@ -40,7 +40,7 @@ export const COMMON_DEFAULTS: Record<string, unknown> = {
   opacity: 1,
   style: null,  // sentinel — applyDefaults creates fresh {} per element
   className: "",
-  valign: "top",
+  vAlign: "top",
 };
 
 /**
