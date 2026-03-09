@@ -1,5 +1,5 @@
 // slidekit/src/version.ts
-var VERSION = true ? "0.2.1" : "dev";
+var VERSION = true ? '"0.3.0"' : "dev";
 
 // slidekit/src/state.ts
 var state = {
@@ -56,7 +56,7 @@ var COMMON_DEFAULTS = {
   style: null,
   // sentinel — applyDefaults creates fresh {} per element
   className: "",
-  valign: "top"
+  vAlign: "top"
 };
 function applyDefaults(props, extraDefaults = {}) {
   const merged = { ...COMMON_DEFAULTS, ...extraDefaults };
@@ -257,7 +257,7 @@ var KNOWN_LAYOUT_PROPS = /* @__PURE__ */ new Set([
   // Layout
   "anchor",
   "layer",
-  "valign",
+  "vAlign",
   "overflow",
   // Visual (SlideKit-owned)
   "style",
@@ -3149,11 +3149,11 @@ function renderElementFromScene(element, zIndex, sceneElements, offsetX = 0, off
   switch (type) {
     case "el": {
       div.setAttribute("data-sk-type", "el");
-      const valign = props.valign;
-      if (valign && valign !== "top" && props.h != null) {
+      const vAlign = props.vAlign;
+      if (vAlign && vAlign !== "top" && props.h != null) {
         div.style.display = "flex";
         div.style.flexDirection = "column";
-        div.style.justifyContent = valign === "center" ? "center" : valign === "bottom" ? "flex-end" : "flex-start";
+        div.style.justifyContent = vAlign === "center" ? "center" : vAlign === "bottom" ? "flex-end" : "flex-start";
       }
       div.innerHTML = element.content || "";
       break;
