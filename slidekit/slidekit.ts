@@ -12,7 +12,7 @@ export { init, safeRect, splitRect, getConfig, isFontLoaded, getFontWarnings, ch
 export { clearMeasureCache, measure } from './src/measure.js';
 export { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, placeBetween } from './src/relative.js';
 export { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
-export { render, computeZOrder, applyStyleToDOM, applySlideBackground, renderElementFromScene } from './src/renderer.js';
+export { render, computeZOrder, applyStyleToDOM, applySlideBackground, renderElementFromScene, rerenderSlide } from './src/renderer.js';
 export { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
 export { routeConnector } from './src/connectorRouting.js';
 export { grid, snap, resolvePercentage, repeat, rotatedAABB } from './src/utilities.js';

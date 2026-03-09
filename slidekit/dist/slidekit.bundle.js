@@ -3302,7 +3302,11 @@ async function render(slides, options = {}) {
         layout: layouts[i]
       })),
       // M8.1: Expose config for debug overlay to read safe zone info
-      _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null
+      _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
+      // Persist original definitions for inspector editing (live references, not cloned)
+      _definitions: slides,
+      // Expose rerenderSlide for debug bundle (separate bundle can't access _layoutFn)
+      _rerenderSlide: rerenderSlide
     };
     skObj.lint = (slideId) => {
       const slideIdx = skObj.slides.findIndex((s) => s.id === slideId);
@@ -3318,6 +3322,32 @@ async function render(slides, options = {}) {
     window.sk = skObj;
   }
   return { sections, layouts };
+}
+async function rerenderSlide(slideIndex, slideDefinition) {
+  if (!_layoutFn) throw new Error("Layout function not injected");
+  const layoutResult = await _layoutFn(slideDefinition);
+  const allLayers = document.querySelectorAll(".slidekit-layer");
+  const oldLayer = allLayers[slideIndex];
+  if (!oldLayer?.parentElement) throw new Error(`Slide ${slideIndex} not found`);
+  const slideW = state.config?.slide?.w ?? 1920;
+  const slideH = state.config?.slide?.h ?? 1080;
+  const layer = document.createElement("div");
+  layer.className = "slidekit-layer";
+  layer.style.position = "relative";
+  layer.style.width = `${slideW}px`;
+  layer.style.height = `${slideH}px`;
+  const zMap = computeZOrder(slideDefinition.elements);
+  for (const element of slideDefinition.elements) {
+    const zIndex = zMap.get(element.id) || 0;
+    layer.appendChild(renderElementFromScene(element, zIndex, layoutResult.elements));
+  }
+  oldLayer.replaceWith(layer);
+  const sk = window.sk;
+  if (sk) {
+    sk.layouts[slideIndex] = layoutResult;
+    if (sk.slides?.[slideIndex]) sk.slides[slideIndex].layout = layoutResult;
+  }
+  return layoutResult;
 }
 
 // slidekit/src/compounds.ts
@@ -5372,6 +5402,7 @@ export {
   render,
   renderElementFromScene,
   repeat,
+  rerenderSlide,
   resetIdCounter,
   resolveAnchor,
   resolvePercentage,

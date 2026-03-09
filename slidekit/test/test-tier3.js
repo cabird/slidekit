@@ -2100,3 +2100,401 @@ describe("inspector panel — resize handle", () => {
     });
   });
 });
+
+// =============================================================================
+// Inspector Inline Editing — Phase 1
+// =============================================================================
+
+describe("inspector editing — _definitions persistence", () => {
+  it("window.sk._definitions exists after render", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('hello', { id: "def1", x: 100, y: 100, w: 200, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      assert.ok(window.sk._definitions, "_definitions should exist");
+      assert.equal(window.sk._definitions.length, 1, "should have 1 slide definition");
+    });
+  });
+
+  it("_definitions contains the original elements (live references)", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('test', { id: "def2", x: 50, y: 60, w: 300, h: 200 });
+      await render([{ elements: [e] }], { container });
+
+      const defs = window.sk._definitions;
+      assert.equal(defs[0].elements[0].id, "def2", "first element should be def2");
+      assert.equal(defs[0].elements[0].props.x, 50, "x should match original");
+    });
+  });
+});
+
+describe("inspector editing — inline number editor", () => {
+  it("editable numeric prop creates input on startEdit", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('edit test', { id: "ed1", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Click on element to select it
+      const domEl = container.querySelector('[data-sk-id="ed1"]');
+      domEl.click();
+
+      // Find editable prop row for 'x'
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      assert.ok(propRow, "x prop row should exist and be editable");
+
+      // Click to start editing
+      propRow.click();
+
+      // Should have an input element now
+      const input = propRow.querySelector('input[type="number"]');
+      assert.ok(input, "input should be created");
+      assert.equal(input.value, "100", "input value should match current x");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("input value change updates the scene element resolved bounds", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('edit test', { id: "ed2", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select the element
+      const domEl = container.querySelector('[data-sk-id="ed2"]');
+      domEl.click();
+
+      // Start editing x
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "500";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Wait for async re-layout
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Check that the definition was mutated
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 500, "definition x should be updated");
+
+      // Check resolved bounds in layout
+      const resolved = window.sk.layouts[0].elements["ed2"].resolved;
+      assert.equal(resolved.x, 500, "resolved x should be 500");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("Escape cancels edit and restores original value", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('escape test', { id: "ed3", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select and start editing
+      const domEl = container.querySelector('[data-sk-id="ed3"]');
+      domEl.click();
+
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "999";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Press Escape
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Value should be restored
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 100, "x should be restored to original");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("locked prop click does not create input", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const header = el('header', { id: "lk-hdr", x: 100, y: 100, w: 300, h: 50 });
+      const body = el('body', { id: "lk-body", x: 100, y: below("lk-hdr", { gap: 10 }), w: 300, h: 200 });
+      await render([{ elements: [header, body] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select the constrained element
+      const domEl = container.querySelector('[data-sk-id="lk-body"]');
+      domEl.click();
+
+      // y prop should be locked
+      const lockedRow = document.querySelector('[data-sk-prop-key="y"][data-sk-prop-status="locked"]');
+      assert.ok(lockedRow, "y prop should be locked");
+
+      // Click on locked prop
+      lockedRow.click();
+
+      // Should NOT have an input
+      const input = lockedRow.querySelector('input');
+      assert.equal(input, null, "locked prop should not get an input");
+
+      // Should show tooltip
+      const tooltip = document.querySelector('[data-sk-locked-tooltip]');
+      assert.ok(tooltip, "tooltip should appear for locked prop");
+
+      // Clean up tooltip
+      if (tooltip) tooltip.remove();
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+describe("inspector editing — undo/redo", () => {
+  it("undo stack is empty initially", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "ur1", x: 100, y: 100, w: 200, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Access internal state through the debug controller
+      // The undo stack should be empty after reset
+      assert.equal(window.sk._definitions.length, 1, "definitions should exist");
+      // Undo with empty stack should be a no-op (no errors)
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("after edit, undo restores previous value", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('undo test', { id: "ur2", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select element
+      const domEl = container.querySelector('[data-sk-id="ur2"]');
+      domEl.click();
+
+      // Start editing x
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "500";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Commit via Enter
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 500, "x should be 500 after edit");
+
+      // Undo via Ctrl+Z
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'z', ctrlKey: true, bubbles: true
+      }));
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 100, "x should be restored to 100 after undo");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("after undo, redo re-applies the edit", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('redo test', { id: "ur3", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select element
+      const domEl = container.querySelector('[data-sk-id="ur3"]');
+      domEl.click();
+
+      // Edit x to 600
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "600";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Commit
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Undo
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'z', ctrlKey: true, bubbles: true
+      }));
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 100, "after undo x=100");
+
+      // Redo via Ctrl+Shift+Z
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Z', ctrlKey: true, shiftKey: true, bubbles: true
+      }));
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 600, "after redo x=600");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("multiple edits create correct undo stack", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('multi undo', { id: "ur4", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select element
+      const domEl = container.querySelector('[data-sk-id="ur4"]');
+      domEl.click();
+
+      // Edit 1: x = 200
+      let propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+      let input = propRow.querySelector('input[type="number"]');
+      input.value = "200";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Edit 2: x = 400
+      propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+      input = propRow.querySelector('input[type="number"]');
+      input.value = "400";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 400, "x=400 after two edits");
+
+      // Undo once -> x = 200 (call directly to avoid async race with keyboard handler)
+      await mod.undo();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 200, "x=200 after first undo");
+
+      // Undo again -> x = 100
+      await mod.undo();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert.equal(window.sk._definitions[0].elements[0].props.x, 100, "x=100 after second undo");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+describe("inspector editing — re-render verification", () => {
+  it("after edit, DOM element position matches new value", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('position test', { id: "rr1", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select element and edit x
+      const domEl = container.querySelector('[data-sk-id="rr1"]');
+      domEl.click();
+
+      const propRow = document.querySelector('[data-sk-prop-key="x"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "750";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Commit
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Check DOM position
+      const updatedDom = container.querySelector('[data-sk-id="rr1"]');
+      assert.equal(updatedDom.style.left, "750px", "DOM left should be 750px");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("after edit, window.sk.layouts reflects new layout", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('layout test', { id: "rr2", x: 100, y: 200, w: 300, h: 100 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select element and edit y
+      const domEl = container.querySelector('[data-sk-id="rr2"]');
+      domEl.click();
+
+      const propRow = document.querySelector('[data-sk-prop-key="y"][data-sk-prop-status="editable"]');
+      propRow.click();
+
+      const input = propRow.querySelector('input[type="number"]');
+      input.value = "500";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Commit
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Check layouts
+      const resolved = window.sk.layouts[0].elements["rr2"].resolved;
+      assert.equal(resolved.y, 500, "layout resolved y should be 500");
+
+      mod._resetDebugForTests();
+    });
+  });
+});

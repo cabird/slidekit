@@ -881,6 +881,10 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
       })),
       // M8.1: Expose config for debug overlay to read safe zone info
       _config: state.config ? JSON.parse(JSON.stringify(state.config)) : null,
+      // Persist original definitions for inspector editing (live references, not cloned)
+      _definitions: slides,
+      // Expose rerenderSlide for debug bundle (separate bundle can't access _layoutFn)
+      _rerenderSlide: rerenderSlide,
     };
     (skObj as any).lint = (slideId: string) => {
       const slideIdx = (skObj.slides as any[]).findIndex((s: any) => s.id === slideId);
@@ -897,4 +901,54 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
   }
 
   return { sections, layouts };
+}
+
+/**
+ * Re-layout and re-render a single slide in place.
+ * Used by the inspector editor for live preview of property changes.
+ *
+ * @param slideIndex - 0-based index of the slide to re-render
+ * @param slideDefinition - The (possibly mutated) slide definition
+ * @returns The new LayoutResult for the slide
+ */
+export async function rerenderSlide(
+  slideIndex: number,
+  slideDefinition: SlideDefinition,
+): Promise<LayoutResult> {
+  if (!_layoutFn) throw new Error('Layout function not injected');
+
+  // 1. Run layout
+  const layoutResult = await _layoutFn(slideDefinition);
+
+  // 2. Find existing layer (works with both .reveal .slides and custom containers)
+  const allLayers = document.querySelectorAll('.slidekit-layer');
+  const oldLayer = allLayers[slideIndex];
+  if (!oldLayer?.parentElement) throw new Error(`Slide ${slideIndex} not found`);
+
+  // 3. Create new layer
+  const slideW = state.config?.slide?.w ?? 1920;
+  const slideH = state.config?.slide?.h ?? 1080;
+  const layer = document.createElement("div");
+  layer.className = "slidekit-layer";
+  layer.style.position = "relative";
+  layer.style.width = `${slideW}px`;
+  layer.style.height = `${slideH}px`;
+
+  const zMap = computeZOrder(slideDefinition.elements);
+  for (const element of slideDefinition.elements) {
+    const zIndex = zMap.get(element.id) || 0;
+    layer.appendChild(renderElementFromScene(element, zIndex, layoutResult.elements));
+  }
+
+  // 4. Swap in DOM
+  oldLayer.replaceWith(layer);
+
+  // 5. Update window.sk
+  const sk = (window as any).sk;
+  if (sk) {
+    sk.layouts[slideIndex] = layoutResult;
+    if (sk.slides?.[slideIndex]) sk.slides[slideIndex].layout = layoutResult;
+  }
+
+  return layoutResult;
 }
