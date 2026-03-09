@@ -3,7 +3,7 @@
 
 import {
   init, render, safeRect,
-  el, vstack,
+  el, vstack, hstack,
   below, rightOf, alignTopWith, centerHWith,
 } from '../slidekit/slidekit.js';
 
@@ -65,6 +65,35 @@ export async function run() {
         y: below('card-a', { gap: 32 }),
         w: 400,
         anchor: 'tc',
+      }),
+
+      // VStack — below info-box
+      vstack([
+        el('<p style="font:600 20px Inter;color:#b89eff;margin:0">VStack Item 1</p>', { id: 'vs-1', w: 300, h: 50 }),
+        el('<p style="font:600 20px Inter;color:#6ecf8a;margin:0">VStack Item 2</p>', { id: 'vs-2', w: 300, h: 50 }),
+        el('<p style="font:600 20px Inter;color:#fbc02d;margin:0">VStack Item 3</p>', { id: 'vs-3', w: 300, h: 50 }),
+      ], {
+        id: 'demo-vstack',
+        x: safe.x, y: below('info-box', { gap: 32 }),
+        gap: 'md', align: 'left',
+      }),
+
+      // HStack — right of vstack
+      hstack([
+        el(`<div style="background:rgba(66,133,244,0.2);border:1px solid rgba(66,133,244,0.5);border-radius:8px;padding:16px">
+          <p style="font:500 18px Inter;color:#4285f4;margin:0">H1</p>
+        </div>`, { id: 'hs-1', w: 150, h: 80 }),
+        el(`<div style="background:rgba(234,67,53,0.2);border:1px solid rgba(234,67,53,0.5);border-radius:8px;padding:16px">
+          <p style="font:500 18px Inter;color:#ea4335;margin:0">H2</p>
+        </div>`, { id: 'hs-2', w: 150, h: 80 }),
+        el(`<div style="background:rgba(52,168,83,0.2);border:1px solid rgba(52,168,83,0.5);border-radius:8px;padding:16px">
+          <p style="font:500 18px Inter;color:#34a853;margin:0">H3</p>
+        </div>`, { id: 'hs-3', w: 150, h: 80 }),
+      ], {
+        id: 'demo-hstack',
+        x: rightOf('demo-vstack', { gap: 40 }),
+        y: alignTopWith('demo-vstack'),
+        gap: 'sm', align: 'middle',
       }),
 
       // Footer — absolute bottom

@@ -5,7 +5,10 @@ import { debugController } from './debug-state.js';
 import { PROVENANCE_COLORS, TYPE_BADGE_COLORS, escapeHtml, badge } from './debug-inspector-styles.js';
 import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspector-viewport.js';
 import { extractRelationshipEdges } from './debug-overlay.js';
-import { isEditableProp, startEdit, showLockedTooltip } from './debug-inspector-edit.js';
+import {
+  isEditableProp, isEditableGap, isGapProp, getEnumOptions,
+  startEdit, startEnumEdit, startGapTokenEdit, showLockedTooltip,
+} from './debug-inspector-edit.js';
 
 // =============================================================================
 // Inspector Panel Lifecycle
@@ -204,11 +207,25 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       // Determine if locked (constrained)
       const axisProv = (prov as Record<string, {source?: string}>)?.[key];
       const isLocked = axisProv && lockedSources.has(axisProv.source || "");
-      const editable = !isLocked && isEditableProp(key, val);
+      const enumOpts = !isLocked ? getEnumOptions(key, sceneEl.type) : null;
+      const isGap = !isLocked && isGapProp(key);
+      const editable = !isLocked && !enumOpts && !isGap && isEditableProp(key, val);
 
       const propRow = document.createElement("div");
       propRow.style.padding = "2px 0";
       propRow.setAttribute("data-sk-prop-key", key);
+
+      /** Apply the standard editable-prop styling to a row. */
+      const styleEditable = (row: HTMLElement, status: string) => {
+        row.style.color = "#1a1a2e";
+        row.style.textDecoration = "underline";
+        row.style.textDecorationStyle = "dashed";
+        row.style.textUnderlineOffset = "2px";
+        row.style.cursor = "pointer";
+        row.setAttribute("data-sk-prop-status", status);
+        row.addEventListener("mouseenter", () => { row.style.background = "#e8f0fe"; });
+        row.addEventListener("mouseleave", () => { row.style.background = ""; });
+      };
 
       if (isLocked) {
         propRow.style.color = "#aaa";
@@ -219,16 +236,23 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
           e.stopPropagation();
           showLockedTooltip(key, propRow, sceneEl);
         });
-      } else if (editable) {
-        propRow.style.color = "#1a1a2e";
-        propRow.style.textDecoration = "underline";
-        propRow.style.textDecorationStyle = "dashed";
-        propRow.style.textUnderlineOffset = "2px";
-        propRow.style.cursor = "pointer";
-        propRow.setAttribute("data-sk-prop-status", "editable");
+      } else if (enumOpts) {
+        styleEditable(propRow, "enum");
         propRow.textContent = `${key}: ${displayVal}`;
-        propRow.addEventListener("mouseenter", () => { propRow.style.background = "#e8f0fe"; });
-        propRow.addEventListener("mouseleave", () => { propRow.style.background = ""; });
+        propRow.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startEnumEdit(elementId, key, String(val ?? ''), enumOpts, propRow, slideIndex);
+        });
+      } else if (isGap) {
+        styleEditable(propRow, "gap");
+        propRow.textContent = `${key}: ${displayVal}`;
+        propRow.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startGapTokenEdit(elementId, key, val as number | string, propRow, slideIndex);
+        });
+      } else if (editable) {
+        styleEditable(propRow, "editable");
+        propRow.textContent = `${key}: ${displayVal}`;
         propRow.addEventListener("click", (e) => {
           e.stopPropagation();
           startEdit(elementId, key, val as number, propRow, slideIndex);
@@ -283,17 +307,47 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   const allEdges = extractRelationshipEdges(layoutResult.elements);
   const relEdges = allEdges.filter(e => e.fromId === elementId || e.toId === elementId);
   if (relEdges.length > 0) {
-    let relsHtml = '';
     for (const edge of relEdges) {
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
       const otherId = dir === "incoming" ? edge.fromId : edge.toId;
-      relsHtml += `<div style="padding:2px 0;">${arrow} <span style="color:#1a1a2e;">${escapeHtml(otherId)}</span>
-        <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>
-        ${edge.gap !== undefined ? `<span style="color:#999;">gap=${edge.gap}</span>` : ''}
-      </div>`;
+
+      const row = document.createElement("div");
+      row.style.padding = "2px 0";
+
+      // Arrow + element ID + constraint type
+      const textPart = document.createElement("span");
+      textPart.innerHTML = `${arrow} <span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
+      row.appendChild(textPart);
+
+      // Gap value — editable for incoming constraints with gap
+      if (edge.gap !== undefined && dir === "incoming" && isEditableGap(edge.type)) {
+        // Determine axis: below/above → y, rightOf/leftOf → x
+        const axis = (edge.type === 'below' || edge.type === 'above') ? 'y' : 'x';
+        const gapSpan = document.createElement("span");
+        gapSpan.textContent = ` gap=${edge.gap}`;
+        gapSpan.style.color = "#1a1a2e";
+        gapSpan.style.textDecoration = "underline";
+        gapSpan.style.textDecorationStyle = "dashed";
+        gapSpan.style.textUnderlineOffset = "2px";
+        gapSpan.style.cursor = "pointer";
+        gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
+        gapSpan.addEventListener("mouseenter", () => { gapSpan.style.background = "#e8f0fe"; });
+        gapSpan.addEventListener("mouseleave", () => { gapSpan.style.background = ""; });
+        gapSpan.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startGapTokenEdit(elementId, `${axis}.gap`, edge.gap!, gapSpan, slideIndex);
+        });
+        row.appendChild(gapSpan);
+      } else if (edge.gap !== undefined) {
+        const gapSpan = document.createElement("span");
+        gapSpan.textContent = ` gap=${edge.gap}`;
+        gapSpan.style.color = "#999";
+        row.appendChild(gapSpan);
+      }
+
+      relsDiv.appendChild(row);
     }
-    relsDiv.innerHTML = relsHtml;
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }

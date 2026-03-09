@@ -27,7 +27,7 @@ export interface DebugState {
 
   // Editing
   editingPropKey: string | null;
-  editInputElement: HTMLInputElement | null;
+  editInputElement: HTMLInputElement | HTMLSelectElement | null;
 
   // Undo / redo
   undoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;

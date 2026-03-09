@@ -12,8 +12,8 @@ import {
   attachClickHandler, detachClickHandler,
 } from './debug-inspector.js';
 import { resetViewport } from './debug-inspector-viewport.js';
-import { undo, redo } from './debug-inspector-edit.js';
-export { undo, redo };
+import { undo, redo, isEditableGap, getEnumOptions, isGapProp } from './debug-inspector-edit.js';
+export { undo, redo, isEditableGap, getEnumOptions, isGapProp };
 
 // Register late-bound callbacks to break circular imports.
 // debug-inspector-edit.ts needs renderDebugOverlay and renderElementDetail

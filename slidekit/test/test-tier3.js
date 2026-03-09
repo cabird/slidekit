@@ -5,7 +5,7 @@ import {
   el, group, vstack, hstack,
   render, layout, init,
   _resetForTests,
-  below, rightOf,
+  below, rightOf, centerHWith,
   grid, snap,
   resolvePercentage,
   resolveShadow, getShadowPresets,
@@ -2495,6 +2495,294 @@ describe("inspector editing — re-render verification", () => {
       assert.equal(resolved.y, 500, "layout resolved y should be 500");
 
       mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Constraint Gap Editing
+// =============================================================================
+
+describe("inspector editing — constraint gap", () => {
+  it("gap token dropdown selects correct token and updates definition", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      // Use gap=24 which matches "md" token
+      const hdr = el('header', { id: "gh1", x: 100, y: 100, w: 400, h: 80 });
+      const bod = el('body', { id: "gb1", x: 100, y: below("gh1", { gap: 24 }), w: 400, h: 200 });
+      await render([{ elements: [hdr, bod] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the body element
+      const domEl = container.querySelector('[data-sk-id="gb1"]');
+      domEl.click();
+
+      // Find the editable gap in the Relationships section
+      const gapSpan = document.querySelector('[data-sk-gap-edit="y.gap"]');
+      assert.ok(gapSpan, "gap span should exist for below constraint");
+
+      // Click to start editing — should create a <select>
+      gapSpan.click();
+      const select = gapSpan.querySelector('select');
+      assert.ok(select, "select dropdown should be created");
+
+      // Current value 24 matches "md" — should be pre-selected
+      assert.equal(select.value, "md", "md token should be pre-selected for gap=24");
+
+      // Select "xl" token (48px) via change event
+      select.value = "xl";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Constraint gap stores the pixel number (not token string)
+      const marker = window.sk._definitions[0].elements[1].props.y;
+      assert.equal(marker.gap, 48, "gap in definition should be 48 (xl)");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("gap edit changes the resolved position", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      // gap=16 matches "sm" token
+      const hdr = el('header', { id: "gh2", x: 100, y: 100, w: 400, h: 80 });
+      const bod = el('body', { id: "gb2", x: 100, y: below("gh2", { gap: 16 }), w: 400, h: 200 });
+      await render([{ elements: [hdr, bod] }], { container });
+
+      // Initial resolved y should be 100 + 80 + 16 = 196
+      const initialY = window.sk.layouts[0].elements["gb2"].resolved.y;
+      assert.equal(initialY, 196, "initial resolved y should be 196");
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the body element
+      const domEl = container.querySelector('[data-sk-id="gb2"]');
+      domEl.click();
+
+      // Edit the gap — select "lg" token (32px)
+      const gapSpan = document.querySelector('[data-sk-gap-edit="y.gap"]');
+      gapSpan.click();
+      const select = gapSpan.querySelector('select');
+      select.value = "lg";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Resolved y should now be 100 + 80 + 32 = 212
+      const newY = window.sk.layouts[0].elements["gb2"].resolved.y;
+      assert.equal(newY, 212, "resolved y should be 212 after gap change to lg");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("undo restores the previous gap value", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      // gap=32 matches "lg"
+      const hdr = el('header', { id: "gh3", x: 100, y: 100, w: 400, h: 80 });
+      const bod = el('body', { id: "gb3", x: 100, y: below("gh3", { gap: 32 }), w: 400, h: 200 });
+      await render([{ elements: [hdr, bod] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the body element
+      const domEl = container.querySelector('[data-sk-id="gb3"]');
+      domEl.click();
+
+      // Edit the gap — select "xl" token (48px)
+      const gapSpan = document.querySelector('[data-sk-gap-edit="y.gap"]');
+      gapSpan.click();
+      const select = gapSpan.querySelector('select');
+      select.value = "xl";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[1].props.y.gap, 48, "gap=48 after edit");
+
+      // Undo
+      await mod.undo();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[1].props.y.gap, 32, "gap=32 after undo");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("gap Custom option switches to number input", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const hdr = el('header', { id: "gh5", x: 100, y: 100, w: 400, h: 80 });
+      const bod = el('body', { id: "gb5", x: 100, y: below("gh5", { gap: 24 }), w: 400, h: 200 });
+      await render([{ elements: [hdr, bod] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the body element
+      const domEl = container.querySelector('[data-sk-id="gb5"]');
+      domEl.click();
+
+      // Open gap dropdown
+      const gapSpan = document.querySelector('[data-sk-gap-edit="y.gap"]');
+      gapSpan.click();
+      const select = gapSpan.querySelector('select');
+      assert.ok(select, "select should exist");
+
+      // Select "Custom..."
+      select.value = "__custom__";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // Should switch to a number input
+      const input = gapSpan.querySelector('input[type="number"]');
+      assert.ok(input, "number input should appear after selecting Custom");
+
+      // Edit the custom value
+      input.value = "55";
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[1].props.y.gap, 55, "gap should be 55 after custom edit");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("non-gap constraints (centerHWith) do not show editable gap", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const hdr = el('header', { id: "gh4", x: 100, y: 100, w: 400, h: 80 });
+      const bod = el('body', { id: "gb4", x: centerHWith("gh4"), y: 300, w: 200, h: 200 });
+      await render([{ elements: [hdr, bod] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select the body element
+      const domEl = container.querySelector('[data-sk-id="gb4"]');
+      domEl.click();
+
+      // Should not have any editable gap spans
+      const gapSpan = document.querySelector('[data-sk-gap-edit]');
+      assert.ok(!gapSpan, "centerHWith should not have an editable gap");
+
+      // isEditableGap should return false for centerH
+      assert.ok(!mod.isEditableGap('centerH'), "centerH is not gap-editable");
+      assert.ok(mod.isEditableGap('below'), "below is gap-editable");
+      assert.ok(mod.isEditableGap('rightOf'), "rightOf is gap-editable");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("enum prop dropdown edits align value", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const stack = vstack([
+        el('item 1', { id: "ev1", w: 200, h: 50 }),
+        el('item 2', { id: "ev2", w: 200, h: 50 }),
+      ], { id: "enum-vs", x: 100, y: 100, gap: 16, align: 'left' });
+      await render([{ elements: [stack] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the vstack
+      const domEl = container.querySelector('[data-sk-id="enum-vs"]');
+      domEl.click();
+
+      // Find the align prop row
+      const alignRow = document.querySelector('[data-sk-prop-key="align"][data-sk-prop-status="enum"]');
+      assert.ok(alignRow, "align should be shown as enum prop");
+
+      // Click to start editing
+      alignRow.click();
+      const select = alignRow.querySelector('select');
+      assert.ok(select, "select dropdown should be created for align");
+      assert.equal(select.value, "left", "left should be pre-selected");
+
+      // Change to center
+      select.value = "center";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      assert.equal(window.sk._definitions[0].elements[0].props.align, "center", "align should be center");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("stack gap prop uses token dropdown", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const stack = vstack([
+        el('item 1', { id: "gv1", w: 200, h: 50 }),
+        el('item 2', { id: "gv2", w: 200, h: 50 }),
+      ], { id: "gap-vs", x: 100, y: 100, gap: "md", align: 'left' });
+      await render([{ elements: [stack] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.enableKeyboardToggle();
+      mod.renderDebugOverlay();
+
+      // Select the vstack
+      const domEl = container.querySelector('[data-sk-id="gap-vs"]');
+      domEl.click();
+
+      // Find the gap prop row
+      const gapRow = document.querySelector('[data-sk-prop-key="gap"][data-sk-prop-status="gap"]');
+      assert.ok(gapRow, "gap should be shown as gap prop");
+
+      // Click to start editing
+      gapRow.click();
+      const select = gapRow.querySelector('select');
+      assert.ok(select, "select dropdown should be created for gap");
+      assert.equal(select.value, "md", "md token should be pre-selected");
+
+      // Change to lg
+      select.value = "lg";
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Stack gap stores the token string
+      assert.equal(window.sk._definitions[0].elements[0].props.gap, "lg", "gap should be 'lg' token");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("getEnumOptions returns correct values per element type", () => {
+    const mod_sync = { getEnumOptions: null };
+    // Test via dynamic import
+    return import('../slidekit-debug.js').then(mod => {
+      const opts = mod.getEnumOptions;
+      assert.deepEqual(opts('align', 'vstack'), ['left', 'center', 'right', 'stretch']);
+      assert.deepEqual(opts('align', 'hstack'), ['top', 'middle', 'bottom', 'stretch']);
+      assert.equal(opts('align', 'el'), null);
+      assert.deepEqual(opts('valign', 'el'), ['top', 'center', 'bottom']);
+      assert.deepEqual(opts('overflow', 'el'), ['visible', 'warn', 'clip', 'error']);
+      assert.deepEqual(opts('layer', 'el'), ['bg', 'content', 'overlay']);
+      assert.equal(opts('unknownProp', 'el'), null);
     });
   });
 });
