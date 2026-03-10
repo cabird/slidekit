@@ -34,7 +34,9 @@ const EDITABLE_PROPS: Record<string, PropConfig> = {
   opacity: { step: 0.05, min: 0,     max: 1    },
   rotate:  { step: 1,    min: -360,  max: 360  },
   gap:     { step: 1,    min: 0,     max: 1080 },
-  scale:   { step: 0.05, min: 0.01,  max: 10   },
+  scale:        { step: 0.05, min: 0.01,  max: 10   },
+  thickness:    { step: 1,    min: 1,     max: 20   },
+  cornerRadius: { step: 1,    min: 0,     max: 200  },
 };
 
 /** Config for constraint gap editing (x.gap / y.gap). */
@@ -84,7 +86,6 @@ export function getEnumOptions(propKey: string, elementType: string): string[] |
     case 'hAlign':  return ['left', 'center', 'right'];
     case 'overflow': return ['visible', 'warn', 'clip', 'error'];
     case 'layer':   return ['bg', 'content', 'overlay'];
-    case 'anchor':  return ['tl', 'tc', 'tr', 'cl', 'cc', 'cr', 'bl', 'bc', 'br'];
     case 'connectorType': return ['straight', 'curved', 'elbow', 'orthogonal'];
     case 'arrow':   return ['none', 'end', 'start', 'both'];
     default:        return null;
@@ -205,6 +206,9 @@ export function startEdit(
   slideIndex: number,
 ): void {
   const s = debugController.state;
+
+  // Already editing this prop (click bubbled from child) — do nothing
+  if (s.editingPropKey === propKey) return;
 
   // Cancel any existing edit first
   if (s.editingPropKey !== null) {
@@ -446,6 +450,7 @@ export function startEnumEdit(
   slideIndex: number,
 ): void {
   const s = debugController.state;
+  if (s.editingPropKey === propKey) return;
   if (s.editingPropKey !== null) cancelEdit();
 
   // Read live value from definition
@@ -460,6 +465,264 @@ export function startEnumEdit(
   }
 
   const originalValue = currentValue;
+
+  // Create select
+  const select = document.createElement('select');
+  select.style.cssText = SELECT_STYLE;
+  for (const opt of options) {
+    const option = document.createElement('option');
+    option.value = opt;
+    option.textContent = opt;
+    if (opt === currentValue) option.selected = true;
+    select.appendChild(option);
+  }
+
+  // Replace prop text with select
+  propDiv.textContent = '';
+  const label = document.createElement('span');
+  label.textContent = `${propKey}: `;
+  label.style.color = '#999';
+  propDiv.appendChild(label);
+  propDiv.appendChild(select);
+  propDiv.style.textDecoration = 'none';
+
+  // Store editing state
+  s.editingPropKey = propKey;
+  s.editInputElement = select;
+
+  select.focus();
+
+  // Commit immediately on selection change
+  select.addEventListener('change', () => {
+    const newVal = select.value;
+    applyEdit(elementId, propKey, newVal, slideIndex);
+    commitEdit(elementId, propKey, originalValue, newVal, slideIndex);
+  });
+
+  // Escape → cancel
+  select.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+    }
+  });
+
+  // Blur → cancel (user clicked away without selecting)
+  select.addEventListener('blur', () => {
+    if (s.editingPropKey !== propKey) return;
+    cancelEditRestore(elementId, propKey, originalValue, slideIndex);
+  });
+}
+
+// =============================================================================
+// Anchor grid picker (anchor, fromAnchor, toAnchor)
+// =============================================================================
+
+/** The 9 anchor values in row-major order. */
+const ANCHOR_GRID: string[][] = [
+  ['tl', 'tc', 'tr'],
+  ['cl', 'cc', 'cr'],
+  ['bl', 'bc', 'br'],
+];
+
+/** Check if a property key is an anchor prop that uses the grid picker. */
+export function isAnchorProp(key: string): boolean {
+  return key === 'anchor' || key === 'fromAnchor' || key === 'toAnchor';
+}
+
+/**
+ * Start editing an anchor property with a 3×3 visual grid picker.
+ * Each cell is a clickable dot representing an anchor position on a rectangle.
+ */
+export function startAnchorEdit(
+  elementId: string,
+  propKey: string,
+  currentValue: string,
+  propDiv: HTMLElement,
+  slideIndex: number,
+): void {
+  const s = debugController.state;
+  if (s.editingPropKey === propKey) return;
+  if (s.editingPropKey !== null) cancelEdit();
+
+  // Read live value from definition
+  const sk = (window as any).sk;
+  const def = sk?._definitions?.[slideIndex];
+  if (def) {
+    const foundEl = findElement(def, elementId);
+    if (foundEl) {
+      const live = (foundEl.props as Record<string, unknown>)[propKey];
+      if (typeof live === 'string') currentValue = live;
+    }
+  }
+
+  const originalValue = currentValue;
+
+  // Build the grid container
+  const grid = document.createElement('div');
+  grid.style.cssText = `
+    display: inline-grid; grid-template-columns: repeat(3, 1fr);
+    width: 54px; height: 54px; border: 1px solid #ccc; border-radius: 4px;
+    background: #fff; box-shadow: 0 0 3px rgba(74, 158, 255, 0.3);
+    vertical-align: middle; margin-left: 4px;
+  `;
+
+  for (const row of ANCHOR_GRID) {
+    for (const anchor of row) {
+      const cell = document.createElement('div');
+      cell.style.cssText = `
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer;
+      `;
+      cell.setAttribute('data-sk-anchor', anchor);
+
+      const dot = document.createElement('div');
+      const isSelected = anchor === currentValue;
+      dot.style.cssText = `
+        width: ${isSelected ? 10 : 6}px; height: ${isSelected ? 10 : 6}px;
+        border-radius: 50%;
+        background: ${isSelected ? '#4a9eff' : '#bbb'};
+        transition: all 0.1s;
+      `;
+
+      cell.appendChild(dot);
+
+      cell.addEventListener('mouseenter', () => {
+        if (anchor !== currentValue) {
+          dot.style.width = '8px';
+          dot.style.height = '8px';
+          dot.style.background = '#7ab8ff';
+        }
+      });
+      cell.addEventListener('mouseleave', () => {
+        if (anchor !== currentValue) {
+          dot.style.width = '6px';
+          dot.style.height = '6px';
+          dot.style.background = '#bbb';
+        }
+      });
+
+      cell.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (anchor === originalValue) {
+          // Same value — just close
+          s.editingPropKey = null;
+          s.editInputElement = null;
+          propDiv.textContent = `${propKey}: ${originalValue}`;
+          propDiv.style.textDecoration = 'underline';
+          propDiv.style.textDecorationStyle = 'dashed';
+          propDiv.style.textUnderlineOffset = '2px';
+        } else {
+          applyEdit(elementId, propKey, anchor, slideIndex);
+          commitEdit(elementId, propKey, originalValue, anchor, slideIndex);
+        }
+      });
+
+      grid.appendChild(cell);
+    }
+  }
+
+  // Replace prop text with label + grid
+  propDiv.textContent = '';
+  const label = document.createElement('span');
+  label.textContent = `${propKey}: `;
+  label.style.color = '#999';
+  propDiv.appendChild(label);
+  propDiv.appendChild(grid);
+  propDiv.style.textDecoration = 'none';
+
+  // Store editing state (use the grid as the "input element" for cleanup)
+  s.editingPropKey = propKey;
+  s.editInputElement = grid as unknown as HTMLInputElement;
+
+  // Close on Escape (listen on the propDiv since the grid isn't focusable)
+  const onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      document.removeEventListener('keydown', onKeydown, true);
+      s.editingPropKey = null;
+      s.editInputElement = null;
+      propDiv.textContent = `${propKey}: ${originalValue}`;
+      propDiv.style.textDecoration = 'underline';
+      propDiv.style.textDecorationStyle = 'dashed';
+      propDiv.style.textUnderlineOffset = '2px';
+    }
+  };
+  document.addEventListener('keydown', onKeydown, true);
+
+  // Close when clicking outside the prop row
+  const onDocClick = (e: MouseEvent) => {
+    if (s.editingPropKey !== propKey) {
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onKeydown, true);
+      return;
+    }
+    if (!propDiv.contains(e.target as Node)) {
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('keydown', onKeydown, true);
+      s.editingPropKey = null;
+      s.editInputElement = null;
+      propDiv.textContent = `${propKey}: ${originalValue}`;
+      propDiv.style.textDecoration = 'underline';
+      propDiv.style.textDecorationStyle = 'dashed';
+      propDiv.style.textUnderlineOffset = '2px';
+    }
+  };
+  // Defer attachment so the current click event doesn't immediately close it
+  requestAnimationFrame(() => {
+    document.addEventListener('click', onDocClick, true);
+  });
+}
+
+// =============================================================================
+// Element ID dropdown editing (fromId / toId)
+// =============================================================================
+
+/** Check if a property key is an element-ID reference (fromId / toId). */
+export function isElementIdProp(key: string): boolean {
+  return key === 'fromId' || key === 'toId';
+}
+
+/**
+ * Start editing an element-ID property. Creates an inline <select> dropdown
+ * listing all non-connector element IDs from the current slide.
+ */
+export function startElementIdEdit(
+  elementId: string,
+  propKey: string,
+  currentValue: string,
+  propDiv: HTMLElement,
+  slideIndex: number,
+): void {
+  const s = debugController.state;
+  if (s.editingPropKey === propKey) return;
+  if (s.editingPropKey !== null) cancelEdit();
+
+  // Read live value from definition
+  const sk = (window as any).sk;
+  const def = sk?._definitions?.[slideIndex];
+  if (def) {
+    const foundEl = findElement(def, elementId);
+    if (foundEl) {
+      const live = (foundEl.props as Record<string, unknown>)[propKey];
+      if (typeof live === 'string') currentValue = live;
+    }
+  }
+
+  const originalValue = currentValue;
+
+  // Collect non-connector element IDs from the layout
+  const layoutResult = sk?.layouts?.[slideIndex];
+  const options: string[] = [];
+  if (layoutResult?.elements) {
+    for (const [id, el] of Object.entries(layoutResult.elements)) {
+      const sceneEl = el as Record<string, unknown>;
+      if (sceneEl.type === 'connector') continue;
+      if (id === elementId) continue;
+      options.push(id);
+    }
+    options.sort();
+  }
 
   // Create select
   const select = document.createElement('select');
@@ -527,6 +790,7 @@ export function startGapTokenEdit(
   slideIndex: number,
 ): void {
   const s = debugController.state;
+  if (s.editingPropKey === propKey) return;
   if (s.editingPropKey !== null) cancelEdit();
 
   const isConstraintGap = propKey.endsWith('.gap');

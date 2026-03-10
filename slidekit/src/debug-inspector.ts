@@ -7,6 +7,8 @@ import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspe
 import { extractRelationshipEdges } from './debug-overlay.js';
 import {
   isEditableProp, isEditableGap, isGapProp, getEnumOptions,
+  isAnchorProp, startAnchorEdit,
+  isElementIdProp, startElementIdEdit,
   startEdit, startEnumEdit, startGapTokenEdit, showLockedTooltip,
 } from './debug-inspector-edit.js';
 
@@ -193,7 +195,19 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
     const prov = sceneEl.provenance;
     const lockedSources = new Set(["constraint", "stack", "transform"]);
     let hasProps = false;
-    for (const [key, val] of Object.entries(authored.props)) {
+
+    // Build props entries — for connectors, ensure cornerRadius is numeric
+    const propsEntries: [string, unknown][] = Object.entries(authored.props);
+    if (sceneEl.type === 'connector') {
+      const idx = propsEntries.findIndex(([k]) => k === 'cornerRadius');
+      if (idx >= 0 && propsEntries[idx][1] == null) {
+        propsEntries[idx] = ['cornerRadius', 0];
+      } else if (idx < 0) {
+        propsEntries.push(['cornerRadius', 0]);
+      }
+    }
+
+    for (const [key, val] of propsEntries) {
       if (key.startsWith('_')) continue;
       hasProps = true;
 
@@ -208,8 +222,10 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       const axisProv = (prov as Record<string, {source?: string}>)?.[key];
       const isLocked = axisProv && lockedSources.has(axisProv.source || "");
       const enumOpts = !isLocked ? getEnumOptions(key, sceneEl.type) : null;
+      const isAnchor = !isLocked && !enumOpts && isAnchorProp(key);
       const isGap = !isLocked && isGapProp(key);
-      const editable = !isLocked && !enumOpts && !isGap && isEditableProp(key, val);
+      const isElId = !isLocked && !enumOpts && !isAnchor && !isGap && isElementIdProp(key);
+      const editable = !isLocked && !enumOpts && !isAnchor && !isGap && !isElId && isEditableProp(key, val);
 
       const propRow = document.createElement("div");
       propRow.style.padding = "2px 0";
@@ -243,12 +259,26 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
           e.stopPropagation();
           startEnumEdit(elementId, key, String(val ?? ''), enumOpts, propRow, slideIndex);
         });
+      } else if (isAnchor) {
+        styleEditable(propRow, "anchor");
+        propRow.textContent = `${key}: ${displayVal}`;
+        propRow.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startAnchorEdit(elementId, key, String(val ?? 'cc'), propRow, slideIndex);
+        });
       } else if (isGap) {
         styleEditable(propRow, "gap");
         propRow.textContent = `${key}: ${displayVal}`;
         propRow.addEventListener("click", (e) => {
           e.stopPropagation();
           startGapTokenEdit(elementId, key, val as number | string, propRow, slideIndex);
+        });
+      } else if (isElId) {
+        styleEditable(propRow, "element-id");
+        propRow.textContent = `${key}: ${displayVal}`;
+        propRow.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startElementIdEdit(elementId, key, String(val ?? ''), propRow, slideIndex);
         });
       } else if (editable) {
         styleEditable(propRow, "editable");
