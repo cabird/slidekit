@@ -56,6 +56,118 @@ declare global {
 }
 
 // =============================================================================
+// Reveal.js Integration
+// =============================================================================
+
+/** Get the current horizontal slide index from Reveal.js, or 0 if unavailable. */
+function _getCurrentSlideIndex(): number {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Reveal = (window as any).Reveal;
+  if (Reveal && typeof Reveal.getIndices === 'function') {
+    return Reveal.getIndices().h ?? 0;
+  }
+  return 0;
+}
+
+/** Reveal.js slidechanged handler — re-renders overlay on the new slide. */
+function _onSlideChanged(): void {
+  const s = debugController.state;
+  if (s.debugMode === 0) return;
+
+  const newIndex = _getCurrentSlideIndex();
+  if (newIndex === s.currentSlideIndex) return;
+
+  // Clear selection when changing slides
+  s.selectedElementId = null;
+
+  // Re-render overlay on the new slide with the current mode options
+  const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
+  renderDebugOverlay({ ...s.lastToggleOptions, ...modeOpts, slideIndex: newIndex });
+}
+
+/** Start listening for Reveal.js slide changes. */
+function _attachSlideChangeListener(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Reveal = (window as any).Reveal;
+  if (Reveal && typeof Reveal.on === 'function') {
+    Reveal.on('slidechanged', _onSlideChanged);
+  }
+}
+
+/** Stop listening for Reveal.js slide changes. */
+function _detachSlideChangeListener(): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Reveal = (window as any).Reveal;
+  if (Reveal && typeof Reveal.off === 'function') {
+    Reveal.off('slidechanged', _onSlideChanged);
+  }
+}
+
+// =============================================================================
+// Connector Pointer-Events
+// =============================================================================
+
+/**
+ * Enable pointer-events on connector SVG wrappers so they can be clicked
+ * in the inspector. Connectors normally have pointer-events:none so clicks
+ * pass through to elements underneath during normal slide interaction.
+ *
+ * Also enforces a minimum 8×8 hit area so thin/zero-dimension connectors
+ * (e.g. perfectly horizontal or vertical lines) are still clickable.
+ */
+const _CONNECTOR_MIN_HIT = 8;
+
+function _enableConnectorPointerEvents(layer: Element): void {
+  const wrappers = layer.querySelectorAll('[data-sk-id]');
+  for (const el of wrappers) {
+    const htmlEl = el as HTMLElement;
+    if (htmlEl.style.pointerEvents === 'none' && htmlEl.querySelector('svg')) {
+      htmlEl.style.pointerEvents = 'auto';
+      htmlEl.setAttribute('data-sk-debug-pe-override', 'true');
+
+      // Enforce minimum clickable dimensions
+      const w = htmlEl.offsetWidth;
+      const h = htmlEl.offsetHeight;
+      if (w < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - w;
+        htmlEl.setAttribute('data-sk-debug-orig-left', htmlEl.style.left);
+        htmlEl.setAttribute('data-sk-debug-orig-width', htmlEl.style.width);
+        htmlEl.style.left = `${parseFloat(htmlEl.style.left) - expand / 2}px`;
+        htmlEl.style.width = `${_CONNECTOR_MIN_HIT}px`;
+      }
+      if (h < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - h;
+        htmlEl.setAttribute('data-sk-debug-orig-top', htmlEl.style.top);
+        htmlEl.setAttribute('data-sk-debug-orig-height', htmlEl.style.height);
+        htmlEl.style.top = `${parseFloat(htmlEl.style.top) - expand / 2}px`;
+        htmlEl.style.height = `${_CONNECTOR_MIN_HIT}px`;
+      }
+    }
+  }
+}
+
+/** Restore pointer-events and original dimensions on connector wrappers. */
+function _restoreConnectorPointerEvents(layer: Element): void {
+  const overridden = layer.querySelectorAll('[data-sk-debug-pe-override]');
+  for (const el of overridden) {
+    const htmlEl = el as HTMLElement;
+    htmlEl.style.pointerEvents = 'none';
+
+    // Restore original dimensions if they were expanded
+    const origLeft = el.getAttribute('data-sk-debug-orig-left');
+    const origWidth = el.getAttribute('data-sk-debug-orig-width');
+    const origTop = el.getAttribute('data-sk-debug-orig-top');
+    const origHeight = el.getAttribute('data-sk-debug-orig-height');
+    if (origLeft !== null) { htmlEl.style.left = origLeft; el.removeAttribute('data-sk-debug-orig-left'); }
+    if (origWidth !== null) { htmlEl.style.width = origWidth; el.removeAttribute('data-sk-debug-orig-width'); }
+    if (origTop !== null) { htmlEl.style.top = origTop; el.removeAttribute('data-sk-debug-orig-top'); }
+    if (origHeight !== null) { htmlEl.style.height = origHeight; el.removeAttribute('data-sk-debug-orig-height'); }
+
+    el.removeAttribute('data-sk-debug-pe-override');
+  }
+}
+
+// =============================================================================
 // Debug Mode Presets
 // =============================================================================
 
@@ -139,9 +251,12 @@ export function cycleDebugMode(baseOptions: DebugOverlayOptions = {}): number {
 
   if (s.debugMode === 0) {
     removeDebugOverlay();
+    _detachSlideChangeListener();
   } else {
+    const slideIndex = baseOptions.slideIndex ?? _getCurrentSlideIndex();
     const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
-    renderDebugOverlay({ ...baseOptions, ...modeOpts });
+    renderDebugOverlay({ ...baseOptions, ...modeOpts, slideIndex });
+    _attachSlideChangeListener();
   }
 
   return s.debugMode;
@@ -196,6 +311,12 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
   const sceneElements: Record<string, SceneElement> = layoutResult.elements || {};
   const collisions: Collision[] = layoutResult.collisions || [];
 
+  // Capture baseline scene graph snapshot (once per slide)
+  const s_baseline = debugController.state;
+  if (!s_baseline.baselineSceneGraphs[slideIndex]) {
+    s_baseline.baselineSceneGraphs[slideIndex] = JSON.parse(JSON.stringify(sceneElements));
+  }
+
   // Find the slidekit-layer to overlay on
   const slidekitLayers = document.querySelectorAll(".slidekit-layer");
   const targetLayer = slidekitLayers[slideIndex];
@@ -226,6 +347,9 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
   // Append overlay to the slidekit-layer
   targetLayer.appendChild(overlay);
   debugController.state.debugOverlay = overlay;
+
+  // Enable clicking on connector SVG wrappers
+  _enableConnectorPointerEvents(targetLayer);
 
   // Inspector panel
   const showInspector = options.showInspector !== false;
@@ -287,6 +411,9 @@ export function refreshOverlayOnly(slideIndex: number): void {
   targetLayer.appendChild(overlay);
   s.debugOverlay = overlay;
 
+  // Enable clicking on connector SVG wrappers
+  _enableConnectorPointerEvents(targetLayer);
+
   // Re-highlight selected element if any
   if (s.selectedElementId) {
     updateSelectionHighlight(s.selectedElementId, slideIndex);
@@ -296,7 +423,10 @@ export function refreshOverlayOnly(slideIndex: number): void {
 /** Remove the current debug overlay (toggle off). */
 export function removeDebugOverlay(): void {
   const s = debugController.state;
+  _detachSlideChangeListener();
   if (s.debugOverlay && s.debugOverlay.parentNode) {
+    // Restore pointer-events on connector wrappers before removing overlay
+    _restoreConnectorPointerEvents(s.debugOverlay.parentNode as Element);
     s.debugOverlay.parentNode.removeChild(s.debugOverlay);
   }
   s.debugOverlay = null;
@@ -316,7 +446,9 @@ export function toggleDebugOverlay(options: DebugOverlayOptions = {}): boolean {
     removeDebugOverlay();
     return false;
   } else {
-    renderDebugOverlay(options);
+    const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
+    renderDebugOverlay({ ...options, slideIndex });
+    _attachSlideChangeListener();
     return true;
   }
 }

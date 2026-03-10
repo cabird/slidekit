@@ -210,15 +210,17 @@ Connector line between two elements. SVG with optional arrowheads/labels. Endpoi
 Returns `{ id, type: "connector", props, _layoutFlags }`.
 
 Props:
-- `id?, type: "straight"|"curved"|"elbow" def="straight"`
+- `id?, type: "straight"|"curved"|"elbow"|"orthogonal" def="straight"`
 - `arrow: "none"|"start"|"end"|"both" def="end"`
 - `color: string def="#ffffff"`, `thickness: number def=2`
 - `dash: string|null def=null` — SVG `stroke-dasharray` (e.g., `"5 5"` = dashed, `"10 4 2 4"` = dash-dot, `"2 4"` = dotted)
 - `fromAnchor: AnchorPoint def="cr"`, `toAnchor: AnchorPoint def="cl"`
 - `label: string|null def=null`, `labelStyle: { size?, color?, font?, weight? } def={}`
+- `cornerRadius: number def=0` — rounding of corners on elbow/orthogonal connectors (0 = sharp corners)
+- `obstacleMargin: number def=200` — search margin for obstacle avoidance on orthogonal connectors
 - `layer?, opacity?`
 
-Connector types: `straight` = direct line; `curved` = cubic bézier 40% offset along dominant axis; `elbow` = orthogonal path via `routeConnector()`.
+Connector types: `straight` = direct line; `curved` = cubic bézier 40% offset along dominant axis; `elbow` = orthogonal path via `routeConnector()`; `orthogonal` = orthogonal path with obstacle avoidance (like `elbow` but routes around other elements).
 
 DO: For visible curves, use corner anchors (`tr`→`tl`) not center-edge — center-edge on horizontally-aligned elements produces collinear control points (curve looks straight).
 DONT: `dash` expects SVG format `"5 5"`, not CSS `"6,4"` — incorrect format silently produces solid line.
@@ -268,7 +270,34 @@ Axis rule: `alignTop/alignBottom/centerV` → Y axis. `alignLeft/alignRight/cent
 DONT: Cross axes — `alignTopWith()` (Y) used as X coordinate silently produces wrong positions.
 DO: `centerVWith(ref)` to vertically center a label next to a taller element.
 
-### `placeBetween(topRef, bottomYOrRef, opts?) → RelMarker`
+### `between(refA, refB, { axis, bias? }) → RelMarker`
+
+Positions element in the gap between two references on a given axis.
+- `refA: string|number` — element ID or raw px coordinate
+- `refB: string|number` — element ID or raw px coordinate (at least one must be an element ID)
+- `axis: 'x'|'y'` — required. Which axis to position on.
+- `bias: number def=0.5` — 0.0 = flush to refA edge, 1.0 = flush to refB edge, 0.5 = centered
+
+When `axis: 'x'`: positions in the horizontal gap between refA's right edge and refB's left edge.
+When `axis: 'y'`: positions in the vertical gap between refA's bottom edge and refB's top edge.
+
+```js
+// Center breakout box horizontally between two nodes
+x: between('node3', 'node5', { axis: 'x' }),
+
+// Place label between header and content, biased toward top
+y: between('header', 'content', { axis: 'y', bias: 0.35 }),
+
+// Between an element and a raw coordinate
+y: between('lastCard', 990, { axis: 'y' }),
+```
+
+DONT: Falls back if element doesn't fit. Check for `between_no_fit` warnings.
+DONT: Assign to the wrong prop (e.g., `y: between(..., { axis: 'x' })`). Emits `between_axis_mismatch` warning.
+
+### `placeBetween(topRef, bottomYOrRef, opts?) → RelMarker` *(deprecated)*
+
+> **Deprecated:** Use `between(refA, refB, { axis: 'y' })` instead.
 
 Positions element vertically between two references.
 - `topRef: string` — ID above (uses bottom edge)
@@ -642,7 +671,7 @@ Axis-aligned bounding box of rotated rectangle.
 - `OverflowPolicy`: `visible|warn|clip|error`
 - `HAlign`: `left|center|right|stretch`
 - `HStackAlign`: `top|middle|bottom|stretch`
-- `ConnectorType`: `straight|curved|elbow`
+- `ConnectorType`: `straight|curved|elbow|orthogonal`
 - `ArrowType`: `none|end|start|both`
 - `ElementType`: `el|group|vstack|hstack|connector`
 - `CompoundType`: `panel|figure`
@@ -653,7 +682,7 @@ Axis-aligned bounding box of rotated rectangle.
 ### Value Types
 - `PositionValue = number | string | RelMarker`
 - `SizeValue = number | string`
-- `RelMarker = { _rel, ref?, ref2?, gap?, bias?, rect? }`
+- `RelMarker = { _rel, ref?, ref2?, gap?, bias?, axis?, rect? }`
 - `TransformMarker = { _transform, _transformId, ids, options }`
 
 ### Configuration Types
@@ -673,7 +702,7 @@ Axis-aligned bounding box of rotated rectangle.
 - `InputProps = ElementProps & { id? }` — input for all element factories
 - `ElementProps` = all CP + `gap, align, vAlign, hAlign, bounds, scale, clip`
 - `CardGridOptions = InputProps & { cols? }`
-- `ConnectorInputProps = { id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, layer?, opacity?, style?, className? }`
+- `ConnectorInputProps = { id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, cornerRadius?, obstacleMargin?, layer?, opacity?, style?, className? }`
 - `PanelInputProps = InputProps & { padding?, fill?, radius?, border?, vAlign? }`
 - `FigureInputProps = { id?, src?, x?, y?, w?, h?, anchor?, layer?, containerFill?, containerRadius?, containerPadding?, caption?, captionGap?, fit?, style? }`
 
@@ -744,4 +773,4 @@ cards.forEach((card, i) => {
 - CSS props inside `style: {}`, not top level
 - Related moving elements wrapped in `group()`
 - `dash` is SVG string (`"5 5"`), not CSS (`"6,4"`)
-- `placeBetween` elements fit in the gap
+- `between`/`placeBetween` elements fit in the gap

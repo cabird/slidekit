@@ -465,6 +465,8 @@ export interface RelMarker {
   bias?: number;
   /** Rectangle for centerIn constraints. */
   rect?: Rect;
+  /** Declared axis for between() — enables mismatch validation. */
+  axis?: 'x' | 'y';
 }
 
 /** A transform marker attached to a slide definition. */

@@ -261,7 +261,10 @@ export async function resolvePositions(
           const r = marker.rect!;
           x = r.x + r.w / 2 - w / 2;
         } else if (marker._rel === "between") {
-          // P2.2: placeBetween on x-axis (left/right references)
+          // P2.2: placeBetween / between on x-axis (left/right references)
+          if (marker.axis && marker.axis !== 'x') {
+            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'x', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x` });
+          }
           const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
           const leftEdge = leftBounds.x + leftBounds.w;
           const rightEdge = typeof marker.ref2 === "string"
@@ -307,7 +310,10 @@ export async function resolvePositions(
           const r = marker.rect!;
           y = r.y + r.h / 2 - h / 2;
         } else if (marker._rel === "between") {
-          // P2.2: placeBetween — position between two vertical references
+          // P2.2: placeBetween / between — position between two vertical references
+          if (marker.axis && marker.axis !== 'y') {
+            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'y', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y` });
+          }
           const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
           const topEdge = topBounds.y + topBounds.h;
           const bottomEdge = typeof marker.ref2 === "string"

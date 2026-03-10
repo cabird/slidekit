@@ -10,7 +10,7 @@ import {
   centerVWith, centerHWith,
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
-  centerIn, placeBetween,
+  centerIn, placeBetween, between,
   vstack, hstack, panel,
 } from '../slidekit.js';
 
@@ -1659,6 +1659,158 @@ describe("P2.2: layout() — placeBetween()", () => {
     // Check that a warning was emitted
     const w = scene.warnings.find(w => w.type === "between_no_fit" && w.elementId === "target");
     assert.ok(w, "expected a between_no_fit warning");
+  });
+});
+
+// =============================================================================
+// between() — marker shape
+// =============================================================================
+
+describe("between() — marker shape", () => {
+  it("returns correct marker with two string refs, axis, and default bias", () => {
+    const m = between("a", "b", { axis: "x" });
+    assert.equal(m._rel, "between");
+    assert.equal(m.ref, "a");
+    assert.equal(m.ref2, "b");
+    assert.equal(m.bias, 0.5);
+    assert.equal(m.axis, "x");
+  });
+
+  it("accepts custom bias", () => {
+    const m = between("a", "b", { axis: "y", bias: 0.3 });
+    assert.equal(m.bias, 0.3);
+    assert.equal(m.axis, "y");
+  });
+
+  it("accepts numeric refB", () => {
+    const m = between("a", 500, { axis: "y" });
+    assert.equal(m.ref, "a");
+    assert.equal(m.ref2, 500);
+    assert.equal(m.axis, "y");
+  });
+
+  it("swaps when refA is numeric — ref becomes the string, bias inverts", () => {
+    const m = between(100, "b", { axis: "x", bias: 0.3 });
+    assert.equal(m.ref, "b");
+    assert.equal(m.ref2, 100);
+    assert.equal(m.bias, 0.7);
+    assert.equal(m.axis, "x");
+  });
+
+  it("throws if both refs are numbers", () => {
+    assert.throws(() => between(100, 200, { axis: "x" }), /at least one element ID/);
+  });
+
+  it("clamps bias to [0, 1]", () => {
+    const lo = between("a", "b", { axis: "x", bias: -0.5 });
+    assert.equal(lo.bias, 0);
+    const hi = between("a", "b", { axis: "x", bias: 2.0 });
+    assert.equal(hi.bias, 1);
+  });
+});
+
+// =============================================================================
+// between() — layout integration (X axis)
+// =============================================================================
+
+describe("layout() — between() on X axis", () => {
+  it("centers element horizontally between two refs (default bias 0.5)", async () => {
+    // leftRef: x=100, w=200 => right edge = 300
+    // rightRef: x=500 => left edge = 500
+    // target: w=80
+    // availableSlack = 500 - 300 - 80 = 120
+    // x = 300 + 120 * 0.5 = 360
+    const left = el('', { id: "left", x: 100, y: 0, w: 200, h: 50 });
+    const right = el('', { id: "right", x: 500, y: 0, w: 200, h: 50 });
+    const target = el('', { id: "target", x: between("left", "right", { axis: "x" }), y: 0, w: 80, h: 50 });
+    const scene = await layout({ elements: [left, right, target] });
+
+    assert.equal(scene.elements["target"].resolved.x, 300 + 120 * 0.5);
+  });
+
+  it("between on X with bias=0 places at left edge", async () => {
+    const left = el('', { id: "left", x: 100, y: 0, w: 200, h: 50 });
+    const right = el('', { id: "right", x: 500, y: 0, w: 200, h: 50 });
+    const target = el('', { id: "target", x: between("left", "right", { axis: "x", bias: 0 }), y: 0, w: 80, h: 50 });
+    const scene = await layout({ elements: [left, right, target] });
+
+    assert.equal(scene.elements["target"].resolved.x, 300);
+  });
+
+  it("between on X with bias=1 places at right edge minus width", async () => {
+    const left = el('', { id: "left", x: 100, y: 0, w: 200, h: 50 });
+    const right = el('', { id: "right", x: 500, y: 0, w: 200, h: 50 });
+    const target = el('', { id: "target", x: between("left", "right", { axis: "x", bias: 1 }), y: 0, w: 80, h: 50 });
+    const scene = await layout({ elements: [left, right, target] });
+
+    // x = 300 + (500 - 300 - 80) * 1 = 300 + 120 = 420
+    // right edge of target = 420 + 80 = 500 = flush with rightRef left edge
+    assert.equal(scene.elements["target"].resolved.x, 420);
+  });
+
+  it("between on X with numeric refB", async () => {
+    // leftRef right edge = 300, raw rightEdge = 600
+    // target w=100, slack = 600 - 300 - 100 = 200
+    // x = 300 + 200 * 0.5 = 400
+    const left = el('', { id: "left", x: 100, y: 0, w: 200, h: 50 });
+    const target = el('', { id: "target", x: between("left", 600, { axis: "x" }), y: 0, w: 100, h: 50 });
+    const scene = await layout({ elements: [left, target] });
+
+    assert.equal(scene.elements["target"].resolved.x, 400);
+  });
+});
+
+// =============================================================================
+// between() — layout integration (Y axis)
+// =============================================================================
+
+describe("layout() — between() on Y axis", () => {
+  it("centers element vertically between two refs (default bias 0.5)", async () => {
+    // topRef: y=100, h=50 => bottom edge = 150
+    // bottomRef: y=400 => top edge = 400
+    // target: h=40
+    // availableSlack = 400 - 150 - 40 = 210
+    // y = 150 + 210 * 0.5 = 255
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 400, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: between("top", "bottom", { axis: "y" }), w: 200, h: 40 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 150 + 210 * 0.5);
+  });
+
+  it("between on Y with numeric refB", async () => {
+    // topRef bottom edge = 150, raw bottomEdge = 500
+    // target h=60, slack = 500 - 150 - 60 = 290
+    // y = 150 + 290 * 0.5 = 295
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: between("top", 500, { axis: "y" }), w: 200, h: 60 });
+    const scene = await layout({ elements: [top, target] });
+
+    assert.equal(scene.elements["target"].resolved.y, 150 + 290 * 0.5);
+  });
+
+  it("negative slack emits between_no_fit warning", async () => {
+    const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
+    const bottom = el('', { id: "bottom", x: 0, y: 170, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 0, y: between("top", "bottom", { axis: "y" }), w: 200, h: 100 });
+    const scene = await layout({ elements: [top, bottom, target] });
+
+    // Fallback: y = 150 + 8 = 158
+    assert.equal(scene.elements["target"].resolved.y, 158);
+    const w = scene.warnings.find(w => w.type === "between_no_fit" && w.elementId === "target");
+    assert.ok(w, "expected a between_no_fit warning");
+  });
+
+  it("axis mismatch emits between_axis_mismatch warning", async () => {
+    const left = el('', { id: "left", x: 100, y: 0, w: 200, h: 50 });
+    const right = el('', { id: "right", x: 500, y: 0, w: 200, h: 50 });
+    // axis: 'x' but assigned to y prop
+    const target = el('', { id: "target", x: 0, y: between("left", "right", { axis: "x" }), w: 200, h: 40 });
+    const scene = await layout({ elements: [left, right, target] });
+
+    const w = scene.warnings.find(w => w.type === "between_axis_mismatch" && w.elementId === "target");
+    assert.ok(w, "expected a between_axis_mismatch warning");
   });
 });
 

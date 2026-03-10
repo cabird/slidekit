@@ -285,18 +285,25 @@ export function buildOverlayContent(
 
   // Bounding boxes
   if (showBoxes) {
+    const MIN_BOX = 8; // minimum visible/clickable size for debug boxes
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
       const resolved: Rect | undefined = sceneEl.resolved;
       if (!resolved) continue;
+
+      // Enforce minimum dimensions so thin connectors are visible & clickable
+      let bx = resolved.x, by = resolved.y;
+      let bw = resolved.w, bh = resolved.h;
+      if (bw < MIN_BOX) { bx -= (MIN_BOX - bw) / 2; bw = MIN_BOX; }
+      if (bh < MIN_BOX) { by -= (MIN_BOX - bh) / 2; bh = MIN_BOX; }
 
       const boxEl = document.createElement("div");
       boxEl.setAttribute("data-sk-debug", "box");
       boxEl.setAttribute("data-sk-debug-id", id);
       boxEl.style.position = "absolute";
-      boxEl.style.left = `${resolved.x}px`;
-      boxEl.style.top = `${resolved.y}px`;
-      boxEl.style.width = `${resolved.w}px`;
-      boxEl.style.height = `${resolved.h}px`;
+      boxEl.style.left = `${bx}px`;
+      boxEl.style.top = `${by}px`;
+      boxEl.style.width = `${bw}px`;
+      boxEl.style.height = `${bh}px`;
       boxEl.style.background = TYPE_COLORS[sceneEl.type as DebugElementType] || "rgba(128, 128, 128, 0.3)";
       boxEl.style.border = `1px solid ${TYPE_BORDER_COLORS[sceneEl.type as DebugElementType] || "rgba(128, 128, 128, 0.8)"}`;
       boxEl.style.boxSizing = "border-box";

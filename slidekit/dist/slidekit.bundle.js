@@ -1,5 +1,5 @@
 // slidekit/src/version.ts
-var VERSION = true ? '"0.3.0"' : "dev";
+var VERSION = true ? "0.3.1" : "dev";
 
 // slidekit/src/state.ts
 var state = {
@@ -962,6 +962,23 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+}
+function between(refA, refB, { axis, bias = 0.5 }) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
+  const clampedBias = Math.max(0, Math.min(1, numBias));
+  let ref;
+  let ref2;
+  if (typeof refA === "number" && typeof refB === "number") {
+    throw new Error("between() requires at least one element ID reference");
+  } else if (typeof refA === "number") {
+    ref = refB;
+    ref2 = refA;
+    return { _rel: "between", ref, ref2, bias: 1 - clampedBias, axis };
+  } else {
+    ref = refA;
+    ref2 = refB;
+  }
+  return { _rel: "between", ref, ref2, bias: clampedBias, axis };
 }
 
 // slidekit/src/assertions.ts
@@ -4327,6 +4344,9 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           const r = marker.rect;
           x = r.x + r.w / 2 - w / 2;
         } else if (marker._rel === "between") {
+          if (marker.axis && marker.axis !== "x") {
+            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "x", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x` });
+          }
           const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
           const leftEdge = leftBounds.x + leftBounds.w;
           const rightEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x : marker.ref2;
@@ -4368,6 +4388,9 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           const r = marker.rect;
           y = r.y + r.h / 2 - h / 2;
         } else if (marker._rel === "between") {
+          if (marker.axis && marker.axis !== "y") {
+            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "y", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y` });
+          }
           const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
           const topEdge = topBounds.y + topBounds.h;
           const bottomEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y : marker.ref2;
@@ -5311,6 +5334,7 @@ var SlideKit = {
   alignLeftWith,
   alignRightWith,
   centerIn,
+  between,
   // Stack primitives
   vstack,
   hstack,
@@ -5363,6 +5387,7 @@ export {
   applySlideBackground,
   applyStyleToDOM,
   below,
+  between,
   cardGrid,
   centerHWith,
   centerIn,

@@ -1,4 +1,4 @@
-// SlideKit Tests — Enhancement Features (valign, panelChildren)
+// SlideKit Tests — Enhancement Features (vAlign, panelChildren)
 
 import { describe, it, assert } from './test-runner.js';
 import {
@@ -26,17 +26,17 @@ async function withContainer(fn) {
 // Valign — Default & Flexbox Rendering
 // =============================================================================
 
-describe("Enhancements: valign", () => {
-  it("el() defaults valign to 'top'", () => {
+describe("Enhancements: vAlign", () => {
+  it("el() defaults vAlign to 'top'", () => {
     _resetForTests();
     const e = el('Hello', { id: "va1", w: 200 });
-    assert.equal(e.props.valign, "top");
+    assert.equal(e.props.vAlign, "top");
   });
 
-  it("valign: 'center' applies flexbox centering when element has explicit h", async () => {
+  it("vAlign: 'center' applies flexbox centering when element has explicit h", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const e = el('<p>Centered</p>', { id: "va2", x: 0, y: 0, w: 300, h: 200, valign: "center" });
+      const e = el('<p>Centered</p>', { id: "va2", x: 0, y: 0, w: 300, h: 200, vAlign: "center" });
       await render([{ elements: [e] }], { container });
       const div = container.querySelector('[data-sk-id="va2"]');
       assert.equal(div.style.display, "flex");
@@ -45,10 +45,10 @@ describe("Enhancements: valign", () => {
     });
   });
 
-  it("valign: 'bottom' applies flex-end", async () => {
+  it("vAlign: 'bottom' applies flex-end", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const e = el('<p>Bottom</p>', { id: "va3", x: 0, y: 0, w: 300, h: 200, valign: "bottom" });
+      const e = el('<p>Bottom</p>', { id: "va3", x: 0, y: 0, w: 300, h: 200, vAlign: "bottom" });
       await render([{ elements: [e] }], { container });
       const div = container.querySelector('[data-sk-id="va3"]');
       assert.equal(div.style.display, "flex");
@@ -57,23 +57,23 @@ describe("Enhancements: valign", () => {
     });
   });
 
-  it("valign is ignored without explicit h", async () => {
+  it("vAlign is ignored without explicit h", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const e = el('<p>No height</p>', { id: "va4", x: 0, y: 0, w: 300, valign: "center" });
+      const e = el('<p>No height</p>', { id: "va4", x: 0, y: 0, w: 300, vAlign: "center" });
       await render([{ elements: [e] }], { container });
       const div = container.querySelector('[data-sk-id="va4"]');
       assert.ok(div.style.display !== "flex", "display should not be flex without explicit h");
     });
   });
 
-  it("valign: 'top' does not apply flexbox", async () => {
+  it("vAlign: 'top' does not apply flexbox", async () => {
     await withContainer(async (container) => {
       _resetForTests();
-      const e = el('<p>Top</p>', { id: "va5", x: 0, y: 0, w: 300, h: 200, valign: "top" });
+      const e = el('<p>Top</p>', { id: "va5", x: 0, y: 0, w: 300, h: 200, vAlign: "top" });
       await render([{ elements: [e] }], { container });
       const div = container.querySelector('[data-sk-id="va5"]');
-      assert.ok(div.style.display !== "flex", "display should not be flex for valign top");
+      assert.ok(div.style.display !== "flex", "display should not be flex for vAlign top");
     });
   });
 });

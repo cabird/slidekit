@@ -144,6 +144,7 @@ export function centerIn(rectParam: Rect): { x: RelMarker; y: RelMarker } {
 /**
  * Position Y between two vertical references with configurable bias.
  *
+ * @deprecated Use `between(refA, refB, { axis: 'y' })` instead.
  * @param topRef - ID of the element above (uses its bottom edge)
  * @param bottomYOrRef - Absolute Y number or ID of element below (uses its top edge)
  * @param opts - Options
@@ -157,4 +158,44 @@ export function placeBetween(
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+}
+
+/**
+ * Position between two references on a specified axis.
+ *
+ * On the X axis: centers in the horizontal gap between refA's right edge
+ * and refB's left edge. On the Y axis: centers in the vertical gap between
+ * refA's bottom edge and refB's top edge.
+ *
+ * @param refA - ID of the first reference element (or raw px number)
+ * @param refB - ID of the second reference element (or raw px number)
+ * @param opts - Options: axis ('x' | 'y') is required, bias (0–1, default 0.5)
+ * @returns A RelMarker with _rel: "between"
+ */
+export function between(
+  refA: string | number,
+  refB: string | number,
+  { axis, bias = 0.5 }: { axis: 'x' | 'y'; bias?: number },
+): RelMarker {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
+  const clampedBias = Math.max(0, Math.min(1, numBias));
+  // Normalize: ref must be a string (element ID), ref2 can be string or number.
+  // If refA is a number, swap so the number goes in ref2.
+  let ref: string;
+  let ref2: string | number;
+  if (typeof refA === 'number' && typeof refB === 'number') {
+    // Both numbers — use refA as a fake "ref" via ref2 pattern isn't possible.
+    // Treat as raw coordinate range: store in ref2 with a synthetic ref.
+    // Actually, this doesn't fit the RelMarker model. At least one must be an element ID.
+    throw new Error('between() requires at least one element ID reference');
+  } else if (typeof refA === 'number') {
+    // Swap so the element ID is ref and the number is ref2, then invert bias
+    ref = refB as string;
+    ref2 = refA;
+    return { _rel: "between", ref, ref2, bias: 1 - clampedBias, axis };
+  } else {
+    ref = refA;
+    ref2 = refB;
+  }
+  return { _rel: "between", ref, ref2, bias: clampedBias, axis };
 }

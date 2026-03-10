@@ -4,6 +4,7 @@
 // Adds subscribe/notify for future reactive UI (editing, undo/redo).
 
 import type { DebugOverlayOptions } from './debug.js';
+import type { SceneElement } from './types.js';
 
 /** Mutable state for the debug overlay and inspector panel. */
 export interface DebugState {
@@ -32,6 +33,9 @@ export interface DebugState {
   // Undo / redo
   undoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
   redoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
+
+  // Diff baseline
+  baselineSceneGraphs: Record<number, Record<string, SceneElement>>;
 }
 
 export type DebugStateListener = () => void;
@@ -76,6 +80,7 @@ function initialState(): DebugState {
     editInputElement: null,
     undoStack: [],
     redoStack: [],
+    baselineSceneGraphs: {},
   };
 }
 

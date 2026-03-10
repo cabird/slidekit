@@ -13,6 +13,7 @@
 // to avoid circular imports with debug.ts and debug-inspector.ts.
 
 import { debugController } from './debug-state.js';
+import { updateDiffDirtyIndicator } from './debug-inspector-diff.js';
 import { flattenElements } from './layout/helpers.js';
 import type { SlideDefinition, SlideElement, LayoutResult } from './types.js';
 
@@ -350,6 +351,8 @@ export function commitEdit(
   restorePropRowText(propKey, newValue);
   s.editInputElement = null;
 
+  updateDiffDirtyIndicator();
+
   // Deferred panel refresh: updates Resolved Bounds, Provenance, etc.
   // Runs after the current event turn so it won't interfere with
   // pending click events (blur fires before click in browsers).
@@ -410,6 +413,7 @@ export async function undo(): Promise<void> {
   if (!entry) return;
 
   s.redoStack.push(entry);
+  updateDiffDirtyIndicator();
   await applyEdit(entry.elementId, entry.propKey, entry.oldValue as number | string, entry.slideIndex);
 }
 
@@ -420,6 +424,7 @@ export async function redo(): Promise<void> {
   if (!entry) return;
 
   s.undoStack.push(entry);
+  updateDiffDirtyIndicator();
   await applyEdit(entry.elementId, entry.propKey, entry.newValue as number | string, entry.slideIndex);
 }
 

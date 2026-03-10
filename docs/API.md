@@ -396,7 +396,7 @@ Creates a connector line between two elements. Rendered as SVG with optional arr
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `id` | `string` | auto (`sk-N`) | Unique connector identifier |
-| `type` | `ConnectorType` | `"straight"` | `"straight"`, `"curved"`, or `"elbow"` |
+| `type` | `ConnectorType` | `"straight"` | `"straight"`, `"curved"`, `"elbow"`, or `"orthogonal"` |
 | `arrow` | `ArrowType` | `"end"` | `"none"`, `"start"`, `"end"`, or `"both"` |
 | `color` | `string` | `"#ffffff"` | Line color |
 | `thickness` | `number` | `2` | Line thickness in pixels |
@@ -407,11 +407,14 @@ Creates a connector line between two elements. Rendered as SVG with optional arr
 | `labelStyle` | `object` | `{}` | `{ size, color, font, weight }` for the label |
 | `layer` | `LayerName` | `"content"` | Render layer |
 | `opacity` | `number` | `1` | Opacity |
+| `cornerRadius` | `number` | `0` | Rounding of corners on elbow/orthogonal connectors (0 = sharp corners) |
+| `obstacleMargin` | `number` | `200` | Search margin for obstacle avoidance on orthogonal connectors |
 
 **Connector types:**
 - `"straight"` — direct line between anchor points
 - `"curved"` — cubic bézier with 40% offset along the dominant axis
 - `"elbow"` — right-angle orthogonal path via `routeConnector()`
+- `"orthogonal"` — orthogonal path with obstacle avoidance (like `elbow` but routes around other elements)
 
 > ✅ **Pattern:** For visible curves, use corner anchors (`tr`→`tl`, `br`→`bl`) instead of center-edge anchors (`cr`→`cl`). Center-edge anchors on horizontally-aligned elements produce collinear control points, making curves look like straight lines.
 > ```js
@@ -517,7 +520,54 @@ el('', { x: rightOf('sidebar', { gap: 40 }), y: alignTopWith('sidebar'), w: 400 
 
 > ✅ **Pattern:** Use `centerVWith(refId)` to vertically center a label next to a taller element (not `alignTopWith`, which top-aligns and looks unbalanced when heights differ).
 
-#### `placeBetween(topRef, bottomYOrRef, options?)`
+#### `between(refA, refB, options)`
+
+Positions an element in the gap between two references on a given axis. Supersedes `placeBetween()`.
+
+**Signature:** `between(refA: string | number, refB: string | number, options: { axis: 'x' | 'y', bias?: number }): RelMarker`
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `refA` | `string \| number` | — | Element ID or raw px coordinate |
+| `refB` | `string \| number` | — | Element ID or raw px coordinate (at least one of refA/refB must be an element ID) |
+| `options.axis` | `'x' \| 'y'` | — | **Required.** Which axis to position on. |
+| `options.bias` | `number` | `0.5` | 0.0 = flush to refA edge, 1.0 = flush to refB edge, 0.5 = centered |
+
+**Axis behavior:**
+- `axis: 'x'` — positions in the horizontal gap between refA's right edge and refB's left edge
+- `axis: 'y'` — positions in the vertical gap between refA's bottom edge and refB's top edge
+
+```js
+// Center breakout box horizontally between two nodes
+x: between('node3', 'node5', { axis: 'x' }),
+
+// Place label between header and content, biased toward top
+y: between('header', 'content', { axis: 'y', bias: 0.35 }),
+
+// Between an element and a raw coordinate
+y: between('lastCard', 990, { axis: 'y' }),
+```
+
+> ⚠️ **Anti-pattern:** If the element doesn't fit in the gap, a `between_no_fit` warning is emitted and layout falls back to the minimum gap. Always ensure the gap between references is large enough for the element.
+> ```js
+> // ❌ 70px element in a 24px gap → between_no_fit warning
+> el('E', { y: between('A', 'B', { axis: 'y' }), h: 70 });
+> // ✅ Ensure references have enough space
+> el('B', { y: below('A', { gap: 150 }) });
+> el('E', { y: between('A', 'B', { axis: 'y' }), h: 70 }); // fits
+> ```
+
+> ⚠️ **Anti-pattern:** Assigning `between()` to the wrong axis prop emits a `between_axis_mismatch` warning. Match the `axis` option to the prop:
+> ```js
+> // ❌ axis: 'x' assigned to y prop → between_axis_mismatch warning
+> el('E', { y: between('A', 'B', { axis: 'x' }) });
+> // ✅ axis matches the prop
+> el('E', { x: between('A', 'B', { axis: 'x' }) });
+> ```
+
+#### `placeBetween(topRef, bottomYOrRef, options?)` *(deprecated)*
+
+> **Deprecated:** Use `between(refA, refB, { axis: 'y' })` instead.
 
 Positions an element vertically between two references.
 
@@ -1413,7 +1463,7 @@ Key types for users building presentations:
 | `OverflowPolicy` | `"visible" \| "warn" \| "clip" \| "error"` |
 | `HAlign` | `"left" \| "center" \| "right" \| "stretch"` |
 | `HStackAlign` | `"top" \| "middle" \| "bottom" \| "stretch"` |
-| `ConnectorType` | `"straight" \| "curved" \| "elbow"` |
+| `ConnectorType` | `"straight" \| "curved" \| "elbow" \| "orthogonal"` |
 | `ArrowType` | `"none" \| "end" \| "start" \| "both"` |
 | `ElementType` | `"el" \| "group" \| "vstack" \| "hstack" \| "connector"` |
 | `CompoundType` | `"panel" \| "figure"` |
@@ -1427,7 +1477,7 @@ Key types for users building presentations:
 |---|---|
 | `PositionValue` | `number \| string \| RelMarker` |
 | `SizeValue` | `number \| string` |
-| `RelMarker` | `{ _rel: RelMarkerKind, ref?, ref2?, gap?, bias?, rect? }` |
+| `RelMarker` | `{ _rel: RelMarkerKind, ref?, ref2?, gap?, bias?, axis?, rect? }` |
 | `TransformMarker` | `{ _transform: string, _transformId: string, ids: string[], options: object }` |
 
 ### Configuration Types
@@ -1456,6 +1506,6 @@ Key types for users building presentations:
 | `InputProps` | `ElementProps & { id?: string }` — input type for all element factory functions |
 | `ElementProps` | Common properties shared by all elements: `x`, `y`, `w`, `h`, `anchor`, `layer`, `opacity`, `vAlign`, `overflow`, `style`, `className`, `shadow`, `z`, `maxW`, `maxH`, `rotate`, `flipH`, `flipV`, `gap`, `align`, `vAlign`, `hAlign`, `bounds`, `scale`, `clip` |
 | `CardGridOptions` | `InputProps & { cols?: number }` |
-| `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, layer?, opacity?, style?, className? }` |
+| `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, cornerRadius?, obstacleMargin?, layer?, opacity?, style?, className? }` |
 | `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border?, vAlign? }` |
 | `FigureInputProps` | `{ id?, src?, x?, y?, w?, h?, anchor?, layer?, containerFill?, containerRadius?, containerPadding?, caption?, captionGap?, fit?, style? }` |

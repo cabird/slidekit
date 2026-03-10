@@ -4,6 +4,7 @@ import type { SceneElement } from './types.js';
 import { debugController } from './debug-state.js';
 import { PROVENANCE_COLORS, TYPE_BADGE_COLORS, escapeHtml, badge } from './debug-inspector-styles.js';
 import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspector-viewport.js';
+import { createDiffActionBar } from './debug-inspector-diff.js';
 import { extractRelationshipEdges } from './debug-overlay.js';
 import {
   isEditableProp, isEditableGap, isGapProp, getEnumOptions,
@@ -48,6 +49,9 @@ export function createInspectorPanel(): HTMLDivElement {
   header.style.color = "#1a1a2e";
   header.textContent = "Inspector";
   panel.appendChild(header);
+
+  // Diff action bar
+  panel.appendChild(createDiffActionBar());
 
   // Body (content area)
   const body = document.createElement("div");

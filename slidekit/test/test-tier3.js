@@ -2779,7 +2779,7 @@ describe("inspector editing — constraint gap", () => {
       assert.deepEqual(opts('align', 'vstack'), ['left', 'center', 'right', 'stretch']);
       assert.deepEqual(opts('align', 'hstack'), ['top', 'middle', 'bottom', 'stretch']);
       assert.equal(opts('align', 'el'), null);
-      assert.deepEqual(opts('valign', 'el'), ['top', 'center', 'bottom']);
+      assert.deepEqual(opts('vAlign', 'el'), ['top', 'center', 'bottom']);
       assert.deepEqual(opts('overflow', 'el'), ['visible', 'warn', 'clip', 'error']);
       assert.deepEqual(opts('layer', 'el'), ['bg', 'content', 'overlay']);
       assert.equal(opts('unknownProp', 'el'), null);
