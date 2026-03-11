@@ -10,6 +10,7 @@ import { checkOverflowPolicies } from './overflow.js';
 import { resolveIntrinsicSizes } from './intrinsics.js';
 import { resolvePositions } from './positions.js';
 import { finalize } from './finalize.js';
+import { isPanelElement } from '../types.js';
 import type { SlideDefinition, LayoutResult, TransformMarker, Rect } from '../types.js';
 
 /** Options for the layout pipeline. */
@@ -143,6 +144,106 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
     const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
     for (const w of transformWarnings) {
       warnings.push(w);
+    }
+  }
+
+  // =========================================================================
+  // Phase 3.5: Sync Panel Internals After Transforms
+  // =========================================================================
+  // When transforms (e.g. matchHeight) change a panel's resolved bounds,
+  // propagate those changes into the panel's internal structure:
+  // bgRect (background) and innerVstack (content container).
+  for (const [id, el] of flatMap) {
+    if (!isPanelElement(el)) continue;
+    const config = el._panelConfig;
+    if (!config) continue;
+
+    const preBounds = preTransformBounds.get(id);
+    const postBounds = resolvedBounds.get(id);
+    if (!preBounds || !postBounds) continue;
+
+    // Check if any dimension changed
+    const hChanged = postBounds.h !== preBounds.h;
+    const wChanged = postBounds.w !== preBounds.w;
+    if (!hChanged && !wChanged) continue;
+
+    const { padding } = config;
+    const children = el.children || [];
+    if (children.length < 2) continue;
+
+    const bgRect = children[0];
+    const innerVstack = children[1];
+
+    // Sync bgRect to match panel bounds
+    const bgBounds = resolvedBounds.get(bgRect.id);
+    if (bgBounds) {
+      bgBounds.x = postBounds.x;
+      bgBounds.y = postBounds.y;
+      bgBounds.w = postBounds.w;
+      bgBounds.h = postBounds.h;
+    }
+    const bgSizes = resolvedSizes.get(bgRect.id);
+    if (bgSizes) {
+      bgSizes.w = postBounds.w;
+      bgSizes.h = postBounds.h;
+    }
+
+    // Sync innerVstack container dimensions
+    const vstackBounds = resolvedBounds.get(innerVstack.id);
+    if (vstackBounds) {
+      const newContentW = Math.max(0, postBounds.w - 2 * padding);
+      const newContentH = Math.max(0, postBounds.h - 2 * padding);
+
+      vstackBounds.x = postBounds.x + padding;
+      vstackBounds.w = newContentW;
+
+      // For vAlign: recompute y position of the vstack's children
+      const vAlign = innerVstack.props?.vAlign;
+      const vstackChildIds = stackChildren.get(innerVstack.id) || [];
+      // Compute intrinsic content height from children
+      const vstackGap = innerVstack.props?.gap as number || 0;
+      let intrinsicH = 0;
+      for (let ci = 0; ci < vstackChildIds.length; ci++) {
+        const cBounds = resolvedBounds.get(vstackChildIds[ci]);
+        if (cBounds) {
+          intrinsicH += cBounds.h;
+          if (ci > 0) intrinsicH += vstackGap;
+        }
+      }
+
+      if (vAlign && vAlign !== 'top' && newContentH > intrinsicH) {
+        // Undo the old vAlign offset and apply new one
+        const oldContentH = Math.max(0, preBounds.h - 2 * padding);
+        const oldSlack = Math.max(0, oldContentH - intrinsicH);
+        const oldOffsetY = vAlign === 'center' ? oldSlack / 2 : oldSlack;
+        const newSlack = newContentH - intrinsicH;
+        const newOffsetY = vAlign === 'center' ? newSlack / 2 : newSlack;
+        const deltaY = newOffsetY - oldOffsetY;
+
+        for (const cid of vstackChildIds) {
+          const cBounds = resolvedBounds.get(cid);
+          if (cBounds) {
+            cBounds.y += deltaY;
+          }
+        }
+        vstackBounds.y = postBounds.y + padding;
+        vstackBounds.h = newContentH;
+      } else {
+        // vAlign top or content exceeds available height: keep y, update h
+        vstackBounds.y = postBounds.y + padding;
+        vstackBounds.h = newContentH;
+      }
+    }
+
+    // Warn if width changed — text wrapping may be invalidated
+    if (wChanged) {
+      warnings.push({
+        type: 'transform_panel_width_changed',
+        elementId: id,
+        oldWidth: preBounds.w,
+        newWidth: postBounds.w,
+        message: `Panel "${id}" width changed by transform (${preBounds.w} → ${postBounds.w}). Text wrapping may be inaccurate — re-measurement cannot run after transforms.`,
+      });
     }
   }
 

@@ -1,5 +1,5 @@
 // slidekit/src/version.ts
-var VERSION = true ? "0.3.2" : "dev";
+var VERSION = true ? "0.3.3" : "dev";
 
 // slidekit/src/state.ts
 var state = {
@@ -4519,7 +4519,9 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
             }
             resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
             const childEl = mustGet(flatMap, cid, `flatMap missing hstack child: ${cid}`);
-            if (isPanelElement(childEl) && childEl.children && childEl.children.length >= 1) {
+            if (isPanelElement(childEl) && childEl.children && childEl.children.length >= 2) {
+              const config = childEl._panelConfig;
+              const panelPadding = config?.padding ?? 0;
               const bgRect = childEl.children[0];
               const bgSizes = resolvedSizes.get(bgRect.id);
               if (bgSizes) {
@@ -4528,6 +4530,16 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
               const bgBounds = resolvedBounds.get(bgRect.id);
               if (bgBounds) {
                 bgBounds.h = stretchH;
+              }
+              const innerVstack = childEl.children[1];
+              const newVstackH = Math.max(0, stretchH - 2 * panelPadding);
+              const vstackSizes = resolvedSizes.get(innerVstack.id);
+              if (vstackSizes) {
+                vstackSizes.h = newVstackH;
+              }
+              const vstackBounds = resolvedBounds.get(innerVstack.id);
+              if (vstackBounds) {
+                vstackBounds.h = newVstackH;
               }
             }
             curX += cs.w + gap;
@@ -5302,6 +5314,80 @@ async function layout(slideDefinition, options = {}) {
     const transformWarnings = applyTransform(t, resolvedBounds, flatMap);
     for (const w of transformWarnings) {
       warnings.push(w);
+    }
+  }
+  for (const [id, el2] of flatMap) {
+    if (!isPanelElement(el2)) continue;
+    const config = el2._panelConfig;
+    if (!config) continue;
+    const preBounds = preTransformBounds.get(id);
+    const postBounds = resolvedBounds.get(id);
+    if (!preBounds || !postBounds) continue;
+    const hChanged = postBounds.h !== preBounds.h;
+    const wChanged = postBounds.w !== preBounds.w;
+    if (!hChanged && !wChanged) continue;
+    const { padding } = config;
+    const children = el2.children || [];
+    if (children.length < 2) continue;
+    const bgRect = children[0];
+    const innerVstack = children[1];
+    const bgBounds = resolvedBounds.get(bgRect.id);
+    if (bgBounds) {
+      bgBounds.x = postBounds.x;
+      bgBounds.y = postBounds.y;
+      bgBounds.w = postBounds.w;
+      bgBounds.h = postBounds.h;
+    }
+    const bgSizes = resolvedSizes.get(bgRect.id);
+    if (bgSizes) {
+      bgSizes.w = postBounds.w;
+      bgSizes.h = postBounds.h;
+    }
+    const vstackBounds = resolvedBounds.get(innerVstack.id);
+    if (vstackBounds) {
+      const newContentW = Math.max(0, postBounds.w - 2 * padding);
+      const newContentH = Math.max(0, postBounds.h - 2 * padding);
+      vstackBounds.x = postBounds.x + padding;
+      vstackBounds.w = newContentW;
+      const vAlign = innerVstack.props?.vAlign;
+      const vstackChildIds = stackChildren.get(innerVstack.id) || [];
+      const vstackGap = innerVstack.props?.gap || 0;
+      let intrinsicH = 0;
+      for (let ci = 0; ci < vstackChildIds.length; ci++) {
+        const cBounds = resolvedBounds.get(vstackChildIds[ci]);
+        if (cBounds) {
+          intrinsicH += cBounds.h;
+          if (ci > 0) intrinsicH += vstackGap;
+        }
+      }
+      if (vAlign && vAlign !== "top" && newContentH > intrinsicH) {
+        const oldContentH = Math.max(0, preBounds.h - 2 * padding);
+        const oldSlack = Math.max(0, oldContentH - intrinsicH);
+        const oldOffsetY = vAlign === "center" ? oldSlack / 2 : oldSlack;
+        const newSlack = newContentH - intrinsicH;
+        const newOffsetY = vAlign === "center" ? newSlack / 2 : newSlack;
+        const deltaY = newOffsetY - oldOffsetY;
+        for (const cid of vstackChildIds) {
+          const cBounds = resolvedBounds.get(cid);
+          if (cBounds) {
+            cBounds.y += deltaY;
+          }
+        }
+        vstackBounds.y = postBounds.y + padding;
+        vstackBounds.h = newContentH;
+      } else {
+        vstackBounds.y = postBounds.y + padding;
+        vstackBounds.h = newContentH;
+      }
+    }
+    if (wChanged) {
+      warnings.push({
+        type: "transform_panel_width_changed",
+        elementId: id,
+        oldWidth: preBounds.w,
+        newWidth: postBounds.w,
+        message: `Panel "${id}" width changed by transform (${preBounds.w} \u2192 ${postBounds.w}). Text wrapping may be inaccurate \u2014 re-measurement cannot run after transforms.`
+      });
     }
   }
   if (state.fontWarnings && state.fontWarnings.length > 0) {

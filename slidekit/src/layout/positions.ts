@@ -474,7 +474,9 @@ export async function resolvePositions(
             resolvedBounds.set(cid, { x: curX, y: stackY, w: cs.w, h: stretchH });
             // Propagate stretch height into panel compound internals
             const childEl = mustGet(flatMap, cid, `flatMap missing hstack child: ${cid}`);
-            if (isPanelElement(childEl) && childEl.children && childEl.children.length >= 1) {
+            if (isPanelElement(childEl) && childEl.children && childEl.children.length >= 2) {
+              const config = childEl._panelConfig;
+              const panelPadding = config?.padding ?? 0;
               const bgRect = childEl.children[0];
               const bgSizes = resolvedSizes.get(bgRect.id);
               if (bgSizes) {
@@ -483,6 +485,19 @@ export async function resolvePositions(
               const bgBounds = resolvedBounds.get(bgRect.id);
               if (bgBounds) {
                 bgBounds.h = stretchH;
+              }
+              // Also update innerVstack height so vAlign works correctly.
+              // Update resolvedSizes (which feeds into later bound resolution)
+              // and resolvedBounds if already set.
+              const innerVstack = childEl.children[1];
+              const newVstackH = Math.max(0, stretchH - 2 * panelPadding);
+              const vstackSizes = resolvedSizes.get(innerVstack.id);
+              if (vstackSizes) {
+                vstackSizes.h = newVstackH;
+              }
+              const vstackBounds = resolvedBounds.get(innerVstack.id);
+              if (vstackBounds) {
+                vstackBounds.h = newVstackH;
               }
             }
             curX += cs.w + gap;

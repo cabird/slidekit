@@ -2,13 +2,14 @@
 
 import { describe, it, assert } from './test-runner.js';
 import {
-  el,
+  el, hstack, vstack,
   layout, init, _resetForTests,
   alignLeft, alignRight, alignTop, alignBottom,
   alignCenterH, alignCenterV,
   distributeH, distributeV,
   matchWidth, matchHeight, matchSize,
   fitToRect,
+  panel,
 } from '../slidekit.js';
 
 // =============================================================================
@@ -514,6 +515,140 @@ describe("M6.3: matchSize", () => {
     assert.equal(result.elements["r2"].resolved.h, 300);
     assert.equal(result.elements["r3"].resolved.w, 300);
     assert.equal(result.elements["r3"].resolved.h, 300);
+  });
+});
+
+// =============================================================================
+// M6.3+: matchHeight/matchSize on panels — Phase 3.5 panel sync
+// =============================================================================
+
+describe("matchHeight on panels propagates into panel internals", () => {
+  it("bgRect height matches the taller panel", async () => {
+    _resetForTests();
+    await init();
+    // Two panels: p1 has small content (50px), p2 has tall content (200px)
+    const p1 = panel([el('short', { id: 'c1', w: 300, h: 50 })], { id: 'p1', x: 0, y: 0, w: 400 });
+    const p2 = panel([el('tall', { id: 'c2', w: 300, h: 200 })], { id: 'p2', x: 500, y: 0, w: 400 });
+
+    const result = await layout({
+      elements: [p1, p2],
+      transforms: [matchHeight(['p1', 'p2'])],
+    });
+
+    // Both panels should be the same height
+    assert.equal(result.elements['p1'].resolved.h, result.elements['p2'].resolved.h);
+
+    // p1's bgRect should have the matched height (same as p1's outer bounds)
+    const p1Bg = p1.children[0];
+    assert.ok(result.elements[p1Bg.id], "bgRect should be in scene graph");
+    assert.equal(result.elements[p1Bg.id].resolved.h, result.elements['p1'].resolved.h);
+  });
+
+  it("innerVstack height is updated to panel height minus padding", async () => {
+    _resetForTests();
+    await init();
+    const p1 = panel([el('short', { id: 'c1', w: 300, h: 50 })], { id: 'p1', x: 0, y: 0, w: 400, padding: 20 });
+    const p2 = panel([el('tall', { id: 'c2', w: 300, h: 200 })], { id: 'p2', x: 500, y: 0, w: 400, padding: 20 });
+
+    const result = await layout({
+      elements: [p1, p2],
+      transforms: [matchHeight(['p1', 'p2'])],
+    });
+
+    const p1Vstack = p1.children[1];
+    const panelH = result.elements['p1'].resolved.h;
+    const expectedVstackH = panelH - 2 * 20; // panel height minus 2*padding
+    assert.equal(result.elements[p1Vstack.id].resolved.h, expectedVstackH);
+  });
+
+  it("vAlign center repositions children after matchHeight", async () => {
+    _resetForTests();
+    await init();
+    // p1: short content, center-aligned — child should be vertically centered in expanded panel
+    const p1 = panel([el('short', { id: 'c1', w: 300, h: 50 })], { id: 'p1', x: 0, y: 0, w: 400, padding: 20, vAlign: 'center' });
+    const p2 = panel([el('tall', { id: 'c2', w: 300, h: 200 })], { id: 'p2', x: 500, y: 0, w: 400, padding: 20 });
+
+    const result = await layout({
+      elements: [p1, p2],
+      transforms: [matchHeight(['p1', 'p2'])],
+    });
+
+    const panelH = result.elements['p1'].resolved.h;
+    const contentH = panelH - 2 * 20; // 2*padding
+    const childH = result.elements['c1'].resolved.h;
+    const expectedChildY = result.elements['p1'].resolved.y + 20 + (contentH - childH) / 2;
+
+    // Allow 1px tolerance for floating point
+    assert.ok(
+      Math.abs(result.elements['c1'].resolved.y - expectedChildY) < 1,
+      `Child y=${result.elements['c1'].resolved.y} should be near ${expectedChildY} (centered)`
+    );
+  });
+
+  it("matchSize propagates both w and h into panel internals", async () => {
+    _resetForTests();
+    await init();
+    const p1 = panel([el('', { id: 'c1', w: 100, h: 50 })], { id: 'p1', x: 0, y: 0, w: 200, padding: 10 });
+    const p2 = panel([el('', { id: 'c2', w: 300, h: 200 })], { id: 'p2', x: 500, y: 0, w: 400, padding: 10 });
+
+    const result = await layout({
+      elements: [p1, p2],
+      transforms: [matchSize(['p1', 'p2'])],
+    });
+
+    // Both panels should match the larger dimensions
+    assert.equal(result.elements['p1'].resolved.w, result.elements['p2'].resolved.w);
+    assert.equal(result.elements['p1'].resolved.h, result.elements['p2'].resolved.h);
+
+    // p1's bgRect should match the panel's matched bounds
+    const p1Bg = p1.children[0];
+    assert.equal(result.elements[p1Bg.id].resolved.w, result.elements['p1'].resolved.w);
+    assert.equal(result.elements[p1Bg.id].resolved.h, result.elements['p1'].resolved.h);
+
+    // Width change warning should be emitted for p1
+    const wWarning = result.warnings.find(w => w.type === 'transform_panel_width_changed' && w.elementId === 'p1');
+    assert.ok(wWarning, "should warn about panel width change");
+  });
+
+  it("panel that is already the tallest is unchanged", async () => {
+    _resetForTests();
+    await init();
+    const p1 = panel([el('', { id: 'c1', w: 300, h: 200 })], { id: 'p1', x: 0, y: 0, w: 400 });
+    const p2 = panel([el('', { id: 'c2', w: 300, h: 50 })], { id: 'p2', x: 500, y: 0, w: 400 });
+
+    const result = await layout({
+      elements: [p1, p2],
+      transforms: [matchHeight(['p1', 'p2'])],
+    });
+
+    // p1 was already the tallest — its bgRect should match its own size exactly
+    const p1Bg = p1.children[0];
+    assert.equal(result.elements[p1Bg.id].resolved.h, result.elements['p1'].resolved.h);
+    // p2 should be expanded to match p1
+    assert.equal(result.elements['p2'].resolved.h, result.elements['p1'].resolved.h);
+  });
+});
+
+describe("hstack stretch propagates into panel internals", () => {
+  it("panel in hstack with stretch gets innerVstack height updated", async () => {
+    _resetForTests();
+    await init();
+    // hstack with stretch: shorter panel should be stretched to match taller sibling
+    const p1 = panel([el('short', { id: 'c1', w: 200, h: 50 })], { id: 'p1', w: 300, padding: 20 });
+    const tall = el('', { id: 'tall', w: 300, h: 400 });
+
+    const result = await layout({
+      elements: [hstack([p1, tall], { id: 'row', x: 0, y: 0, gap: 20, align: 'stretch' })],
+    });
+
+    // p1 should be stretched to match the tall element's height
+    assert.equal(result.elements['p1'].resolved.h, 400);
+    // p1's bgRect should also be 400
+    const p1Bg = p1.children[0];
+    assert.equal(result.elements[p1Bg.id].resolved.h, 400);
+    // p1's innerVstack should be 400 - 2*20 = 360
+    const p1Vstack = p1.children[1];
+    assert.equal(result.elements[p1Vstack.id].resolved.h, 360);
   });
 });
 
