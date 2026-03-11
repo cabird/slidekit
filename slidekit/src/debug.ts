@@ -13,6 +13,9 @@ import {
 } from './debug-inspector.js';
 import { resetViewport } from './debug-inspector-viewport.js';
 import { undo, redo, isEditableGap, getEnumOptions, isGapProp } from './debug-inspector-edit.js';
+import { attachDragHandlers, detachDragHandlers, refreshDragState, renderResizeHandles } from './debug-inspector-drag.js';
+import { renderConstraintDetail, updateConstraintHighlight, clearConstraintSelection } from './debug-inspector-constraint.js';
+import { exitPickMode } from './debug-inspector-pick.js';
 export { undo, redo, isEditableGap, getEnumOptions, isGapProp };
 
 // Register late-bound callbacks to break circular imports.
@@ -23,6 +26,12 @@ debugController.callbacks.renderElementDetail = (elementId: string, slideIndex: 
 };
 debugController.callbacks.renderDebugOverlay = (options: Record<string, unknown>) => {
   refreshOverlayOnly((options.slideIndex as number) ?? 0);
+};
+debugController.callbacks.refreshOverlayOnly = (slideIndex: number) => {
+  refreshOverlayOnly(slideIndex);
+};
+debugController.callbacks.renderConstraintDetail = (elementId: string, axis: 'x' | 'y', slideIndex: number) => {
+  renderConstraintDetail(elementId, axis, slideIndex);
 };
 
 // =============================================================================
@@ -77,8 +86,10 @@ function _onSlideChanged(): void {
   const newIndex = _getCurrentSlideIndex();
   if (newIndex === s.currentSlideIndex) return;
 
-  // Clear selection when changing slides
+  // Clear selection and pick mode when changing slides
   s.selectedElementId = null;
+  s.selectedConstraint = null;
+  if (s.pickMode) exitPickMode();
 
   // Re-render overlay on the new slide with the current mode options
   const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
@@ -358,11 +369,13 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
     s.currentSlideIndex = slideIndex;
     createInspectorPanel();
     attachClickHandler();
+    attachDragHandlers();
 
     // Re-render previously selected element if any
     if (s.selectedElementId && sceneElements[s.selectedElementId]) {
       renderElementDetail(s.selectedElementId, slideIndex);
       updateSelectionHighlight(s.selectedElementId, slideIndex);
+      renderResizeHandles(s.selectedElementId, slideIndex);
     }
   }
 
@@ -414,16 +427,23 @@ export function refreshOverlayOnly(slideIndex: number): void {
   // Enable clicking on connector SVG wrappers
   _enableConnectorPointerEvents(targetLayer);
 
-  // Re-highlight selected element if any
+  // Re-highlight selected element and re-attach drag handlers
+  // (rerenderSlide replaces the .slidekit-layer DOM, so listeners must be re-attached)
   if (s.selectedElementId) {
     updateSelectionHighlight(s.selectedElementId, slideIndex);
   }
+  if (s.selectedConstraint) {
+    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
+  }
+  refreshDragState(slideIndex);
 }
 
 /** Remove the current debug overlay (toggle off). */
 export function removeDebugOverlay(): void {
   const s = debugController.state;
   _detachSlideChangeListener();
+  if (s.pickMode) exitPickMode();
+  clearConstraintSelection();
   if (s.debugOverlay && s.debugOverlay.parentNode) {
     // Restore pointer-events on connector wrappers before removing overlay
     _restoreConnectorPointerEvents(s.debugOverlay.parentNode as Element);
@@ -432,6 +452,7 @@ export function removeDebugOverlay(): void {
   s.debugOverlay = null;
   removeInspectorPanel();
   detachClickHandler();
+  detachDragHandlers();
 }
 
 /** Check if a debug overlay is currently visible. */

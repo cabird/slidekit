@@ -268,7 +268,11 @@ export function updateDiffDirtyIndicator(): void {
   const badge = s.inspectorPanel?.querySelector('[data-sk-diff-dirty]') as HTMLElement | null;
   if (!badge) return;
 
-  const hasPendingEdits = s.undoStack.some(e => e.slideIndex === s.currentSlideIndex);
+  const hasPendingEdits = s.undoStack.some(e =>
+    'compound' in e
+      ? e.entries.some(c => c.slideIndex === s.currentSlideIndex)
+      : e.slideIndex === s.currentSlideIndex
+  );
   badge.style.display = hasPendingEdits ? 'block' : 'none';
 }
 

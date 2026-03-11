@@ -12,6 +12,9 @@ import {
   isElementIdProp, startElementIdEdit,
   startEdit, startEnumEdit, startGapTokenEdit, showLockedTooltip,
 } from './debug-inspector-edit.js';
+import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag.js';
+import { clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight } from './debug-inspector-constraint.js';
+import { attachContextMenuHandler, detachContextMenuHandler } from './debug-context-menu.js';
 
 // =============================================================================
 // Inspector Panel Lifecycle
@@ -461,6 +464,9 @@ export function updateSelectionHighlight(elementId: string | null, slideIndex: n
 function handleInspectorClick(event: MouseEvent): void {
   const s = debugController.state;
 
+  // Suppress click after a drag gesture completes
+  if (s.dragInProgress) return;
+
   // Only act when debug overlay is visible
   if (!s.debugOverlay) return;
 
@@ -468,22 +474,47 @@ function handleInspectorClick(event: MouseEvent): void {
   const target = event.target as HTMLElement;
   if (target && target.closest('[data-sk-role="debug-inspector"]')) return;
 
+  // Don't deselect when clicking on a resize handle
+  if (target && target.closest('[data-sk-debug="resize-handle"]')) return;
+
+  // Check for constraint arrow click (hit target)
+  const hitTarget = target?.closest('[data-sk-debug="rel-hit"]');
+  if (hitTarget) {
+    const elementId = hitTarget.getAttribute('data-sk-debug-element');
+    const axis = hitTarget.getAttribute('data-sk-debug-axis') as 'x' | 'y' | null;
+    if (elementId && axis) {
+      // Clear element selection
+      s.selectedElementId = null;
+      updateSelectionHighlight(null, s.currentSlideIndex);
+      removeResizeHandles();
+      // Set constraint selection
+      s.selectedConstraint = { elementId, axis };
+      renderConstraintDetail(elementId, axis, s.currentSlideIndex);
+      updateConstraintHighlight(elementId, axis, s.currentSlideIndex);
+      return;
+    }
+  }
+
   // Walk up from target to find a data-sk-id element
   const skEl = target?.closest('[data-sk-id]');
   if (skEl) {
     const id = skEl.getAttribute('data-sk-id');
     if (id) {
+      clearConstraintSelection();
       s.selectedElementId = id;
       renderElementDetail(id, s.currentSlideIndex);
       updateSelectionHighlight(id, s.currentSlideIndex);
+      renderResizeHandles(id, s.currentSlideIndex);
       return;
     }
   }
 
-  // Clicked empty space → deselect
+  // Clicked empty space → deselect both
   s.selectedElementId = null;
+  clearConstraintSelection();
   renderEmptyState();
   updateSelectionHighlight(null, s.currentSlideIndex);
+  removeResizeHandles();
 }
 
 /** Attach the click handler for the inspector. */
@@ -491,6 +522,7 @@ export function attachClickHandler(): void {
   const s = debugController.state;
   if (s.clickHandlerAttached) return;
   document.addEventListener("click", handleInspectorClick, true);
+  attachContextMenuHandler();
   s.clickHandlerAttached = true;
 }
 
@@ -499,5 +531,6 @@ export function detachClickHandler(): void {
   const s = debugController.state;
   if (!s.clickHandlerAttached) return;
   document.removeEventListener("click", handleInspectorClick, true);
+  detachContextMenuHandler();
   s.clickHandlerAttached = false;
 }

@@ -4,7 +4,31 @@
 // Adds subscribe/notify for future reactive UI (editing, undo/redo).
 
 import type { DebugOverlayOptions } from './debug.js';
-import type { SceneElement } from './types.js';
+import type { SceneElement, SlideElement } from './types.js';
+
+/** A single property edit for undo/redo. */
+export interface UndoEntry {
+  elementId: string;
+  propKey: string;
+  oldValue: unknown;
+  newValue: unknown;
+  slideIndex: number;
+}
+
+/** An element insert/remove operation for undo/redo. */
+export interface ElementUndoEntry {
+  action: 'insert' | 'remove';
+  element: SlideElement;      // deep copy
+  parentId: string | null;    // null = root level, string = group/stack ID
+  index: number;              // position in parent's children array
+  slideIndex: number;
+}
+
+/** A group of edits that should be undone/redone together. */
+export interface CompoundUndoEntry {
+  compound: true;
+  entries: Array<UndoEntry | ElementUndoEntry>;
+}
 
 /** Mutable state for the debug overlay and inspector panel. */
 export interface DebugState {
@@ -17,6 +41,7 @@ export interface DebugState {
   // Inspector
   inspectorPanel: HTMLDivElement | null;
   selectedElementId: string | null;
+  selectedConstraint: { elementId: string; axis: 'x' | 'y' } | null;
   clickHandlerAttached: boolean;
   currentSlideIndex: number;
 
@@ -31,8 +56,19 @@ export interface DebugState {
   editInputElement: HTMLInputElement | HTMLSelectElement | null;
 
   // Undo / redo
-  undoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
-  redoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
+  undoStack: Array<UndoEntry | CompoundUndoEntry>;
+  redoStack: Array<UndoEntry | CompoundUndoEntry>;
+
+  // Drag / resize
+  dragInProgress: boolean;
+
+  // Pick-reference mode (for adding constraints)
+  pickMode: {
+    elementId: string;
+    axis: 'x' | 'y';
+    constraintType: string;
+    slideIndex: number;
+  } | null;
 
   // Diff baseline
   baselineSceneGraphs: Record<number, Record<string, SceneElement>>;
@@ -44,6 +80,8 @@ export type DebugStateListener = () => void;
 export interface DebugCallbacks {
   renderElementDetail?: (elementId: string, slideIndex: number) => void;
   renderDebugOverlay?: (options: Record<string, unknown>) => void;
+  refreshOverlayOnly?: (slideIndex: number) => void;
+  renderConstraintDetail?: (elementId: string, axis: 'x' | 'y', slideIndex: number) => void;
 }
 
 export interface DebugController {
@@ -68,6 +106,7 @@ function initialState(): DebugState {
 
     inspectorPanel: null,
     selectedElementId: null,
+    selectedConstraint: null,
     clickHandlerAttached: false,
     currentSlideIndex: 0,
 
@@ -80,6 +119,8 @@ function initialState(): DebugState {
     editInputElement: null,
     undoStack: [],
     redoStack: [],
+    dragInProgress: false,
+    pickMode: null,
     baselineSceneGraphs: {},
   };
 }
