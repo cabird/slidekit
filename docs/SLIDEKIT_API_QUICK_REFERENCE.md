@@ -78,7 +78,7 @@ The single element primitive. Creates a positioned HTML element on the canvas.
 
 **Gotchas:**
 - **Always set `w` on text elements** -- without it, text renders on one long line.
-- **Never set `h` on text elements** -- auto-measurement handles height. Setting `h` is the leading cause of text-overflow bugs.
+- **Avoid setting `h` on text elements** -- auto-measurement handles height and setting `h` overrides it, which is the leading cause of text-overflow bugs. Only set `h` when you intentionally want a fixed-size box (e.g., a styled node in a diagram with `vAlign: 'center'`).
 - Use `style: {}` for CSS properties, not top-level props (auto-promoted with warning).
 - Use the `overflow` prop (e.g., `{ overflow: 'clip' }`) instead of `style: { overflow: 'hidden' }` -- CSS overflow is blocked.
 
@@ -227,12 +227,12 @@ All element types share these properties:
 |----------|------|---------|-------|
 | `id` | `string` | auto (`sk-N`) | **Required** for referenced elements |
 | `x`, `y` | `number \| string \| RelMarker` | `0` | Accepts px, `"50%"`, `"safe:25%"`, or relative marker |
-| `w` | `number \| string` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` |
-| `h` | `number \| string` | -- | **Never set on text -- auto-measured.** |
+| `w` | `number \| string` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` (panels only — resolves to parent width minus padding) |
+| `h` | `number \| string` | -- | Auto-measured for text. Set only for fixed-size boxes (images, bg rects, diagram nodes). |
 | `maxW`, `maxH` | `number` | -- | Max dimension constraints |
 | `anchor` | `AnchorPoint` | `"tl"` | Which point sits at (x, y) |
 | `layer` | `LayerName` | `"content"` | `"bg"`, `"content"`, `"overlay"` |
-| `vAlign` | `VAlign` | `"top"` | Content vertical alignment within box |
+| `vAlign` | `VAlign` | `"top"` | Content vertical alignment within box. **Requires explicit `h` to take effect.** |
 | `overflow` | `OverflowPolicy` | `"visible"` | `"visible"`, `"warn"`, `"clip"`, `"error"` |
 | `style` | `object` | `{}` | CSS pass-through (see [Styling Rules](#styling-rules)) |
 | `opacity` | `number` | `1` | 0--1 |
@@ -319,7 +319,7 @@ y: between('header', 'content', { axis: 'y', bias: 0.35 }), // biased toward top
 y: between('lastCard', 990, { axis: 'y' }),             // between element and raw Y
 ```
 
-**Gotcha:** Falls back silently if element doesn't fit in the gap. Check for `between_no_fit` warnings.
+**Gotcha:** If the element doesn't fit in the available gap, it is still placed at the bias point but a `between_no_fit` lint warning is emitted. Check lint output for this warning.
 
 ### Other
 
@@ -361,6 +361,8 @@ Vendor-prefixed variants also blocked. Use element props (`w`, `h`, `overflow`, 
 ### Convenience Property Mapping
 
 Element props `color`, `font`, `size`, `weight`, `fill`, `radius`, `border`, `align`, `shadow` map to their CSS equivalents (`color`, `fontFamily`, `fontSize`+"px", `fontWeight`, `background`, `borderRadius`, `border`, `textAlign`, `boxShadow`). If both a convenience prop and `style` specify the same CSS property, `style` wins.
+
+**`align` disambiguation:** On `el()`, `align` is a convenience prop that maps to CSS `textAlign`. On `vstack`/`panel`, `align` controls cross-axis alignment (`"left"`, `"center"`, `"right"`, `"stretch"`). These are different properties that share the same name.
 
 ### Shadow Presets
 
@@ -489,6 +491,9 @@ Programmatic lint for all slides including cross-slide checks (title-position-dr
 { id?, background?, elements: SlideElement[], transforms?: TransformMarker[], notes? }
 ```
 
+- `background` -- CSS color, gradient, or image path (e.g., `'#0a0a1a'`, `'linear-gradient(...)'`, `'./bg.jpg'`). Sets the slide background.
+- `notes` -- HTML string for Reveal.js speaker notes (e.g., `'<p>Mention the timeline here.</p>'`). Visible in speaker view only.
+
 ```ts
 render(slides: SlideDefinition[]): Promise<{ sections: HTMLElement[], layouts: LayoutResult[] }>
 ```
@@ -513,7 +518,7 @@ Use `allowOverlap: true` on intentionally overlapping elements to suppress overl
 
 ## Critical Rules (Do Not Violate)
 
-1. **Never set `h` on text elements** -- let auto-measurement handle height.
+1. **Avoid setting `h` on text elements** -- auto-measurement handles height. Only set `h` when you need a fixed-size box (images, bg rects, diagram nodes with `vAlign: 'center'`).
 2. **Always set `w` on text elements** -- without width, text won't wrap and measurement fails.
 3. **Don't spread positioning functions** -- `...below(ref)` breaks; use `y: below(ref)`.
 4. **Use `id` on any element referenced** by positioning helpers, transforms, or connectors.
@@ -522,19 +527,19 @@ Use `allowOverlap: true` on intentionally overlapping elements to suppress overl
 7. **Never cross axes** with alignment helpers -- `alignTopWith` is Y, `alignLeftWith` is X.
 8. **CSS properties go inside `style: {}`** -- top-level CSS props are auto-promoted with warnings.
 9. **`dash` on connectors is SVG format** -- `"5 5"` (space-separated), not `"5,5"`.
-10. **Inline text styles on HTML elements** -- the linter reads font-size from the DOM text node, not the container.
+10. **Put font styles on the innermost text element** -- the linter reads `font-size` from the DOM text node, not its container. Wrap text in `<p>` or `<span>` with inline styles rather than styling an outer `<div>`.
 
 ---
 
 ## Height Rules
 
-- **Never** specify `h` on text elements -- overrides DOM measurement, leading cause of text-overflow bugs.
-- **Never** calculate height mathematically (`fontSize * lineHeight * lines`) -- browser metrics make this inaccurate.
-- **Never** specify `h` just for positioning math -- use `below()` chaining instead.
-- **Never** use `h: left.h` from `splitRect()` on content containers -- that's the full column height (typically 900px). Omit `h` to let content auto-size.
-- **Do** omit `h` on all text elements -- SlideKit auto-measures from DOM.
+- **Avoid** setting `h` on text elements -- it overrides DOM measurement and is the leading cause of text-overflow bugs. Only set `h` when you intentionally want a fixed-size box.
+- **Avoid** calculating height mathematically (`fontSize * lineHeight * lines`) -- browser metrics make this inaccurate.
+- **Avoid** setting `h` just for positioning math -- use `below()` chaining instead.
+- **Avoid** using `h: left.h` from `splitRect()` on content containers -- that's the full column height (typically 900px). Omit `h` to let content auto-size.
+- **Do** omit `h` on text elements -- SlideKit auto-measures from DOM.
 - **Do** always specify `w` on text -- constrains wrapping so height measurement is accurate.
-- **Do** only specify `h` for: images with `fit: 'cover'`, background rects (`layer: 'bg'`), and fixed-size containers (terminal blocks, panels with `vAlign: 'center'`).
+- **Do** set `h` when appropriate for: images with `fit: 'cover'`, background rects (`layer: 'bg'`), and fixed-size containers (diagram nodes, panels with `vAlign: 'center'`).
 
 ---
 
@@ -573,7 +578,34 @@ Discovered by AI agents building real presentations:
 
 ---
 
+## Slide File Structure
+
+A typical SlideKit slide file imports from the SlideKit bundle and exports a slide definition:
+
+```js
+import { init, safeRect, splitRect, el, group, vstack, hstack, panel, connect,
+         below, above, rightOf, leftOf, centerIn, between,
+         alignTopWith, alignLeftWith, centerHWith, centerVWith,
+         alignTop, distributeH, matchWidth,
+         render } from './slidekit.bundle.js';
+
+await init({ fonts: [{ family: 'Inter', weights: [400, 600, 700] }] });
+const safe = safeRect();
+
+const slides = [
+  { id: 'slide-1', background: '#0a0a1a', elements: [ /* ... */ ] },
+  // more slides...
+];
+await render(slides);
+```
+
+Import only the functions you use. All positioning helpers (`below`, `rightOf`, etc.) and transforms (`alignTop`, `distributeH`, etc.) are named exports.
+
+---
+
 ## Micro-Recipes
+
+> **Note:** All recipes below assume `const safe = safeRect()` has been called after `init()`.
 
 ### 1. Two-Column Split with Title
 
@@ -628,7 +660,8 @@ const elements = cards.map((card, i) =>
 ### 4. Connector Diagram
 
 ```js
-// Three nodes with labeled connectors
+// Three fixed-size diagram nodes with labeled connectors.
+// h is set intentionally here — these are diagram boxes, not free-flowing text.
 el('<p style="font:600 24px Inter;color:#fff;text-align:center">Client</p>',
   { id: 'n-a', x: 300, y: 400, w: 200, h: 80,
     style: { background: '#1a1a3e', borderRadius: '8px' }, vAlign: 'center' }),
