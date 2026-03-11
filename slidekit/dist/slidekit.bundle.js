@@ -1,5 +1,5 @@
 // slidekit/src/version.ts
-var VERSION = true ? "0.3.1" : "dev";
+var VERSION = true ? "0.3.2" : "dev";
 
 // slidekit/src/state.ts
 var state = {
@@ -4679,6 +4679,31 @@ function finalize({
       rootIds.push(id);
     }
   }
+  function absoluteBoundsOf2(id) {
+    const bounds = resolvedBounds.get(id);
+    if (!bounds) return null;
+    let offsetX = 0, offsetY = 0;
+    let current = id;
+    while (true) {
+      const gp = groupParent.get(current);
+      if (gp) {
+        const gpBounds = resolvedBounds.get(gp);
+        if (gpBounds) {
+          offsetX += gpBounds.x;
+          offsetY += gpBounds.y;
+        }
+        current = gp;
+        continue;
+      }
+      const sp = stackParent.get(current);
+      if (sp) {
+        current = sp;
+        continue;
+      }
+      break;
+    }
+    return { x: bounds.x + offsetX, y: bounds.y + offsetY, w: bounds.w, h: bounds.h };
+  }
   const obstacleRects = [];
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element: ${id}`);
@@ -4714,8 +4739,8 @@ function finalize({
       });
       continue;
     }
-    const fromBounds = resolvedBounds.get(fromId);
-    const toBounds = resolvedBounds.get(toId);
+    const fromBounds = absoluteBoundsOf2(fromId);
+    const toBounds = absoluteBoundsOf2(toId);
     if (!fromBounds || !toBounds) {
       warnings.push({
         type: "connector_missing_endpoint",

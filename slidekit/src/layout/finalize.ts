@@ -182,6 +182,34 @@ export function finalize({
   // =========================================================================
   // After all positions are resolved, compute connection points for connectors.
 
+  // Helper: compute absolute (slide-level) bounds for an element by walking
+  // up the group/stack parent ancestry chain.
+  function absoluteBoundsOf(id: string): Rect | null {
+    const bounds = resolvedBounds.get(id);
+    if (!bounds) return null;
+    let offsetX = 0, offsetY = 0;
+    let current = id;
+    while (true) {
+      const gp = groupParent.get(current);
+      if (gp) {
+        const gpBounds = resolvedBounds.get(gp);
+        if (gpBounds) {
+          offsetX += gpBounds.x;
+          offsetY += gpBounds.y;
+        }
+        current = gp;
+        continue;
+      }
+      const sp = stackParent.get(current);
+      if (sp) {
+        current = sp;
+        continue;
+      }
+      break;
+    }
+    return { x: bounds.x + offsetX, y: bounds.y + offsetY, w: bounds.w, h: bounds.h };
+  }
+
   // Collect obstacle rects (all non-connector, non-bg-layer elements)
   const obstacleRects: Array<{ id: string; rect: Rect }> = [];
   for (const id of sortedOrder) {
@@ -244,8 +272,8 @@ export function finalize({
       continue;
     }
 
-    const fromBounds = resolvedBounds.get(fromId);
-    const toBounds = resolvedBounds.get(toId);
+    const fromBounds = absoluteBoundsOf(fromId);
+    const toBounds = absoluteBoundsOf(toId);
 
     if (!fromBounds || !toBounds) {
       warnings.push({
