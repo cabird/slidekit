@@ -1,5 +1,7 @@
 # SlideKit API Quick Reference
 
+**SlideKit** is a coordinate-based slide layout library for [Reveal.js](https://revealjs.com/). Instead of writing HTML slides by hand, you describe elements with explicit positions, widths, and spacing tokens in JavaScript, and SlideKit handles measurement, rendering, collision detection, and linting. The canvas is 1920×1080. Everything is absolutely positioned — there is no CSS flow layout. If you are an AI model generating slides, use this reference to produce correct, lint-clean SlideKit code.
+
 > **Audience:** AI agents writing SlideKit JavaScript slide code.
 > **For workflow, pitfalls, anti-patterns, and the render-inspect-correct loop:** see [AI_AUTHORING_GUIDE.md](AI_AUTHORING_GUIDE.md).
 > **For every option, edge case, and internal detail:** see [API.md](API.md).
@@ -51,6 +53,14 @@ getSpacing(token: number | string): number
 ```
 
 Resolves a spacing token name to pixels. Numbers pass through. **Throws** on unknown tokens.
+
+### `getConfig()`
+
+```ts
+getConfig(): SlideKitConfig | null
+```
+
+Returns a deep copy of the current configuration, or `null` if `init()` has not been called.
 
 ---
 
@@ -179,32 +189,6 @@ Plus all [Common Element Props](#common-element-props).
 
 ---
 
-### `figure(opts?)`
-
-```ts
-figure(opts?: FigureInputProps): FigureElement
-```
-
-Image with optional caption. Returns group: `{id}-bg`, `{id}-img`, optionally `{id}-caption`.
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `src` | `string` | `""` | Image source URL |
-| `w` | `number` | `0` | Container width |
-| `h` | `number` | `0` | Container height |
-| `containerFill` | `string` | `"transparent"` | Background fill |
-| `containerRadius` | `number \| string` | `0` | Border radius |
-| `containerPadding` | `number \| string` | `0` | Padding around image |
-| `caption` | `string` | -- | HTML caption string |
-| `captionGap` | `number \| string` | `0` | Gap between container and caption |
-| `fit` | `string` | `"contain"` | CSS `object-fit` for the image |
-
-Plus `id`, `x`, `y`, `anchor`, `layer`, `style` from common props.
-
-**Gotcha:** **Avoid `anchor: 'tc'` on `figure()`** -- the linter resolves children at raw group-relative coordinates and reports false overflow. Use `anchor: 'tl'` and compute centered x manually: `x: 960 - w/2`.
-
----
-
 ### `connect(fromId, toId, props?)`
 
 ```ts
@@ -226,6 +210,7 @@ SVG connector between two elements. Endpoints resolved during layout.
 | `labelStyle` | `object` | `{}` | `{ size, color, font, weight }` |
 | `labelPosition` | `number` | `0.5` | Position along path (0=start, 1=end) |
 | `cornerRadius` | `number` | `0` | Fillet radius for elbow corners |
+| `obstacleMargin` | `number` | `200` | Search margin for obstacle avoidance (orthogonal type) |
 
 **Gotchas:**
 - **`dash` must be space-separated** (`"5 5"`), not comma-separated (`"5,5"`) -- wrong format silently produces a solid line.
@@ -241,8 +226,8 @@ All element types share these properties:
 | Property | Type | Default | Notes |
 |----------|------|---------|-------|
 | `id` | `string` | auto (`sk-N`) | **Required** for referenced elements |
-| `x`, `y` | `number \| string \| RelMarker` | `0` | Accepts px, %, `"safe:N%"`, or relative marker |
-| `w` | `number \| string` | -- | **Required for text.** Accepts px, %, `"fill"` |
+| `x`, `y` | `number \| string \| RelMarker` | `0` | Accepts px, `"50%"`, `"safe:25%"`, or relative marker |
+| `w` | `number \| string` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` |
 | `h` | `number \| string` | -- | **Never set on text -- auto-measured.** |
 | `maxW`, `maxH` | `number` | -- | Max dimension constraints |
 | `anchor` | `AnchorPoint` | `"tl"` | Which point sits at (x, y) |
@@ -252,10 +237,14 @@ All element types share these properties:
 | `style` | `object` | `{}` | CSS pass-through (see [Styling Rules](#styling-rules)) |
 | `opacity` | `number` | `1` | 0--1 |
 | `rotate` | `number` | -- | Degrees |
+| `flipH` | `boolean` | -- | Horizontal flip (`scaleX(-1)`) |
+| `flipV` | `boolean` | -- | Vertical flip (`scaleY(-1)`) |
 | `z` | `number` | -- | Z-order within layer (higher = front) |
 | `className` | `string` | `""` | CSS class name(s) |
 | `shadow` | `string` | -- | Preset name or CSS `box-shadow` |
 | `allowOverlap` | `boolean` | `false` | Suppresses linter overlap checks |
+
+**Percentage positioning:** `"50%"` resolves to 50% of the slide dimension. `"safe:25%"` resolves to 25% of the safe zone dimension. Resolved automatically during layout.
 
 ### Anchor System
 
@@ -275,7 +264,22 @@ First char = row (`t`/`c`/`b`), second char = column (`l`/`c`/`r`).
 
 All return `RelMarker` objects resolved during layout. **Only valid on `x` and `y` properties.** `gap` accepts px or spacing token strings.
 
-### Adjacency -- `(refId, opts?: { gap? }) => RelMarker`
+### Adjacency
+
+```ts
+below(refId, gap?): RelMarker   // gap: number | string | { gap: number | string }
+above(refId, gap?): RelMarker
+rightOf(refId, gap?): RelMarker
+leftOf(refId, gap?): RelMarker
+```
+
+The second argument accepts a bare number, spacing token string, or `{ gap }` object:
+
+```js
+y: below('title', 'lg')       // spacing token
+y: below('title', 32)          // raw pixels
+y: below('title', { gap: 'lg' })  // object form (also valid)
+```
 
 | Function | Axis | Resolves To |
 |----------|------|-------------|
@@ -297,10 +301,30 @@ All return `RelMarker` objects resolved during layout. **Only valid on `x` and `
 
 **Gotcha:** **Never cross axes** -- `alignTopWith()` returns Y; using it for X silently produces wrong positions.
 
+### Between
+
+```ts
+between(refA: string | number, refB: string | number, opts: { axis: 'x' | 'y', bias?: number }): RelMarker
+```
+
+Positions element in the gap between two references on a given axis. At least one ref must be an element ID; the other can be a raw px coordinate.
+
+- `axis: 'x'` -- positions in horizontal gap between refA's right edge and refB's left edge
+- `axis: 'y'` -- positions in vertical gap between refA's bottom and refB's top
+- `bias` (default `0.5`) -- 0.0 = flush to refA, 1.0 = flush to refB, 0.5 = centered
+
+```js
+x: between('node3', 'node5', { axis: 'x' }),           // center between two nodes
+y: between('header', 'content', { axis: 'y', bias: 0.35 }), // biased toward top
+y: between('lastCard', 990, { axis: 'y' }),             // between element and raw Y
+```
+
+**Gotcha:** Falls back silently if element doesn't fit in the gap. Check for `between_no_fit` warnings.
+
 ### Other
 
 - `centerIn(rect: Rect): { x: RelMarker, y: RelMarker }` -- centers on both axes (use with `safeRect()`)
-- `placeBetween(topRef, bottomYOrRef, opts?: { bias? }): RelMarker` -- positions between two refs. `bias` default `0.35`. **Falls back silently if element doesn't fit.**
+- `placeBetween(topRef, bottomYOrRef, opts?)` -- **deprecated**, use `between(refA, refB, { axis: 'y' })` instead.
 
 ---
 
@@ -354,6 +378,10 @@ Use via `shadow: 'md'` or pass a raw CSS `box-shadow` string.
 
 SlideKit injects resets inside every `el()` container (`text-align: left`, `line-height: 1.2`, `font-weight: 400`, zero margins, heading font inheritance). User inline styles always win.
 
+### Theme CSS
+
+`className` prop references classes from loaded stylesheets. Theme CSS must contain **only visual styling** (colors, gradients, borders, shadows, typography, animations). Never layout props (`position, display, width, height, margin, padding, flex, grid`) -- they conflict with SlideKit positioning.
+
 ---
 
 ## Spacing Tokens
@@ -371,6 +399,90 @@ Any `gap`, `padding`, or `captionGap` property accepts token names as strings. C
 
 ---
 
+## Utilities
+
+### `grid(config?)`
+
+Column grid for consistent positioning.
+
+```ts
+grid(config?: { cols?: number, gutter?: number, margin?: { left?, right? } }): Grid
+```
+
+Defaults: `cols=12`, `gutter=30`, margins = safe zone margins. Returns `col(n)` (X of 1-based column) and `spanW(from, to)` (width spanning columns, inclusive).
+
+### `snap(value, gridSize)`
+
+Rounds to nearest grid increment. `snap(137, 8)` → `136`.
+
+### `repeat(element, config?)`
+
+Duplicates element in a grid pattern. Returns group of deep-cloned copies with IDs `{baseId}-{i+1}`.
+
+```ts
+repeat(element, { count?: number, cols?: number, gapX?: px|tok, gapY?: px|tok, startX?, startY? }): GroupElement
+```
+
+### `resolvePercentage(value, axis)`
+
+`"N%"` → % of slide dimension. `"safe:N%"` → % of safe zone. Non-strings pass through. Used automatically in layout.
+
+### `rotatedAABB(w, h, degrees)`
+
+Returns the axis-aligned bounding box `{ w, h }` of a rotated rectangle. Use to verify rotated elements stay within canvas bounds.
+
+### `measure(html, props?)`
+
+```ts
+measure(html: string, props?: { w?: number, className?, style? }): Promise<{ w, h }>
+```
+
+Off-screen DOM measurement. Without `w`: natural dimensions. With `w`: constrained width, measured height. Use `clearMeasureCache()` if fonts change after initial measurements.
+
+### `resolveAnchor(x, y, w, h, anchor)`
+
+Converts anchor-relative position to CSS `{ left, top }`. Useful for manual anchor math.
+
+### `getAnchorPoint(bounds, anchor)`
+
+```ts
+getAnchorPoint(bounds: Rect, anchor: AnchorPoint): { x, y, dx, dy }
+```
+
+Returns the pixel coordinates of an anchor point on a bounding rect, plus the outward direction vector (`dx`, `dy`).
+
+---
+
+## Layout Engine
+
+### `layout(slideDefinition, options?)`
+
+```ts
+layout(slideDefinition: SlideDefinition, options?: { collisionThreshold?: number }): Promise<LayoutResult>
+```
+
+Core layout engine. Resolves positions, measures HTML, detects collisions, validates bounds. Called internally by `render()` but also available standalone.
+
+Returns `LayoutResult: { elements, rootIds, transforms, warnings, errors, collisions }` where `elements` is a `Record<string, SceneElement>` -- the scene graph mapping IDs to fully resolved elements.
+
+### `lintSlide(slideData, slideElement?)`
+
+```ts
+lintSlide(slideData: LintSlideData, slideElement?: HTMLElement): LintFinding[]
+```
+
+Programmatic lint for a single slide. Equivalent to `window.sk.lint(slideId)` at runtime.
+
+### `lintDeck(deckData, sections?)`
+
+```ts
+lintDeck(deckData: LintDeckData, sections?: NodeListOf<HTMLElement>): LintFinding[]
+```
+
+Programmatic lint for all slides including cross-slide checks (title-position-drift, style-drift).
+
+---
+
 ## Slide Definition & Rendering
 
 ```ts
@@ -381,7 +493,21 @@ Any `gap`, `padding`, or `captionGap` property accepts token names as strings. C
 render(slides: SlideDefinition[]): Promise<{ sections: HTMLElement[], layouts: LayoutResult[] }>
 ```
 
-After rendering: `window.sk.lint(slideId)`, `window.sk.lintDeck()`, `window.sk.layouts[i].elements`.
+`VERSION` constant: the current SlideKit version string (e.g., `"0.3.1"`).
+
+### `window.sk` (Runtime API)
+
+```js
+window.sk.VERSION             // current version string
+window.sk.lint(slideId)       // → LintFinding[] for one slide
+window.sk.lintDeck()          // → LintFinding[] for all slides (includes cross-slide checks)
+window.sk.layouts[i].elements // scene graph for slide i (Record<string, SceneElement>)
+window.sk._config             // current SlideKitConfig
+```
+
+Key lint findings to watch: `text-overflow`, `canvas-overflow`, `non-ancestor-overlap`, `dom_overflow_y`.
+
+Use `allowOverlap: true` on intentionally overlapping elements to suppress overlap findings.
 
 ---
 
@@ -400,22 +526,69 @@ After rendering: `window.sk.lint(slideId)`, `window.sk.lintDeck()`, `window.sk.l
 
 ---
 
+## Height Rules
+
+- **Never** specify `h` on text elements -- overrides DOM measurement, leading cause of text-overflow bugs.
+- **Never** calculate height mathematically (`fontSize * lineHeight * lines`) -- browser metrics make this inaccurate.
+- **Never** specify `h` just for positioning math -- use `below()` chaining instead.
+- **Never** use `h: left.h` from `splitRect()` on content containers -- that's the full column height (typically 900px). Omit `h` to let content auto-size.
+- **Do** omit `h` on all text elements -- SlideKit auto-measures from DOM.
+- **Do** always specify `w` on text -- constrains wrapping so height measurement is accurate.
+- **Do** only specify `h` for: images with `fit: 'cover'`, background rects (`layer: 'bg'`), and fixed-size containers (terminal blocks, panels with `vAlign: 'center'`).
+
+---
+
+## Field-Tested Rules
+
+Discovered by AI agents building real presentations:
+
+- **Don't** create `el()` without explicit `w` -- collapses to 0px, invisible. Always set `w` or use `w: 'fill'` in a container.
+- **Don't** create groups without `w`/`h` or `bounds: 'hug'` when used as layout containers -- defaults to 0×0, children invisible.
+- **Don't** let `below()` chains accumulate beyond safe zone. Total budget: 990 − 90 = 900px. Verify last element bottom ≤ 990.
+- **Don't** assume `w: 'fill'` equals parent width -- padding and siblings reduce it. Check `window.sk.layouts[N].elements['id'].resolved.w`.
+- **Don't** use unencoded special characters in SVG data URIs -- use `encodeURIComponent()`.
+- **Don't** use tight gaps (< 30px) after large visuals -- captions look cramped. Use `max(30px, 1.5× caption font size)`.
+- **Do** for 3+ column layouts, compute positions explicitly instead of `hstack()` -- eliminates false-positive overlaps: `cardW = (safe.w - gap*(cols-1)) / cols; x = safe.x + col*(cardW+gap)`.
+- **Do** when `panel([child1, child2])` causes false overlaps, flatten to single `el()` with inline HTML.
+- **Do** fill the safe zone width with cards -- narrow cards waste space and trigger `content-clustering`.
+- **Do** use `textAlign` matching positioning direction: `leftOf()` → `textAlign: 'right'`, `rightOf()` → `textAlign: 'left'`.
+- **Do** use `layer: 'bg'` for full-bleed backgrounds and images. Without it, they render on content layer and occlude text.
+- **Do** use semi-transparent background fills with opacity >= 0.25 for sufficient text contrast (e.g., `rgba(10,10,26,0.75)` not `rgba(10,10,26,0.10)`).
+
+---
+
+## Pre-Commit Checklist
+
+- `text-overflow`: all text visible? `scrollHeight ≤ clientHeight`
+- `canvas-overflow`: all elements within 1920×1080?
+- Safe zone: content-layer elements within x:120–1800, y:90–990?
+- No unintended sibling overlaps
+- Gaps ≥ 8px between text elements
+- Contrast ≥ 4.5:1 for body text
+- `textAlign` matches direction (`leftOf` → `right`, `rightOf` → `left`)
+- CSS props inside `style: {}`, not top level
+- Related moving elements wrapped in `group()`
+- `dash` is SVG string (`"5 5"`), not CSS (`"6,4"`)
+- `between` elements fit in the gap
+
+---
+
 ## Micro-Recipes
 
 ### 1. Two-Column Split with Title
 
 ```js
-// Setup: const safe = safeRect();
-// const { left, right } = splitRect(safe, { ratio: 0.55, gap: 40 });
+const safe = safeRect();
+const { left, right } = splitRect(safe, { ratio: 0.55, gap: 40 });
 export default {
   id: 'two-col', background: '#0a0a1a',
   elements: [
     el('<h2 style="font:700 48px Inter;color:#fff">Key Insight</h2>',
       { id: 'heading', x: safe.x, y: safe.y, w: safe.w }),
     el('<p style="font:400 24px/1.5 Inter;color:#ccc">Left column body text.</p>',
-      { id: 'left-body', x: left.x, y: below('heading', { gap: 'lg' }), w: left.w }),
-    figure({ id: 'right-img', src: 'assets/diagram.png',
-      x: right.x, y: below('heading', { gap: 'lg' }), w: right.w, h: 500, fit: 'contain' }),
+      { id: 'left-body', x: left.x, y: below('heading', 'lg'), w: left.w }),
+    el('<div style="width:100%;height:100%;background:url(\'./diagram.png\') center/contain no-repeat">', {
+      id: 'right-img', x: right.x, y: below('heading', 'lg'), w: right.w, h: 500 }),
   ],
 };
 ```
@@ -452,20 +625,7 @@ const elements = cards.map((card, i) =>
 );
 ```
 
-### 4. Figure with Caption
-
-```js
-figure({
-  id: 'chart', src: 'assets/chart.png',
-  x: 960 - 450, y: below('title', { gap: 'lg' }), w: 900, h: 500,
-  containerFill: '#f8f9fa', containerRadius: 10, containerPadding: 10,
-  fit: 'contain',
-  caption: '<p style="font:400 18px Inter;color:#888">Figure 1: Results</p>',
-  captionGap: 12,
-})
-```
-
-### 5. Connector Diagram
+### 4. Connector Diagram
 
 ```js
 // Three nodes with labeled connectors
@@ -484,10 +644,9 @@ connect('n-b', 'n-c', { arrow: 'end', color: '#2196f3',
   label: 'SQL', labelStyle: { size: 14, color: '#aaa', font: 'monospace' } }),
 ```
 
-### 6. Transforms (Align + Distribute)
+### 5. Transforms (Align + Distribute)
 
 ```js
-// Three boxes aligned and evenly distributed across the safe zone
 export default {
   id: 'transform-demo', background: '#0a0a1a',
   elements: [
@@ -499,16 +658,98 @@ export default {
       { id: 'box-c', x: 1200, y: 280, w: 240, style: { background: '#1a1a3e' }, vAlign: 'center' }),
   ],
   transforms: [
-    alignTop(['box-a', 'box-b', 'box-c']),          // snap all to same y
-    matchWidth(['box-a', 'box-b', 'box-c']),         // equalize widths
-    distributeH(['box-a', 'box-b', 'box-c']),        // even horizontal spacing
+    alignTop(['box-a', 'box-b', 'box-c']),
+    matchWidth(['box-a', 'box-b', 'box-c']),
+    distributeH(['box-a', 'box-b', 'box-c']),
   ],
 };
 ```
 
+### 6. Full-Bleed Hero with Text Overlay
+
+```js
+el('<div style="width:100%;height:100%;background:url(\'./hero.png\') center/cover;opacity:0.7">', {
+  id: 'bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
+});
+el('<h1 style="font:700 72px Inter;color:#fff">Bold Statement</h1>', {
+  id: 'headline', x: safe.x, y: safe.y + safe.h - 280, w: 800,
+});
+el('<p style="font:400 28px Inter;color:rgba(255,255,255,0.8)">Supporting context below.</p>', {
+  id: 'subtitle', x: safe.x, y: below('headline', 'sm'), w: 700,
+});
+```
+
+Position text in the lower-left corner for visual weight. Control image brightness via `opacity`.
+
+### 7. Big Stat Callout
+
+```js
+el('<p style="font:700 160px Inter;color:#00d4ff;text-align:center;letter-spacing:-4px;line-height:1">4.2B</p>', {
+  id: 'number', x: safe.x, y: safe.y + 160, w: safe.w,
+});
+el('<p style="font:700 36px Inter;color:#fff;text-align:center;text-transform:uppercase;letter-spacing:4px">Events Processed Daily</p>', {
+  id: 'label', x: safe.x, y: below('number', 'md'), w: safe.w,
+});
+el('<p style="font:400 24px Inter;color:rgba(255,255,255,0.6);text-align:center">Across 140+ data centers worldwide</p>', {
+  id: 'context', x: safe.x + 200, y: below('label', 'sm'), w: safe.w - 400,
+});
+```
+
+### 8. Centered Floating Card
+
+```js
+const cardW = 720;
+const centered = centerIn(safe);
+el('<div style="width:100%;height:100%;background:url(\'./bg.png\') center/cover;opacity:0.5">', {
+  id: 'bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg',
+});
+panel([
+  el('<h2 style="font:700 40px Inter;color:#fff;text-align:center">Key Takeaway</h2>', { w: 'fill' }),
+  el('<p style="font:400 22px/1.5 Inter;color:#ccc;text-align:center">The main point distilled.</p>', { w: 'fill' }),
+], {
+  id: 'card', x: centered.x, y: centered.y, w: cardW, anchor: 'cc',
+  padding: 40, gap: 20, fill: 'rgba(10,10,26,0.92)', radius: 20,
+  shadow: 'lg', border: '1px solid rgba(255,255,255,0.08)',
+});
+```
+
+Use `anchor: 'cc'` with `centerIn()` coordinates for perfect centering.
+
+### 9. Process Flow with Connectors
+
+```js
+const steps = ['Ingest', 'Transform', 'Validate', 'Deploy'];
+const boxW = 280;
+const totalGap = safe.w - steps.length * boxW;
+const gap = totalGap / (steps.length - 1);
+const boxY = 400;
+
+steps.forEach((step, i) => {
+  const boxX = safe.x + i * (boxW + gap);
+  panel([
+    el(`<p style="font:700 28px Inter;color:#fff;text-align:center">${step}</p>`, { w: 'fill' }),
+  ], {
+    id: `step${i}`, x: boxX, y: boxY, w: boxW,
+    padding: 24, fill: 'rgba(255,255,255,0.06)', radius: 12,
+    border: '1px solid rgba(255,255,255,0.1)',
+  });
+});
+// Connect adjacent boxes with curved arrows
+steps.slice(0, -1).forEach((_, i) =>
+  connect(`step${i}`, `step${i+1}`, {
+    type: 'curved', fromAnchor: 'cr', toAnchor: 'cl',
+    color: '#00d4ff', thickness: 2, arrow: 'end',
+  })
+);
+```
+
+Omit `h` on panels -- let content auto-size. Use `fromAnchor: 'cr'` / `toAnchor: 'cl'` for horizontal flow.
+
 ---
 
 ## Key Types
+
+### String Unions
 
 | Type | Values |
 |------|--------|
@@ -521,4 +762,45 @@ export default {
 | `ConnectorType` | `"straight"` `"curved"` `"elbow"` `"orthogonal"` |
 | `ArrowType` | `"none"` `"end"` `"start"` `"both"` |
 | `ShadowPreset` | `"sm"` `"md"` `"lg"` `"xl"` `"glow"` |
-| `Rect` | `{ x, y, w, h }` (all `number`) |
+| `ElementType` | `"el"` `"group"` `"vstack"` `"hstack"` `"connector"` |
+| `CompoundType` | `"panel"` `"figure"` |
+| `ProvenanceSource` | `"authored"` `"measured"` `"stack"` `"constraint"` `"transform"` `"default"` |
+
+### Data Types
+
+| Type | Description |
+|------|-------------|
+| `Rect` | `{ x, y, w, h }` -- axis-aligned rectangle |
+| `Point` | `{ x, y }` -- 2D point |
+| `PositionValue` | `number \| string \| RelMarker` -- valid for `x`/`y` props |
+| `SizeValue` | `number \| string` -- valid for `w`/`h` props |
+| `RelMarker` | `{ _rel, ref?, gap?, bias?, axis?, rect? }` -- returned by positioning helpers |
+| `TransformMarker` | `{ _transform, _transformId, ids, options }` -- returned by transform functions |
+
+### Element Types
+
+| Type | Description |
+|------|-------------|
+| `SlideElement` | Union: `ElElement \| GroupElement \| VStackElement \| HStackElement \| ConnectorElement \| PanelElement \| FigureElement` |
+| `ElElement` | `{ type: "el", id, content, props }` |
+| `GroupElement` | `{ type: "group", id, children, props }` |
+| `VStackElement` | `{ type: "vstack", id, children, props }` |
+| `HStackElement` | `{ type: "hstack", id, children, props }` |
+| `ConnectorElement` | `{ type: "connector", id, props: ConnectorProps }` |
+| `PanelElement` | `GroupElement` with `_compound: "panel"` |
+| `FigureElement` | `GroupElement` with `_compound: "figure"` |
+
+### Configuration & Layout Types
+
+| Type | Description |
+|------|-------------|
+| `SlideKitConfig` | `{ slide: SlideDimensions, safeZone: SafeZone, strict, minFontSize, fonts, spacing }` |
+| `FontDef` | `{ family, weights?, source? }` |
+| `SpacingScale` | `{ xs?, sm?, md?, lg?, xl?, section?, [key]: number }` |
+| `SlideDefinition` | `{ id?, background?, elements: SlideElement[], transforms?: TransformMarker[], notes? }` |
+| `LayoutResult` | `{ elements: Record<string, SceneElement>, rootIds, transforms, warnings, errors, collisions }` |
+| `SceneElement` | Fully resolved element: `{ id, type, authored, resolved: Rect, localResolved: Rect, parentId, children, provenance }` |
+| `LintFinding` | `{ rule, severity, elementId, message, detail?, bounds?, suggestion?, slideId? }` |
+| `Collision` | `{ elementA, elementB, overlapRect: Rect, overlapArea }` |
+| `ElementProps` | Common properties interface (all fields from [Common Element Props](#common-element-props)) |
+| `ConnectorProps` | Connector-specific properties interface (all fields from [connect](#connectfromid-toid-props)) |
