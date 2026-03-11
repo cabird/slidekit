@@ -14,6 +14,8 @@ import {
 import { resetViewport } from './debug-inspector-viewport.js';
 import { undo, redo, isEditableGap, getEnumOptions, isGapProp } from './debug-inspector-edit.js';
 import { attachDragHandlers, detachDragHandlers, refreshDragState, renderResizeHandles } from './debug-inspector-drag.js';
+import { renderConstraintDetail, updateConstraintHighlight, clearConstraintSelection } from './debug-inspector-constraint.js';
+import { exitPickMode } from './debug-inspector-pick.js';
 export { undo, redo, isEditableGap, getEnumOptions, isGapProp };
 
 // Register late-bound callbacks to break circular imports.
@@ -27,6 +29,9 @@ debugController.callbacks.renderDebugOverlay = (options: Record<string, unknown>
 };
 debugController.callbacks.refreshOverlayOnly = (slideIndex: number) => {
   refreshOverlayOnly(slideIndex);
+};
+debugController.callbacks.renderConstraintDetail = (elementId: string, axis: 'x' | 'y', slideIndex: number) => {
+  renderConstraintDetail(elementId, axis, slideIndex);
 };
 
 // =============================================================================
@@ -81,8 +86,10 @@ function _onSlideChanged(): void {
   const newIndex = _getCurrentSlideIndex();
   if (newIndex === s.currentSlideIndex) return;
 
-  // Clear selection when changing slides
+  // Clear selection and pick mode when changing slides
   s.selectedElementId = null;
+  s.selectedConstraint = null;
+  if (s.pickMode) exitPickMode();
 
   // Re-render overlay on the new slide with the current mode options
   const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
@@ -425,6 +432,9 @@ export function refreshOverlayOnly(slideIndex: number): void {
   if (s.selectedElementId) {
     updateSelectionHighlight(s.selectedElementId, slideIndex);
   }
+  if (s.selectedConstraint) {
+    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
+  }
   refreshDragState(slideIndex);
 }
 
@@ -432,6 +442,8 @@ export function refreshOverlayOnly(slideIndex: number): void {
 export function removeDebugOverlay(): void {
   const s = debugController.state;
   _detachSlideChangeListener();
+  if (s.pickMode) exitPickMode();
+  clearConstraintSelection();
   if (s.debugOverlay && s.debugOverlay.parentNode) {
     // Restore pointer-events on connector wrappers before removing overlay
     _restoreConnectorPointerEvents(s.debugOverlay.parentNode as Element);

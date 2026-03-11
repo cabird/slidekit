@@ -13,6 +13,7 @@
 // to avoid circular imports with debug.ts and debug-inspector.ts.
 
 import { debugController } from './debug-state.js';
+import type { UndoEntry, ElementUndoEntry } from './debug-state.js';
 import { updateDiffDirtyIndicator } from './debug-inspector-diff.js';
 import { flattenElements } from './layout/helpers.js';
 import type { SlideDefinition, SlideElement, LayoutResult } from './types.js';
@@ -146,7 +147,7 @@ function restorePropRowText(propKey: string, value: unknown): void {
 export async function applyEdit(
   elementId: string,
   propKey: string,
-  newValue: number | string,
+  newValue: number | string | Record<string, unknown>,
   slideIndex: number,
 ): Promise<void> {
   const sk = (window as any).sk;
@@ -403,6 +404,65 @@ export function cancelEdit(): void {
 }
 
 // =============================================================================
+// Element insert/remove for undo/redo
+// =============================================================================
+
+/**
+ * Apply an element insert or remove action.
+ * Used by undo/redo when entries contain `action` (ElementUndoEntry).
+ */
+export function applyElementAction(entry: ElementUndoEntry): void {
+  const sk = (window as any).sk;
+  const definition: SlideDefinition | undefined = sk?._definitions?.[entry.slideIndex];
+  if (!definition) return;
+
+  // Find the parent container's children array
+  let children: SlideElement[];
+  if (entry.parentId === null) {
+    children = definition.elements;
+  } else {
+    const { flatMap } = flattenElements(definition.elements);
+    const parent = flatMap.get(entry.parentId);
+    if (!parent || !('children' in parent)) return;
+    children = (parent as any).children;
+  }
+
+  if (entry.action === 'insert') {
+    // Deep copy to avoid shared references
+    const copy = JSON.parse(JSON.stringify(entry.element));
+    children.splice(entry.index, 0, copy);
+  } else {
+    // Remove — find by ID in case indices shifted
+    const idx = children.findIndex(c => c.id === entry.element.id);
+    if (idx !== -1) children.splice(idx, 1);
+  }
+
+  // Invalidate in-flight applyEdit calls
+  ++_applySeq;
+}
+
+/**
+ * Replay a single undo/redo entry in the given direction.
+ * Dispatches to applyElementAction for element entries, applyEdit for prop entries.
+ */
+async function replayEntry(
+  entry: UndoEntry | ElementUndoEntry,
+  direction: 'undo' | 'redo',
+): Promise<void> {
+  if ('action' in entry) {
+    // ElementUndoEntry — swap action for undo direction
+    const effective: ElementUndoEntry = direction === 'undo'
+      ? { ...entry, action: entry.action === 'insert' ? 'remove' : 'insert' }
+      : entry;
+    applyElementAction(effective);
+  } else {
+    // UndoEntry — property edit
+    const value = direction === 'undo' ? entry.oldValue : entry.newValue;
+    await applyEdit(entry.elementId, entry.propKey, value as number | string | Record<string, unknown>, entry.slideIndex);
+  }
+}
+
+// =============================================================================
 // Undo / Redo
 // =============================================================================
 
@@ -414,7 +474,17 @@ export async function undo(): Promise<void> {
 
   s.redoStack.push(entry);
   updateDiffDirtyIndicator();
-  await applyEdit(entry.elementId, entry.propKey, entry.oldValue as number | string, entry.slideIndex);
+
+  if ('compound' in entry) {
+    // Replay child entries in reverse order
+    for (let i = entry.entries.length - 1; i >= 0; i--) {
+      await replayEntry(entry.entries[i], 'undo');
+    }
+    // Rerender once after all mutations
+    await _rerenderCurrentSlide(entry.entries[0]?.slideIndex);
+  } else {
+    await replayEntry(entry, 'undo');
+  }
 }
 
 /** Redo the last undone edit. */
@@ -425,7 +495,36 @@ export async function redo(): Promise<void> {
 
   s.undoStack.push(entry);
   updateDiffDirtyIndicator();
-  await applyEdit(entry.elementId, entry.propKey, entry.newValue as number | string, entry.slideIndex);
+
+  if ('compound' in entry) {
+    // Replay child entries in forward order
+    for (const child of entry.entries) {
+      await replayEntry(child, 'redo');
+    }
+    // Rerender once after all mutations
+    await _rerenderCurrentSlide(entry.entries[0]?.slideIndex);
+  } else {
+    await replayEntry(entry, 'redo');
+  }
+}
+
+/** Rerender + refresh overlay after compound undo/redo with element actions. */
+async function _rerenderCurrentSlide(slideIndex?: number): Promise<void> {
+  if (slideIndex === undefined) return;
+  const sk = (window as any).sk;
+  const definition = sk?._definitions?.[slideIndex];
+  if (!definition) return;
+  const rerender = sk._rerenderSlide as ((i: number, d: SlideDefinition) => Promise<LayoutResult>) | undefined;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+  const s = debugController.state;
+  if (s.debugOverlay) {
+    debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+  }
+  // Refresh inspector if an element is selected
+  if (s.selectedElementId && s.inspectorPanel) {
+    debugController.callbacks.renderElementDetail?.(s.selectedElementId, slideIndex);
+  }
 }
 
 // =============================================================================

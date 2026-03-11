@@ -524,11 +524,15 @@ async function commitDrag(state: DragState, finalBounds: Rect): Promise<void> {
   // Determine what changed
   const changes: Array<{ propKey: string; oldValue: number; newValue: number }> = [];
 
+  // Apply delta to original authored props (not final resolved bounds) so
+  // non-tl anchors are handled correctly — props.x/y are anchor-relative.
   if (editableAxes.x && Math.round(finalBounds.x) !== Math.round(originalBounds.x) && originalProps.x !== undefined) {
-    changes.push({ propKey: 'x', oldValue: originalProps.x, newValue: Math.round(finalBounds.x) });
+    const dx = finalBounds.x - originalBounds.x;
+    changes.push({ propKey: 'x', oldValue: originalProps.x, newValue: Math.round(originalProps.x + dx) });
   }
   if (editableAxes.y && Math.round(finalBounds.y) !== Math.round(originalBounds.y) && originalProps.y !== undefined) {
-    changes.push({ propKey: 'y', oldValue: originalProps.y, newValue: Math.round(finalBounds.y) });
+    const dy = finalBounds.y - originalBounds.y;
+    changes.push({ propKey: 'y', oldValue: originalProps.y, newValue: Math.round(originalProps.y + dy) });
   }
   if (editableAxes.w && Math.round(finalBounds.w) !== Math.round(originalBounds.w) && originalProps.w !== undefined) {
     changes.push({ propKey: 'w', oldValue: originalProps.w, newValue: Math.round(finalBounds.w) });

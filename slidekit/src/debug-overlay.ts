@@ -20,6 +20,7 @@ export interface RelEdge {
   targetAnchor: string;
   gap?: number;
   isStack: boolean;
+  axis?: 'x' | 'y';
 }
 
 // =============================================================================
@@ -117,6 +118,7 @@ export function extractRelationshipEdges(sceneElements: Record<string, SceneElem
             targetAnchor: p.targetAnchor,
             gap: p.gap,
             isStack: false,
+            axis,
           });
         }
       } else if (p.source === "stack" && p.stackId && p.sourceAnchor && p.targetAnchor) {
@@ -208,6 +210,23 @@ export function buildRelationshipSVG(
     const color = edge.isStack ? "rgba(160, 120, 255, 0.7)" : "rgba(255, 140, 50, 0.85)";
     const markerId = edge.isStack ? "sk-debug-arrow-stack" : "sk-debug-arrow-constraint";
 
+    // Hit target — invisible wider line for click detection (constraints only)
+    if (!edge.isStack && edge.axis) {
+      const hit = document.createElementNS(NS, "line");
+      hit.setAttribute("x1", String(fromPt.x));
+      hit.setAttribute("y1", String(fromPt.y));
+      hit.setAttribute("x2", String(toPt.x));
+      hit.setAttribute("y2", String(toPt.y));
+      hit.setAttribute("stroke", "transparent");
+      hit.setAttribute("stroke-width", "12");
+      hit.setAttribute("pointer-events", "stroke");
+      hit.setAttribute("cursor", "pointer");
+      hit.setAttribute("data-sk-debug", "rel-hit");
+      hit.setAttribute("data-sk-debug-element", edge.toId);
+      hit.setAttribute("data-sk-debug-axis", edge.axis);
+      svg.appendChild(hit);
+    }
+
     // Line
     const line = document.createElementNS(NS, "line");
     line.setAttribute("x1", String(fromPt.x));
@@ -220,6 +239,7 @@ export function buildRelationshipSVG(
     line.setAttribute("data-sk-debug", "rel-arrow");
     line.setAttribute("data-sk-debug-from", edge.fromId);
     line.setAttribute("data-sk-debug-to", edge.toId);
+    if (edge.axis) line.setAttribute("data-sk-debug-axis", edge.axis);
     if (edge.isStack) {
       line.setAttribute("stroke-dasharray", "6 3");
     }
