@@ -34,6 +34,9 @@ export interface DebugState {
   undoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
   redoStack: Array<{ elementId: string; propKey: string; oldValue: unknown; newValue: unknown; slideIndex: number }>;
 
+  // Drag / resize
+  dragInProgress: boolean;
+
   // Diff baseline
   baselineSceneGraphs: Record<number, Record<string, SceneElement>>;
 }
@@ -44,6 +47,7 @@ export type DebugStateListener = () => void;
 export interface DebugCallbacks {
   renderElementDetail?: (elementId: string, slideIndex: number) => void;
   renderDebugOverlay?: (options: Record<string, unknown>) => void;
+  refreshOverlayOnly?: (slideIndex: number) => void;
 }
 
 export interface DebugController {
@@ -80,6 +84,7 @@ function initialState(): DebugState {
     editInputElement: null,
     undoStack: [],
     redoStack: [],
+    dragInProgress: false,
     baselineSceneGraphs: {},
   };
 }

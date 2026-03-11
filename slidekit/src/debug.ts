@@ -13,6 +13,7 @@ import {
 } from './debug-inspector.js';
 import { resetViewport } from './debug-inspector-viewport.js';
 import { undo, redo, isEditableGap, getEnumOptions, isGapProp } from './debug-inspector-edit.js';
+import { attachDragHandlers, detachDragHandlers, refreshDragState, renderResizeHandles } from './debug-inspector-drag.js';
 export { undo, redo, isEditableGap, getEnumOptions, isGapProp };
 
 // Register late-bound callbacks to break circular imports.
@@ -23,6 +24,9 @@ debugController.callbacks.renderElementDetail = (elementId: string, slideIndex: 
 };
 debugController.callbacks.renderDebugOverlay = (options: Record<string, unknown>) => {
   refreshOverlayOnly((options.slideIndex as number) ?? 0);
+};
+debugController.callbacks.refreshOverlayOnly = (slideIndex: number) => {
+  refreshOverlayOnly(slideIndex);
 };
 
 // =============================================================================
@@ -358,11 +362,13 @@ export function renderDebugOverlay(options: DebugOverlayOptions = {}): HTMLDivEl
     s.currentSlideIndex = slideIndex;
     createInspectorPanel();
     attachClickHandler();
+    attachDragHandlers();
 
     // Re-render previously selected element if any
     if (s.selectedElementId && sceneElements[s.selectedElementId]) {
       renderElementDetail(s.selectedElementId, slideIndex);
       updateSelectionHighlight(s.selectedElementId, slideIndex);
+      renderResizeHandles(s.selectedElementId, slideIndex);
     }
   }
 
@@ -414,10 +420,12 @@ export function refreshOverlayOnly(slideIndex: number): void {
   // Enable clicking on connector SVG wrappers
   _enableConnectorPointerEvents(targetLayer);
 
-  // Re-highlight selected element if any
+  // Re-highlight selected element and re-attach drag handlers
+  // (rerenderSlide replaces the .slidekit-layer DOM, so listeners must be re-attached)
   if (s.selectedElementId) {
     updateSelectionHighlight(s.selectedElementId, slideIndex);
   }
+  refreshDragState(slideIndex);
 }
 
 /** Remove the current debug overlay (toggle off). */
@@ -432,6 +440,7 @@ export function removeDebugOverlay(): void {
   s.debugOverlay = null;
   removeInspectorPanel();
   detachClickHandler();
+  detachDragHandlers();
 }
 
 /** Check if a debug overlay is currently visible. */

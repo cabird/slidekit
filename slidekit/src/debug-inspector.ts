@@ -12,6 +12,7 @@ import {
   isElementIdProp, startElementIdEdit,
   startEdit, startEnumEdit, startGapTokenEdit, showLockedTooltip,
 } from './debug-inspector-edit.js';
+import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag.js';
 
 // =============================================================================
 // Inspector Panel Lifecycle
@@ -461,12 +462,18 @@ export function updateSelectionHighlight(elementId: string | null, slideIndex: n
 function handleInspectorClick(event: MouseEvent): void {
   const s = debugController.state;
 
+  // Suppress click after a drag gesture completes
+  if (s.dragInProgress) return;
+
   // Only act when debug overlay is visible
   if (!s.debugOverlay) return;
 
   // Don't deselect when clicking inside the inspector panel
   const target = event.target as HTMLElement;
   if (target && target.closest('[data-sk-role="debug-inspector"]')) return;
+
+  // Don't deselect when clicking on a resize handle
+  if (target && target.closest('[data-sk-debug="resize-handle"]')) return;
 
   // Walk up from target to find a data-sk-id element
   const skEl = target?.closest('[data-sk-id]');
@@ -476,6 +483,7 @@ function handleInspectorClick(event: MouseEvent): void {
       s.selectedElementId = id;
       renderElementDetail(id, s.currentSlideIndex);
       updateSelectionHighlight(id, s.currentSlideIndex);
+      renderResizeHandles(id, s.currentSlideIndex);
       return;
     }
   }
@@ -484,6 +492,7 @@ function handleInspectorClick(event: MouseEvent): void {
   s.selectedElementId = null;
   renderEmptyState();
   updateSelectionHighlight(null, s.currentSlideIndex);
+  removeResizeHandles();
 }
 
 /** Attach the click handler for the inspector. */
