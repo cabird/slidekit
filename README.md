@@ -119,6 +119,10 @@ curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/AI_AUTHORING
 
 > **Important:** `center: false` in `Reveal.initialize` is required — SlideKit handles all positioning.
 
+**Result:**
+
+![Example slide output](examples/readme-example/example_1_1920x1080.png)
+
 ## How It Works
 
 SlideKit uses a multi-phase layout pipeline:
@@ -202,6 +206,16 @@ docs/                  # All documentation
 build.js               # esbuild config (injects version)
 run-tests.js           # Test runner (launches Playwright)
 ```
+
+## Gallery
+
+Selected slides from the [slidekit-about](examples/slidekit-about/) example — a presentation about SlideKit, built entirely with SlideKit:
+
+| | |
+|---|---|
+| ![Title](examples/slidekit-about/slide_images/slide_1_1920x1080.png) | ![The Solution](examples/slidekit-about/slide_images/slide_3_1920x1080.png) |
+| ![Anchor System](examples/slidekit-about/slide_images/slide_5_1920x1080.png) | ![Panels & Card Grids](examples/slidekit-about/slide_images/slide_9_1920x1080.png) |
+| ![Connectors](examples/slidekit-about/slide_images/slide_10_1920x1080.png) | ![Measurement & Validation](examples/slidekit-about/slide_images/slide_14_1920x1080.png) |
 
 ## License
 

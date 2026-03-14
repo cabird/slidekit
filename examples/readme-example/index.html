@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+</head>
+<body>
+  <div class="reveal"><div class="slides"></div></div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+  <script type="module">
+    import {
+      init, render, safeRect,
+      el, vstack, connect,
+      below, rightOf, between,
+    } from '../../slidekit/dist/slidekit.bundle.js';
+
+    await init();
+    const safe = safeRect();
+
+    await render([{
+      background: "#0c0c14",
+      elements: [
+        el('<h1 style="font:700 64px Inter;color:#fff;margin:0">Hello, SlideKit</h1>', {
+          id: "title", x: safe.x, y: safe.y, w: 900,
+        }),
+
+        el('<p style="font:400 28px Inter;color:rgba(255,255,255,0.5)">Constraints, connectors, and full HTML</p>', {
+          id: "sub", x: safe.x, y: below("title", 16), w: 700,
+        }),
+
+        vstack([
+          el('<div style="background:#1e293b;border-radius:8px;padding:24px"><p style="font:600 24px Inter;color:#60a5fa;margin:0">Step 1</p><p style="font:400 18px Inter;color:#94a3b8;margin:8px 0 0">Define elements</p></div>', { id: "s1", w: 400 }),
+          el('<div style="background:#1e293b;border-radius:8px;padding:24px"><p style="font:600 24px Inter;color:#34d399;margin:0">Step 2</p><p style="font:400 18px Inter;color:#94a3b8;margin:8px 0 0">Add constraints</p></div>', { id: "s2", w: 400 }),
+          el('<div style="background:#1e293b;border-radius:8px;padding:24px"><p style="font:600 24px Inter;color:#fbbf24;margin:0">Step 3</p><p style="font:400 18px Inter;color:#94a3b8;margin:8px 0 0">Render & inspect</p></div>', { id: "s3", w: 400 }),
+        ], { id: "steps", x: safe.x, y: below("sub", 48), gap: 16 }),
+
+        el('<div style="background:rgba(251,191,36,0.1);border:2px solid #fbbf24;border-radius:12px;padding:32px"><p style="font:700 28px Inter;color:#fbbf24;margin:0 0 12px">Result</p><p style="font:400 20px Inter;color:rgba(255,255,255,0.7);margin:0">Pixel-perfect slides with inspectable layout provenance.</p></div>', {
+          id: "result",
+          x: rightOf("steps", 80),
+          y: between("s1", "s3", { axis: "y" }),
+          w: 500, anchor: "cl",
+        }),
+
+        connect("steps", "result", {
+          id: "arrow", arrow: "end", color: "#fbbf24", thickness: 2,
+          fromAnchor: "cr", toAnchor: "cl",
+        }),
+      ],
+    }]);
+
+    Reveal.initialize({ width: 1920, height: 1080, center: false });
+  </script>
+</body>
+</html>
