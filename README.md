@@ -171,6 +171,15 @@ After rendering, `window.sk.layouts[N]` exposes every element's resolved bounds,
 | [Linter Improvements](docs/for_devs/LINTER_IMPROVEMENTS.md) | Planned linter enhancements |
 | [PPTX Export Strategy](docs/for_devs/PPTX_EXPORT_STRATEGY.md) | Design for PowerPoint export |
 
+## Themes
+
+The companion [slide_themes](https://github.com/cabird/slide_themes) repository has 15 professionally designed presentation themes. Each theme includes:
+
+- **`theme.md`** — a full design specification (colors, typography, spacing, layout patterns, slide recipes)
+- **`slides.js`** — a working example deck demonstrating the theme
+
+Give an AI model a theme's `theme.md` and `slides.js` along with the SlideKit docs, and it can generate a complete slide deck matching that aesthetic. You can also mix and match — "use the colors from `cobalt-serif-editorial` with the layout and typography of `bold-pitch-modern`" — and the model can synthesize a coherent result because each theme is fully specified in plain text.
+
 ## Examples
 
 See the [`examples/`](examples/) directory:
