@@ -18,3 +18,4 @@ scene-model-data.json
 *.log
 .vscode/
 .pal_venv/
+test_slides/
