@@ -209,13 +209,18 @@ run-tests.js           # Test runner (launches Playwright)
 
 ## Gallery
 
-Selected slides from the [slidekit-about](examples/slidekit-about/) example — a presentation about SlideKit, built entirely with SlideKit:
+The [slidekit-about](examples/slidekit-about/) example is a presentation that explains how SlideKit works — and it was itself built entirely with SlideKit:
 
 | | |
 |---|---|
-| ![Title](examples/slidekit-about/slide_images/slide_1_1920x1080.png) | ![The Solution](examples/slidekit-about/slide_images/slide_3_1920x1080.png) |
-| ![Anchor System](examples/slidekit-about/slide_images/slide_5_1920x1080.png) | ![Panels & Card Grids](examples/slidekit-about/slide_images/slide_9_1920x1080.png) |
-| ![Connectors](examples/slidekit-about/slide_images/slide_10_1920x1080.png) | ![Measurement & Validation](examples/slidekit-about/slide_images/slide_14_1920x1080.png) |
+| ![Slide 1](examples/slidekit-about/slide_images/slide_1_1920x1080.png) | ![Slide 2](examples/slidekit-about/slide_images/slide_2_1920x1080.png) |
+| ![Slide 3](examples/slidekit-about/slide_images/slide_3_1920x1080.png) | ![Slide 4](examples/slidekit-about/slide_images/slide_4_1920x1080.png) |
+| ![Slide 5](examples/slidekit-about/slide_images/slide_5_1920x1080.png) | ![Slide 6](examples/slidekit-about/slide_images/slide_6_1920x1080.png) |
+| ![Slide 7](examples/slidekit-about/slide_images/slide_7_1920x1080.png) | ![Slide 8](examples/slidekit-about/slide_images/slide_8_1920x1080.png) |
+| ![Slide 9](examples/slidekit-about/slide_images/slide_9_1920x1080.png) | ![Slide 10](examples/slidekit-about/slide_images/slide_10_1920x1080.png) |
+| ![Slide 11](examples/slidekit-about/slide_images/slide_11_1920x1080.png) | ![Slide 12](examples/slidekit-about/slide_images/slide_12_1920x1080.png) |
+| ![Slide 13](examples/slidekit-about/slide_images/slide_13_1920x1080.png) | ![Slide 14](examples/slidekit-about/slide_images/slide_14_1920x1080.png) |
+| ![Slide 15](examples/slidekit-about/slide_images/slide_15_1920x1080.png) | ![Slide 16](examples/slidekit-about/slide_images/slide_16_1920x1080.png) |
 
 ## License
 
