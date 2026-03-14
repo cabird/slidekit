@@ -1,8 +1,6 @@
 # SlideKit AI Authoring Guide
 
-> **Current as of:** `66ce7bc` (2026-03-02)
-
-Workflow guide for AI agents building SlideKit presentations. For API reference, see [API_COMPACT.md](API_COMPACT.md). For concepts, see [OVERVIEW.md](OVERVIEW.md).
+Workflow guide for AI agents building SlideKit presentations. For the API, see [SLIDEKIT_API_QUICK_REFERENCE.md](SLIDEKIT_API_QUICK_REFERENCE.md). For concepts, see [OVERVIEW.md](OVERVIEW.md).
 
 ---
 
@@ -17,47 +15,42 @@ SlideKit is coordinate-based on a fixed 1920×1080 canvas over Reveal.js. You po
 ### File Structure
 
 ```
-my_deck.ts              # Slide definitions
-my_deck.html            # HTML viewer (Reveal.js + bundle)
-my_deck_bundle.js       # Built output (esbuild)
+slides.js               # Slide definitions (plain JavaScript)
+presentation.html       # HTML viewer (Reveal.js + SlideKit bundle)
+slidekit.bundle.js      # The SlideKit bundle (copy from dist/ or download)
 ```
 
-### Minimal Deck
+No build step is needed. Write plain JavaScript, import from the bundle, and serve.
 
-```typescript
-import { render, safeRect, el, below } from '../slidekit/dist/slidekit_ts.bundle.js';
-import type { SlideDefinition } from '../slidekit/src/types.js';
+### Minimal Slide File (`slides.js`)
 
+```javascript
+import { init, render, safeRect, el, below } from './slidekit.bundle.js';
+
+await init({ fonts: [{ family: 'Inter', weights: [400, 600, 700] }] });
 const safe = safeRect();
 
-const slides: SlideDefinition[] = [
+const slides = [
   {
     id: 'title',
     background: '#0a0a1a',
     elements: [
-      el('<h1 style="color:#fff;font-size:72px;">My Presentation</h1>', {
+      el('<h1 style="font:700 72px Inter;color:#fff">My Presentation</h1>', {
         id: 'title-text', x: 960, y: 400, w: 1200, anchor: 'tc',
       }),
-      el('<p style="color:#aaa;font-size:28px;">A SlideKit deck</p>', {
-        id: 'subtitle', x: 960, y: below('title-text', { gap: 24 }), w: 800, anchor: 'tc',
+      el('<p style="font:400 28px Inter;color:#aaa">A SlideKit deck</p>', {
+        id: 'subtitle', x: 960, y: below('title-text', 24), w: 800, anchor: 'tc',
       }),
     ],
   },
 ];
 
-export async function run() { return await render(slides); }
+await render(slides);
 ```
 
 Every element referenced by `below()`, `rightOf()`, transforms, or connectors **must have an `id`**.
 
-### Build & Serve
-
-```bash
-npx esbuild my_deck.ts --bundle --format=esm --outfile=my_deck_bundle.js --sourcemap
-python3 -m http.server 8765
-```
-
-### HTML Template
+### HTML Template (`presentation.html`)
 
 ```html
 <!DOCTYPE html>
@@ -73,8 +66,7 @@ python3 -m http.server 8765
   <div class="reveal"><div class="slides"></div></div>
   <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
   <script type="module">
-    import { run } from './my_deck_bundle.js';
-    await run();
+    import './slides.js';
     Reveal.initialize({
       width: 1920, height: 1080, center: false,
       hash: true, slideNumber: true, transition: 'none',
@@ -85,38 +77,92 @@ python3 -m http.server 8765
 </html>
 ```
 
-Reveal.js JS must load via `<script>` tag before `Reveal.initialize()`. Cache bust after rebuilds: append `?v=<timestamp>` or hard-reload (Ctrl+Shift+R).
+### Serve
+
+ES modules require a server — `file://` won't work:
+
+```bash
+python -m http.server 8000
+# Open http://localhost:8000/presentation.html
+```
 
 ---
 
-## 3. The Render → Inspect → Correct Loop
+## 3. The Render → Inspect → Correct Loop (with Playwright)
 
-You cannot know exact dimensions until after the browser renders. Always follow this loop:
+You cannot know exact dimensions until after the browser renders. Use Playwright (via MCP or direct API) to render, inspect, and iterate:
 
-1. **Write** slide code with best-guess dimensions
-2. **Build** (`npx esbuild ...`)
-3. **Check** programmatically in browser:
+1. **Write** slide code with best-guess positions and sizes
+2. **Render** — navigate Playwright to `http://localhost:8000/presentation.html`
+3. **Screenshot** — take a screenshot to see the visual result
+4. **Inspect** — run JavaScript in the browser to query the scene graph and lint:
    ```javascript
    // Per-slide lint
    const findings = window.sk.lint('slide-id');
    const issues = findings.filter(f => f.severity !== 'info');
-   // Deck-wide lint (after all slides done)
-   window.sk.lintDeck();
+
+   // Check a specific element's resolved bounds
+   const bounds = window.sk.layouts[0].elements['my-element'].resolved;
+   // → { x, y, w, h }
+
+   // Deck-wide lint (after all slides are done)
+   const deckFindings = window.sk.lintDeck();
    ```
-4. **Fix** — priority: errors (text-overflow, canvas-overflow) → warnings (gap-too-small, low-contrast) → info (skip most)
-5. **Screenshot** for visual verification (balance, readability, spacing)
-6. **Repeat** until zero actionable findings
+5. **Fix** — edit `slides.js`, reload the page in Playwright, screenshot again
+6. **Repeat** until zero actionable findings and the slide looks right
+
+### `scripts/snapshot_deck.js`
+
+A ready-made script that automates the full inspect loop via Playwright:
+
+```bash
+node scripts/snapshot_deck.js --dir ./my-deck --out ./snapshots
+# Options: --port 8000, --slides 1,7,9
+```
+
+For each slide it captures a 1920×1080 screenshot, runs `sk.lint(slideId)`, and extracts the scene graph. Then runs `sk.lintDeck()` for cross-slide checks. Outputs:
+
+```
+snapshots/
+  screenshots/slide_01.png, slide_02.png, ...
+  lint/slide_01.json, slide_02.json, ..., deck.json
+  scenes/slide_01.json, slide_02.json, ...
+  summary.json
+```
+
+Feed the lint JSONs and screenshots back to the AI for targeted fixes.
+
+### What Playwright gives you
+
+- **Screenshots** — ground truth for visual verification (balance, readability, spacing)
+- **`evaluate()`** — run `window.sk.lint()`, read `window.sk.layouts[N].elements`, check DOM overflow
+- **Live iteration** — edit the JS file, reload, and see results immediately, no build step
+- **Navigation** — use `Reveal.slide(h, v)` to jump to specific slides for inspection
+
+### Inspecting a specific element
+
+```javascript
+// In Playwright evaluate():
+const el = window.sk.layouts[0].elements['my-element'];
+console.log('Resolved bounds:', el.resolved);   // { x, y, w, h }
+console.log('Provenance:', el.provenance);       // where each dimension came from
+
+const dom = document.querySelector('[data-sk-id="my-element"]');
+if (dom) {
+  console.log('Overflow?', dom.scrollHeight > dom.clientHeight);
+}
+```
 
 ---
 
 ## 4. Linting Workflow
 
 ```
-1. Run window.sk.lint(slideId) during development (fast, per-slide)
+1. Run window.sk.lint(slideId) after rendering each slide
 2. Filter: findings.filter(f => f.severity !== 'info')
 3. Skip: non-ancestor-overlap on connectors, safe-zone on overlay elements
 4. Fix: text-overflow, canvas-overflow, low-contrast, gap-too-small (for text)
-5. Run window.sk.lintDeck() once at end for cross-slide consistency
+5. Run window.sk.lintDeck() once at the end for cross-slide consistency
 6. Review title-position-drift / style-drift — don't over-normalize hero slides
 ```
 
@@ -134,26 +180,9 @@ Always fix: `text-overflow` (~100%), `canvas-overflow` (~100%), `low-contrast` (
 
 ---
 
-## 5. Debugging a Specific Element
+## 5. Sub-Agent Orchestration
 
-```javascript
-const slideIdx = window.sk.slides.findIndex(s => s.id === 'my-slide');
-const resolved = window.sk.layouts[slideIdx].elements['my-element'].resolved;
-console.log('Bounds:', resolved); // { x, y, w, h }
-
-const domEl = document.querySelector('[data-sk-id="my-element"]');
-if (domEl) {
-  console.log('DOM:', domEl.clientWidth, domEl.clientHeight);
-  console.log('Scroll:', domEl.scrollWidth, domEl.scrollHeight);
-  console.log('Overflow?', domEl.scrollHeight > domEl.clientHeight);
-}
-```
-
-Use Playwright screenshots as ground truth — headless Chromium and user browsers may differ slightly.
-
----
-
-## 6. Sub-Agent Orchestration
+For large decks, split work across sub-agents:
 
 ### Roles
 
@@ -161,15 +190,15 @@ Use Playwright screenshots as ground truth — headless Chromium and user browse
 
 **Sub-agents:**
 - `explore` — read API docs, source files
-- `task` — build with esbuild, write/edit code, fix lint findings
-- `general-purpose` — screenshots via MCP, run linter in browser, investigate visual bugs
+- `task` — write/edit slide code, fix lint findings
+- `general-purpose` — screenshots via Playwright MCP, run linter in browser, investigate visual bugs
 
 ### Workflow
 
 1. Plan all slides (content, layout approach)
-2. Sub-agent writes slides 1–5, builds, serves
-3. Sub-agent screenshots + lints, reports findings
-4. Sub-agent fixes, rebuilds
+2. Sub-agent writes slides 1–5
+3. Sub-agent uses Playwright to render, screenshot, and lint — reports findings
+4. Sub-agent fixes issues, reloads, re-screenshots
 5. Repeat in batches of ~5 slides
 6. `lintDeck()` for cross-slide consistency
 7. Final screenshot set for visual review
@@ -182,11 +211,11 @@ Use Playwright screenshots as ground truth — headless Chromium and user browse
 
 ---
 
-## 7. Generating PDFs with Decktape
+## 6. Generating PDFs with Decktape
 
 ```bash
 npx decktape reveal --size 1920x1080 --pause 3000 --load-pause 5000 \
-  http://127.0.0.1:8765/path/to/index.html output.pdf
+  http://127.0.0.1:8000/presentation.html output.pdf
 ```
 
 `--size 1920x1080` matches canvas. `--pause 3000` gives async layout time (minimum 2000ms). `--load-pause 5000` waits for initial load. Generate PDF as final step after all validation passes.
