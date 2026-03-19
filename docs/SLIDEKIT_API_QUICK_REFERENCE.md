@@ -29,6 +29,7 @@ Initializes SlideKit. Call once before any other function.
 | `fonts` | `FontDef[]` | `[]` | `{ family, weights?, source? }` -- fonts to preload |
 | `spacing` | `Record<string, number>` | see [Spacing Tokens](#spacing-tokens) | Custom tokens merge with defaults |
 | `minVersion` | `string` | -- | Minimum compatible SlideKit version (semver) |
+| `debug.sourceHint` | `string` | -- | Path to slide source file, shown in inspector (e.g., `'./slides.js'`) |
 
 ### `safeRect()`
 
@@ -227,8 +228,8 @@ All element types share these properties:
 |----------|------|---------|-------|
 | `id` | `string` | auto (`sk-N`) | **Required** for referenced elements |
 | `x`, `y` | `number \| string \| RelMarker` | `0` | Accepts px, `"50%"`, `"safe:25%"`, or relative marker |
-| `w` | `number \| string` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` (panels only — resolves to parent width minus padding) |
-| `h` | `number \| string` | -- | Auto-measured for text. Set only for fixed-size boxes (images, bg rects, diagram nodes). |
+| `w` | `number \| string \| RelMarker` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` (panels only), or `matchWidthOf(refId)` |
+| `h` | `number \| string \| RelMarker` | -- | Auto-measured for text. Accepts px, `"50%"`, or `matchHeightOf(refId)`. Set only for fixed-size boxes. |
 | `maxW`, `maxH` | `number` | -- | Max dimension constraints |
 | `anchor` | `AnchorPoint` | `"tl"` | Which point sits at (x, y) |
 | `layer` | `LayerName` | `"content"` | `"bg"`, `"content"`, `"overlay"` |
@@ -300,6 +301,34 @@ y: below('title', { gap: 'lg' })  // object form (also valid)
 | `centerHWith` | X | Horizontally centered with ref |
 
 **Gotcha:** **Never cross axes** -- `alignTopWith()` returns Y; using it for X silently produces wrong positions.
+
+### Slide-Level Centering (no ref needed)
+
+| Function | Axis | Resolves To |
+|----------|------|-------------|
+| `centerHOnSlide()` | X | Horizontally centered on the slide |
+| `centerVOnSlide()` | Y | Vertically centered on the slide |
+
+```js
+el('<h1 style="font:700 72px Inter;color:#fff;text-align:center">Title</h1>',
+  { id: 'title', x: centerHOnSlide(), y: centerVOnSlide(), w: 800, anchor: 'tc' });
+```
+
+No reference element needed -- centers relative to the full 1920x1080 canvas.
+
+### Dimension Matching
+
+| Function | Axis | Resolves To |
+|----------|------|-------------|
+| `matchWidthOf(refId)` | W | Element width = ref's width |
+| `matchHeightOf(refId)` | H | Element height = ref's height |
+
+```js
+el('<p>Same width as header</p>', { id: 'body', y: below('header', 'md'), w: matchWidthOf('header') });
+el('<div style="background:#1a1a3e">', { id: 'bg-box', x: 100, y: 100, w: matchWidthOf('card'), h: matchHeightOf('card') });
+```
+
+Unlike transform `matchWidth(ids)` which sets all listed elements to the max, `matchWidthOf(refId)` / `matchHeightOf(refId)` are constraint functions usable on `w` / `h` properties to match a specific reference element.
 
 ### Between
 
@@ -498,7 +527,7 @@ Programmatic lint for all slides including cross-slide checks (title-position-dr
 render(slides: SlideDefinition[]): Promise<{ sections: HTMLElement[], layouts: LayoutResult[] }>
 ```
 
-`VERSION` constant: the current SlideKit version string (e.g., `"0.3.1"`).
+`VERSION` constant: the current SlideKit version string (e.g., `"0.3.5"`).
 
 ### `window.sk` (Runtime API)
 
@@ -508,6 +537,20 @@ window.sk.lint(slideId)       // → LintFinding[] for one slide
 window.sk.lintDeck()          // → LintFinding[] for all slides (includes cross-slide checks)
 window.sk.layouts[i].elements // scene graph for slide i (Record<string, SceneElement>)
 window.sk._config             // current SlideKitConfig
+```
+
+### Debug Inspector
+
+The debug inspector is built into the main bundle (no separate debug bundle needed). Enable the keyboard toggle after rendering:
+
+```js
+enableKeyboardToggle();  // Ctrl+. to toggle inspector overlay
+```
+
+The inspector provides bounding-box overlays, element list with layer grouping, visibility checkboxes, live-preview HTML editing, and snap-to-10px-grid drag/resize (hold Shift to disable snap). Configure via `init()`:
+
+```js
+await init({ debug: { sourceHint: './slides.js' } });
 ```
 
 Key lint findings to watch: `text-overflow`, `canvas-overflow`, `non-ancestor-overlap`, `dom_overflow_y`.
@@ -586,8 +629,9 @@ A typical SlideKit slide file imports from the SlideKit bundle and exports a sli
 import { init, safeRect, splitRect, el, group, vstack, hstack, panel, connect,
          below, above, rightOf, leftOf, centerIn, between,
          alignTopWith, alignLeftWith, centerHWith, centerVWith,
+         centerHOnSlide, centerVOnSlide, matchWidthOf, matchHeightOf,
          alignTop, distributeH, matchWidth,
-         render } from './slidekit.bundle.js';
+         render, enableKeyboardToggle } from './slidekit.bundle.js';
 
 await init({ fonts: [{ family: 'Inter', weights: [400, 600, 700] }] });
 const safe = safeRect();
@@ -807,7 +851,7 @@ Omit `h` on panels -- let content auto-size. Use `fromAnchor: 'cr'` / `toAnchor:
 | `Point` | `{ x, y }` -- 2D point |
 | `PositionValue` | `number \| string \| RelMarker` -- valid for `x`/`y` props |
 | `SizeValue` | `number \| string` -- valid for `w`/`h` props |
-| `RelMarker` | `{ _rel, ref?, gap?, bias?, axis?, rect? }` -- returned by positioning helpers |
+| `RelMarker` | `{ _rel, ref?, gap?, bias?, axis?, rect? }` -- returned by positioning/dimension constraint helpers |
 | `TransformMarker` | `{ _transform, _transformId, ids, options }` -- returned by transform functions |
 
 ### Element Types

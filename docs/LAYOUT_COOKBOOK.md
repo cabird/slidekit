@@ -15,7 +15,8 @@ A concise, scannable reference of **47 slide composition patterns**. Use this to
 | Spacing tokens | `'xs'`=8, `'sm'`=16, `'md'`=24, `'lg'`=32, `'xl'`=48 |
 | Layers | `'bg'`, `'content'` (default), `'overlay'` |
 | Shadow presets | `'sm'`, `'md'`, `'lg'`, `'xl'`, `'glow'` |
-| Positioning helpers | `below()`, `rightOf()`, `centerVWith()`, `centerIn()` |
+| Positioning helpers | `below()`, `rightOf()`, `centerVWith()`, `centerIn()`, `centerHOnSlide()`, `centerVOnSlide()` |
+| Dimension constraints | `matchWidthOf()`, `matchHeightOf()` — match `w`/`h` to a reference element |
 | Layout preference | Prefer `splitRect()` over `hstack()` for lint-friendly layouts |
 | Height (`h`) | **Rarely needed.** Omit `h` on text elements — SlideKit measures from the DOM automatically. Only specify `h` on fixed-size containers (image frames, background rects, terminal blocks). |
 | Main-axis alignment | `vAlign: 'center'` on vstack, `hAlign: 'center'` on hstack — centers content within explicit bounds |
@@ -36,7 +37,9 @@ Quick-reference rules organized by category. Scan these before building a slide.
 
 ### Positioning
 
-- **If you're doing math to position elements, you're probably doing it wrong.** SlideKit provides declarative positioning APIs — `below()`, `rightOf()`, `centerVWith()`, `centerHWith()`, `alignTopWith()`, `alignBottomWith()`, `alignLeftWith()`, `alignRightWith()`, `centerIn()` — that handle relative placement using actual rendered dimensions. Manual arithmetic (e.g., `y: fy + (pillH - circSize) / 2`) assumes fixed sizes that break when content changes. Always reach for the API first. If no API exists for what you need, note the gap in the API Wish List at the bottom of this file.
+- **If you're doing math to position elements, you're probably doing it wrong.** SlideKit provides declarative positioning APIs — `below()`, `rightOf()`, `centerVWith()`, `centerHWith()`, `alignTopWith()`, `alignBottomWith()`, `alignLeftWith()`, `alignRightWith()`, `centerIn()`, `centerHOnSlide()`, `centerVOnSlide()` — that handle relative placement using actual rendered dimensions. Manual arithmetic (e.g., `y: fy + (pillH - circSize) / 2`) assumes fixed sizes that break when content changes. Always reach for the API first. If no API exists for what you need, note the gap in the API Wish List at the bottom of this file.
+- Use `centerHOnSlide()` / `centerVOnSlide()` to center elements on the slide without needing a reference element or `centerIn(safe)`.
+- Use `matchWidthOf(refId)` / `matchHeightOf(refId)` to constrain an element's width or height to match another element, instead of hardcoding dimensions or using transform `matchWidth`.
 - Use `below()` / `rightOf()` chaining instead of manual y/x arithmetic.
 - Prefer `vstack` over chained `below()` when building a text column (5+ sequential text elements).
 - Use `centerVWith()` for labels placed next to taller elements (e.g., description text beside a large number).
@@ -1779,6 +1782,57 @@ el('<img src="./decorative.svg" style="width:100%;height:100%">', {
 ```
 
 **Key detail:** `flipH` applies `scaleX(-1)` and `flipV` applies `scaleY(-1)`. Both can be combined with `rotate` — transforms are applied in order: rotation first, then flip. These are SlideKit props, not CSS — do not use `style: { transform: 'scaleX(-1)' }` (transform is a blocked CSS property).
+
+---
+
+### K9: Slide-Centered Title (No Reference Needed)
+
+**Intent:** Center a title on the slide without computing `centerIn(safe)` or referencing another element. Uses `centerHOnSlide()` and `centerVOnSlide()`.
+
+**Visual:** A large centered title with subtitle below, both horizontally centered on the canvas.
+
+**Pairs well with:** Title slides (T1), hero layouts (B4), section dividers (J1).
+
+#### Implementation
+
+```javascript
+el('<h1 style="font:700 72px Inter;color:#fff;text-align:center">Bold Statement</h1>', {
+  id: 'title', x: centerHOnSlide(), y: centerVOnSlide(), w: 1200, anchor: 'tc',
+});
+el('<p style="font:400 28px Inter;color:rgba(255,255,255,0.7);text-align:center">Supporting context line</p>', {
+  id: 'subtitle', x: centerHOnSlide(), y: below('title', 'md'), w: 800, anchor: 'tc',
+});
+```
+
+**Key detail:** `centerHOnSlide()` and `centerVOnSlide()` center relative to the full 1920x1080 canvas, not the safe zone. Combine with `anchor: 'tc'` for horizontal centering with top-center anchoring. No reference element needed.
+
+---
+
+### K10: Dimension-Matched Elements
+
+**Intent:** Make elements match the dimensions of a reference element using `matchWidthOf()` / `matchHeightOf()`, without manually copying width values or using transform `matchWidth`.
+
+**Visual:** A header with a body paragraph and background rect that automatically match the header's width.
+
+**Pairs well with:** Two-column layouts (A1-A6), card grids (C1-C5), stacked sections (D2).
+
+#### Implementation
+
+```javascript
+el('<h2 style="font:700 44px Inter;color:#fff">Section Header</h2>', {
+  id: 'header', x: safe.x, y: safe.y, w: 800,
+});
+el('<p style="font:400 24px/1.5 Inter;color:#ccc">Body text that matches the header width automatically.</p>', {
+  id: 'body', x: safe.x, y: below('header', 'md'), w: matchWidthOf('header'),
+});
+// Background accent bar matching header width
+el('', {
+  id: 'accent', x: safe.x, y: below('body', 'sm'), w: matchWidthOf('header'), h: 3,
+  style: { background: '#7c5cbf' },
+});
+```
+
+**Key detail:** `matchWidthOf(refId)` and `matchHeightOf(refId)` are constraint functions for `w`/`h` properties. They resolve during layout, so the reference element's dimensions are always accurate (including auto-measured text). Unlike transform `matchWidth(ids)` which sets all listed elements to the max, these match a specific reference.
 
 ---
 

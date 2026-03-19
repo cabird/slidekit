@@ -61,7 +61,7 @@ SlideKit does not provide auto-fitting or line counting. If you need to find the
 
 ### Relative Positioning
 
-Elements can be positioned relative to other elements — "24px below the title," "40px to the right of the sidebar." The library resolves these into absolute coordinates during layout solve using a dependency graph. Circular dependencies are detected and reported.
+Elements can be positioned relative to other elements — "24px below the title," "40px to the right of the sidebar." The library resolves these into absolute coordinates during layout solve using a dependency graph. Circular dependencies are detected and reported. Slide-level centering helpers (`centerHOnSlide()`, `centerVOnSlide()`) center elements on the canvas without needing a reference element. Dimension constraints (`matchWidthOf(refId)`, `matchHeightOf(refId)`) let you match an element's width or height to another element's resolved dimensions.
 
 ### Stacking Layouts
 
@@ -89,9 +89,9 @@ Presentation-specific checks include minimum font size for projection readabilit
 
 Background-layer elements (`layer: 'bg'`) are exempt from safe zone warnings — full-bleed backgrounds are expected to extend beyond the safe zone.
 
-### Debug Overlay
+### Debug Inspector
 
-A visual overlay that draws bounding boxes, safe zone boundaries, element IDs, anchor points, and collision highlights over the rendered slide. Useful for visual inspection and screenshots.
+A visual inspector overlay built into the main bundle (no separate debug bundle needed). Toggle it with `enableKeyboardToggle()` (Ctrl+.) after rendering. The inspector draws bounding boxes, safe zone boundaries, element IDs, and anchor points over the rendered slide. It also provides an element list panel with layer grouping and hide checkboxes, visibility toggles for overlay features, live-preview HTML editing, and snap-to-10px grid drag/resize (hold Shift to disable snap). Configure the source file hint via `init({ debug: { sourceHint: './slides.js' } })`.
 
 ## Higher-Level Primitives
 
@@ -111,6 +111,8 @@ PowerPoint-style alignment and distribution operations work on arrays of element
 - **Spacing tokens** — a semantic scale (`xs`, `sm`, `md`, `lg`, `xl`, `section`) for gaps and padding, customizable via `init()`. Use `getSpacing()` to resolve tokens in user-land code.
 - **`splitRect()`** — splits a rectangle into left and right halves with a configurable ratio and gap. Common for split-layout slides (text + image).
 - **`placeBetween()`** — positions an element vertically between two references with configurable bias.
+- **`centerHOnSlide()` / `centerVOnSlide()`** — center elements on the slide canvas without needing a reference element.
+- **`matchWidthOf(refId)` / `matchHeightOf(refId)`** — dimension constraints that match an element's width or height to a reference element.
 - **`group({ bounds: 'hug' })`** — auto-computes group dimensions from its children's bounding box.
 - **Grid system** with configurable columns and gutters for consistent cross-slide alignment.
 - **Snap** to round positions to grid increments.
@@ -139,7 +141,7 @@ SlideKit is decomposed into 19 focused TypeScript modules under `src/`, plus a 6
 | `style.ts` | CSS property filtering (block layout props), shadow presets |
 | `spacing.ts` | Semantic spacing scale (`xs` through `section`) |
 | `id.ts` | Auto-incrementing element IDs |
-| `relative.ts` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, etc.) |
+| `relative.ts` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, `centerHOnSlide`, `centerVOnSlide`, `matchWidthOf`, `matchHeightOf`, etc.) |
 | `measure.ts` | DOM-based text measurement with caching |
 | `transforms.ts` | Post-solve alignment, distribution, size matching |
 | `renderer.ts` | DOM rendering into Reveal.js `<section>` elements |
@@ -201,7 +203,7 @@ All source files are TypeScript (`.ts`). Type definitions are centralized in `sr
 
 ### Build Tooling
 
-- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM format, ~162kb unminified).
+- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM format). The debug overlay/inspector is included in the main bundle (no separate debug bundle).
 - **`npm run build`** produces the bundle with sourcemap.
 - **`npm run typecheck`** runs `tsc --noEmit` for type validation.
 - **`npm run lint`** runs ESLint on `src/` to enforce no-cycle and import hygiene rules.

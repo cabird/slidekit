@@ -22,8 +22,8 @@ These appear on most element types. When a section says "+ CP", all of these app
 - `id: string def=auto("sk-N")` — unique identifier
 - `x: PositionValue def=0` — X position (number, percentage string `"50%"`, `"safe:25%"`, or RelMarker)
 - `y: PositionValue def=0` — Y position (same types as x)
-- `w: SizeValue?` — width in px, percentage string, or `"fill"` in panels. Auto-measured if omitted.
-- `h: SizeValue?` — height in px or percentage string. Auto-measured if omitted.
+- `w: SizeValue?` — width in px, percentage string, `"fill"` in panels, or `matchWidthOf(refId)`. Auto-measured if omitted.
+- `h: SizeValue?` — height in px, percentage string, or `matchHeightOf(refId)`. Auto-measured if omitted.
 - `maxW: number?` — max width constraint
 - `maxH: number?` — max height constraint
 - `anchor: AnchorPoint def="tl"` — which point sits at (x,y); see Anchor System
@@ -67,6 +67,7 @@ Config fields (all optional):
 - `spacing: Record<string,number>` — custom tokens merge with defaults (see Spacing)
 - `fonts: FontDef[]` — `{ family, weights?, source? }` — preloaded; Google Fonts via `<link>`, 5s timeout per weight
 - `minVersion: string?` — semver compatibility check (throws on mismatch)
+- `debug.sourceHint: string?` — path to slide source file, shown in inspector
 
 Version compatibility: 0.x and 1.x are same group. From 2.0+, major must match. Minor mismatch → console.warn. Breaking mismatch → throws with pointer to `docs/MIGRATION.md`.
 
@@ -270,6 +271,24 @@ Axis rule: `alignTop/alignBottom/centerV` → Y axis. `alignLeft/alignRight/cent
 DONT: Cross axes — `alignTopWith()` (Y) used as X coordinate silently produces wrong positions.
 DO: `centerVWith(ref)` to vertically center a label next to a taller element.
 
+**Slide-level centering** (no ref needed):
+- `centerHOnSlide()` → X centers horizontally on the slide (returns `{ _rel: 'centerHSlide' }`)
+- `centerVOnSlide()` → Y centers vertically on the slide (returns `{ _rel: 'centerVSlide' }`)
+
+```js
+el('Title', { x: centerHOnSlide(), y: centerVOnSlide(), w: 800, anchor: 'tc' });
+```
+
+**Dimension constraints** (valid on `w`/`h`, not `x`/`y`):
+- `matchWidthOf(ref)` → `{ _rel: 'matchWidth', ref }` — element width = ref's width
+- `matchHeightOf(ref)` → `{ _rel: 'matchHeight', ref }` — element height = ref's height
+
+```js
+el('Body', { y: below('header', 'md'), w: matchWidthOf('header') });
+```
+
+DO: Use `matchWidthOf`/`matchHeightOf` to constrain a single element to a reference. Use transform `matchWidth`/`matchHeight` for batch operations on multiple elements.
+
 ### `between(refA, refB, { axis, bias? }) → RelMarker`
 
 Positions element in the gap between two references on a given axis.
@@ -464,6 +483,16 @@ window.sk = {
 
 DO: After code changes, hard-reload (Ctrl+Shift+R or `?v=timestamp`) and re-lint. Browsers cache aggressively.
 DO: Take screenshots after programmatic checks for visual verification.
+
+### Debug Inspector
+
+Built into the main bundle (no separate debug bundle). Toggle with keyboard shortcut:
+
+```js
+enableKeyboardToggle();  // Ctrl+. to toggle inspector overlay
+```
+
+Features: bounding-box overlays, element list with layer grouping and hide checkboxes, visibility toggles for overlay features, live-preview HTML editing, snap-to-10px grid during drag/resize (Shift to disable snap).
 
 ### DOM Overflow Detection
 
@@ -681,8 +710,9 @@ Axis-aligned bounding box of rotated rectangle.
 
 ### Value Types
 - `PositionValue = number | string | RelMarker`
-- `SizeValue = number | string`
-- `RelMarker = { _rel, ref?, ref2?, gap?, bias?, axis?, rect? }`
+- `SizeValue = number | string | RelMarker`
+- `RelMarker = { _rel: RelMarkerKind, ref?, ref2?, gap?, bias?, axis?, rect? }`
+- `RelMarkerKind`: positional (`below|above|rightOf|leftOf|alignTop|alignBottom|alignLeft|alignRight|centerV|centerH|centerHSlide|centerVSlide|centerIn|between`), dimensional (`matchWidth|matchHeight`)
 - `TransformMarker = { _transform, _transformId, ids, options }`
 
 ### Configuration Types

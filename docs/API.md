@@ -520,6 +520,41 @@ el('', { x: rightOf('sidebar', { gap: 40 }), y: alignTopWith('sidebar'), w: 400 
 
 > ✅ **Pattern:** Use `centerVWith(refId)` to vertically center a label next to a taller element (not `alignTopWith`, which top-aligns and looks unbalanced when heights differ).
 
+#### Slide-Level Centering
+
+Center an element on the slide without referencing another element.
+
+| Function | Signature | Returns | Resolves To |
+|---|---|---|---|
+| `centerHOnSlide()` | `() → RelMarker` | `{ _rel: "centerHSlide" }` | X centers element horizontally on the slide |
+| `centerVOnSlide()` | `() → RelMarker` | `{ _rel: "centerVSlide" }` | Y centers element vertically on the slide |
+
+These take no arguments — they center relative to the full 1920x1080 canvas.
+
+```js
+el('<h1 style="font:700 72px Inter;color:#fff;text-align:center">Title</h1>',
+  { id: 'title', x: centerHOnSlide(), y: centerVOnSlide(), w: 800, anchor: 'tc' });
+```
+
+#### Dimension Constraints
+
+Match an element's width or height to another element's dimensions. These return `RelMarker` objects valid on `w` and `h` properties (unlike positional helpers which are only valid on `x`/`y`).
+
+| Function | Signature | Returns | Resolves To |
+|---|---|---|---|
+| `matchWidthOf(refId)` | `(refId: string) → RelMarker` | `{ _rel: "matchWidth", ref }` | Element width = ref's resolved width |
+| `matchHeightOf(refId)` | `(refId: string) → RelMarker` | `{ _rel: "matchHeight", ref }` | Element height = ref's resolved height |
+
+```js
+// Make body text the same width as the header
+el('<p>Body text</p>', { id: 'body', y: below('header', 'md'), w: matchWidthOf('header') });
+
+// Match both dimensions of a reference element
+el('<div style="background:#1a1a3e">', { id: 'bg-box', x: 100, y: 100, w: matchWidthOf('card'), h: matchHeightOf('card') });
+```
+
+> **Note:** Unlike the transform `matchWidth(ids)` which sets all listed elements to the maximum width among them, `matchWidthOf(refId)` constrains a single element to match a specific reference. Use `matchWidthOf`/`matchHeightOf` in element props; use the transform versions in `transforms[]` for batch operations.
+
 #### `between(refA, refB, options)`
 
 Positions an element in the gap between two references on a given axis. Supersedes `placeBetween()`.
@@ -950,6 +985,37 @@ window.sk = {
 
 > ✅ **Pattern:** Take browser screenshots after programmatic checks pass for visual verification. The linter catches structural issues but not visual balance, readability, or aesthetic problems.
 
+### Debug Inspector
+
+The debug inspector is included in the main bundle — no separate debug bundle is needed. It provides a visual overlay with bounding boxes, safe zone boundaries, element IDs, and anchor points.
+
+#### `enableKeyboardToggle()`
+
+**Signature:** `enableKeyboardToggle(): void`
+
+Registers a global keyboard shortcut (Ctrl+.) to toggle the inspector overlay. Call after `render()`.
+
+```js
+await render(slides);
+enableKeyboardToggle();  // Ctrl+. to toggle inspector
+```
+
+#### Inspector Features
+
+- **Element bounding-box overlays** with IDs and anchor points
+- **Element list panel** with layer grouping and hide checkboxes for toggling individual element visibility
+- **Visibility checkboxes** for toggling overlay features (safe zone, bounding boxes, IDs, etc.)
+- **Live-preview HTML editing** — edit element HTML content directly in the inspector
+- **Snap-to-10px grid** during drag/resize operations (hold Shift to disable snap)
+
+#### `debug.sourceHint` Config
+
+Set via `init()` to display the slide source file path in the inspector:
+
+```js
+await init({ debug: { sourceHint: './slides.js' } });
+```
+
 ### DOM Overflow Detection
 
 After rendering, `render()` checks every `el`-type element for overflow. If `scrollHeight` exceeds `clientHeight` (or `scrollWidth` exceeds `clientWidth`) by more than 1px, warnings are appended:
@@ -1227,6 +1293,7 @@ await init({
 | `spacing` | `Record<string, number>` | see [Spacing](#spacing) | Token-to-pixel map. Custom entries merge with defaults. |
 | `fonts` | `FontDef[]` | `[]` | `[{ family, weights, source }]` — fonts to preload |
 | `minVersion` | `string` | — | Minimum compatible SlideKit version (semver, e.g. `"0.2.1"`). Throws if incompatible. |
+| `debug.sourceHint` | `string` | — | Path to slide source file, displayed in the inspector overlay (e.g., `'./slides.js'`) |
 
 **`FontDef`:** `{ family: string, weights?: number[], source?: string }`
 
@@ -1470,13 +1537,14 @@ Key types for users building presentations:
 | `BoundsMode` | `"hug" \| undefined` |
 | `ProvenanceSource` | `"authored" \| "measured" \| "stack" \| "constraint" \| "transform" \| "default"` |
 | `ShadowPreset` | `"sm" \| "md" \| "lg" \| "xl" \| "glow"` |
+| `RelMarkerKind` | Positional: `"below" \| "above" \| "rightOf" \| "leftOf" \| "alignTop" \| "alignBottom" \| "alignLeft" \| "alignRight" \| "centerV" \| "centerH" \| "centerHSlide" \| "centerVSlide" \| "centerIn" \| "between"`. Dimensional: `"matchWidth" \| "matchHeight"` |
 
 ### Value Types
 
 | Type | Definition |
 |---|---|
 | `PositionValue` | `number \| string \| RelMarker` |
-| `SizeValue` | `number \| string` |
+| `SizeValue` | `number \| string \| RelMarker` |
 | `RelMarker` | `{ _rel: RelMarkerKind, ref?, ref2?, gap?, bias?, axis?, rect? }` |
 | `TransformMarker` | `{ _transform: string, _transformId: string, ids: string[], options: object }` |
 

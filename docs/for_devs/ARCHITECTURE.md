@@ -105,7 +105,7 @@ graph TD
 | `config.ts` | `init()`, safe zone computation, font loading, `safeRect()`, `splitRect()`, `_resetForTests()`. | `init()`, `safeRect()`, `splitRect()`, `getConfig()` |
 | `dom-helpers.ts` | Single utility: `applyStyleToDOM()` for applying camelCase CSS to DOM elements. | `applyStyleToDOM()` |
 | `elements.ts` | Core element constructors with default merging. | `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
-| `relative.ts` | Relative positioning helpers that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, etc. |
+| `relative.ts` | Relative positioning helpers and dimension constraints that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, `centerHOnSlide()`, `centerVOnSlide()`, `matchWidthOf()`, `matchHeightOf()`, etc. |
 | `measure.ts` | Off-screen DOM measurement with caching. Creates a hidden container with baseline CSS. | `measure()`, `clearMeasureCache()` |
 | `transforms.ts` | PowerPoint-style alignment, distribution, and size-matching transforms. Both factory functions and the `applyTransform()` executor. | `alignTop()`, `distributeH()`, `matchWidth()`, `fitToRect()`, etc. |
 | `compounds.ts` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `figure()`, `getAnchorPoint()` |
@@ -170,7 +170,7 @@ classDiagram
     }
 
     SlideElement --> ElementProps : props
-    ElementProps --> RelMarker : x or y can be a _rel marker
+    ElementProps --> RelMarker : x, y, w, or h can be a _rel marker
 ```
 
 ### Primitive Types
@@ -290,8 +290,10 @@ flowchart TD
     A[Start Phase 1] --> B[Deep-clone authored specs]
     B --> C[Resolve percentage strings<br/>on x, y, w, h]
     C --> D{_rel marker<br/>on w or h?}
-    D -->|Yes| E[Error: invalid_rel_on_dimension]
+    D -->|Yes, matchWidth/matchHeight| D2[Resolve dimension constraint]
+    D -->|Yes, other| E[Error: invalid_rel_on_dimension]
     D -->|No| F[Measure non-stack elements<br/>via getEffectiveDimensions]
+    D2 --> F
     F --> G[Iterative bottom-up<br/>stack size computation]
     G --> H{All stacks resolved?}
     H -->|No, stuck| I[Error: unresolvable_stack_sizes]
@@ -846,7 +848,7 @@ Key type definitions:
 
 ## Build and Test
 
-- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM, ~94.5kb minified).
+- **esbuild** bundles the barrel file into `dist/slidekit.bundle.js` (ESM). The debug overlay/inspector is included in the main bundle (no separate debug bundle).
 - **`npm run dev`**: esbuild watch mode for development.
 - **`npm run build`**: Minified production bundle with sourcemap.
 - **`npm run typecheck`**: `tsc --noEmit` for type validation.
