@@ -12,6 +12,7 @@
 import { debugController } from './debug-state.js';
 import { updateDiffDirtyIndicator } from './debug-inspector-diff.js';
 import { flattenElements } from './layout/helpers.js';
+import { absoluteBounds } from './debug-overlay.js';
 import type { SceneElement, SlideDefinition, SlideElement, LayoutResult } from './types.js';
 
 // =============================================================================
@@ -22,6 +23,12 @@ const DRAG_THRESHOLD = 5;  // px — must move this far before drag starts
 const HANDLE_SIZE = 8;     // px in slide coordinates
 const MIN_ELEMENT_SIZE = 10;  // minimum w/h in slide coordinates
 const LOCKED_SOURCES = new Set(['constraint', 'stack', 'transform']);
+const DEFAULT_SNAP_GRID = 10;  // px in slide coordinates
+
+/** Snap a value to the nearest grid point. */
+function snapToGrid(value: number, gridSize: number): number {
+  return Math.round(value / gridSize) * gridSize;
+}
 
 type HandlePosition = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
@@ -153,6 +160,11 @@ function getSceneElement(elementId: string, slideIndex: number): SceneElement | 
   return sk?.layouts?.[slideIndex]?.elements?.[elementId];
 }
 
+function getAllSceneElements(slideIndex: number): Record<string, SceneElement> {
+  const sk = (window as any).sk;
+  return sk?.layouts?.[slideIndex]?.elements ?? {};
+}
+
 // =============================================================================
 // Proxy rectangle
 // =============================================================================
@@ -195,12 +207,20 @@ function computeNewBounds(
   mode: 'move' | 'resize',
   axes: AxesEditability,
   handlePos?: HandlePosition,
+  enableSnap = true,
 ): Rect {
   let { x, y, w, h } = original;
+  const grid = enableSnap ? DEFAULT_SNAP_GRID : 0;
 
   if (mode === 'move') {
-    if (axes.x) x = original.x + dxSlide;
-    if (axes.y) y = original.y + dySlide;
+    if (axes.x) {
+      x = original.x + dxSlide;
+      if (grid) x = snapToGrid(x, grid);
+    }
+    if (axes.y) {
+      y = original.y + dySlide;
+      if (grid) y = snapToGrid(y, grid);
+    }
   } else if (mode === 'resize' && handlePos) {
     const hasE = handlePos.includes('e');
     const hasW = handlePos.includes('w');
@@ -210,9 +230,11 @@ function computeNewBounds(
     // Horizontal
     if (hasE && axes.w) {
       w = Math.max(MIN_ELEMENT_SIZE, original.w + dxSlide);
+      if (grid) w = snapToGrid(w, grid);
     }
     if (hasW && axes.w && axes.x) {
-      const newW = Math.max(MIN_ELEMENT_SIZE, original.w - dxSlide);
+      let newW = Math.max(MIN_ELEMENT_SIZE, original.w - dxSlide);
+      if (grid) newW = snapToGrid(newW, grid);
       x = original.x + (original.w - newW);
       w = newW;
     }
@@ -220,9 +242,11 @@ function computeNewBounds(
     // Vertical
     if (hasS && axes.h) {
       h = Math.max(MIN_ELEMENT_SIZE, original.h + dySlide);
+      if (grid) h = snapToGrid(h, grid);
     }
     if (hasN && axes.h && axes.y) {
-      const newH = Math.max(MIN_ELEMENT_SIZE, original.h - dySlide);
+      let newH = Math.max(MIN_ELEMENT_SIZE, original.h - dySlide);
+      if (grid) newH = snapToGrid(newH, grid);
       y = original.y + (original.h - newH);
       h = newH;
     }
@@ -302,7 +326,7 @@ function onLayerPointerDown(event: PointerEvent): void {
     captureTarget: null,
     startClientX: event.clientX,
     startClientY: event.clientY,
-    originalBounds: { ...sceneEl.resolved },
+    originalBounds: absoluteBounds(sceneEl, getAllSceneElements(s.currentSlideIndex)),
     originalProps,
     editableAxes: axes,
     mapper,
@@ -367,7 +391,7 @@ function onHandlePointerDown(event: PointerEvent): void {
     captureTarget: handle as HTMLElement,
     startClientX: event.clientX,
     startClientY: event.clientY,
-    originalBounds: { ...sceneEl.resolved },
+    originalBounds: absoluteBounds(sceneEl, getAllSceneElements(s.currentSlideIndex)),
     originalProps,
     editableAxes: axes,
     handlePosition: pos,
@@ -379,7 +403,7 @@ function onHandlePointerDown(event: PointerEvent): void {
 
   // Resize handles start dragging immediately (no threshold)
   _dragState.dragging = true;
-  _dragState.proxyRect = createProxyRect(sceneEl.resolved);
+  _dragState.proxyRect = createProxyRect(absoluteBounds(sceneEl, getAllSceneElements(s.currentSlideIndex)));
   debugController.state.dragInProgress = true;
 
   try {
@@ -436,6 +460,8 @@ function onPointerMove(event: PointerEvent): void {
   const clientX = event.clientX;
   const clientY = event.clientY;
 
+  const shiftKey = event.shiftKey;
+
   _dragState.rafId = requestAnimationFrame(() => {
     if (!_dragState || !_dragState.proxyRect) return;
     _dragState.rafId = null;
@@ -450,6 +476,7 @@ function onPointerMove(event: PointerEvent): void {
       _dragState.mode,
       _dragState.editableAxes,
       _dragState.handlePosition,
+      !shiftKey,  // snap enabled unless Shift held
     );
 
     updateProxyRect(_dragState.proxyRect, newBounds);
@@ -481,6 +508,7 @@ async function onPointerUp(event: PointerEvent): Promise<void> {
     _dragState.mode,
     _dragState.editableAxes,
     _dragState.handlePosition,
+    !event.shiftKey,  // snap enabled unless Shift held
   );
 
   // Remove proxy
@@ -643,7 +671,7 @@ export function renderResizeHandles(elementId: string, slideIndex: number): void
 
   const axes = getEditableAxes(sceneEl);
   const eligibility = getHandleEligibility(axes);
-  const r = sceneEl.resolved;
+  const r = absoluteBounds(sceneEl, getAllSceneElements(slideIndex));
 
   for (const pos of HANDLE_POSITIONS) {
     const eligible = eligibility[pos];

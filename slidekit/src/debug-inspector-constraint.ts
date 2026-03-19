@@ -15,11 +15,16 @@ import type { SlideDefinition, SlideElement, RelMarker, LayoutResult } from './t
 // Axis ↔ type mapping
 // =============================================================================
 
-export const Y_AXIS_TYPES = ['below', 'above', 'centerV', 'alignTop', 'alignBottom'] as const;
-export const X_AXIS_TYPES = ['rightOf', 'leftOf', 'centerH', 'alignLeft', 'alignRight'] as const;
+export const Y_AXIS_TYPES = ['below', 'above', 'centerV', 'alignTop', 'alignBottom', 'centerVSlide'] as const;
+export const X_AXIS_TYPES = ['rightOf', 'leftOf', 'centerH', 'alignLeft', 'alignRight', 'centerHSlide'] as const;
+export const W_AXIS_TYPES = ['matchWidth'] as const;
+export const H_AXIS_TYPES = ['matchHeight'] as const;
 
 /** Types that have an editable gap parameter. */
 export const DIRECTIONAL_TYPES = new Set(['below', 'above', 'rightOf', 'leftOf']);
+
+/** Types that don't reference another element. */
+export const REFLESS_TYPES = new Set(['centerHSlide', 'centerVSlide']);
 
 export function typesForAxis(axis: 'x' | 'y'): readonly string[] {
   return axis === 'y' ? Y_AXIS_TYPES : X_AXIS_TYPES;
@@ -28,6 +33,13 @@ export function typesForAxis(axis: 'x' | 'y'): readonly string[] {
 export function axisForType(type: string): 'x' | 'y' | null {
   if ((Y_AXIS_TYPES as readonly string[]).includes(type)) return 'y';
   if ((X_AXIS_TYPES as readonly string[]).includes(type)) return 'x';
+  return null;
+}
+
+/** Return the dimension axis for a dimension constraint type, or null. */
+export function dimensionAxisForType(type: string): 'w' | 'h' | null {
+  if ((W_AXIS_TYPES as readonly string[]).includes(type)) return 'w';
+  if ((H_AXIS_TYPES as readonly string[]).includes(type)) return 'h';
   return null;
 }
 
@@ -197,6 +209,11 @@ export async function changeConstraintType(
       delete marker.gap;
     }
 
+    // Clear/keep ref
+    if (REFLESS_TYPES.has(newType)) {
+      delete marker.ref;
+    }
+
     // Re-render
     const rerender = sk._rerenderSlide as (i: number, d: SlideDefinition) => Promise<LayoutResult>;
     if (!rerender) return;
@@ -221,8 +238,10 @@ export async function changeConstraintType(
     // Build new RelMarker on the new axis
     const newMarker: Record<string, unknown> = {
       _rel: newType,
-      ref: oldMarker.ref,
     };
+    if (!REFLESS_TYPES.has(newType)) {
+      newMarker.ref = oldMarker.ref;
+    }
     if (DIRECTIONAL_TYPES.has(newType)) {
       newMarker.gap = oldMarker.gap ?? 0;
     }
@@ -285,8 +304,10 @@ export async function addConstraint(
   // Build the RelMarker
   const newMarker: Record<string, unknown> = {
     _rel: constraintType,
-    ref: refId,
   };
+  if (!REFLESS_TYPES.has(constraintType)) {
+    newMarker.ref = refId;
+  }
   if (DIRECTIONAL_TYPES.has(constraintType)) {
     newMarker.gap = Math.round(gap);
   }

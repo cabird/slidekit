@@ -6,6 +6,7 @@ import { resolveSpacing } from '../spacing.js';
 import { resolveAnchor } from '../anchor.js';
 import { measure } from '../measure.js';
 import { mustGet } from '../assertions.js';
+import { state } from '../state.js';
 
 /**
  * Resolve element positions via unified topological sort.
@@ -94,6 +95,27 @@ export async function resolvePositions(
           });
         } else {
           depSet.add(yRef);
+        }
+      }
+
+      // Dimension constraints (matchWidth/matchHeight) — add dependency on referenced element
+      for (const prop of ["w", "h"]) {
+        const marker = el.props[prop];
+        if (isRelMarker(marker) && (marker._rel === "matchWidth" || marker._rel === "matchHeight")) {
+          const dimRef = marker.ref;
+          if (dimRef) {
+            if (!flatMap.has(dimRef)) {
+              errors.push({
+                type: "unknown_ref",
+                elementId: id,
+                property: prop,
+                ref: dimRef,
+                message: `Element "${id}": ${prop} references unknown element "${dimRef}"`,
+              });
+            } else {
+              depSet.add(dimRef);
+            }
+          }
         }
       }
 
@@ -223,6 +245,22 @@ export async function resolvePositions(
   for (const id of sortedOrder) {
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
+
+    // Resolve dimension constraints (matchWidth/matchHeight) before using w/h.
+    // By topological order, the referenced element's bounds are already resolved.
+    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchWidth') {
+      const marker = el.props.w as RelMarker;
+      const refId = marker.ref!;
+      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchWidth: ${refId}`);
+      sizes.w = refSizes.w;
+    }
+    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchHeight') {
+      const marker = el.props.h as RelMarker;
+      const refId = marker.ref!;
+      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchHeight: ${refId}`);
+      sizes.h = refSizes.h;
+    }
+
     const w = sizes.w;
     const h = sizes.h;
 
@@ -292,6 +330,9 @@ export async function resolvePositions(
           } else {
             x = leftEdge + availableSlack * (marker.bias ?? 0.5);
           }
+        } else if (marker._rel === "centerHSlide") {
+          const slideW = state.config?.slide?.w ?? 1920;
+          x = slideW / 2 - w / 2;
         } else {
           const refId = marker.ref;
           const refBounds = mustGet(resolvedBounds, refId, `resolvedBounds missing ref for x: ${refId}`);
@@ -309,6 +350,9 @@ export async function resolvePositions(
         if (marker._rel === "centerIn") {
           const r = marker.rect!;
           y = r.y + r.h / 2 - h / 2;
+        } else if (marker._rel === "centerVSlide") {
+          const slideH = state.config?.slide?.h ?? 1080;
+          y = slideH / 2 - h / 2;
         } else if (marker._rel === "between") {
           // P2.2: placeBetween / between — position between two vertical references
           if (marker.axis && marker.axis !== 'y') {

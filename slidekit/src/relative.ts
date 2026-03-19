@@ -142,6 +142,22 @@ export function centerIn(rectParam: Rect): { x: RelMarker; y: RelMarker } {
 }
 
 /**
+ * Center horizontally on the slide.
+ * @returns A RelMarker with _rel: "centerHSlide"
+ */
+export function centerHOnSlide(): RelMarker {
+  return { _rel: "centerHSlide" };
+}
+
+/**
+ * Center vertically on the slide.
+ * @returns A RelMarker with _rel: "centerVSlide"
+ */
+export function centerVOnSlide(): RelMarker {
+  return { _rel: "centerVSlide" };
+}
+
+/**
  * Position Y between two vertical references with configurable bias.
  *
  * @deprecated Use `between(refA, refB, { axis: 'y' })` instead.
@@ -158,6 +174,26 @@ export function placeBetween(
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+}
+
+/**
+ * Constrain width to match a referenced element's resolved width.
+ *
+ * @param refId - ID of the element whose width to match
+ * @returns A RelMarker with _rel: "matchWidth"
+ */
+export function matchWidthOf(refId: string): RelMarker {
+  return { _rel: "matchWidth", ref: refId };
+}
+
+/**
+ * Constrain height to match a referenced element's resolved height.
+ *
+ * @param refId - ID of the element whose height to match
+ * @returns A RelMarker with _rel: "matchHeight"
+ */
+export function matchHeightOf(refId: string): RelMarker {
+  return { _rel: "matchHeight", ref: refId };
 }
 
 /**

@@ -70,6 +70,11 @@ export interface DebugState {
     slideIndex: number;
   } | null;
 
+  // Element list — hidden elements/layers in debug overlay
+  hiddenElementIds: Set<string>;
+  hiddenLayers: Set<string>;
+  elementListExpanded: boolean;
+
   // Diff baseline
   baselineSceneGraphs: Record<number, Record<string, SceneElement>>;
 }
@@ -121,6 +126,9 @@ function initialState(): DebugState {
     redoStack: [],
     dragInProgress: false,
     pickMode: null,
+    hiddenElementIds: new Set(),
+    hiddenLayers: new Set(),
+    elementListExpanded: false,
     baselineSceneGraphs: {},
   };
 }

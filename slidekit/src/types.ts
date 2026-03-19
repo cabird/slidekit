@@ -43,7 +43,9 @@ export type RelMarkerKind =
   | "below" | "above" | "rightOf" | "leftOf"
   | "centerV" | "centerH"
   | "alignTop" | "alignBottom" | "alignLeft" | "alignRight"
-  | "centerIn" | "between";
+  | "centerIn" | "between"
+  | "matchWidth" | "matchHeight"
+  | "centerHSlide" | "centerVSlide";
 
 /** Provenance source values. */
 export type ProvenanceSource =
@@ -68,8 +70,8 @@ export type CompoundType = "panel" | "figure";
 /** Position value: a number in px, a percentage string, or a RelMarker. */
 export type PositionValue = number | string | RelMarker;
 
-/** Size value: a number in px, a percentage string, or "fill". */
-export type SizeValue = number | string;
+/** Size value: a number in px, a percentage string, "fill", or a RelMarker (matchWidth/matchHeight). */
+export type SizeValue = number | string | RelMarker;
 
 /** Anchor point identifier (two-character: row + col). */
 export type AnchorPoint = "tl" | "tc" | "tr" | "cl" | "cc" | "cr" | "bl" | "bc" | "br" | string;
@@ -427,6 +429,11 @@ export interface SlideKitConfig {
   fonts: FontDef[];
   /** Spacing scale (named sizes plus custom keys). */
   spacing: SpacingScale;
+  /** Debug / inspector options. */
+  debug?: {
+    /** Hint for LLM diff output indicating where the slide source code lives (e.g. "test_dir_1/slides.js"). */
+    sourceHint?: string;
+  };
 }
 
 /** Internal mutable state for the SlideKit engine. */

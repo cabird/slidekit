@@ -4,6 +4,43 @@
 import type { Rect, Collision, SceneElement } from './types.js';
 import type { DebugOverlayOptions } from './debug.js';
 import { TYPE_COLORS, TYPE_BORDER_COLORS, type DebugElementType } from './debug-inspector-styles.js';
+import { debugController } from './debug-state.js';
+
+/** Check if an element should be hidden from the debug overlay. */
+function isElementHidden(id: string, sceneEl: SceneElement): boolean {
+  const s = debugController.state;
+  if (s.hiddenElementIds.has(id)) return true;
+  const layer = (sceneEl.authored?.props as Record<string, unknown>)?.layer as string || 'content';
+  return s.hiddenLayers.has(layer);
+}
+
+/**
+ * Compute absolute slide-level bounds for a scene element.
+ * Group children have group-relative `resolved` coords, so we walk up
+ * the parent chain adding group offsets to get absolute position.
+ */
+export function absoluteBounds(sceneEl: SceneElement, allElements: Record<string, SceneElement>): Rect {
+  const r = sceneEl.resolved;
+  if (!sceneEl.parentId) return r;
+
+  let offsetX = 0;
+  let offsetY = 0;
+  let current: SceneElement | undefined = sceneEl;
+  while (current?.parentId) {
+    const parent: SceneElement | undefined = allElements[current.parentId];
+    if (!parent) break;
+    if (parent.type === 'group') {
+      // Group children are positioned relative to the group — add group's resolved position
+      const parentAbs: Rect = absoluteBounds(parent, allElements);
+      offsetX += parentAbs.x;
+      offsetY += parentAbs.y;
+      break; // absoluteBounds on parent already walks its full ancestry
+    }
+    // Stack children already have absolute coords — but the stack might be in a group
+    current = parent;
+  }
+  return { x: r.x + offsetX, y: r.y + offsetY, w: r.w, h: r.h };
+}
 
 /** Shape of window.sk as read by the debug overlay. */
 export interface SkGlobal {
@@ -204,8 +241,8 @@ export function buildRelationshipSVG(
     const toEl = sceneElements[edge.toId];
     if (!fromEl?.resolved || !toEl?.resolved) continue;
 
-    const fromPt = getAnchorPosition(fromEl.resolved, edge.sourceAnchor);
-    const toPt = getAnchorPosition(toEl.resolved, edge.targetAnchor);
+    const fromPt = getAnchorPosition(absoluteBounds(fromEl, sceneElements), edge.sourceAnchor);
+    const toPt = getAnchorPosition(absoluteBounds(toEl, sceneElements), edge.targetAnchor);
 
     const color = edge.isStack ? "rgba(160, 120, 255, 0.7)" : "rgba(255, 140, 50, 0.85)";
     const markerId = edge.isStack ? "sk-debug-arrow-stack" : "sk-debug-arrow-constraint";
@@ -307,12 +344,13 @@ export function buildOverlayContent(
   if (showBoxes) {
     const MIN_BOX = 8; // minimum visible/clickable size for debug boxes
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved: Rect | undefined = sceneEl.resolved;
-      if (!resolved) continue;
+      if (!sceneEl.resolved) continue;
+      if (isElementHidden(id, sceneEl)) continue;
 
+      const abs = absoluteBounds(sceneEl, sceneElements);
       // Enforce minimum dimensions so thin connectors are visible & clickable
-      let bx = resolved.x, by = resolved.y;
-      let bw = resolved.w, bh = resolved.h;
+      let bx = abs.x, by = abs.y;
+      let bw = abs.w, bh = abs.h;
       if (bw < MIN_BOX) { bx -= (MIN_BOX - bw) / 2; bw = MIN_BOX; }
       if (bh < MIN_BOX) { by -= (MIN_BOX - bh) / 2; bh = MIN_BOX; }
 
@@ -335,11 +373,12 @@ export function buildOverlayContent(
   // ID labels
   if (showIds) {
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved: Rect | undefined = sceneEl.resolved;
-      if (!resolved) continue;
+      if (!sceneEl.resolved) continue;
+      if (isElementHidden(id, sceneEl)) continue;
 
+      const abs = absoluteBounds(sceneEl, sceneElements);
       const anchor: string = (sceneEl.authored?.props?.anchor as string) || "tl";
-      const anchorPos = getAnchorPosition(resolved, anchor);
+      const anchorPos = getAnchorPosition(abs, anchor);
 
       const labelEl = document.createElement("div");
       labelEl.setAttribute("data-sk-debug", "id-label");
@@ -364,11 +403,12 @@ export function buildOverlayContent(
   // Anchor dots
   if (showAnchors) {
     for (const [id, sceneEl] of Object.entries(sceneElements)) {
-      const resolved: Rect | undefined = sceneEl.resolved;
-      if (!resolved) continue;
+      if (!sceneEl.resolved) continue;
+      if (isElementHidden(id, sceneEl)) continue;
 
+      const abs = absoluteBounds(sceneEl, sceneElements);
       const anchor: string = (sceneEl.authored?.props?.anchor as string) || "tl";
-      const anchorPos = getAnchorPosition(resolved, anchor);
+      const anchorPos = getAnchorPosition(abs, anchor);
 
       const dotEl = document.createElement("div");
       dotEl.setAttribute("data-sk-debug", "anchor");

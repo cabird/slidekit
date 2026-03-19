@@ -21,6 +21,11 @@ interface InitConfig {
   spacing?: Record<string, number>;
   /** Minimum compatible SlideKit version (semver string, e.g. "0.2.0"). */
   minVersion?: string;
+  /** Debug / inspector options. */
+  debug?: {
+    /** Hint for LLM diff output indicating where the slide source code lives (e.g. "test_dir_1/slides.js"). */
+    sourceHint?: string;
+  };
 }
 
 /**
@@ -148,6 +153,7 @@ export async function init(config: InitConfig = {}): Promise<SlideKitConfig> {
     minFontSize: config.minFontSize !== undefined ? config.minFontSize : DEFAULT_CONFIG.minFontSize,
     fonts: config.fonts || DEFAULT_CONFIG.fonts,
     spacing: { ...DEFAULT_SPACING, ...(config.spacing || {}) },
+    ...(config.debug ? { debug: { ...config.debug } } : {}),
   };
   state.config = resolved;
 

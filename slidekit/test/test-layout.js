@@ -11,6 +11,8 @@ import {
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
   centerIn, placeBetween, between,
+  matchWidthOf, matchHeightOf,
+  centerHOnSlide, centerVOnSlide,
   vstack, hstack, panel,
 } from '../slidekit.js';
 
@@ -362,6 +364,57 @@ describe("M3.2: layout() — leftOf()", () => {
 
     // leftOf: x = 300 - 100 - 20 = 180
     assert.equal(scene.elements["target"].resolved.x, 180);
+  });
+});
+
+// =============================================================================
+// M3.2: layout() — negative gaps (intentional overlap)
+// =============================================================================
+
+describe("M3.2: layout() — negative gap constraints", () => {
+  it("below() with negative gap creates overlap", async () => {
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", { gap: -20 }), w: 200, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // below: y = ref.y + ref.h + gap = 100 + 100 + (-20) = 180
+    assert.equal(scene.elements["target"].resolved.y, 180);
+  });
+
+  it("rightOf() with negative gap creates overlap", async () => {
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: rightOf("anchor", { gap: -10 }), y: 100, w: 150, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // rightOf: x = ref.x + ref.w + gap = 100 + 200 + (-10) = 290
+    assert.equal(scene.elements["target"].resolved.x, 290);
+  });
+
+  it("above() with negative gap creates overlap", async () => {
+    const anchor = el('', { id: "anchor", x: 100, y: 200, w: 200, h: 50 });
+    const target = el('', { id: "target", x: 100, y: above("anchor", { gap: -15 }), w: 200, h: 80 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // above: y = ref.y - ownH - gap = 200 - 80 - (-15) = 135
+    assert.equal(scene.elements["target"].resolved.y, 135);
+  });
+
+  it("leftOf() with negative gap creates overlap", async () => {
+    const anchor = el('', { id: "anchor", x: 300, y: 100, w: 200, h: 50 });
+    const target = el('', { id: "target", x: leftOf("anchor", { gap: -15 }), y: 100, w: 100, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // leftOf: x = ref.x - ownW - gap = 300 - 100 - (-15) = 215
+    assert.equal(scene.elements["target"].resolved.x, 215);
+  });
+
+  it("below() with negative gap as bare number", async () => {
+    const anchor = el('', { id: "anchor", x: 100, y: 100, w: 200, h: 100 });
+    const target = el('', { id: "target", x: 100, y: below("anchor", -20), w: 200, h: 50 });
+    const scene = await layout({ elements: [anchor, target] });
+
+    // below: y = 100 + 100 + (-20) = 180
+    assert.equal(scene.elements["target"].resolved.y, 180);
   });
 });
 
@@ -2292,5 +2345,218 @@ describe("panel vAlign — passthrough to inner vstack", () => {
 
     // align: 'center' => child x = padding + (contentW - childW)/2 = 24 + (352-100)/2 = 24 + 126 = 150
     assert.equal(pc1.resolved.x, 24 + (352 - 100) / 2);
+  });
+});
+
+// =============================================================================
+// Dimension Constraints: matchWidthOf / matchHeightOf
+// =============================================================================
+
+describe("matchWidthOf() helper", () => {
+  it("returns a RelMarker with _rel 'matchWidth'", () => {
+    const m = matchWidthOf("ref1");
+    assert.equal(m._rel, "matchWidth");
+    assert.equal(m.ref, "ref1");
+  });
+});
+
+describe("matchHeightOf() helper", () => {
+  it("returns a RelMarker with _rel 'matchHeight'", () => {
+    const m = matchHeightOf("ref1");
+    assert.equal(m._rel, "matchHeight");
+    assert.equal(m.ref, "ref1");
+  });
+});
+
+describe("layout() — matchWidthOf()", () => {
+  it("makes element match reference width", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 300, h: 100 });
+    const target = el('', { id: "target", x: 50, y: 200, w: matchWidthOf("anchor"), h: 80 });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].resolved.w, 300);
+    assert.equal(result.elements["target"].resolved.h, 80);
+    // x and y should be unaffected
+    assert.equal(result.elements["target"].resolved.x, 50);
+    assert.equal(result.elements["target"].resolved.y, 200);
+  });
+
+  it("provenance shows constraint source for matchWidth", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 300, h: 100 });
+    const target = el('', { id: "target", x: 50, y: 200, w: matchWidthOf("anchor"), h: 80 });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].provenance.w.source, "constraint");
+    assert.equal(result.elements["target"].provenance.w.type, "matchWidth");
+    assert.equal(result.elements["target"].provenance.w.ref, "anchor");
+    // Other axes should still have authored provenance
+    assert.equal(result.elements["target"].provenance.x.source, "authored");
+    assert.equal(result.elements["target"].provenance.h.source, "authored");
+  });
+});
+
+describe("layout() — matchHeightOf()", () => {
+  it("makes element match reference height", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 200, h: 350 });
+    const target = el('', { id: "target", x: 300, y: 50, w: 150, h: matchHeightOf("anchor") });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].resolved.h, 350);
+    assert.equal(result.elements["target"].resolved.w, 150);
+    // x and y should be unaffected
+    assert.equal(result.elements["target"].resolved.x, 300);
+    assert.equal(result.elements["target"].resolved.y, 50);
+  });
+
+  it("provenance shows constraint source for matchHeight", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 200, h: 350 });
+    const target = el('', { id: "target", x: 300, y: 50, w: 150, h: matchHeightOf("anchor") });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].provenance.h.source, "constraint");
+    assert.equal(result.elements["target"].provenance.h.type, "matchHeight");
+    assert.equal(result.elements["target"].provenance.h.ref, "anchor");
+    assert.equal(result.elements["target"].provenance.y.source, "authored");
+    assert.equal(result.elements["target"].provenance.w.source, "authored");
+  });
+});
+
+describe("dimension constraints with positional constraints", () => {
+  it("matchWidthOf works with below() on the same element", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 300, h: 100 });
+    const target = el('', { id: "target", x: 50, y: below("anchor", 10), w: matchWidthOf("anchor"), h: 80 });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].resolved.w, 300);
+    assert.equal(result.elements["target"].resolved.y, 160); // 50 + 100 + 10
+    assert.equal(result.elements["target"].resolved.h, 80);
+  });
+
+  it("matchHeightOf works with rightOf() on the same element", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 200, h: 350 });
+    const target = el('', { id: "target", x: rightOf("anchor", 20), y: 50, w: 150, h: matchHeightOf("anchor") });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].resolved.h, 350);
+    assert.equal(result.elements["target"].resolved.x, 270); // 50 + 200 + 20
+  });
+
+  it("matchWidthOf and matchHeightOf on the same element", async () => {
+    _resetForTests();
+    await init();
+    const anchor = el('', { id: "anchor", x: 50, y: 50, w: 300, h: 200 });
+    const target = el('', { id: "target", x: 400, y: 50, w: matchWidthOf("anchor"), h: matchHeightOf("anchor") });
+
+    const result = await layout({ elements: [anchor, target] });
+
+    assert.equal(result.elements["target"].resolved.w, 300);
+    assert.equal(result.elements["target"].resolved.h, 200);
+  });
+
+  it("chained dimension constraints: A -> B -> C", async () => {
+    _resetForTests();
+    await init();
+    const a = el('', { id: "a", x: 50, y: 50, w: 400, h: 100 });
+    const b = el('', { id: "b", x: 50, y: 200, w: matchWidthOf("a"), h: 80 });
+    const c = el('', { id: "c", x: 50, y: 330, w: matchWidthOf("b"), h: 60 });
+
+    const result = await layout({ elements: [a, b, c] });
+
+    assert.equal(result.elements["b"].resolved.w, 400);
+    assert.equal(result.elements["c"].resolved.w, 400);
+  });
+
+  it("errors on unknown reference element", async () => {
+    _resetForTests();
+    await init();
+    const target = el('', { id: "target", x: 50, y: 50, w: matchWidthOf("nonexistent"), h: 80 });
+
+    const result = await layout({ elements: [target] });
+
+    assert.ok(result.errors.length > 0);
+    assert.equal(result.errors[0].type, "unknown_ref");
+    assert.equal(result.errors[0].ref, "nonexistent");
+  });
+});
+
+// =============================================================================
+// centerHOnSlide / centerVOnSlide
+// =============================================================================
+
+describe("centerHOnSlide / centerVOnSlide constraints", () => {
+  it("centerHOnSlide() returns correct RelMarker", () => {
+    const marker = centerHOnSlide();
+    assert.equal(marker._rel, "centerHSlide");
+    assert.equal(marker.ref, undefined);
+  });
+
+  it("centerVOnSlide() returns correct RelMarker", () => {
+    const marker = centerVOnSlide();
+    assert.equal(marker._rel, "centerVSlide");
+    assert.equal(marker.ref, undefined);
+  });
+
+  it("centerHOnSlide centers element horizontally on the slide", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "ch1", x: centerHOnSlide(), y: 100, w: 200, h: 50 });
+      await render([{ elements: [e] }], { container });
+      const scene = window.sk.layouts[0].elements;
+      // slide width 1920 (default), element w=200: (1920 - 200) / 2 = 860
+      assert.equal(scene.ch1.resolved.x, 860);
+      assert.equal(scene.ch1.resolved.y, 100);
+    });
+  });
+
+  it("centerVOnSlide centers element vertically on the slide", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "cv1", x: 100, y: centerVOnSlide(), w: 200, h: 80 });
+      await render([{ elements: [e] }], { container });
+      const scene = window.sk.layouts[0].elements;
+      // slide height 1080 (default), element h=80: (1080 - 80) / 2 = 500
+      assert.equal(scene.cv1.resolved.x, 100);
+      assert.equal(scene.cv1.resolved.y, 500);
+    });
+  });
+
+  it("both centerHOnSlide and centerVOnSlide together", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "cxy", x: centerHOnSlide(), y: centerVOnSlide(), w: 400, h: 200 });
+      await render([{ elements: [e] }], { container });
+      const scene = window.sk.layouts[0].elements;
+      assert.equal(scene.cxy.resolved.x, 760); // (1920-400)/2
+      assert.equal(scene.cxy.resolved.y, 440); // (1080-200)/2
+    });
+  });
+
+  it("provenance shows constraint source for centerHSlide", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "cp1", x: centerHOnSlide(), y: 100, w: 200, h: 50 });
+      await render([{ elements: [e] }], { container });
+      const scene = window.sk.layouts[0].elements;
+      assert.equal(scene.cp1.provenance.x.source, "constraint");
+      assert.equal(scene.cp1.provenance.x.type, "centerHSlide");
+    });
   });
 });

@@ -4,8 +4,9 @@ import type { SceneElement } from './types.js';
 import { debugController } from './debug-state.js';
 import { PROVENANCE_COLORS, TYPE_BADGE_COLORS, escapeHtml, badge } from './debug-inspector-styles.js';
 import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspector-viewport.js';
-import { createDiffActionBar } from './debug-inspector-diff.js';
-import { extractRelationshipEdges } from './debug-overlay.js';
+import { createDiffActionBar, updateDiffDirtyIndicator } from './debug-inspector-diff.js';
+import { extractRelationshipEdges, absoluteBounds } from './debug-overlay.js';
+import { flattenElements } from './layout/helpers.js';
 import {
   isEditableProp, isEditableGap, isGapProp, getEnumOptions,
   isAnchorProp, startAnchorEdit,
@@ -13,8 +14,12 @@ import {
   startEdit, startEnumEdit, startGapTokenEdit, showLockedTooltip,
 } from './debug-inspector-edit.js';
 import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag.js';
-import { clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight } from './debug-inspector-constraint.js';
+import {
+  clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight,
+  changeConstraintType, typesForAxis, axisForType,
+} from './debug-inspector-constraint.js';
 import { attachContextMenuHandler, detachContextMenuHandler } from './debug-context-menu.js';
+import { enterPickMode } from './debug-inspector-pick.js';
 
 // =============================================================================
 // Inspector Panel Lifecycle
@@ -56,6 +61,14 @@ export function createInspectorPanel(): HTMLDivElement {
   // Diff action bar
   panel.appendChild(createDiffActionBar());
 
+  // Visibility toggles
+  panel.appendChild(createVisibilitySection());
+
+  // Element list
+  const elementListContainer = document.createElement('div');
+  elementListContainer.setAttribute('data-sk-role', 'element-list');
+  panel.appendChild(elementListContainer);
+
   // Body (content area)
   const body = document.createElement("div");
   body.setAttribute("data-sk-inspector-body", "true");
@@ -66,6 +79,7 @@ export function createInspectorPanel(): HTMLDivElement {
   s.inspectorPanel = panel;
 
   renderEmptyState();
+  refreshElementList();
   adjustViewport(s.panelWidth);
 
   return panel;
@@ -98,6 +112,425 @@ export function renderEmptyState(): void {
   msg.style.fontStyle = "italic";
   msg.textContent = "Click an element to inspect";
   body.appendChild(msg);
+}
+
+// =============================================================================
+// Visibility Toggles
+// =============================================================================
+
+const VISIBILITY_OPTIONS: { key: string; label: string; default: boolean }[] = [
+  { key: 'showBoxes', label: 'Boxes', default: true },
+  { key: 'showIds', label: 'Labels', default: true },
+  { key: 'showAnchors', label: 'Anchors', default: true },
+  { key: 'showSafeZone', label: 'Safe Zone', default: true },
+  { key: 'showCollisions', label: 'Collisions', default: true },
+  { key: 'showRelationships', label: 'Constraints', default: true },
+];
+
+/** Create the visibility toggle section for the inspector panel. */
+function createVisibilitySection(): HTMLElement {
+  const s = debugController.state;
+  const section = document.createElement('div');
+  section.setAttribute('data-sk-role', 'visibility-toggles');
+  section.style.borderBottom = '1px solid #e8e8e8';
+  section.style.padding = '8px 16px';
+
+  // Header row (clickable to collapse)
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.cursor = 'pointer';
+  header.style.userSelect = 'none';
+  header.style.marginBottom = '0';
+
+  const chevron = document.createElement('span');
+  chevron.textContent = '\u25B6';
+  chevron.style.fontSize = '8px';
+  chevron.style.marginRight = '6px';
+  chevron.style.transition = 'transform 0.15s';
+  chevron.style.transform = 'rotate(90deg)';
+  header.appendChild(chevron);
+
+  const title = document.createElement('span');
+  title.textContent = 'VISIBILITY';
+  title.style.fontSize = '11px';
+  title.style.fontWeight = '600';
+  title.style.letterSpacing = '0.5px';
+  title.style.color = '#777';
+  header.appendChild(title);
+  section.appendChild(header);
+
+  // Checkbox grid
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = '1fr 1fr';
+  grid.style.gap = '2px 8px';
+  grid.style.marginTop = '6px';
+
+  for (const opt of VISIBILITY_OPTIONS) {
+    const opts = s.lastToggleOptions as Record<string, unknown>;
+    const currentValue = opts[opt.key] !== undefined ? Boolean(opts[opt.key]) : opt.default;
+
+    const label = document.createElement('label');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '4px';
+    label.style.cursor = 'pointer';
+    label.style.fontSize = '11px';
+    label.style.color = '#555';
+    label.style.padding = '1px 0';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = currentValue;
+    checkbox.style.margin = '0';
+    checkbox.style.cursor = 'pointer';
+    checkbox.setAttribute('data-sk-visibility', opt.key);
+
+    checkbox.addEventListener('change', () => {
+      const toggleOpts = s.lastToggleOptions as Record<string, unknown>;
+      toggleOpts[opt.key] = checkbox.checked;
+      debugController.callbacks.refreshOverlayOnly?.(s.currentSlideIndex);
+    });
+
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(opt.label));
+    grid.appendChild(label);
+  }
+
+  section.appendChild(grid);
+
+  // Collapse toggle
+  header.addEventListener('click', () => {
+    const collapsed = grid.style.display === 'none';
+    grid.style.display = collapsed ? 'grid' : 'none';
+    chevron.style.transform = collapsed ? 'rotate(90deg)' : 'rotate(0deg)';
+  });
+
+  return section;
+}
+
+// =============================================================================
+// Element List
+// =============================================================================
+
+const LAYER_ORDER = ['overlay', 'content', 'bg'] as const;
+const LAYER_LABELS: Record<string, string> = { overlay: 'Overlay', content: 'Content', bg: 'Background' };
+
+/** Rebuild the element list panel. Called on initial render and slide change. */
+export function refreshElementList(): void {
+  const s = debugController.state;
+  const container = s.inspectorPanel?.querySelector('[data-sk-role="element-list"]') as HTMLElement | null;
+  if (!container) return;
+  container.innerHTML = '';
+
+  const sk = typeof window !== 'undefined' ? (window as any).sk : null;
+  if (!sk?.layouts?.[s.currentSlideIndex]) return;
+
+  const layoutResult = sk.layouts[s.currentSlideIndex];
+  const sceneElements: Record<string, SceneElement> = layoutResult.elements;
+
+  // Group elements by layer
+  const byLayer: Record<string, Array<{ id: string; el: SceneElement }>> = {
+    overlay: [], content: [], bg: [],
+  };
+  for (const [id, sceneEl] of Object.entries(sceneElements)) {
+    if (sceneEl._internal) continue;
+    const layer = (sceneEl.authored?.props as Record<string, unknown>)?.layer as string || 'content';
+    (byLayer[layer] ??= []).push({ id, el: sceneEl });
+  }
+
+  // Extract constraints
+  const allEdges = extractRelationshipEdges(sceneElements);
+
+  // Build collapsible section
+  const section = document.createElement('div');
+  section.style.borderBottom = '1px solid #e8e8e8';
+  section.style.padding = '0';
+
+  // Header
+  const header = document.createElement('div');
+  header.style.cssText = 'padding: 8px 16px; cursor: pointer; user-select: none; display: flex; align-items: center;';
+
+  const chevron = document.createElement('span');
+  chevron.textContent = '\u25B6';
+  chevron.style.cssText = 'font-size: 8px; margin-right: 6px; transition: transform 0.15s;';
+  chevron.style.transform = s.elementListExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+  header.appendChild(chevron);
+
+  const title = document.createElement('span');
+  title.textContent = 'ELEMENTS & CONSTRAINTS';
+  title.style.cssText = 'font-size: 11px; font-weight: 600; letter-spacing: 0.5px; color: #777;';
+  header.appendChild(title);
+  section.appendChild(header);
+
+  // List body — preserve expanded state
+  const listBody = document.createElement('div');
+  listBody.style.display = s.elementListExpanded ? 'block' : 'none';
+  listBody.style.padding = '0 8px 8px 8px';
+  listBody.style.maxHeight = '300px';
+  listBody.style.overflowY = 'auto';
+
+  // --- Elements by layer ---
+  for (const layerName of LAYER_ORDER) {
+    const items = byLayer[layerName];
+    if (!items || items.length === 0) continue;
+
+    // Layer header with master checkbox
+    const layerRow = document.createElement('div');
+    layerRow.style.cssText = 'display: flex; align-items: center; gap: 4px; padding: 4px 0 2px 0; font-weight: 600; font-size: 11px; color: #555;';
+
+    const layerCheckbox = document.createElement('input');
+    layerCheckbox.type = 'checkbox';
+    layerCheckbox.checked = !s.hiddenLayers.has(layerName);
+    layerCheckbox.style.cssText = 'margin: 0; cursor: pointer;';
+    layerCheckbox.addEventListener('change', () => {
+      if (layerCheckbox.checked) {
+        s.hiddenLayers.delete(layerName);
+      } else {
+        s.hiddenLayers.add(layerName);
+      }
+      debugController.callbacks.refreshOverlayOnly?.(s.currentSlideIndex);
+      refreshElementList();
+    });
+    layerRow.appendChild(layerCheckbox);
+    layerRow.appendChild(document.createTextNode(LAYER_LABELS[layerName] || layerName));
+    listBody.appendChild(layerRow);
+
+    // Element rows
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; gap: 4px; padding: 1px 0 1px 12px; font-size: 11px; cursor: pointer;';
+      row.setAttribute('data-sk-element-list-id', item.id);
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !s.hiddenElementIds.has(item.id) && !s.hiddenLayers.has(layerName);
+      cb.disabled = s.hiddenLayers.has(layerName);
+      cb.style.cssText = 'margin: 0; cursor: pointer;';
+      cb.addEventListener('change', (e) => {
+        e.stopPropagation();
+        if (cb.checked) {
+          s.hiddenElementIds.delete(item.id);
+        } else {
+          s.hiddenElementIds.add(item.id);
+        }
+        debugController.callbacks.refreshOverlayOnly?.(s.currentSlideIndex);
+      });
+      row.appendChild(cb);
+
+      const label = document.createElement('span');
+      label.textContent = item.id;
+      label.style.color = s.selectedElementId === item.id ? '#4a9eff' : '#333';
+      label.style.fontWeight = s.selectedElementId === item.id ? '600' : 'normal';
+      row.appendChild(label);
+
+      // Type badge
+      const typeBadge = document.createElement('span');
+      typeBadge.textContent = item.el.type;
+      typeBadge.style.cssText = 'font-size: 9px; color: #999; margin-left: auto;';
+      row.appendChild(typeBadge);
+
+      // Hover highlight
+      row.addEventListener('mouseenter', () => {
+        row.style.background = '#e8f0fe';
+        highlightElementOnSlide(item.id, s.currentSlideIndex, true);
+      });
+      row.addEventListener('mouseleave', () => {
+        row.style.background = '';
+        highlightElementOnSlide(item.id, s.currentSlideIndex, false);
+      });
+
+      // Click to select (but not when clicking the checkbox)
+      row.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).tagName === 'INPUT') return;
+        e.stopPropagation();
+        s.selectedElementId = item.id;
+        s.selectedConstraint = null;
+        clearConstraintSelection();
+        renderElementDetail(item.id, s.currentSlideIndex);
+        updateSelectionHighlight(item.id, s.currentSlideIndex);
+        renderResizeHandles(item.id, s.currentSlideIndex);
+        refreshElementList();
+      });
+
+      listBody.appendChild(row);
+    }
+  }
+
+  // --- Constraints ---
+  if (allEdges.length > 0) {
+    const constraintHeader = document.createElement('div');
+    constraintHeader.style.cssText = 'padding: 6px 0 2px 0; font-weight: 600; font-size: 11px; color: #555; border-top: 1px solid #e8e8e8; margin-top: 4px;';
+    constraintHeader.textContent = 'Constraints';
+    listBody.appendChild(constraintHeader);
+
+    for (const edge of allEdges) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; gap: 4px; padding: 1px 0 1px 4px; font-size: 10px; cursor: pointer; color: #555;';
+
+      const arrow = document.createElement('span');
+      arrow.textContent = '\u2192';
+      arrow.style.color = '#999';
+      row.appendChild(arrow);
+
+      const text = document.createElement('span');
+      let desc = `${edge.fromId} ${edge.type} ${edge.toId}`;
+      if (edge.gap !== undefined) desc += ` (${edge.gap})`;
+      text.textContent = desc;
+      row.appendChild(text);
+
+      // Hover: highlight both elements
+      row.addEventListener('mouseenter', () => {
+        row.style.background = '#e8f0fe';
+        highlightElementOnSlide(edge.fromId, s.currentSlideIndex, true);
+        highlightElementOnSlide(edge.toId, s.currentSlideIndex, true);
+      });
+      row.addEventListener('mouseleave', () => {
+        row.style.background = '';
+        highlightElementOnSlide(edge.fromId, s.currentSlideIndex, false);
+        highlightElementOnSlide(edge.toId, s.currentSlideIndex, false);
+      });
+
+      // Click to select the constrained element and show constraint detail
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const constraintAxis = axisForType(edge.type);
+        if (constraintAxis) {
+          s.selectedElementId = null;
+          s.selectedConstraint = { elementId: edge.toId, axis: constraintAxis };
+          renderConstraintDetail(edge.toId, constraintAxis, s.currentSlideIndex);
+          updateConstraintHighlight(edge.toId, constraintAxis, s.currentSlideIndex);
+        }
+      });
+
+      listBody.appendChild(row);
+    }
+  }
+
+  section.appendChild(listBody);
+
+  // Collapse toggle
+  header.addEventListener('click', () => {
+    s.elementListExpanded = !s.elementListExpanded;
+    listBody.style.display = s.elementListExpanded ? 'block' : 'none';
+    chevron.style.transform = s.elementListExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+  });
+
+  container.appendChild(section);
+}
+
+/** Temporarily highlight an element on the slide when hovering in the element list. */
+function highlightElementOnSlide(elementId: string, slideIndex: number, show: boolean): void {
+  const s = debugController.state;
+  if (!s.debugOverlay) return;
+
+  // Remove existing highlight for this specific element
+  const existing = s.debugOverlay.querySelectorAll(`[data-sk-debug="hover-highlight"][data-sk-debug-id="${elementId}"]`);
+  existing.forEach(el => el.remove());
+
+  if (!show) return;
+
+  const sk = typeof window !== 'undefined' ? (window as any).sk : null;
+  const allElements = sk?.layouts?.[slideIndex]?.elements;
+  const sceneEl: SceneElement | undefined = allElements?.[elementId];
+  if (!sceneEl?.resolved) return;
+
+  const r = absoluteBounds(sceneEl, allElements);
+  const highlight = document.createElement('div');
+  highlight.setAttribute('data-sk-debug', 'hover-highlight');
+  highlight.setAttribute('data-sk-debug-id', elementId);
+  highlight.style.cssText = `
+    position: absolute; left: ${r.x}px; top: ${r.y}px;
+    width: ${r.w}px; height: ${r.h}px;
+    border: 2px solid #4a9eff; background: rgba(74, 158, 255, 0.15);
+    box-sizing: border-box; pointer-events: none; z-index: 10000;
+  `;
+  s.debugOverlay.appendChild(highlight);
+}
+
+// =============================================================================
+// Inline Type Dropdown (for Relationships section)
+// =============================================================================
+
+/** Show a type dropdown inline in the Relationships section row. */
+function showRelTypeDropdown(
+  elementId: string,
+  currentAxis: 'x' | 'y',
+  currentType: string,
+  typeSpan: HTMLElement,
+  slideIndex: number,
+): void {
+  const sameAxisTypes = typesForAxis(currentAxis);
+  const otherAxis: 'x' | 'y' = currentAxis === 'x' ? 'y' : 'x';
+  const crossAxisTypes = typesForAxis(otherAxis);
+
+  const select = document.createElement('select');
+  select.style.cssText = `
+    padding: 2px 4px; font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    border: 1px solid #4a9eff; border-radius: 3px;
+    background: #fff; color: #1a1a2e; outline: none;
+    box-shadow: 0 0 3px rgba(74, 158, 255, 0.3);
+    cursor: pointer;
+  `;
+
+  // Same-axis group
+  const sameGroup = document.createElement('optgroup');
+  sameGroup.label = `${currentAxis}-axis`;
+  for (const type of sameAxisTypes) {
+    const opt = document.createElement('option');
+    opt.value = type;
+    opt.textContent = type;
+    if (type === currentType) opt.selected = true;
+    sameGroup.appendChild(opt);
+  }
+  select.appendChild(sameGroup);
+
+  // Cross-axis group
+  const crossGroup = document.createElement('optgroup');
+  crossGroup.label = `${otherAxis}-axis`;
+  for (const type of crossAxisTypes) {
+    const opt = document.createElement('option');
+    opt.value = type;
+    opt.textContent = type;
+    crossGroup.appendChild(opt);
+  }
+  select.appendChild(crossGroup);
+
+  // Replace the type span with the select
+  const parent = typeSpan.parentNode!;
+  parent.replaceChild(select, typeSpan);
+  select.focus();
+
+  const commit = () => {
+    const newType = select.value;
+    if (newType !== currentType) {
+      changeConstraintType(elementId, currentAxis, newType, slideIndex);
+    }
+    // Re-render element detail to refresh the relationships section
+    const s = debugController.state;
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+  };
+
+  select.addEventListener('change', commit);
+  select.addEventListener('blur', () => {
+    // Restore if no change
+    if (select.parentNode) {
+      const s = debugController.state;
+      s.selectedElementId = elementId;
+      debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+    }
+  });
+  select.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const s = debugController.state;
+      s.selectedElementId = elementId;
+      debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+    }
+  });
 }
 
 // =============================================================================
@@ -348,18 +781,66 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
       const otherId = dir === "incoming" ? edge.fromId : edge.toId;
+      const edgeAxis = axisForType(edge.type);
 
       const row = document.createElement("div");
       row.style.padding = "2px 0";
 
-      // Arrow + element ID + constraint type
-      const textPart = document.createElement("span");
-      textPart.innerHTML = `${arrow} <span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
-      row.appendChild(textPart);
+      // Arrow
+      const arrowSpan = document.createElement("span");
+      arrowSpan.textContent = arrow + " ";
+      row.appendChild(arrowSpan);
+
+      if (dir === "incoming" && edgeAxis) {
+        // Editable reference element (click to pick new reference)
+        const refSpan = document.createElement("span");
+        refSpan.textContent = otherId;
+        refSpan.style.color = "#1a1a2e";
+        refSpan.style.textDecoration = "underline";
+        refSpan.style.textDecorationStyle = "dashed";
+        refSpan.style.textUnderlineOffset = "2px";
+        refSpan.style.cursor = "pointer";
+        refSpan.title = "Click to change reference element";
+        refSpan.addEventListener("mouseenter", () => { refSpan.style.background = "#e8f0fe"; });
+        refSpan.addEventListener("mouseleave", () => { refSpan.style.background = ""; });
+        refSpan.addEventListener("click", (e) => {
+          e.stopPropagation();
+          enterPickMode(elementId, edgeAxis, edge.type, slideIndex);
+        });
+        row.appendChild(refSpan);
+        row.appendChild(document.createTextNode(" "));
+
+        // Editable type (click to open dropdown)
+        const typeSpan = document.createElement("span");
+        typeSpan.textContent = edge.type;
+        typeSpan.style.color = "#666";
+        typeSpan.style.textDecoration = "underline";
+        typeSpan.style.textDecorationStyle = "dashed";
+        typeSpan.style.textUnderlineOffset = "2px";
+        typeSpan.style.cursor = "pointer";
+        typeSpan.title = "Click to change constraint type";
+        typeSpan.addEventListener("mouseenter", () => { typeSpan.style.background = "#e8f0fe"; });
+        typeSpan.addEventListener("mouseleave", () => { typeSpan.style.background = ""; });
+        typeSpan.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showRelTypeDropdown(elementId, edgeAxis, edge.type, typeSpan, slideIndex);
+        });
+        row.appendChild(typeSpan);
+
+        // Anchor info (read-only)
+        const anchorSpan = document.createElement("span");
+        anchorSpan.textContent = ` [${edge.sourceAnchor}\u2192${edge.targetAnchor}]`;
+        anchorSpan.style.color = "#999";
+        row.appendChild(anchorSpan);
+      } else {
+        // Outgoing — read-only display
+        const textPart = document.createElement("span");
+        textPart.innerHTML = `<span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
+        row.appendChild(textPart);
+      }
 
       // Gap value — editable for incoming constraints with gap
       if (edge.gap !== undefined && dir === "incoming" && isEditableGap(edge.type)) {
-        // Determine axis: below/above → y, rightOf/leftOf → x
         const axis = (edge.type === 'below' || edge.type === 'above') ? 'y' : 'x';
         const gapSpan = document.createElement("span");
         gapSpan.textContent = ` gap=${edge.gap}`;
@@ -404,12 +885,126 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   }
   body.appendChild(createSection("CSS Styles", stylesDiv, true));
 
-  // Section 7: Inner HTML (for el type elements)
+  // Section 7: Inner HTML (editable for el type elements)
   const htmlDiv = document.createElement("div");
-  if (authored?.content) {
-    let content = authored.content;
-    if (content.length > 500) content = content.slice(0, 500) + "...";
-    htmlDiv.innerHTML = `<pre style="margin:0;white-space:pre-wrap;word-break:break-all;font-size:11px;color:#444;max-height:200px;overflow:auto;">${escapeHtml(content)}</pre>`;
+  if (authored?.content !== undefined) {
+    const textarea = document.createElement("textarea");
+    textarea.value = authored.content;
+    textarea.style.cssText = `
+      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
+      box-sizing: border-box; line-height: 1.4;
+    `;
+    textarea.setAttribute("data-sk-html-editor", "true");
+    textarea.spellcheck = false;
+
+    const statusMsg = document.createElement("div");
+    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
+
+    // committedContent = last value pushed to undo stack (Ctrl+Enter / blur)
+    // We preview live but only create undo entries on commit.
+    let committedContent = authored.content;
+    let lastPreviewedContent = authored.content;
+    let previewSeq = 0;
+
+    /** Apply content to the slide for live preview (no undo entry). */
+    const previewHtml = async (content: string) => {
+      const sk = (window as any).sk;
+      if (!sk?._definitions?.[slideIndex]) return;
+      const def = sk._definitions[slideIndex];
+      const flat = flattenElements(def.elements);
+      const defElement = flat.flatMap.get(elementId);
+      if (!defElement || !('content' in defElement)) return;
+
+      (defElement as unknown as Record<string, unknown>).content = content;
+
+      const rerender = sk._rerenderSlide as (i: number, d: any) => Promise<any>;
+      if (!rerender) return;
+      const seq = ++previewSeq;
+      await rerender(slideIndex, def);
+      if (seq !== previewSeq) return;
+
+      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
+      lastPreviewedContent = content;
+    };
+
+    /** Commit the current value: push undo entry for the delta since last commit. */
+    const commitHtmlEdit = async () => {
+      const newContent = textarea.value;
+      if (newContent === committedContent) return;
+
+      // Ensure the slide shows the committed content
+      if (lastPreviewedContent !== newContent) {
+        await previewHtml(newContent);
+      }
+
+      // Push undo
+      const ds = debugController.state;
+      ds.undoStack.push({ elementId, propKey: '_content', oldValue: committedContent, newValue: newContent, slideIndex });
+      ds.redoStack.length = 0;
+      updateDiffDirtyIndicator();
+
+      committedContent = newContent;
+      statusMsg.textContent = "Committed";
+      statusMsg.style.color = "#4caf50";
+      setTimeout(() => { if (statusMsg.textContent === "Committed") statusMsg.textContent = ""; }, 2000);
+    };
+
+    // Live preview on input
+    let inputDebounce: ReturnType<typeof setTimeout> | null = null;
+    textarea.addEventListener("input", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        const content = textarea.value;
+        // Validate HTML
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
+        const errors = doc.querySelectorAll("parsererror");
+        if (errors.length > 0) {
+          statusMsg.textContent = "Invalid HTML";
+          statusMsg.style.color = "#ea4335";
+          textarea.style.borderColor = "#ea4335";
+          return;
+        }
+        textarea.style.borderColor = "#4a9eff";
+        statusMsg.textContent = content !== committedContent ? "Preview" : "";
+        statusMsg.style.color = "#ff8c32";
+        previewHtml(content);
+      }, 150);
+    });
+
+    // Ctrl+Enter to commit, Esc to revert
+    textarea.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") {
+        e.preventDefault();
+        commitHtmlEdit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        textarea.value = committedContent;
+        textarea.style.borderColor = "#ddd";
+        statusMsg.textContent = "";
+        if (lastPreviewedContent !== committedContent) {
+          previewHtml(committedContent);
+        }
+      }
+    });
+
+    // Commit on blur
+    textarea.addEventListener("blur", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      commitHtmlEdit();
+    });
+
+    const hint = document.createElement("div");
+    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
+    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
+
+    htmlDiv.appendChild(textarea);
+    htmlDiv.appendChild(statusMsg);
+    htmlDiv.appendChild(hint);
   } else {
     htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
@@ -435,10 +1030,11 @@ export function updateSelectionHighlight(elementId: string | null, slideIndex: n
   const sk = typeof window !== "undefined" ? window.sk : null;
   if (!sk?.layouts?.[slideIndex]) return;
 
-  const sceneEl: SceneElement | undefined = sk.layouts[slideIndex].elements[elementId];
+  const allElements = sk.layouts[slideIndex].elements;
+  const sceneEl: SceneElement | undefined = allElements[elementId];
   if (!sceneEl?.resolved) return;
 
-  const r = sceneEl.resolved;
+  const r = absoluteBounds(sceneEl, allElements);
   const highlight = document.createElement("div");
   highlight.setAttribute("data-sk-debug", "selection");
   highlight.setAttribute("data-sk-debug-id", elementId);

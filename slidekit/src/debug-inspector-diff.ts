@@ -142,11 +142,39 @@ function diffProps(
   return changes;
 }
 
-/** Generate a diff between two scene graphs. Only shows changed elements. */
+/** Build an LLM-friendly metadata header for the diff output. */
+function buildDiffHeader(slideIndex: number): string {
+  const lines: string[] = [];
+  const url = typeof window !== 'undefined' ? window.location.href : '(unknown)';
+  const sk = typeof window !== 'undefined' ? (window as any).sk : null;
+  const sourceHint: string | undefined = sk?._config?.debug?.sourceHint;
+
+  lines.push('# Presentation Context');
+  lines.push(`- URL: ${url}`);
+  lines.push(`- Slide: ${slideIndex} (0-indexed)`);
+  if (sourceHint) {
+    lines.push(`- Source: ${sourceHint}`);
+  }
+  lines.push('');
+  lines.push('# Instructions');
+  lines.push(
+    `There is a presentation at the URL above. The user has modified slide ${slideIndex} using the` +
+    ` SlideKit inspector. Below is a diff of what changed in the scene graph. Please look` +
+    ` at the slide definition code${sourceHint ? ` in ${sourceHint}` : ''} and update it to match the AFTER state.`
+  );
+  lines.push('');
+  return lines.join('\n');
+}
+
+/** Generate a diff between two scene graphs. Only shows changed elements.
+ *  When slideIndex is provided, a metadata header is prepended for LLM consumption.
+ */
 export function generateSceneGraphDiff(
   before: Record<string, SceneElement>,
   after: Record<string, SceneElement>,
+  slideIndex?: number,
 ): string {
+  const header = slideIndex !== undefined ? buildDiffHeader(slideIndex) : '';
   const lines: string[] = ['# Scene Graph Changes', ''];
   let hasChanges = false;
 
@@ -179,9 +207,20 @@ export function generateSceneGraphDiff(
     const aProps = (aEl.authored?.props ?? {}) as Record<string, unknown>;
     const changes = diffProps(bProps, aProps);
 
-    if (changes.length > 0) {
+    // Compare content
+    const bContent = bEl.authored?.content;
+    const aContent = aEl.authored?.content;
+    const contentChanged = bContent !== aContent;
+
+    if (changes.length > 0 || contentChanged) {
       hasChanges = true;
       lines.push(`## ${id} (${aEl.type})`);
+
+      if (contentChanged) {
+        const bStr = bContent ? (bContent.length > 200 ? bContent.slice(0, 200) + '...' : bContent) : '(none)';
+        const aStr = aContent ? (aContent.length > 200 ? aContent.slice(0, 200) + '...' : aContent) : '(none)';
+        lines.push(`  content: ${JSON.stringify(bStr)} \u2192 ${JSON.stringify(aStr)}`);
+      }
 
       for (const { key, before: bVal, after: aVal } of changes) {
         lines.push(`  ${key}: ${formatPropValue(bVal)} \u2192 ${formatPropValue(aVal)}`);
@@ -202,7 +241,7 @@ export function generateSceneGraphDiff(
     lines.push('');
   }
 
-  return lines.join('\n');
+  return header + lines.join('\n');
 }
 
 // =============================================================================
@@ -296,7 +335,7 @@ export function openDiffModal(): void {
   const current: Record<string, SceneElement> = sk?.layouts?.[slideIndex]?.elements ?? {};
 
   // Generate content for each tab
-  const diffText = generateSceneGraphDiff(baseline, current);
+  const diffText = generateSceneGraphDiff(baseline, current, slideIndex);
   const beforeText = serializeSceneGraph(baseline);
   const afterText = serializeSceneGraph(current);
 

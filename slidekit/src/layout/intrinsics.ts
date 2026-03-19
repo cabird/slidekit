@@ -21,17 +21,24 @@ import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec } from '..
 export async function getEffectiveDimensions(element: SlideElement): Promise<{ w: number; h: number; _autoHeight: boolean }> {
   const { props, type } = element;
 
-  // Auto-height for el() elements
-  if (type === "el" && (props.h === undefined || props.h === null)) {
+  // Dimension constraints (matchWidth/matchHeight) are deferred — use 0 as placeholder
+  const wIsDeferred = isRelMarker(props.w);
+  const hIsDeferred = isRelMarker(props.h);
+  const effectiveW = wIsDeferred ? 0 : (props.w as number) || 0;
+  const effectiveH = hIsDeferred ? 0 : (props.h as number) || 0;
+
+  // Auto-height for el() elements (only when h is not a deferred constraint)
+  if (type === "el" && !hIsDeferred && (props.h === undefined || props.h === null)) {
     const html = element.content || "";
+    const measureW = wIsDeferred ? undefined : (props.w as number | undefined);
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: (props.w as number) || 0, h: 0, _autoHeight: true };
+      return { w: effectiveW, h: 0, _autoHeight: true };
     }
-    const metrics = await measure(html, { w: props.w as number | undefined, style: props.style as Record<string, unknown> | undefined, className: props.className });
-    return { w: (props.w as number) || metrics.w, h: metrics.h, _autoHeight: true };
+    const metrics = await measure(html, { w: measureW, style: props.style as Record<string, unknown> | undefined, className: props.className });
+    return { w: effectiveW || metrics.w, h: metrics.h, _autoHeight: true };
   }
 
-  return { w: (props.w as number) || 0, h: (props.h as number) || 0, _autoHeight: false };
+  return { w: effectiveW, h: effectiveH, _autoHeight: false };
 }
 
 /**
@@ -100,21 +107,22 @@ export async function resolveIntrinsicSizes(
   }
 
   // Validate: _rel markers must only be on x and y, not w or h
+  // Exception: matchWidth and matchHeight are valid dimension constraints
   for (const [id, el] of flatMap) {
-    if (isRelMarker(el.props.w)) {
+    if (isRelMarker(el.props.w) && (el.props.w as { _rel: string })._rel !== 'matchWidth') {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "w",
-        message: `Element "${id}": _rel marker on "w" is invalid. Deferred values are only valid on x and y.`,
+        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() is valid on w.`,
       });
     }
-    if (isRelMarker(el.props.h)) {
+    if (isRelMarker(el.props.h) && (el.props.h as { _rel: string })._rel !== 'matchHeight') {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "h",
-        message: `Element "${id}": _rel marker on "h" is invalid. Deferred values are only valid on x and y.`,
+        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() is valid on h.`,
       });
     }
   }

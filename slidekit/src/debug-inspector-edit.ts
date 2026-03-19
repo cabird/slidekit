@@ -158,7 +158,10 @@ export async function applyEdit(
   if (!element) return;
 
   // Mutate the live definition — handle nested gap paths (e.g. "x.gap")
-  if (propKey.endsWith('.gap')) {
+  // and special _content key for HTML content editing
+  if (propKey === '_content') {
+    (element as unknown as Record<string, unknown>).content = newValue;
+  } else if (propKey.endsWith('.gap')) {
     const axis = propKey.split('.')[0];
     const marker = (element.props as Record<string, unknown>)[axis];
     if (marker && typeof marker === 'object' && '_rel' in (marker as Record<string, unknown>)) {

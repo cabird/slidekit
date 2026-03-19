@@ -1,6 +1,6 @@
 {
   "name": "slidekit",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "description": "A coordinate-based slide layout library built on Reveal.js, designed for AI agents and humans",
   "author": "Christian Bird",
   "license": "MIT",

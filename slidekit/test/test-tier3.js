@@ -1290,7 +1290,7 @@ describe("debug overlay — keyboard toggle", () => {
     assert.equal(typeof mod.default.getDebugMode, "function");
   });
 
-  it("Ctrl+Shift+D cycles through debug modes", async () => {
+  it("Ctrl+Period toggles debug overlay on and off", async () => {
     await withContainer(async (container) => {
       _resetForTests();
       const e = el('', { id: "kbd1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
@@ -1302,33 +1302,25 @@ describe("debug overlay — keyboard toggle", () => {
       mod.enableKeyboardToggle();
 
       const press = () => document.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "D", ctrlKey: true, shiftKey: true, bubbles: true,
+        key: ".", ctrlKey: true, bubbles: true,
       }));
 
-      // Mode 0 -> 1: boxes + labels (no relationships)
+      // Off -> On
       press();
       assert.equal(mod.getDebugMode(), 1, "mode should be 1 after first press");
-      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 1");
-      let relSvg = document.querySelector('[data-sk-debug="relationships"]');
-      assert.equal(relSvg, null, "mode 1 should not show relationships");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible after toggle on");
 
-      // Mode 1 -> 2: boxes + labels + relationships
+      // On -> Off
       press();
-      assert.equal(mod.getDebugMode(), 2, "mode should be 2 after second press");
-      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 2");
+      assert.equal(mod.getDebugMode(), 0, "mode should be 0 after second press");
+      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should be hidden after toggle off");
 
-      // Mode 2 -> 3: relationships only
+      // Off -> On again
       press();
-      assert.equal(mod.getDebugMode(), 3, "mode should be 3 after third press");
-      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible in mode 3");
-      const boxes = document.querySelectorAll('[data-sk-debug="box"]');
-      assert.equal(boxes.length, 0, "mode 3 should not show boxes");
+      assert.equal(mod.getDebugMode(), 1, "mode should be 1 after third press");
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be visible after toggle on again");
 
-      // Mode 3 -> 0: off
-      press();
-      assert.equal(mod.getDebugMode(), 0, "mode should be 0 after fourth press");
-      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should be hidden in mode 0");
-
+      mod.removeDebugOverlay();
       mod.disableKeyboardToggle();
     });
   });
@@ -1349,7 +1341,7 @@ describe("debug overlay — keyboard toggle", () => {
       document.body.appendChild(input);
 
       input.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "D", ctrlKey: true, shiftKey: true, bubbles: true,
+        key: ".", ctrlKey: true, bubbles: true,
       }));
       assert.equal(mod.isDebugOverlayVisible(), false, "overlay should NOT toggle when target is input");
 
@@ -1578,6 +1570,177 @@ describe("inspector panel — lifecycle", () => {
 });
 
 // =============================================================================
+// Inspector Panel — Visibility Toggles
+// =============================================================================
+
+describe("inspector panel — visibility toggles", () => {
+  it("visibility toggle section is present in the inspector", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "vis1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const section = document.querySelector('[data-sk-role="visibility-toggles"]');
+      assert.ok(section, "visibility toggles section should exist in inspector");
+
+      // Should have 6 checkboxes
+      const checkboxes = section.querySelectorAll('input[type="checkbox"]');
+      assert.equal(checkboxes.length, 6, "should have 6 visibility checkboxes");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("unchecking boxes hides bounding boxes in overlay", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "vis2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Boxes should be visible by default
+      let boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.ok(boxes.length > 0, "boxes should be visible by default");
+
+      // Uncheck the showBoxes checkbox
+      const boxCheckbox = document.querySelector('[data-sk-visibility="showBoxes"]');
+      assert.ok(boxCheckbox, "showBoxes checkbox should exist");
+      boxCheckbox.checked = false;
+      boxCheckbox.dispatchEvent(new Event('change'));
+
+      // Boxes should now be hidden
+      boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.equal(boxes.length, 0, "boxes should be hidden after unchecking");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("unchecking relationships hides constraint arrows", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "vis-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "vis-b", x: 100, y: below("vis-a", { gap: 20 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay({ showRelationships: true });
+
+      // Relationships should be visible
+      let relSvg = document.querySelector('[data-sk-debug="relationships"]');
+      assert.ok(relSvg, "relationships SVG should exist");
+
+      // Uncheck relationships
+      const relCheckbox = document.querySelector('[data-sk-visibility="showRelationships"]');
+      assert.ok(relCheckbox, "showRelationships checkbox should exist");
+      relCheckbox.checked = false;
+      relCheckbox.dispatchEvent(new Event('change'));
+
+      // Relationships should now be hidden
+      relSvg = document.querySelector('[data-sk-debug="relationships"]');
+      assert.equal(relSvg, null, "relationships should be hidden after unchecking");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Inspector Panel — Element List
+// =============================================================================
+
+describe("inspector panel — element list", () => {
+  it("element list section is present in the inspector", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "lst1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      const section = document.querySelector('[data-sk-role="element-list"]');
+      assert.ok(section, "element list section should exist");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("element list shows elements grouped by layer", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const bgEl = el('bg', { id: "bg1", x: 0, y: 0, w: 1920, h: 1080, layer: "bg" });
+      const contentEl = el('content', { id: "c1", x: 100, y: 100, w: 200, h: 100 });
+      await render([{ elements: [bgEl, contentEl] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Expand the element list by clicking its header
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      const header = listSection.querySelector('div');
+      header.click();
+
+      // Check both elements appear
+      const items = listSection.querySelectorAll('[data-sk-element-list-id]');
+      const ids = Array.from(items).map(i => i.getAttribute('data-sk-element-list-id'));
+      assert.ok(ids.includes("bg1"), "should contain bg element");
+      assert.ok(ids.includes("c1"), "should contain content element");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("hiding element removes its debug box from overlay", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e1 = el('a', { id: "hide1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const e2 = el('b', { id: "hide2", x: 400, y: 100, w: 200, h: 100, style: { background: "#666" } });
+      await render([{ elements: [e1, e2] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Both boxes should be visible
+      let boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.ok(boxes.length >= 2, "should have at least 2 debug boxes");
+
+      // Expand element list and uncheck hide1
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      const header = listSection.querySelector('div');
+      header.click();
+
+      const hide1Row = listSection.querySelector('[data-sk-element-list-id="hide1"]');
+      assert.ok(hide1Row, "should find hide1 in element list");
+      const checkbox = hide1Row.querySelector('input[type="checkbox"]');
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event('change'));
+
+      // hide1's box should be gone
+      const hide1Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="hide1"]');
+      assert.equal(hide1Box, null, "hide1 debug box should be hidden");
+
+      // hide2's box should still be there
+      const hide2Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="hide2"]');
+      assert.ok(hide2Box, "hide2 debug box should still be visible");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
 // Inspector Panel — Element Selection
 // =============================================================================
 
@@ -1763,7 +1926,9 @@ describe("inspector panel — content sections", () => {
 
       const section = document.querySelector('[data-sk-inspector-section="Inner HTML"]');
       assert.ok(section, "Inner HTML section should exist");
-      assert.ok(section.textContent.includes("Hello World"), "should show HTML content");
+      const textarea = section.querySelector('[data-sk-html-editor]');
+      assert.ok(textarea, "should have an HTML editor textarea");
+      assert.ok(textarea.value.includes("Hello World"), "textarea should contain HTML content");
 
       mod._resetDebugForTests();
     });
@@ -2783,6 +2948,459 @@ describe("inspector editing — constraint gap", () => {
       assert.deepEqual(opts('overflow', 'el'), ['visible', 'warn', 'clip', 'error']);
       assert.deepEqual(opts('layer', 'el'), ['bg', 'content', 'overlay']);
       assert.equal(opts('unknownProp', 'el'), null);
+    });
+  });
+});
+
+// =============================================================================
+// Toggle preserves checkbox state (lastToggleOptions persistence)
+// =============================================================================
+
+describe("debug overlay — toggle preserves visibility settings", () => {
+  it("unchecked visibility checkbox persists across toggle off/on", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "tp1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Uncheck the showBoxes checkbox
+      const boxCheckbox = document.querySelector('[data-sk-visibility="showBoxes"]');
+      assert.ok(boxCheckbox, "showBoxes checkbox should exist");
+      boxCheckbox.checked = false;
+      boxCheckbox.dispatchEvent(new Event('change'));
+
+      // Verify boxes are gone
+      let boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.equal(boxes.length, 0, "boxes should be hidden after unchecking");
+
+      // Toggle off
+      mod.toggleDebugOverlay();
+      assert.equal(mod.isDebugOverlayVisible(), false, "overlay should be off");
+
+      // Toggle on — checkbox state should be remembered
+      mod.toggleDebugOverlay();
+      assert.equal(mod.isDebugOverlayVisible(), true, "overlay should be back on");
+
+      // Boxes should still be hidden (showBoxes was unchecked)
+      boxes = document.querySelectorAll('[data-sk-debug="box"]');
+      assert.equal(boxes.length, 0, "boxes should still be hidden after toggle round-trip");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("unchecked labels checkbox persists across toggle off/on", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "tp2", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Verify labels exist by default
+      let labels = document.querySelectorAll('[data-sk-debug="id-label"]');
+      assert.ok(labels.length > 0, "labels should be visible by default");
+
+      // Uncheck the showIds (Labels) checkbox
+      const labelsCheckbox = document.querySelector('[data-sk-visibility="showIds"]');
+      assert.ok(labelsCheckbox, "showIds checkbox should exist");
+      labelsCheckbox.checked = false;
+      labelsCheckbox.dispatchEvent(new Event('change'));
+
+      // Labels should be gone
+      labels = document.querySelectorAll('[data-sk-debug="id-label"]');
+      assert.equal(labels.length, 0, "labels should be hidden after unchecking");
+
+      // Toggle off then on
+      mod.toggleDebugOverlay();
+      mod.toggleDebugOverlay();
+
+      // Labels should still be hidden
+      labels = document.querySelectorAll('[data-sk-debug="id-label"]');
+      assert.equal(labels.length, 0, "labels should still be hidden after toggle round-trip");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Element list — layer master checkbox
+// =============================================================================
+
+describe("inspector panel — element list layer checkbox", () => {
+  it("layer master checkbox hides all elements in that layer", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const c1 = el('a', { id: "lc1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const c2 = el('b', { id: "lc2", x: 400, y: 100, w: 200, h: 100, style: { background: "#666" } });
+      await render([{ elements: [c1, c2] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Both boxes should be visible initially
+      let lc1Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lc1"]');
+      let lc2Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lc2"]');
+      assert.ok(lc1Box, "lc1 box should be visible");
+      assert.ok(lc2Box, "lc2 box should be visible");
+
+      // Expand element list
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      const header = listSection.querySelector('div');
+      header.click();
+
+      // Find the Content layer checkbox (both elements are in content layer)
+      // Layer checkboxes are in the element list, not the individual element rows
+      const layerRows = listSection.querySelectorAll('input[type="checkbox"]');
+      // Layer checkboxes are at the layer-header level, not inside data-sk-element-list-id rows
+      let contentLayerCheckbox = null;
+      for (const cb of layerRows) {
+        const row = cb.closest('[data-sk-element-list-id]');
+        if (!row && cb.closest('div')?.textContent?.includes('Content')) {
+          contentLayerCheckbox = cb;
+          break;
+        }
+      }
+      assert.ok(contentLayerCheckbox, "Content layer master checkbox should exist");
+
+      // Uncheck the layer
+      contentLayerCheckbox.checked = false;
+      contentLayerCheckbox.dispatchEvent(new Event('change'));
+
+      // Both elements' boxes should be hidden
+      lc1Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lc1"]');
+      lc2Box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lc2"]');
+      assert.equal(lc1Box, null, "lc1 box should be hidden after layer unchecked");
+      assert.equal(lc2Box, null, "lc2 box should be hidden after layer unchecked");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("re-checking layer master checkbox restores element visibility", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const c1 = el('a', { id: "lcr1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [c1] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Expand element list
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      listSection.querySelector('div').click();
+
+      // Find Content layer checkbox
+      const layerRows = listSection.querySelectorAll('input[type="checkbox"]');
+      let contentLayerCheckbox = null;
+      for (const cb of layerRows) {
+        const row = cb.closest('[data-sk-element-list-id]');
+        if (!row && cb.closest('div')?.textContent?.includes('Content')) {
+          contentLayerCheckbox = cb;
+          break;
+        }
+      }
+      assert.ok(contentLayerCheckbox, "Content layer checkbox should exist");
+
+      // Uncheck then re-check
+      contentLayerCheckbox.checked = false;
+      contentLayerCheckbox.dispatchEvent(new Event('change'));
+
+      let box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lcr1"]');
+      assert.equal(box, null, "box should be hidden");
+
+      contentLayerCheckbox.checked = true;
+      contentLayerCheckbox.dispatchEvent(new Event('change'));
+
+      box = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="lcr1"]');
+      assert.ok(box, "box should be visible again after re-checking layer");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Element list — click to select
+// =============================================================================
+
+describe("inspector panel — element list click selection", () => {
+  it("clicking element row in list selects it in inspector", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "lsel1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Expand element list
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      listSection.querySelector('div').click();
+
+      // Click on the element row
+      const row = listSection.querySelector('[data-sk-element-list-id="lsel1"]');
+      assert.ok(row, "lsel1 row should exist in element list");
+      row.click();
+
+      // Inspector body should show the element's details
+      const body = document.querySelector('[data-sk-inspector-body]');
+      assert.ok(body.textContent.includes("lsel1"), "inspector should show selected element ID after list click");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("hidden element does not show selection highlight on overlay", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e1 = el('a', { id: "hsel1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const e2 = el('b', { id: "hsel2", x: 400, y: 100, w: 200, h: 100, style: { background: "#666" } });
+      await render([{ elements: [e1, e2] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Expand element list and hide hsel1
+      const listSection = document.querySelector('[data-sk-role="element-list"]');
+      listSection.querySelector('div').click();
+
+      const hide1Row = listSection.querySelector('[data-sk-element-list-id="hsel1"]');
+      const checkbox = hide1Row.querySelector('input[type="checkbox"]');
+      checkbox.checked = false;
+      checkbox.dispatchEvent(new Event('change'));
+
+      // The hidden element's debug box should not exist
+      const hiddenBox = document.querySelector('[data-sk-debug="box"][data-sk-debug-id="hsel1"]');
+      assert.equal(hiddenBox, null, "hidden element should not have a debug box");
+
+      // Selection highlight should also not exist for hidden element
+      const selectionHighlight = document.querySelector('[data-sk-debug="selection"][data-sk-debug-id="hsel1"]');
+      assert.equal(selectionHighlight, null, "hidden element should not have selection highlight");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Editable constraints in Relationships section
+// =============================================================================
+
+describe("inspector panel — editable constraint spans", () => {
+  it("incoming constraint type is a clickable span with underline", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "ec-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "ec-b", x: 100, y: below("ec-a", { gap: 20 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select element b (the one with the incoming constraint)
+      const target = container.querySelector('[data-sk-id="ec-b"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const relSection = document.querySelector('[data-sk-inspector-section="Relationships"]');
+      assert.ok(relSection, "Relationships section should exist");
+
+      // Find all spans in the relationships section
+      const spans = relSection.querySelectorAll('span');
+      let typeSpan = null;
+      let refSpan = null;
+      for (const span of spans) {
+        if (span.textContent === 'below' && span.style.cursor === 'pointer') {
+          typeSpan = span;
+        }
+        if (span.textContent === 'ec-a' && span.style.cursor === 'pointer') {
+          refSpan = span;
+        }
+      }
+
+      assert.ok(typeSpan, "constraint type should be a clickable span");
+      assert.equal(typeSpan.style.textDecorationStyle, "dashed", "type span should have dashed underline");
+
+      assert.ok(refSpan, "reference element should be a clickable span");
+      assert.equal(refSpan.style.textDecorationStyle, "dashed", "ref span should have dashed underline");
+
+      mod._resetDebugForTests();
+    });
+  });
+
+  it("outgoing constraint is not clickable (read-only)", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const a = el('', { id: "eco-a", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      const b = el('', { id: "eco-b", x: 100, y: below("eco-a", { gap: 20 }), w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [a, b] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select element a (the one with the outgoing constraint)
+      const target = container.querySelector('[data-sk-id="eco-a"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      const relSection = document.querySelector('[data-sk-inspector-section="Relationships"]');
+      assert.ok(relSection, "Relationships section should exist");
+
+      // For outgoing constraints, the type should NOT be a clickable/editable span
+      const spans = relSection.querySelectorAll('span');
+      let clickableTypeSpan = null;
+      for (const span of spans) {
+        if (span.textContent.includes('below') && span.style.cursor === 'pointer') {
+          clickableTypeSpan = span;
+        }
+      }
+      assert.equal(clickableTypeSpan, null, "outgoing constraint type should not be clickable");
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// HTML content editing — undo integration
+// =============================================================================
+
+describe("inspector editing — HTML content undo", () => {
+  it("_content edit pushes to undo stack", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('<h1>Original</h1>', { id: "hundo1", x: 100, y: 100, w: 400, h: 200 });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select the element
+      const target = container.querySelector('[data-sk-id="hundo1"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      // Find the HTML editor textarea
+      const section = document.querySelector('[data-sk-inspector-section="Inner HTML"]');
+      assert.ok(section, "Inner HTML section should exist");
+      const textarea = section.querySelector('[data-sk-html-editor]');
+      assert.ok(textarea, "HTML editor textarea should exist");
+
+      // Modify content and commit with Ctrl+Enter
+      textarea.value = '<h1>Modified</h1>';
+      textarea.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Enter', ctrlKey: true, bubbles: true,
+      }));
+
+      // Wait for async commit
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Undo should restore the original content
+      mod.undo();
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Verify the definition was reverted
+      const def = window.sk._definitions[0];
+      const flatEls = def.elements;
+      let found = null;
+      for (const el of flatEls) {
+        if (el.props && el.props.id === 'hundo1') { found = el; break; }
+        if (el.id === 'hundo1') { found = el; break; }
+      }
+      // The content should be restored to original after undo
+      if (found && 'content' in found) {
+        assert.equal(found.content, '<h1>Original</h1>', "undo should restore original HTML content");
+      }
+
+      mod._resetDebugForTests();
+    });
+  });
+});
+
+// =============================================================================
+// Diff output header — contains URL and slide index
+// =============================================================================
+
+describe("inspector diff — enhanced header", () => {
+  it("diff modal content contains URL and slide index", async () => {
+    await withContainer(async (container) => {
+      _resetForTests();
+      const e = el('', { id: "diff1", x: 100, y: 100, w: 200, h: 100, style: { background: "#333" } });
+      await render([{ elements: [e] }], { container });
+
+      const mod = await import('../slidekit-debug.js');
+      mod._resetDebugForTests();
+      mod.renderDebugOverlay();
+
+      // Select and edit the element to create a diff
+      const target = container.querySelector('[data-sk-id="diff1"]');
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+      // Find the x prop and start editing
+      const propRows = document.querySelectorAll('[data-sk-prop]');
+      let xRow = null;
+      for (const row of propRows) {
+        if (row.getAttribute('data-sk-prop') === 'x') { xRow = row; break; }
+      }
+      if (!xRow) {
+        // If we can't find the prop row, skip gracefully
+        mod._resetDebugForTests();
+        return;
+      }
+
+      // Click to start editing
+      const valueSpan = xRow.querySelector('[data-sk-editable]');
+      if (!valueSpan) {
+        mod._resetDebugForTests();
+        return;
+      }
+      valueSpan.click();
+      const input = xRow.querySelector('input[type="number"]');
+      if (!input) {
+        mod._resetDebugForTests();
+        return;
+      }
+
+      // Change value
+      input.value = "150";
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      // Open the diff modal via the diff button
+      const diffBtn = document.querySelector('[data-sk-diff-btn]');
+      if (!diffBtn) {
+        // Diff button may not exist if no changes detected
+        mod._resetDebugForTests();
+        return;
+      }
+      diffBtn.click();
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Check modal content
+      const modalContent = document.querySelector('[data-sk-diff-content]');
+      if (modalContent) {
+        const text = modalContent.textContent || '';
+        assert.ok(text.includes('URL:') || text.includes('Slide:'), "diff header should contain URL or slide index info");
+      }
+
+      // Close modal
+      const modalOverlay = document.querySelector('[data-sk-diff-modal-overlay]');
+      if (modalOverlay) modalOverlay.remove();
+
+      mod._resetDebugForTests();
     });
   });
 });

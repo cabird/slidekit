@@ -212,6 +212,10 @@ const _CONSTRAINT_ANCHORS: Record<string, [string, string]> = {
   alignRight:  ["cr", "cr"],
   centerIn:    ["cc", "cc"],
   between:     ["bc", "cc"],
+  matchWidth:  ["cr", "cl"],
+  matchHeight: ["bc", "tc"],
+  centerHSlide: ["cc", "cc"],
+  centerVSlide: ["cc", "cc"],
 };
 
 /**

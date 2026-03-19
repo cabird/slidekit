@@ -231,10 +231,10 @@ function _handleDebugKeydown(event: KeyboardEvent): void {
     }
   }
 
-  if (event.ctrlKey && event.shiftKey && (event.key === "d" || event.key === "D")) {
+  if (event.ctrlKey && event.key === ".") {
     event.preventDefault();
     event.stopPropagation();
-    cycleDebugMode(s.lastToggleOptions);
+    toggleDebugOverlay(s.lastToggleOptions);
     return;
   }
 
@@ -274,8 +274,8 @@ export function cycleDebugMode(baseOptions: DebugOverlayOptions = {}): number {
 }
 
 /**
- * Enable keyboard toggle for the debug overlay (Ctrl+Shift+D).
- * Cycles through: off → boxes+labels → +relationships → relationships only → off.
+ * Enable keyboard toggle for the debug overlay (Ctrl+Period).
+ * Toggles the overlay and inspector on/off.
  * Idempotent — only attaches the listener once.
  */
 export function enableKeyboardToggle(options: DebugOverlayOptions = {}): void {
@@ -463,13 +463,16 @@ export function isDebugOverlayVisible(): boolean {
 
 /** Toggle the debug overlay on/off. */
 export function toggleDebugOverlay(options: DebugOverlayOptions = {}): boolean {
+  const s = debugController.state;
   if (isDebugOverlayVisible()) {
     removeDebugOverlay();
+    s.debugMode = 0;
     return false;
   } else {
     const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
-    renderDebugOverlay({ ...options, slideIndex });
+    renderDebugOverlay({ ...s.lastToggleOptions, ...options, slideIndex });
     _attachSlideChangeListener();
+    s.debugMode = 1;
     return true;
   }
 }
