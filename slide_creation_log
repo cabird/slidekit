@@ -1,0 +1,1752 @@
+# Verification Log
+
+Each slide is verified independently. Entries are appended by per-slide verifier agents.
+
+---
+
+## Slide 01: Title
+
+**First look:** Dark cinematic background with gradient orbs renders well. Glass panel contains the hero headline "Agentic Coding / Session Memory" in large white bold text, italic subtitle, attribution, and org line. All text is center-aligned and readable. The glassmorphic effect (blur, border, shadow) looks premium and matches the intended tone. Background image (hero-bg.png) shows through at 60% opacity with colorful gradient orbs.
+
+**DOM inspection:**
+- s1-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s1-bg-img: x=0, y=0, w=1920, h=1080 (orb image at 60% opacity) -- layer: bg
+- s1-panel: x=370, y=296, w=1180, h=488 -- layer: content (centered at 540, exact vertical center)
+- s1-headline: w=1084, h=192 (80px Poppins bold)
+- s1-subtitle: w=1084, h=42 (32px Poppins italic)
+- s1-attribution: w=1084, h=25 (18px Poppins)
+- s1-org: w=1084, h=25 (18px Poppins)
+- All content within bounds, no canvas overflow.
+
+**Lint results:**
+- `non-ancestor-overlap` (error): s1-bg overlaps s1-bg-img -- SKIP, intentional stacked bg layers (~1% real per triage)
+- `min-vertical-gap` (warning): headline-to-subtitle gap is 36px vs 48px recommended -- Acceptable; 48px would over-space the smaller caption elements that share the same gap setting. Spec skeleton uses gap:24; bumped to 36 as a compromise.
+- `font-too-small` (warning) on all 4 text elements: reports 16px but computed styles confirm actual sizes are 80px, 32px, 18px, 18px -- FALSE POSITIVES, linter reading default/fallback value not the inline style.
+
+**Issues:**
+- Panel was positioned too high (y=240, center at 466 vs slide center 540). Spec says "centered vertically and horizontally."
+- Gap between text elements was 24px; linter flagged multiple gap-too-small warnings.
+
+**Fixes applied:**
+- Changed panelY from hardcoded 240 to calculated `Math.round((1080 - estPanelH) / 2)` = 296, centering the panel vertically as spec requires.
+- Increased panel gap from 24px to 36px, resolving subtitle/attribution and attribution/org gap warnings while maintaining visual balance.
+
+**After fix:** Re-screenshotted and re-linted. Panel is now perfectly vertically centered (center at y=540). Remaining lint findings are all skippable (bg overlap = intentional, headline gap = acceptable at 36px, font-too-small = false positives). Visual appearance is clean, dramatic, and matches the spec's cinematic glassmorphic intent.
+
+**Status:** PASS
+
+---
+
+## Slide 02: The Problem
+
+**First look:** Dark background with subtle gradient orbs visible at bottom. The heading "The Problem" is centered, white, 56px -- looks good. Subheading below in muted gray is readable. Three glass panel cards stacked vertically below, each with an orange left accent bar. The cards are visible and readable.
+
+Observations:
+- The content block (heading + subheading + 3 cards) appears vertically shifted upward -- there is significant empty space below the third card. The three cards end roughly 60% of the way down the slide, leaving the bottom third empty.
+- The orange accent bars on the left edge of each card are visible and correctly styled.
+- Card text is left-aligned as spec requires.
+- The glassmorphic effect on cards is visible -- border, blur, subtle transparency.
+- Font sizes appear to match the spec (26px titles in cards, 20px body text).
+- The gap between cards appears to be `md` (24px) as spec requires.
+- Card 1 text wraps to two body lines; cards 2 and 3 are more compact (single body line each).
+
+Potential issues to investigate:
+1. Vertical balance -- too much empty space at bottom; content should be more centered overall.
+2. Font sizes slightly smaller than spec (26px vs 28px for titles, 20px vs 22px for body).
+
+**DOM inspection:**
+- s2-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s2-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 40% opacity) -- layer: bg
+- s2-heading: x=360, y=90, w=1200, h=76 (anchor: tc at x=960)
+- s2-subheading: x=410, y=166, w=1100, h=77 (anchor: tc at x=960)
+- s2-card1: x=288, y=243, w=1344, h=124
+- s2-card2: x=288, y=367, w=1344, h=124
+- s2-card3: x=288, y=491, w=1344, h=124
+
+Gap analysis (all 0px -- CRITICAL BUG):
+- heading -> subheading: 0px (should be md=24px)
+- subheading -> card1: 0px (should be lg=32px)
+- card1 -> card2: 0px (should be md=24px)
+- card2 -> card3: 0px (should be md=24px)
+
+Content bottom at y=615, leaving 465px empty space below. Content is crammed at the top.
+
+Root cause: The `below()` API expects `{gap: 'md'}` (object) but was called with just `'md'` (string). The function signature is `below(ref, opts={})` and it reads `opts.gap`. When a string is passed, `opts.gap` is `undefined` which defaults to 0.
+
+**Fix #1: below() gap arguments** -- Changed all 4 `below()` calls from bare string form to object form:
+- `below('s2-heading', 'md')` -> `below('s2-heading', { gap: 'md' })`
+- `below('s2-subheading', 'lg')` -> `below('s2-subheading', { gap: 'lg' })`
+- `below('s2-card1', 'md')` -> `below('s2-card1', { gap: 'md' })`
+- `below('s2-card2', 'md')` -> `below('s2-card2', { gap: 'md' })`
+
+**Fix #2: Font sizes** -- Updated card titles from 26px to 28px and card body text from 20px to 22px to match spec typography (heading.sub=28px, body=22px).
+
+**After fix #1+#2 (reload ?t=2):**
+Gaps now correct: 24px (heading->sub), 32px (sub->card1), 24px (card1->card2), 24px (card2->card3).
+Content spans y=90 to y=767 (677px). Safe zone is 900px. Cards are visibly spaced apart.
+Card heights grew slightly with larger fonts: card1=162px, cards 2&3=129px each.
+
+**Lint results (after fix #1+#2):**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s2-bg / s2-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `min-vertical-gap` | s2-heading, s2-subheading, s2-card1, s2-card2 | warning | INVESTIGATE -- linter recommends 48px min based on font sizes. Spec says md=24 between cards, but 48px would improve balance. |
+| `unbalanced-trailing-whitespace` | s2-subheading, s2-card1, s2-card2, s2-card3 | warning | INVESTIGATE -- content sits in upper 70% of safe zone. |
+| `font-too-small` | all 5 content elements | warning | SKIP -- false positives; linter reports 16px default, actual inline fonts are 56px, 24px, 28px, 22px |
+| `low-contrast` | s2-card1, s2-card2, s2-card3 | warning | FIX -- contrast ratios 1.00:1 and 2.56:1 on cards (min 3:1 required). The 1.00 is likely white-on-white comparison (title), 2.56 is secondary text on glass fill. |
+
+Key actionable findings:
+1. **low-contrast (cards)**: Investigated manually. The linter reports 1.00:1 and 2.56:1 but this is a **false positive** -- the linter doesn't composite the glass fill `rgba(255,255,255,0.10)` against the opaque dark background `#0A1628`. Manual calculation: effective bg ~rgb(35,45,62), white contrast = 13.85:1, secondary (#94A3B8) contrast = 5.40:1. Both well above 3:1 minimum.
+2. **min-vertical-gap + unbalanced-trailing-whitespace**: Content is top-heavy. Need to improve vertical balance.
+
+**Fix #3: Vertical balance** -- Improved spacing to distribute content more evenly:
+- Pushed heading down by 60px: `y: safe.y` -> `y: safe.y + 60`
+- Increased heading->subheading gap from `md` (24px) to `lg` (32px)
+- Increased subheading->card1 gap from `lg` (32px) to `xl` (48px)
+- Kept inter-card gaps at `md` (24px) per spec
+
+**After fix #3 (reload ?t=4, fonts cached):**
+Content now spans y=150 to y=851 (with card1 at 162px height on proper font measurement).
+Gaps: 32px (heading->sub), 48px (sub->card1), 24px (card1->card2), 24px (card2->card3).
+Space below in safe zone: ~139px. Content center at ~500 vs slide center 540 -- much improved balance.
+No text-overflow errors with proper font loading.
+
+**Final lint triage (no actionable items remain):**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s2-bg / s2-bg-img | error | SKIP -- intentional stacked bg layers |
+| `min-vertical-gap` | heading, card1, card2 | warning | SKIP -- deliberate spec-specified gaps (md=24, lg=32). 48px minimum would overflow safe zone. |
+| `unbalanced-trailing-whitespace` | all elements | warning | SKIP -- top-down flow layout, trailing space is intentional breathing room |
+| `font-too-small` | all 5 elements | warning | SKIP -- false positives (linter reports 16px fallback, actual sizes 22-56px) |
+| `low-contrast` | cards 1-3 | warning | SKIP -- false positives (linter doesn't composite glass fill; actual contrast 5.4:1 - 13.9:1) |
+
+**Issues:**
+- None remaining after fixes.
+
+**Fixes applied (summary):**
+1. Fixed `below()` API calls from bare string to object form (critical gap bug -- all gaps were 0px)
+2. Corrected font sizes to match spec (28px titles, 22px body)
+3. Improved vertical balance (heading offset + larger header section gaps)
+
+**SYSTEMIC BUG NOTE FOR ORCHESTRATOR:** The `below()` bare-string bug affects 16 calls across slides 3, 4, 5, 7, 8, 14, 15, and 16. All use `below('ref', 'sm')` instead of `below('ref', { gap: 'sm' })`. This means ALL those slides have 0px gaps where they should have spacing. The other slide verifiers need to check and fix this. The affected lines are:
+- Slide 3: lines 207, 212, 218
+- Slide 4: line 257
+- Slide 5: lines 307, 313
+- Slide 7: lines 406, 411
+- Slide 8: lines 452, 459, 462, 469
+- Slide 14: line 878
+- Slide 15: line 997
+- Slide 16: lines 1084, 1105
+
+**Status:** PASS
+
+---
+
+## Slide 02: The Problem (Re-verification Pass)
+
+**First look:** Dark background with gradient orbs visible. Heading "The Problem" centered in white 56px. Subheading below in muted gray. Three glass cards with orange left accent bars stacked vertically. Overall layout looks reasonable -- content is in the upper-center area with some breathing room below. The previous verifier's gap fix appears to have worked -- cards are visibly spaced apart, not crammed together.
+
+**DOM inspection:**
+- s2-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s2-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 40% opacity) -- layer: bg
+- s2-heading: x=360, y=150, w=1200, h=76 (anchor: tc at x=960)
+- s2-subheading: x=410, y=258, w=1100, h=77 (anchor: tc at x=960)
+- s2-card1: x=288, y=383, w=1344, h=129
+- s2-card2: x=288, y=536, w=1344, h=129
+- s2-card3: x=288, y=689, w=1344, h=129
+
+Gap analysis (all correct -- previous fix confirmed working):
+- heading -> subheading: 258 - (150+76) = 32px (lg) -- correct
+- subheading -> card1: 383 - (258+77) = 48px (xl) -- correct
+- card1 -> card2: 536 - (383+129) = 24px (md) -- correct
+- card2 -> card3: 689 - (536+129) = 24px (md) -- correct
+
+Content bottom at y=818, safe zone bottom at 990. ~172px trailing space -- acceptable balance.
+
+**Lint results:**
+- `text-overflow` (error) on s2-card1: content overflows. scrollHeight=162 vs clientHeight=129. Card 1 has longer body text that wraps to more lines, but all 3 cards got auto-height of 129px. **MUST FIX.**
+- `non-ancestor-overlap` (error) on s2-bg/s2-bg-img: SKIP -- intentional stacked bg layers.
+- `min-vertical-gap` (warning) on heading, card1, card2: SKIP -- deliberate spec gaps (md=24, lg=32). 48px min would overflow.
+- `unbalanced-trailing-whitespace` (warning) on subheading, card1-3: SKIP -- top-down flow, trailing space is intentional.
+- `font-too-small` (warning) on all 5 elements: SKIP -- false positives (linter reads 16px fallback, actual sizes 22-56px via inline styles).
+- `low-contrast` (warning) on card1-3: SKIP -- false positives (linter doesn't composite glass fill against dark bg; actual contrast 5.4:1 - 13.9:1).
+
+**Issues:**
+1. text-overflow on s2-card1: card height 129px is insufficient for content that renders at 162px.
+
+**Fix #1: Set explicit height on card1** -- Added `h: 165` to s2-card1 to accommodate the taller content (162px rendered + 3px safety margin).
+
+**After fix (reload ?t=2):**
+- s2-card1 now h=165, scrollH=165, no overflow.
+- s2-card2 and s2-card3 remain h=129, no overflow.
+- Gaps all correct: heading->sub=32px, sub->card1=48px, card1->card2=24px, card2->card3=24px.
+- Content bottom at y=854, safe zone bottom at 990. Trailing space=136px -- good balance.
+
+**Re-lint after fix (no text-overflow remains):**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s2-bg / s2-bg-img | error | SKIP -- intentional stacked bg layers |
+| `min-vertical-gap` | heading, card1, card2 | warning | SKIP -- deliberate spec gaps (md=24, lg=32) |
+| `unbalanced-trailing-whitespace` | subheading, card1-3 | warning | SKIP -- top-down flow, trailing space is intentional |
+| `font-too-small` | all 5 elements | warning | SKIP -- false positives (linter reads 16px fallback) |
+| `low-contrast` | card1-3 | warning | SKIP -- false positives (glass fill not composited by linter) |
+
+Zero actionable findings remain. All text content verified against DECK_PLAN.md spec -- matches exactly.
+
+**Fixes applied (this pass):**
+1. Set explicit `h: 165` on s2-card1 to resolve text-overflow (auto-height was 129px, content needed 162px)
+
+**Previous fixes confirmed working:**
+1. `below()` gap object form -- all gaps are correct (32, 48, 24, 24 px)
+2. Font sizes match spec (28px card titles, 22px card body)
+3. Vertical balance with heading offset (+60px) and lg/xl header gaps
+
+**Status:** PASS
+
+---
+
+## Slide 14: Eval-Driven Tool Design
+
+**First look:** Dark background with gradient orbs visible. Heading "Eval-Driven Tool Design" is centered, white, 48px -- looks correct. Subheading below in muted gray is readable. The layout is a two-column split: left side has 4 numbered steps with gradient-colored numbers (1-4), right side has a glass panel with the "search_sessions refinement" example.
+
+Observations:
+- The heading and subheading are centered and readable.
+- The 4 numbered steps on the left are clearly numbered with gradient-colored numbers (cyan-to-violet). Text wraps well.
+- The glass panel on the right contains the example with agent feedback quotes having purple left borders -- visually nice.
+- The cyan-colored `mode=keyword`, `mode=transcript`, `mode=hybrid` inline code stands out well.
+- The "Now:" conclusion line is present.
+- The right glass panel has significant empty space at the bottom below the content -- the panel height extends much further than the content inside it.
+- The left column steps end vertically around the same level as the right panel content, which is good for visual balance between the two columns.
+- The overall layout appears somewhat top-heavy -- there is empty space below the content area on both sides.
+- Gradient numbers are rendering correctly with the CSS gradient text technique.
+
+Potential issues to investigate:
+1. The right glass panel seems taller than it needs to be -- lots of empty space at the bottom.
+2. Overall vertical centering could be improved (content is somewhat top-heavy).
+
+**DOM inspection:**
+- s14-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg)
+- s14-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 45% opacity)
+- s14-title: x=120, y=90, w=1680, h=64 (heading, centered)
+- s14-sub: x=120, y=170, w=1680, h=35 (subheading, centered)
+- s14-steps: x=120, y=252, w=738, h=248 (left column, 4 numbered steps)
+- s14-rpanel: x=898, y=252, w=902, h=738 (right glass panel background)
+- s14-example: x=930, y=284, w=838, h=382 (right panel content)
+
+Gap analysis:
+- title -> sub: 170 - (90+64) = 16px (sm) -- correct per code
+- sub -> content area: 252 - (170+35) = 47px -- reasonable
+- Left steps: x=120, y=252, bottom at y=500 (252+248)
+- Right panel: x=898, y=252, bottom at y=990 (252+738) -- this reaches the very bottom of the safe zone!
+- Right content: x=930, y=284, bottom at y=666 (284+382) -- content ends at y=666, but panel goes to y=990
+- Empty panel space below content: 990 - 666 = 324px -- significant empty space in the glass panel.
+
+Key issue: The right glass panel `h` is set to `right.h` which is the full remaining height of the safe zone (738px), but the actual content inside is only 382px tall. The panel towers far below where the content ends.
+
+Also: The left steps (bottom at y=500) end much higher than the right content (bottom at y=666), and FAR higher than the panel (y=990). This creates visual imbalance.
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s14-bg / s14-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s14-rpanel / s14-example | error | SKIP -- panel bg is behind the content (intentional overlap) |
+| `text-overflow` | s14-steps | error | **MUST FIX** -- scrollHeight=389 vs clientHeight=248. Content is being clipped. |
+| `min-vertical-gap` | s14-title / s14-sub | warning | Investigate -- 16px gap (sm), linter recommends 48px. May need bump. |
+| `unbalanced-trailing-whitespace` | s14-sub, s14-steps | warning | Related to vertical balance issue -- will improve by adjusting layout. |
+| `font-too-small` | all 4 content elements | warning | SKIP -- false positives (linter reads 16px default, actual inline fonts are 20-48px) |
+
+**Issues:**
+1. **CRITICAL: text-overflow on s14-steps** -- The left column steps have scrollHeight=389px but element height is only 248px. Content is being clipped -- the bottom of step 4 is likely cut off.
+2. **Right panel too tall** -- Panel height is set to `right.h` (738px) which is the full remaining safe zone height, but content is only 382px. This leaves 324px of empty glass panel. Should be sized to content.
+3. **Vertical balance** -- Content is top-heavy with lots of empty space below both columns.
+
+**Fixes applied:**
+
+**Fix 1: text-overflow on s14-steps + right panel height**
+- Added explicit `h: 400` to `s14-steps` element (was auto-sized to 248px, content needs 389-400px).
+- Changed `s14-rpanel` height from `right.h` (738px, full remaining safe zone) to `h: 450` (content is 382px + 2*32px padding = 446px, rounded to 450).
+- Result: text-overflow resolved (scrollHeight=400, clientHeight=400). Right panel now wraps content with minimal extra space.
+
+**Fix 2: Vertical balance**
+- Pushed heading down by 50px: `y: safe.y` -> `y: safe.y + 50`.
+- Updated contentY calculation to include the 50px offset: `safe.y + 64 + 16 + 50 + 32` -> `safe.y + 50 + 64 + 16 + 50 + 32`.
+- Result: Content block shifted down ~50px. Steps bottom now at y=702, right panel bottom at y=752. Trailing space reduced from 288px to 238px. Still somewhat top-heavy but acceptable for a presentation layout with heading at top.
+
+**After fixes (reload ?t=3):**
+
+DOM positions:
+- s14-title: x=120, y=140, w=1680, h=64
+- s14-sub: x=120, y=220, w=1680, h=35
+- s14-steps: x=120, y=302, w=738, h=400 -- no overflow (scrollH=400, clientH=400)
+- s14-rpanel: x=898, y=302, w=902, h=450 -- sized to content
+- s14-example: x=930, y=334, w=838, h=382 -- no overflow
+
+Re-lint results:
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s14-bg / s14-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s14-rpanel / s14-example | error | SKIP -- panel bg behind content (intentional overlap, ~1% real) |
+| `min-vertical-gap` | s14-title / s14-sub | warning | SKIP -- 16px (sm) gap is deliberate per code skeleton spec. 48px would push content too low. |
+| `unbalanced-trailing-whitespace` | s14-sub, s14-steps, s14-rpanel | warning | SKIP -- top-down flow layout with heading at top. Trailing space (238px below panel) is acceptable breathing room. |
+| `font-too-small` | all 4 content elements | warning | SKIP -- false positives (linter reads 16px default, actual inline fonts are 20-48px) |
+
+Zero actionable findings remain. Text-overflow is resolved. All content visible and well-spaced.
+
+**Text content verification:** All text matches DECK_PLAN.md spec exactly:
+- Heading, subheading, all 4 steps, example title, initial design description, 3 agent feedback quotes, 3 mode additions, and concluding "Now:" line all match.
+
+**Typography verification:** All styles match spec:
+- Heading: 600, 48px, center, white -- correct
+- Subheading: 400, 22px, center, #94A3B8 -- correct
+- Step numbers: 700, 32px, gradient text (cyan-to-violet) -- correct
+- Step text: 400, 22px, white -- correct
+- Example title: 600, 26px, white -- correct
+- Agent quotes: 400 italic, 20px, #A78BFA, 3px #7B2FFF left border -- correct
+- Arrow result text: 400, 20px, #94A3B8 -- correct
+- Inline code: 500, 18px, #00D4FF (cyan) -- correct
+
+**Status:** PASS
+
+**Reflection:**
+
+1. **What worked well:**
+   - The screenshot + DOM inspection + linter triage workflow is efficient for catching issues. The text-overflow on s14-steps was immediately visible in the linter and confirmed via scrollHeight/clientHeight comparison.
+   - The browser_evaluate approach for checking DOM state and running the linter is very effective.
+   - Cache busting with ?t=N reliably forced fresh loads.
+
+2. **What was problematic:**
+   - The SlideKit scene model structure was initially unclear -- elements are at `slide.layout.elements[id].resolved` not `slide.elements[i]`. The verifier instructions' DOM inspection script doesn't match the actual API. I had to explore the object structure to find the right path. The instructions should document this properly.
+   - The `font-too-small` warnings are consistent false positives across all slides (linter reads browser default 16px, not the inline font size). This is a known linter limitation but wastes time on first encounter.
+
+3. **What was surprising:**
+   - The text-overflow was significant (389px content in 248px box) despite the content looking mostly visible in the screenshot. The Reveal.js presentation scaling makes it hard to spot clipping visually -- you really need the linter to catch it.
+   - The right panel's `h: right.h` using the full remaining safe zone height (738px) when content was only 382px was a significant design issue that the linter didn't flag (no specific rule for "panel much taller than content").
+
+4. **What instructions or tools would have helped:**
+   - The verifier instructions' DOM inspection code snippet needs to be updated to match the actual SlideKit scene model API (`slide.layout.elements[id].resolved` instead of `slide.elements.map`).
+   - A linter rule for "panel significantly taller than content" would be useful -- the current rules don't catch the case where a glass panel has 300+ px of empty space below its content.
+   - A quick-reference cheat sheet of known false positive patterns (font-too-small with inline styles, non-ancestor-overlap for bg layers, non-ancestor-overlap for panel+content pairs) would save triage time on every slide.
+
+---
+
+## Slide 15: Beyond Search
+
+**First look:** Dark background with ambient gradient orbs visible through the columns. Heading "Beyond Search" is centered, white, large font -- looks correct. Subheading below in muted gray is readable and centered. Four glass panel columns visible below: Sense (green header), Suggest (navy/blue header), Learn (purple header), Synthesize (amber/orange header). Each column has 2 items with bold titles and gray descriptions.
+
+Observations:
+- The heading and subheading are well-positioned and centered.
+- The four columns are evenly spaced and visually distinct with their colored header bars.
+- The colored header bars (green, navy, purple, amber) create a clear visual taxonomy as intended.
+- The column content (titles + descriptions) is readable, though the description text is quite small.
+- The background ambient image is visible through the glass panels -- the glassmorphic effect works.
+- There is significant empty space below the four columns -- the columns occupy roughly the upper 55% of the slide, leaving the entire bottom 40%+ empty.
+- The columns appear to be the same width, which matches the 4-equal-column spec.
+- Text appears to fit within the columns without obvious clipping.
+
+Potential issues to investigate:
+1. Large empty space below columns -- content is top-heavy, may need vertical rebalancing.
+2. Verify text overflow on columns (hard to see at Reveal.js scale).
+3. Check the `below()` call for subheading -- previous verifiers noted the bare-string bug on line 997.
+
+**DOM inspection:**
+- s15-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s15-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 45% opacity) -- layer: bg
+- s15-title: x=120, y=90, w=1680, h=70 (heading, centered)
+- s15-sub: x=120, y=176, w=1680, h=25 (subheading, centered)
+  - Gap from title: 176 - (90+70) = 16px (sm) -- correct, below() call already in object form
+- s15-col-0 (Sense): x=120, y=248, w=408, h=254
+- s15-col-1 (Suggest): x=544, y=248, w=408, h=254
+- s15-col-2 (Learn): x=968, y=248, w=408, h=231
+- s15-col-3 (Synthesize): x=1392, y=248, w=408, h=231
+  - Gap from sub to columns: 248 - (176+25) = 47px -- reasonable
+  - Columns 0,1 are h=254; columns 2,3 are h=231 (uneven auto-heights)
+  - Column bottoms: cols 0,1 at y=502; cols 2,3 at y=479
+  - Safe zone bottom at y=990. Empty space below: 488-511px -- very large, top-heavy layout.
+
+Overflow check:
+- s15-col-0: scrollH=276, clientH=254 -- OVERFLOW (22px clipped)
+- s15-col-1: scrollH=254, clientH=254 -- OK
+- s15-col-2: scrollH=231, clientH=231 -- OK
+- s15-col-3: scrollH=254, clientH=231 -- OVERFLOW (23px clipped)
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s15-bg / s15-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `text-overflow` | s15-col-0 | error | **MUST FIX** -- scrollH=276 vs clientH=254, 22px clipped |
+| `text-overflow` | s15-col-3 | error | **MUST FIX** -- scrollH=254 vs clientH=231, 23px clipped |
+| `min-vertical-gap` | s15-title / s15-sub | warning | SKIP -- 16px (sm) gap is per spec. 48px would push content lower. |
+| `unbalanced-trailing-whitespace` | s15-sub, s15-col-0/1/2/3 | warning | **INVESTIGATE** -- 488-511px below vs 47px above columns. Content is very top-heavy. |
+| `font-too-small` | all 6 content elements | warning | SKIP -- false positives (linter reads 16px default, actual inline fonts are 16-52px). Note: 16px desc text is below minFontSize but accepted per spec pitfall warning. |
+| `low-contrast` | all 4 columns | warning | SKIP -- false positives (linter doesn't composite glass fill against dark bg; same pattern as slide 2, actual contrast is well above 3:1). |
+
+**Issues:**
+1. **CRITICAL: text-overflow on s15-col-0 and s15-col-3** -- Columns have auto-height that is insufficient for their content. Col-0 (Sense) needs 276px but has 254px. Col-3 (Synthesize) needs 254px but has 231px. Content is being clipped at the bottom.
+2. **Vertical balance** -- Content is extremely top-heavy. Columns end at y~502 with 488px of empty space below, vs 47px gap above columns. Need to push content down significantly.
+
+**Fixes applied:**
+
+**Fix 1: Text overflow on columns + vertical balance**
+- Added `const headingOffset = 150` to push heading down from safe.y (90) to safe.y+150 (240).
+- Added `const cardH = 280` explicit height for all columns (tallest content is 276px + 4px margin).
+- Updated `cardY` calculation to include headingOffset and increased sub-to-columns gap from 32px to 48px.
+- Updated heading y from `safe.y` to `safe.y + headingOffset`.
+- Added `h: cardH` to column element options to force all 4 columns to equal height of 280px.
+
+Expected result:
+- Title at y=240, sub at y=326, columns at y=414, column bottoms at y=694.
+- Space above title: 150px. Space below columns: 990-694=296px. Much better balance (1.97x ratio vs previous 10.4x).
+
+**After fix (reload ?t=2):**
+
+DOM positions:
+- s15-title: x=120, y=240, w=1680, h=70
+- s15-sub: x=120, y=326, w=1680, h=25 (gap from title: 16px = sm, correct)
+- s15-col-0: x=120, y=414, w=408, h=280 (gap from sub: 63px)
+- s15-col-1: x=544, y=414, w=408, h=280
+- s15-col-2: x=968, y=414, w=408, h=280
+- s15-col-3: x=1392, y=414, w=408, h=280
+- All 4 columns now equal height (280px), uniform alignment.
+
+Overflow check (all resolved):
+- s15-col-0: scrollH=280, clientH=280 -- OK (was 276 vs 254, overflow)
+- s15-col-1: scrollH=280, clientH=280 -- OK (was already OK)
+- s15-col-2: scrollH=280, clientH=280 -- OK (was already OK)
+- s15-col-3: scrollH=280, clientH=280 -- OK (was 254 vs 231, overflow)
+
+Re-lint results (no text-overflow, no unbalanced-trailing on columns):
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s15-bg / s15-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `min-vertical-gap` | s15-title / s15-sub | warning | SKIP -- 16px (sm) gap is per spec. 48px would push content too low. |
+| `unbalanced-trailing-whitespace` | s15-sub | warning | SKIP -- sub's "below" includes columns; top-down heading layout, trailing space is intentional. |
+| `font-too-small` | all 6 content elements | warning | SKIP -- false positives (linter reads 16px default, actual inline fonts are 16-52px). Note: 16px desc text is below minFontSize but accepted per DECK_PLAN pitfall warning. |
+| `low-contrast` | all 4 columns | warning | SKIP -- false positives (linter doesn't composite glass fill rgba(255,255,255,0.10) against dark bg #0A1628; actual contrast well above 3:1, same pattern verified in slide 2). |
+
+Zero actionable findings remain. Text-overflow resolved on col-0 and col-3. Unbalanced-trailing-whitespace on columns resolved (was 10.4x ratio, now columns don't appear in that warning).
+
+**Text content verification:** All text matches DECK_PLAN.md spec exactly -- heading, subheading, all 4 category labels (Sense, Suggest, Learn, Synthesize), all 8 item titles and descriptions verified via accessibility snapshot.
+
+**Typography verification:**
+- Heading: 600, 52px/1.2, white, center -- correct per spec
+- Subheading: 400, 18px/1.4, #94A3B8, center -- correct per spec
+- Column headers: 600, 16px/1.2, white, uppercase -- correct per spec
+- Item titles: 600, 22px/1.3, white -- correct per spec
+- Item descriptions: 400, 16px/1.4, #94A3B8 -- correct per spec
+
+**Status:** PASS
+
+**Reflection:**
+
+1. **What worked well:**
+   - The scrollHeight vs clientHeight check immediately revealed text overflow that was invisible in the screenshot (Reveal.js scales the canvas, making clipping hard to spot visually). The linter confirmed both overflow elements.
+   - The iterative fix-reload-recheck cycle was efficient. One round of fixes resolved all issues.
+   - Cache busting with ?t=N worked reliably to force fresh loads.
+   - Using the accessibility snapshot to verify all text content was fast and comprehensive -- no need to manually parse the screenshot for text.
+
+2. **What was problematic:**
+   - The initial DOM element lookup by ID (`document.getElementById`) doesn't work with SlideKit -- elements use `data-sk-id` attributes instead. Had to discover this and switch to `document.querySelector('[data-sk-id="..."]')`. This is the same issue noted by the slide 14 verifier.
+   - The `cardY` calculation in the original code (`safe.y + 70 + 16 + 40 + 32 = 248`) used a hardcoded estimate for the subheading height (40px) but the actual auto-height was 25px. This meant the gap between sub and columns was 47px (248 - 201), not the intended 32px. Not a critical issue but the magic numbers make the layout fragile.
+
+3. **What was surprising:**
+   - The columns had uneven auto-heights (254px for cols 0,1 vs 231px for cols 2,3) despite all having the same structure. This is because the text content in the Sense and Synthesize columns wraps to more lines. Setting an explicit height resolved both the overflow and the uneven alignment in one fix.
+   - The vertical balance issue was severe (488px below vs 47px above, 10.4x ratio) but only produced a "warning" level lint finding. For presentation slides, this kind of layout imbalance is quite noticeable.
+
+4. **What instructions or tools would have helped:**
+   - The verifier instructions should note that SlideKit elements use `data-sk-id` attributes, not DOM `id` -- the overflow check example uses `document.getElementById('ELEMENT_ID')` which won't work. Use `document.querySelector('[data-sk-id="ELEMENT_ID"]')` instead.
+   - A quick note about the `cardY` hardcoded-math pattern (common across slides) and its fragility would help verifiers understand why gaps don't match expected values.
+
+---
+
+## Slide 03: Unified Index
+
+**First look:** The heading "Unified Index" is centered and readable. The subheading in secondary gray text is legible. The cyan insight line ("So let's index them...") stands out well with good contrast. The architecture diagram renders but has a large white/light container background that clashes with the dark slide background. The bottom of the diagram appears slightly cut off (arrow exits frame). There is notable empty space below the image container. The overall layout follows the plan (text chain at top, image below) but the image presentation needs refinement.
+
+
+**DOM inspection:**
+- s3-heading: x=360, y=90, w=1200, h=76 (bottom=166)
+- s3-subheading: x=360, y=182, w=1200, h=70 (gap from heading: 16px, bottom=252)
+- s3-insight: x=360, y=268, w=1200, h=36 (gap from subheading: 16px, bottom=304)
+- s3-arch: x=260, y=336, w=1400, h=520 (gap from insight: 32px, bottom=856)
+- Space above heading: 90px. Space below image: 224px. Content spans y=90..856 (766px).
+- Image natural size: 1536x634. Container: 1400x520. Aspect ratio distortion: image is 2.42:1 but container is 2.69:1.
+- Correct container height for 1400px wide at 1536:634 ratio = 1400*(634/1536) = 578px.
+
+**Lint results:**
+1. `non-ancestor-overlap` (error): s3-arch-bg overlaps s3-arch-img by 728000px -- known FP, skip (figure() internal elements always overlap)
+2. `min-vertical-gap` (warning): s3-heading to s3-subheading gap is 16px, recommends 48px
+3. `min-vertical-gap` (warning): s3-subheading to s3-insight gap is 16px, recommends 48px
+4. `unbalanced-trailing-whitespace` (warning): s3-subheading has 738px below vs 16px above (46.1x ratio)
+5. `unbalanced-trailing-whitespace` (warning): s3-insight has 686px below vs 16px above (42.9x ratio)
+6. `font-too-small` (warning) x3: s3-heading, s3-subheading, s3-insight -- known FP, skip (inline font styles)
+7. `aspect-ratio-distortion` (warning): s3-arch-img distorted by 11.1% -- REAL ISSUE, container h=520 but should be ~578 for proper aspect ratio
+
+
+**Issues:**
+1. Aspect ratio distortion: image container h=520 but correct height for 1400w at 1536:634 natural ratio is 578px (11.1% distortion)
+2. Vertical imbalance: 90px above heading, 224px below image (2.5x ratio). Content height with corrected image = 824px; centering it at y=128 gives equal 128px margins top and bottom.
+3. `min-vertical-gap` warnings on heading-subheading and subheading-insight gaps (16px vs 48px recommended) -- intentional tight text cluster per DECK_PLAN, acceptable.
+4. `non-ancestor-overlap` on s3-arch-bg vs s3-arch-img -- known FP, internal figure() elements.
+5. `font-too-small` x3 -- known FP, inline font styles.
+
+**Fixes applied:**
+- Changed image container height from h=520 to h=578 (correct aspect ratio for 1536:634 source at 1400px width)
+- Changed heading y from safe.y (90) to 128 to vertically center the entire content block (total content height 824px, centered in 1080px canvas)
+
+
+**After fix:**
+- DOM positions verified: heading y=128, sub y=220, insight y=306, arch y=374 (bottom=952)
+- Vertical balance: 128px above, 128px below -- perfectly centered.
+- Aspect ratio distortion warning is GONE (was 11.1%, now resolved).
+- Text overflow check: all three text elements show scrollH == clientH, no overflow.
+- Remaining lint findings (all acceptable):
+  - `non-ancestor-overlap` (s3-arch-bg vs s3-arch-img): known FP, figure() internal elements
+  - `min-vertical-gap` x2 (16px gaps): intentional tight text cluster per DECK_PLAN spec
+  - `unbalanced-trailing-whitespace` x2: linter measures per-element trailing space, but overall slide is perfectly balanced (128/128). The large image below the text elements creates a false imbalance signal.
+  - `font-too-small` x3: known FP, inline font styles read as browser default 16px
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The DOM position inspection was very efficient for verifying gaps and calculating balance.
+   - Knowing the image natural dimensions (1536x634) made it straightforward to calculate the correct container height (578px).
+   - The formula `(1080 - totalContentHeight) / 2` for vertical centering gave a perfect result on the first try.
+   - The lint triage table from the verifier instructions saved time -- I immediately skipped known FPs.
+
+2. **What was problematic:**
+   - Starting the HTTP server on a random port was awkward with bash variable expansion not surviving across tool calls. Had to try multiple approaches before getting a working server.
+
+3. **What was surprising:**
+   - The original h=520 for the image container was 58px too short (should have been 578), causing an 11.1% aspect ratio distortion. The DECK_PLAN pitfall warnings actually predicted this exact issue and recommended measuring the natural dimensions to compute the correct height.
+   - The vertical centering fix was simple arithmetic but made a dramatic improvement: from 90/224 (2.5x imbalance) to 128/128 (perfect).
+   - The `unbalanced-trailing-whitespace` linter rule fires on individual text elements within a composed block, even when the overall slide is perfectly balanced. This is a limitation of per-element analysis vs. whole-composition analysis.
+
+4. **What instructions or tools would have helped:**
+   - The HTTP server startup could be streamlined with a helper script or a note about bash variable expansion across tool calls.
+   - The verifier instructions' lint triage table is excellent. No additions needed for this slide type.
+
+---
+
+## Slide 05: Progressive Detail
+
+**First look:** Dark background with subtle gradient orbs visible. Heading "Progressive Detail" is centered, white, large font -- looks correct. Italic subheading "Sometimes you need the exact command. Sometimes just the rationale." is centered below in muted gray -- readable and well-positioned. The levels-of-detail diagram image renders below the subheading. The diagram shows three tiers (Summaries, Context Snapshot, Full Transcript) with arrows between them, example questions below each, and a "Conceptual -- Granular" scale at the bottom.
+
+Observations:
+- The heading and subheading are well-positioned and readable.
+- The diagram image has a white/light background container that stands out against the dark slide background. The diagram content (the three tiers and arrows) occupies only the upper ~60% of the image container. There is a large amount of empty white space below the "Conceptual -- Granular" scale line within the image container.
+- The image container appears much taller than the diagram content needs -- maybe 40% of the container is empty white space at the bottom.
+- The overall slide has good top-to-bottom flow: heading -> subheading -> diagram.
+- The diagram itself is clean and readable at this scale.
+- The shadow on the image container is visible and provides lift.
+- Vertical balance: the content block (heading + subheading + diagram) appears to occupy the central portion of the slide. There is some empty space above and below, but the proportions look roughly reasonable given the Reveal.js viewport scaling.
+
+**DOM inspection:**
+- s5-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s5-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 40% opacity) -- layer: bg
+- s5-heading: x=360, y=90, w=1200, h=67 (anchor: tc at x=960)
+- s5-subheading: x=360, y=173, w=1200, h=38 (anchor: tc at x=960)
+  - Gap from heading: 173 - (90+67) = 16px (sm) -- correct per below() call
+- s5-diagram: x=260, y=243, w=1400, h=580
+  - Gap from subheading: 243 - (173+38) = 32px (lg) -- correct per below() call
+  - Diagram bottom: 243 + 580 = 823. Safe zone bottom at 990. Trailing space: 167px.
+  - Space above heading: 90px.
+- s5-diagram-bg: x=0, y=0, w=1400, h=580 (figure internal bg)
+- s5-diagram-img: x=0, y=0, w=1400, h=580 (figure internal img)
+
+Image natural dimensions: 1536x768 (2.0:1 aspect ratio).
+Container: 1400x580 (2.414:1). With fit:contain, image scales by height to 580px, display width = 1160px, centered horizontally with ~120px padding each side. The large white space visible at the bottom of the diagram is actually within the source image itself.
+
+Overflow check:
+- s5-heading: scrollH=73 vs clientH=67 -- OVERFLOW (6px clipped)
+- s5-subheading: scrollH=38 vs clientH=38 -- OK
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s5-bg / s5-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s5-diagram-bg / s5-diagram-img | error | SKIP -- figure() internal elements always overlap |
+| `text-overflow` | s5-heading | error | **MUST FIX** -- scrollH=73 vs clientH=67, 6px clipped |
+| `aspect-ratio-distortion` | s5-diagram-img | warning | **INVESTIGATE** -- 20.7% distortion. Image is 2.0:1 in 2.414:1 container. fit:contain prevents actual distortion but container is oversized. Correct container h for 1400w at 2:1 ratio = 700px. |
+| `min-vertical-gap` | s5-heading / s5-subheading | warning | SKIP -- 16px (sm) gap is per spec. Heading+subheading is a tight text pair. |
+| `unbalanced-trailing-whitespace` | s5-subheading | warning | Related to vertical balance -- will address. |
+| `unbalanced-trailing-whitespace` | s5-diagram | warning | INVESTIGATE -- 167px below vs 32px above (5.2x ratio). |
+| `font-too-small` | s5-heading, s5-subheading | warning | SKIP -- known FP (linter reads 16px default, actual inline fonts are 56px and 24px) |
+
+**Issues:**
+1. **text-overflow on s5-heading** -- heading h=67 but content needs 73px. Need to add explicit height.
+2. **aspect-ratio-distortion on diagram** -- container h=580 but correct h for 1400w at 1536:768 ratio is 700px. The image has fit:contain so it won't be stretched, but the container is taller than needed for the image width. However, increasing to h=700 would make the slide bottom-heavy. The real question is whether the container height should be adjusted to match the actual image content area (excluding the white space within the image).
+3. **Vertical balance** -- Content starts at y=90, diagram ends at y=823. Total content height = 733px. Ideal centered y = (1080 - 733) / 2 = 173.5. Currently starts at y=90, should start at ~174 for perfect centering. Pushing heading down ~84px would center the content block.
+
+**Fixes applied:**
+
+**Fix 1: text-overflow on s5-heading + vertical centering**
+- Added explicit `h: 75` to s5-heading (was auto 67px, content needs 73px + 2px margin).
+- Changed heading y from `safe.y` (90) to calculated `headingY = 170` for vertical centering.
+  - Content block total height: 75 (heading) + 16 (sm gap) + 38 (subheading) + 32 (lg gap) + 580 (diagram) = 741px.
+  - Centered y = (1080 - 741) / 2 = ~170.
+- Did NOT change diagram h=580 -- the DECK_PLAN spec says "fills the central/lower ~65%" and the image uses fit:contain (no actual distortion despite the linter warning). The 20.7% distortion is container-vs-image ratio mismatch, not visual distortion.
+
+**After fix (reload ?t=2):**
+
+DOM positions after fix:
+- s5-heading: x=360, y=170, w=1200, h=75 -- no overflow (scrollH=75 = clientH=75)
+- s5-subheading: x=360, y=261, w=1200, h=38 -- no overflow (scrollH=38 = clientH=38)
+  - Gap from heading: 261 - (170+75) = 16px (sm) -- correct
+- s5-diagram: x=260, y=331, w=1400, h=580
+  - Gap from subheading: 331 - (261+38) = 32px (lg) -- correct
+  - Diagram bottom: 331 + 580 = 911
+
+Vertical balance:
+- Space above heading: 170px
+- Space below diagram: 1080 - 911 = 169px
+- Ratio: 170/169 = 1.006 -- essentially perfect centering (was 90/167 = 0.54 before)
+
+Re-lint results (no text-overflow, zero actionable findings):
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s5-bg / s5-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s5-diagram-bg / s5-diagram-img | error | SKIP -- figure() internal elements always overlap |
+| `min-vertical-gap` | s5-heading / s5-subheading | warning | SKIP -- 16px (sm) gap per spec. Heading+subheading is a tight text pair. 48px would over-space them. |
+| `unbalanced-trailing-whitespace` | s5-subheading | warning | SKIP -- linter measures from subheading only, not the full content block. The diagram below fills the remaining space. Overall slide balance is 170px above / 169px below = near-perfect centering. |
+| `font-too-small` | s5-heading, s5-subheading | warning | SKIP -- known FP (linter reads 16px default, actual inline fonts are 56px and 24px) |
+| `aspect-ratio-distortion` | s5-diagram-img | warning | SKIP -- image uses fit:contain, so no actual visual distortion. The 20.7% mismatch is between container and image native ratios, but contain prevents stretching. Container h=580 is per DECK_PLAN spec ("fills ~65%"). |
+
+Zero actionable findings remain.
+
+**Text content verification:** All text matches DECK_PLAN.md [V2N8HD] spec exactly:
+- Heading: "Progressive Detail" -- correct
+- Subheading: "Sometimes you need the exact command. Sometimes just the rationale." -- correct (italic)
+- Diagram image: levels-of-detail-cropped.png -- renders correctly showing three tiers (Summaries, Context Snapshot, Full Transcript) with arrows, example questions, and Conceptual-Granular scale
+
+**Typography verification:**
+- Heading: 600, 56px/1.2, white (#FFFFFF), center -- correct per spec (heading.section)
+- Subheading: 400 italic, 24px/1.6, #94A3B8, center -- correct per spec (body italic)
+
+**Layout verification vs DECK_PLAN spec:**
+- Dark background (#0A1628) with ambient orb image at 40% opacity -- correct
+- Heading top-center -- correct
+- Subheading directly below in muted text -- correct (16px sm gap)
+- Levels-of-detail diagram fills central/lower ~65% of slide -- correct (580/1080 = 54%, close to spec)
+- Image has subtle shadow (md) to lift off background -- correct
+- Image has 12px container radius -- correct
+- Clean, diagram-dominant layout -- correct
+
+**Status:** PASS
+
+**Reflection:**
+
+1. **What worked well:**
+   - This was a clean, simple slide (heading + subheading + image). Only one real issue (heading text overflow of 6px) plus vertical centering improvement. The fix was straightforward -- add explicit height and calculate centered Y position.
+   - The vertical centering calculation `(1080 - totalContentHeight) / 2` gave near-perfect results (170/169 ratio) on the first try.
+   - The lint triage was quick -- most findings were known FPs or skippable per the triage table. The `non-ancestor-overlap` on figure() internals and `font-too-small` on inline-styled elements are predictable patterns.
+
+2. **What was problematic:**
+   - The HTTP server port variable expansion was unreliable across bash tool calls. Had to hardcode the port number instead of using a variable.
+
+3. **What was surprising:**
+   - The `aspect-ratio-distortion` warning at 20.7% looks alarming but is harmless because `fit: contain` prevents actual distortion. The linter could be improved to suppress this warning when fit:contain is used.
+   - The heading overflow was only 6px (73px content in 67px auto-height box). At 56px font with 1.2 line-height, theoretical height is 67.2px, but actual rendered height is 73px -- a 8.6% discrepancy from font metrics exceeding the CSS line-height. Same pattern seen on slide 4's heading (4px overflow at 48px font). This suggests auto-height for headings is systematically ~6-8px too small across the deck.
+
+4. **What instructions or tools would have helped:**
+   - A note in the learnings about the systematic heading overflow pattern would save time: headings at 48-56px font size typically need 5-8px more than auto-height due to font metrics (ascenders/descenders).
+   - The `aspect-ratio-distortion` linter rule should ideally be aware of the `fit` property and suppress when `contain` is used, since contain prevents actual distortion.
+
+---
+
+## Slide 04: Sessions Are Small
+
+**First look:** Light background (#F5F7FA) renders correctly -- provides the visual rhythm break from the preceding dark slides as intended. The heading "Sessions Are Smaller Than You'd Think" is centered at the top in dark text. The 50/50 split layout is visible: left side has the big gradient "~12k" stat number with "median tokens per session" label below it; right side has four body text points stacked vertically. The gradient on the ~12k number renders well (cyan-to-violet).
+
+Observations:
+- The stat number and label are visually centered in the left column, which looks good.
+- The right column text points are left-aligned and readable.
+- The italic "file contents" and "Goal isn't to understand the code." in secondary color provide visual variety.
+- The bold "Result:" label is visible on the last point.
+- There is noticeable empty space below both columns -- content ends about 60% down the slide. The layout is somewhat top-heavy.
+- The stat number + label pair appears roughly vertically centered relative to the right column text block, which is good for visual balance between the two columns.
+- No obvious text clipping visible at this zoom level, but need to verify with scrollHeight check.
+
+**DOM inspection:**
+- s4-bg: x=0, y=0, w=1920, h=1080 (full-bleed light bg)
+- s4-heading: x=260, y=90, w=1400, h=58 (centered, anchor: tc at x=960)
+- s4-stat: x=120, y=496, w=820, h=147 (left column, big stat number)
+- s4-stat-label: x=120, y=659, w=820, h=28 (below stat, gap=16px via below() with {gap:'sm'})
+- s4-points: x=980, y=386, w=820, h=296 (right column vstack container)
+- s4-point1: x=980, y=386, w=820, h=38
+- s4-point2: x=980, y=472, w=820, h=38 (gap between points: 472-424=48px)
+- s4-point3: x=980, y=558, w=820, h=38
+- s4-point4: x=980, y=644, w=820, h=38
+
+Gap analysis:
+- heading -> contentY: safe.y(90) + 80 + 32 = 202. Content starts at y=202 for split.
+- stat-label gap from stat: 659 - (496+147) = 16px (sm) -- correct
+- vstack gap between points: 48px each -- correct per code
+- Right column points bottom: 644 + 38 = 682. Safe zone bottom: 990. Trailing space: 308px.
+- Left stat center: stat midpoint at y=570, label bottom at y=687. Trailing space: 303px.
+- Content is top-heavy -- 90px above heading, ~308px below last point.
+
+Overflow analysis:
+- s4-heading: scrollH=62 vs clientH=58 -- OVERFLOW (4px, minor)
+- s4-stat: scrollH=168 vs clientH=147 -- OVERFLOW (21px, 140px font clipped)
+- s4-point2: scrollH=77 vs clientH=38 -- OVERFLOW (text wraps to 2 lines, only 1 line visible)
+- s4-point3: scrollH=77 vs clientH=38 -- OVERFLOW (text wraps to 2 lines, only 1 line visible)
+- s4-stat-label, s4-point1, s4-point4: no overflow
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `text-overflow` | s4-heading | error | **MUST FIX** -- scrollH=62 vs clientH=58, 4px clipped |
+| `text-overflow` | s4-stat | error | **MUST FIX** -- scrollH=168 vs clientH=147, 21px clipped (140px font) |
+| `text-overflow` | s4-point2 | error | **MUST FIX** -- scrollH=77 vs clientH=38, text wraps to 2 lines |
+| `text-overflow` | s4-point3 | error | **MUST FIX** -- scrollH=77 vs clientH=38, text wraps to 2 lines |
+| `min-vertical-gap` | s4-stat / s4-stat-label | warning | SKIP -- 16px (sm) gap per spec, stat label is secondary caption |
+| `unbalanced-trailing-whitespace` | s4-stat-label | warning | **INVESTIGATE** -- 303px below vs 16px above (18.9x ratio) |
+| `font-too-small` | all 7 content elements | warning | SKIP -- known FP, linter reads 16px default, actual fonts are 20-140px |
+| `low-contrast` | s4-heading, s4-point1-4 | warning | SKIP -- FP. Linter reports 1.03:1 but this is #1A1A2E on #F5F7FA. Manual contrast: #1A1A2E (rgb 26,26,46) on #F5F7FA (rgb 245,247,250) = ~14.6:1. Well above 3:1 minimum. |
+
+**Issues:**
+1. **CRITICAL: text-overflow on s4-heading** -- heading element h=58 but content needs 62px.
+2. **CRITICAL: text-overflow on s4-stat** -- stat element h=147 but 140px font needs 168px.
+3. **CRITICAL: text-overflow on s4-point2 and s4-point3** -- both wrap to 2 lines (77px) but only get 38px height (1 line). The vstack auto-height is giving each point the same height based on the shortest, but point2 and point3 have longer text that wraps.
+4. **Vertical imbalance** -- content is top-heavy with 308px trailing space below vs 90px above heading.
+
+**Fixes applied:**
+
+**Fix 1: Text overflow on heading, stat, point2, point3 + vertical balance**
+- Added explicit `h: 65` to s4-heading (was auto 58px, content needs 62px)
+- Added explicit `h: 170` to s4-stat (was auto 147px, 140px font needs 168px)
+- Added explicit `h: 80` to s4-point2 and s4-point3 (were auto 38px, text wraps to 77px)
+- Pushed heading down 80px: `y: safe.y` -> `y: safe.y + 80` for better vertical balance
+- Recalculated stat block centering: statBlockH=214 (170+16+28) centered in left column
+- Recalculated points block centering: pointsBlockH=380 (38+48+80+48+80+48+38) centered in right column
+- Updated contentY to use headingH constant (65) instead of hardcoded 80
+
+**After fix (reload ?t=2):**
+
+DOM positions after fix:
+- s4-heading: x=260, y=170, w=1400, h=65 (no overflow, scrollH=65=clientH)
+- s4-stat: x=120, y=521.5, w=820, h=170 (no overflow, scrollH=170=clientH)
+- s4-stat-label: x=120, y=707.5, w=820, h=28 (no overflow)
+- s4-points: x=980, y=438.5, w=820, h=380 (no overflow)
+- s4-point1: x=980, y=438.5, w=820, h=38 (no overflow)
+- s4-point2: x=980, y=524.5, w=820, h=80 (no overflow, scrollH=80=clientH, was 77 vs 38)
+- s4-point3: x=980, y=652.5, w=820, h=80 (no overflow, scrollH=80=clientH, was 77 vs 38)
+- s4-point4: x=980, y=780.5, w=820, h=38 (no overflow)
+
+All text-overflow errors RESOLVED (4 of 4 fixed).
+
+Vertical balance:
+- Heading at y=170, safe top at y=90: 80px above heading
+- Right column bottom: 438.5+380=818.5. Safe bottom at 990. Trailing space: 171.5px.
+- Left column: stat-label bottom at 735.5. Within centered block in column.
+- Ratio of trailing to leading: 171.5/80 = 2.14x. Acceptable for a heading-at-top presentation layout.
+
+Re-lint results (no errors, all warnings are skipable):
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `min-vertical-gap` | s4-stat / s4-stat-label | warning | SKIP -- 16px (sm) gap per spec. The stat label is a small caption directly under a hero number; tight coupling is intentional. 48px would disconnect them visually. |
+| `unbalanced-trailing-whitespace` | s4-stat-label | warning | SKIP -- stat+label block is vertically centered within left column. The trailing space is measured from label to column bottom, not from content to slide bottom. Overall slide balance (80px above, 171px below) is acceptable. |
+| `font-too-small` | all 7 elements | warning | SKIP -- known FP, linter reads 16px default, actual fonts are 20-140px via inline styles |
+| `low-contrast` | s4-heading, s4-point1-4 | warning | SKIP -- FP. Linter reports 1.03:1 but this is dark text (#1A1A2E) on light bg (#F5F7FA). Manual contrast: ~14.6:1. The linter is likely comparing text color to itself or reading the wrong background. |
+
+Zero actionable findings remain.
+
+**Text content verification:** All text matches DECK_PLAN.md [M7J5QC] spec exactly:
+- Heading: "Sessions Are Smaller Than You'd Think" -- correct
+- Stat number: "~12k" with gradient fill -- correct
+- Stat label: "median tokens per session" -- correct
+- Point 1: "Context windows fill up with *file contents*, not conversation." -- correct (italic in secondary color)
+- Point 2: "We index the dialogue, decisions, and tool calls -- not the full diffs or code files." -- correct
+- Point 3: "*Goal isn't to understand the code.* That's what GraphRAG Code does." -- correct (italic in secondary color)
+- Point 4: "**Result:** Query multiple sessions in parallel cheaply." -- correct (bold Result:)
+
+**Typography verification:**
+- Heading: 600, 48px/1.2, #1A1A2E, center -- correct per spec (heading.section)
+- Stat number: 700, 140px/1.0, gradient text (cyan-to-violet) -- correct per spec (number.hero)
+- Stat label: 400, 20px/1.4, #94A3B8, center -- correct per spec (caption)
+- Body points: 400, 24px/1.6, #1A1A2E, left -- correct per spec (body)
+- Italic emphasis: Poppins italic, #94A3B8 (secondary color) -- correct
+- Bold "Result:": inherits 24px with strong tag -- correct
+
+**Layout verification vs DECK_PLAN spec:**
+- Light background (#F5F7FA) for visual rhythm break -- correct
+- 50/50 split layout -- correct (splitRect ratio 0.5, gap 40)
+- Left: big stat centered vertically with label below -- correct
+- Right: body points stacked vertically, left-aligned -- correct
+- Heading spans full width, centered -- correct
+- Gradient text on stat number -- correct (background-clip: text technique)
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The scrollHeight vs clientHeight check immediately revealed all four text overflow issues. The visual screenshot showed the two-line text as compressed but it was hard to tell if it was clipped without the numeric confirmation. The linter caught all four overflow errors.
+   - The fix was straightforward once the overflow amounts were known: add explicit `h:` values matching the needed scrollHeight plus a small margin.
+   - The vertically-centered stat block and points block calculations using `(column.h - blockH) / 2` gave correct centering on the first try.
+   - Cache busting with ?t=2 worked reliably.
+
+2. **What was problematic:**
+   - The vstack auto-height assumed all children had the same height (38px = 1 line of 24px/1.6 text), giving the shorter height to all elements. Points 2 and 3 had longer text that wrapped to 2 lines (77px) but the vstack gave them only 38px. The vstack's estimated total height (420px in the original code) was wrong because it didn't account for wrapping. This is a systemic pattern that will likely affect other slides using vstack with variable-length text.
+   - The 140px font stat number's auto-height (147px) was insufficient because line-height 1.0 * 140px = 140px but the browser needs more vertical space for the gradient-text rendering (168px actual). The 140px/1.0 line-height is tighter than what the browser needs.
+   - The `low-contrast` linter warnings reporting 1.03:1 for dark text on a light background are clearly incorrect -- the linter seems unable to correctly evaluate contrast on light-background slides. This is a different false positive pattern than the glass-panel compositing issue seen on dark slides.
+
+3. **What was surprising:**
+   - The heading overflow was only 4px (62px content in 58px box). Such a tiny overflow is almost invisible visually but the linter caught it. At 48px font with 1.2 line-height, the theoretical height is 57.6px, but the browser renders 62px -- a 7.6% difference likely due to font metrics (descenders, ascenders) exceeding the CSS line-height calculation.
+   - The `low-contrast` linter false positive pattern on this light-background slide is different from the dark-slide pattern. On dark slides, it fails to composite glass fills. On this light slide, it reports 1.03:1 for #1A1A2E on #F5F7FA which should be ~14.6:1. It may be comparing text color to itself, or reading the wrong element as the background.
+
+4. **What instructions or tools would have helped:**
+   - A note in the learnings section about vstack auto-height not accounting for text wrapping would save future verifiers time. The pattern is: if any vstack child has text that wraps to multiple lines, you need explicit `h:` on that child.
+   - A note about the `low-contrast` false positive on light-background slides would help triage. The current learnings only mention glass-panel compositing on dark backgrounds.
+
+---
+
+## Slide 06: Nothing Changes, Nothing is Lost
+
+**First look:** Dark background with gradient orbs visible at the bottom. Heading "Nothing Changes. Nothing is Lost." is centered, white, large font -- looks correct and prominent. Two glass panels side by side below the heading: left panel "Purely Passive" with cyan-tinted glass, right panel "Full Granularity" with violet-tinted glass. Both panels are readable.
+
+Observations:
+- The heading is well-positioned and readable.
+- The left panel contains: "Purely Passive" heading, "No workflow change..." body text, a 3-step horizontal flow with pill badges (Auto-discover sessions -> Index to SQLite -> LLM summaries), and italic tagline "No notes. No tags. No saving."
+- The right panel contains: "Full Granularity" heading, "Every detail is reachable..." body text, three detail-level items (Summary/Snapshot/Transcript) with cyan-colored labels and em-dash descriptions, and italic tagline "Nothing is summarized away."
+- Both panels appear to have appropriate content, matching the DECK_PLAN spec.
+- The panels are roughly the same height visually, which is good for visual balance.
+- There is significant empty space below the two panels -- the panels end about 55-60% down the slide, leaving the bottom 40% empty. The layout is top-heavy.
+- The glass panel borders and backdrop blur effects are visible and consistent with the deck theme.
+- The cyan tint on the left panel and violet tint on the right panel are very subtle but present.
+
+**DOM inspection:**
+- s6-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s6-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 45% opacity) -- layer: bg
+- s6-heading: x=260, y=90, w=1400, h=62 (anchor: tc at x=960)
+- s6-left: x=120, y=202, w=824, h=272 (left panel, cyan-tinted glass)
+- s6-right: x=976, y=202, w=824, h=345 (right panel, violet-tinted glass)
+
+Gap analysis:
+- heading -> panels: 202 - (90+62) = 50px (heading 80px estimate + 32px gap = 112px offset from safe.y, but auto-height heading is 62px, so gap is safe.y + 80 + 32 - (safe.y + 62) = 50px)
+- Left panel bottom: 202 + 272 = 474. Safe zone bottom at 990. Trailing space: 516px.
+- Right panel bottom: 202 + 345 = 547. Trailing space: 443px.
+- Space above heading: 90px (safe.y).
+- Content is very top-heavy: 90px above heading, 443-516px below panels (4.9-5.7x ratio).
+
+Overflow analysis:
+- s6-heading: scrollH=67 vs clientH=62 -- OVERFLOW (5px clipped)
+- s6-left: scrollH=272 vs clientH=272 -- OK
+- s6-right: scrollH=366 vs clientH=345 -- OVERFLOW (21px clipped)
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s6-bg / s6-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `text-overflow` | s6-heading | error | **MUST FIX** -- scrollH=67 vs clientH=62, 5px clipped |
+| `text-overflow` | s6-right | error | **MUST FIX** -- scrollH=366 vs clientH=345, 21px clipped. Right panel content is taller than auto-height. |
+| `unbalanced-trailing-whitespace` | s6-left | warning | **INVESTIGATE** -- 516px below vs 50px above (10.3x ratio). Very top-heavy. |
+| `unbalanced-trailing-whitespace` | s6-right | warning | **INVESTIGATE** -- 443px below vs 50px above (8.9x ratio). Very top-heavy. |
+| `font-too-small` | s6-heading, s6-left, s6-right | warning | SKIP -- known FP, linter reads 16px default, actual fonts are 14-52px via inline styles |
+
+**Issues:**
+1. **CRITICAL: text-overflow on s6-heading** -- heading h=62 but content needs 67px. Consistent with the systematic heading overflow pattern seen on slides 4 and 5 (52px font at 1.2 line-height = 62.4px theoretical, but actual rendered height is 67px).
+2. **CRITICAL: text-overflow on s6-right** -- right panel h=345 but content needs 366px. 21px clipped -- likely the bottom of the "Nothing is summarized away." tagline is being cut off.
+3. **Vertical imbalance** -- content ends at y=547 (right panel) with 443px trailing space. Need to push content down and/or size panels appropriately.
+
+**Fixes applied:**
+
+**Fix 1: text-overflow on heading + right panel + vertical balance**
+- Added `const headingH = 70` explicit height for heading (was auto 62px, content needs 67px + 3px margin).
+- Added `const headingY = safe.y + 140` to push heading down for vertical centering (was safe.y = 90).
+- Changed `contentY` calculation to use actual `headingY + headingH + 32` instead of the hardcoded `safe.y + 80 + 32` estimate.
+- Added explicit `h: headingH` (70) to s6-heading element.
+- Added explicit `h: 370` to s6-left (matching right panel height for visual alignment, even though left content only needs 272px).
+- Added explicit `h: 370` to s6-right (was auto 345px, content needs 366px + 4px margin).
+
+Expected layout:
+- Heading at y=230, h=70, bottom=300
+- Panels at y=332, h=370, bottom=702
+- Space above heading: 230px. Space below panels: 1080-702=378px. Ratio: 1.64x -- acceptable.
+
+**After fix (reload ?t=2):**
+
+DOM positions after fix:
+- s6-heading: x=260, y=230, w=1400, h=70 -- no overflow (scrollH=70 = clientH=70)
+- s6-left: x=120, y=332, w=824, h=370 -- no overflow (scrollH=370 = clientH=370)
+- s6-right: x=976, y=332, w=824, h=370 -- no overflow (scrollH=370 = clientH=370)
+
+All text-overflow errors RESOLVED (2 of 2 fixed).
+
+Gap analysis:
+- heading -> panels: 332 - (230+70) = 32px (lg) -- correct
+- Panels aligned at same y=332 and same height=370, bottoms at y=702 -- clean alignment.
+
+Vertical balance:
+- Space above heading: 230px (from canvas top)
+- Space below panels: 1080 - 702 = 378px
+- Ratio: 378/230 = 1.64x -- good for heading-at-top presentation layout.
+
+Note on left panel sizing: Left panel content is only 272px but panel is set to 370px (matching right panel). This creates 98px of extra glass space in the left panel. However, matching panel heights creates a clean visual pair with aligned top and bottom edges, which is more important than minimizing empty glass space. The extra space provides breathing room.
+
+Re-lint results (no errors, all warnings are skippable):
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s6-bg / s6-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `min-vertical-gap` | s6-heading / s6-left | warning | SKIP -- 32px (lg) gap is per spec. 48px would push panels lower and increase imbalance. Heading and panels form a tight visual group. |
+| `unbalanced-trailing-whitespace` | s6-left, s6-right | warning | SKIP -- linter measures per-element: 288px below panels vs 32px above (heading gap). But overall slide balance is 230px above heading / 378px below panels = 1.64x ratio, which is acceptable for heading-at-top layout. |
+| `font-too-small` | s6-heading, s6-left, s6-right | warning | SKIP -- known FP, linter reads 16px default, actual inline fonts are 14-52px |
+
+Zero actionable findings remain.
+
+**Text content verification:** All text matches DECK_PLAN.md [L9F3RA] spec exactly:
+- Heading: "Nothing Changes. Nothing is Lost." -- correct
+- Left panel heading: "Purely Passive" -- correct
+- Left panel body: "No workflow change. It runs in the background." -- correct
+- Left panel flow: "Auto-discover sessions -> Index to SQLite -> LLM summaries" -- correct (pill badges with arrow characters)
+- Left panel tagline: "No notes. No tags. No saving." (italic) -- correct
+- Right panel heading: "Full Granularity" -- correct
+- Right panel body: "Every detail is reachable when it matters." -- correct
+- Right panel detail items: Summary/Snapshot/Transcript with em-dash descriptions -- correct
+- Right panel tagline: "Nothing is summarized away." (italic) -- correct
+
+**Typography verification:**
+- Main heading: 600, 52px/1.2, white (#FFFFFF via THEME.text.heading), center -- correct per spec (heading.section)
+- Panel headings: 600, 32px/1.3, white (#FFFFFF via THEME.text.primary) -- correct per spec (heading.sub)
+- Panel body: 400, 22px/1.6, #94A3B8 (via THEME.text.secondary) -- correct per spec (body)
+- Flow badges: 500, 14px/1.2, white on bg.primary, 4px radius -- correct per spec (label)
+- Detail labels: 600, 22px, cyan (#00D4FF via THEME.accent.start) -- correct per spec
+- Taglines: 600 italic, 24px/1.5, white (#FFFFFF via THEME.text.primary) -- correct per spec
+
+**Layout verification vs DECK_PLAN spec:**
+- Dark background (bg.primary) with ambient orb image at 45% opacity -- correct
+- Heading centered at top, large -- correct
+- 50/50 split below heading with lg gap (32px) -- correct (splitRect ratio 0.5, gap 32)
+- Left panel: cyan-tinted glass (rgba(0,212,255,0.05)) with heading, body, flow, tagline -- correct
+- Right panel: violet-tinted glass (rgba(123,47,255,0.05)) with heading, body, detail items, tagline -- correct
+- Glass border, backdrop blur, consistent theme -- correct
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The scrollHeight vs clientHeight check immediately confirmed both overflow issues (heading 5px, right panel 21px). The linter correctly flagged both as text-overflow errors.
+   - The single-round fix resolved all issues: explicit heights for overflow + heading offset for vertical balance. No iteration needed.
+   - Cache busting with ?t=2 reliably forced fresh load after edits.
+   - The accessibility snapshot was efficient for verifying all text content against the DECK_PLAN spec -- no need to manually parse the screenshot.
+   - The per-element DOM inspection script from the verifier instructions worked correctly for getting resolved positions.
+
+2. **What was problematic:**
+   - The bash variable expansion for random port failed (known issue from prior verifiers). Switched to hardcoded port number immediately without wasting time.
+   - The `contentY` calculation in the original code used a hardcoded 80px estimate for heading height (`safe.y + 80 + 32`), but the actual auto-height was 62px. This meant the gap between heading bottom and panels was 50px, not the intended 32px. Fixed by using the actual heading height variable.
+
+3. **What was surprising:**
+   - The heading overflow (67px content in 62px box, 5px) is consistent with the systematic pattern seen on slides 4 and 5. At 52px font with 1.2 line-height, theoretical height is 62.4px, but browser renders 67px -- 7.4% over, matching the ~7-8% pattern seen across the deck for large headings.
+   - The right panel overflow (366px in 345px box, 21px) was substantial but not visually obvious in the screenshot due to Reveal.js scaling. The tagline "Nothing is summarized away." was likely being clipped at the bottom.
+   - Setting both panels to equal height (370px) despite different content heights was a trade-off: the left panel has 98px of extra glass space, but matching heights creates much better visual alignment than ragged panel bottoms. For a dual-panel presentation layout, matching heights is the right call.
+
+4. **What instructions or tools would have helped:**
+   - The hardcoded heading height estimate pattern (`safe.y + 80 + 32`) appears across multiple slides and consistently produces wrong gaps. A note in the learnings about this pattern -- and the fix (use a constant for the actual heading height) -- would help future verifiers quickly identify and fix it.
+   - A linter rule for "element height significantly exceeds content height" would catch the case where panels have large empty glass areas. Current rules don't flag this (unlike text-overflow which catches the opposite problem).
+
+---
+
+## Slide 07: MCP Turns History into a Capability
+
+**First look:** Dark background with gradient orbs visible. Heading "MCP Turns History into a Capability" is left-aligned in white, large bold font -- asymmetric placement creates the intended dramatic tension for this "reveal" slide. Body text below in white ("When the agent can query the index itself...") is readable and left-aligned. Caption in muted gray below that. Architecture diagram on the right side shows the full system (VS Code Copilot, Copilot CLI, Claude Code, [...] -> Unified Index -> MCP Server / Web UI) with a white/light background container.
+
+Observations:
+- The text chain (heading -> body -> caption) on the left is well-spaced and readable.
+- The architecture diagram renders correctly with all components visible.
+- The diagram has a white background container that contrasts with the dark slide background -- similar to slides 3 and 5.
+- The text content occupies roughly the top-left 45% of the slide as intended by the splitRect ratio=0.45.
+- The diagram fills the right ~55% column and appears vertically centered within the right column space.
+- There is significant empty space below the text chain on the left -- the heading+body+caption block ends well above the midpoint of the slide, leaving the bottom-left area empty.
+- The diagram extends lower than the text, providing some visual counterweight.
+- The overall composition has the intended asymmetric feel -- text left, image right.
+- The image has 12px rounded corners as specified.
+
+Potential issues to investigate:
+1. Vertical balance -- the left text chain is high, creating empty space in the bottom-left.
+2. Possible text overflow on heading (52px font, systematic pattern from other slides).
+3. The diagram may be using full right.h which could be taller than needed (learning #5 from verifier instructions).
+
+**DOM inspection:**
+- s7-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s7-bg-img: x=0, y=0, w=1920, h=1080 (ambient image at 45% opacity) -- layer: bg
+- s7-heading: x=120, y=90, w=738, h=125 (left-aligned, two-line heading at 52px font)
+- s7-body: x=120, y=239, w=738, h=83 (gap from heading: 239-(90+125)=24px, md -- correct)
+- s7-caption: x=120, y=338, w=738, h=28 (gap from body: 338-(239+83)=16px, sm -- correct)
+- s7-arch: x=898, y=90, w=902, h=900 (right column, full safe zone height)
+- s7-arch-bg: figure internal bg (902x900)
+- s7-arch-img: figure internal img (902x900)
+
+Text chain bottom: 338 + 28 = 366. Safe zone bottom at 990. Trailing space below caption: 624px.
+Text chain height: 366 - 90 = 276px. Available safe zone: 900px.
+Text is crammed into the top 31% of the safe zone -- very top-heavy on the left side.
+
+Architecture image: natural 1536x1024 (1.5:1 ratio). Container 902x900 (1.002:1). With fit:contain, image scales to 602x401 centered in the 902x900 container. The container is 299px taller than needed (900 vs 601px correct height for 902px width).
+
+Overflow analysis:
+- s7-heading: scrollH=129 vs clientH=125 -- OVERFLOW (4px clipped). Consistent with systematic heading overflow pattern.
+- s7-body: scrollH=83 vs clientH=83 -- OK
+- s7-caption: scrollH=28 vs clientH=28 -- OK
+
+**Lint results:**
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s7-bg / s7-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s7-arch-bg / s7-arch-img | error | SKIP -- figure() internal elements always overlap |
+| `text-overflow` | s7-heading | error | **MUST FIX** -- scrollH=129 vs clientH=125, 4px clipped |
+| `aspect-ratio-distortion` | s7-arch-img | warning | **INVESTIGATE** -- 33.2% distortion. Image 1.5:1 in 1.002:1 container. fit:contain prevents visual distortion but container is 299px too tall. |
+| `min-vertical-gap` | s7-heading / s7-body | warning | SKIP -- 24px (md) gap per spec. Heading+body is a tight text pair. |
+| `min-vertical-gap` | s7-body / s7-caption | warning | SKIP -- 16px (sm) gap per spec. Body+caption is a tight text pair. |
+| `unbalanced-trailing-whitespace` | s7-body | warning | **INVESTIGATE** -- 668px below vs 24px above (27.8x ratio). Very top-heavy. |
+| `unbalanced-trailing-whitespace` | s7-caption | warning | **INVESTIGATE** -- 624px below vs 16px above (39.0x ratio). Very top-heavy. |
+| `font-too-small` | s7-heading, s7-body, s7-caption | warning | SKIP -- known FP, linter reads 16px default, actual fonts are 20-52px via inline styles |
+
+**Issues:**
+1. **text-overflow on s7-heading** -- heading h=125 (auto) but content needs 129px. 4px clipped. Systematic heading overflow pattern.
+2. **Vertical imbalance on left side** -- text chain ends at y=366, leaving 624px of empty space below. Content occupies only the top 31% of the safe zone.
+3. **Image container too tall** -- right column uses full right.h=900, but correct height for the image at 902px width is ~601px. The extra 299px of container height is wasted space. With fit:contain the image is centered in the oversized container, creating dead space above and below the actual image.
+
+**Fixes applied:**
+
+**Fix 1: text-overflow on heading + vertical balance + image container sizing**
+- Added explicit `h: 130` to s7-heading (was auto 125px, content needs 129px + 1px margin).
+- Calculated textBlockH = 281px (130 + 24 + 83 + 16 + 28) and vertically positioned the text chain at 38% above center within the left column (`left.y + (left.h - textBlockH) * 0.38`). This gives an asymmetric top-left bias as the DECK_PLAN specifies while reducing the extreme 624px trailing space.
+- Calculated correct image container height: `right.w * (1024/1536)` = 601px (was 900px = full right.h). Vertically centered the image in the right column.
+- Expected: heading at ~325, text chain ending at ~606, image at ~240 to ~841. Better balance overall.
+
+**After fix (reload ?t=2):**
+
+DOM positions after fix:
+- s7-heading: x=120, y=325, w=738, h=130 -- no overflow (scrollH=130 = clientH=130)
+- s7-body: x=120, y=479, w=738, h=83 -- no overflow (scrollH=83 = clientH=83)
+  - Gap from heading: 479 - (325+130) = 24px (md) -- correct
+- s7-caption: x=120, y=578, w=738, h=28 -- no overflow (scrollH=28 = clientH=28)
+  - Gap from body: 578 - (479+83) = 16px (sm) -- correct
+- s7-arch: x=898, y=240, w=902, h=601 -- correctly sized for 1536:1024 ratio
+  - Image vertically centered: space above 150px, space below 149px -- near-perfect centering
+
+All text-overflow errors RESOLVED (1 of 1 fixed).
+Aspect-ratio-distortion warning RESOLVED (was 33.2%, now container matches image ratio).
+
+Vertical balance:
+- Text chain: y=325 to y=606 (center at 465.5). Above safe.y: 235px, below safe bottom: 384px.
+- Image: y=240 to y=841 (center at 540.5). Above safe.y: 150px, below safe bottom: 149px.
+- Text chain is intentionally in the upper-left portion for the asymmetric "reveal moment" per DECK_PLAN spec: "Heading top-left aligned within safe zone (this is a reveal moment -- asymmetric for dramatic tension)."
+- Image is perfectly vertically centered in the right column.
+- Overall composition: left text upper-third, right image centered -- creates the intended forward momentum and dramatic tension.
+
+Re-lint results (no errors, all warnings are skippable):
+
+| Rule | Element | Severity | Verdict |
+|------|---------|----------|---------|
+| `non-ancestor-overlap` | s7-bg / s7-bg-img | error | SKIP -- intentional stacked bg layers (~1% real) |
+| `non-ancestor-overlap` | s7-arch-bg / s7-arch-img | error | SKIP -- figure() internal elements always overlap |
+| `min-vertical-gap` | s7-heading / s7-body | warning | SKIP -- 24px (md) gap per spec. Heading+body is a tight text chain; 48px would over-space them. |
+| `min-vertical-gap` | s7-body / s7-caption | warning | SKIP -- 16px (sm) gap per spec. Body+caption is a tight secondary pair. |
+| `unbalanced-trailing-whitespace` | s7-body, s7-caption | warning | SKIP -- per-element measurement within an intentionally asymmetric layout. DECK_PLAN spec says "top-left aligned" for dramatic tension. Text chain is in upper portion by design. Image is centered. |
+| `font-too-small` | s7-heading, s7-body, s7-caption | warning | SKIP -- known FP, linter reads 16px default, actual fonts are 20-52px via inline styles |
+
+Zero actionable findings remain.
+
+**Text content verification:** All text matches DECK_PLAN.md [W6G4YK] spec exactly:
+- Heading: "MCP Turns History into a Capability" (with line break) -- correct
+- Body: "When the agent can query the index itself, session history changes from a transcript to a runtime tool." -- correct
+- Caption: "Reads sessions from any tool. Queryable from any MCP client." -- correct
+- Image: architecture.png (full architecture with MCP Server and Web UI) -- correct
+
+**Typography verification:**
+- Heading: 600, 52px/1.2, white (#FFFFFF), left-aligned, letter-spacing -0.01em -- correct per spec (heading.section)
+- Body: 400, 26px/1.6, white (#FFFFFF), left-aligned, letter-spacing 0.01em -- correct per spec (body)
+- Caption: 400, 20px/1.4, #94A3B8 (muted), left-aligned, letter-spacing 0.02em -- correct per spec (caption)
+
+**Layout verification vs DECK_PLAN spec:**
+- Dark background (bg.primary #0A1628) with dark-ambient-1.png orb at 45% opacity -- correct
+- Heading top-left aligned within safe zone for asymmetric dramatic tension -- correct
+- Body text below heading, same alignment -- correct
+- Caption below body in muted text -- correct
+- Architecture diagram on right side, ~55% width (right.w=902, 47% of canvas) with 12px rounded corners -- correct
+- 45/55 split via splitRect ratio=0.45 -- correct
+- Image uses fit:contain -- correct
+- Asymmetric layout creates tension and forward momentum -- correct
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The single-round fix resolved all three issues (heading overflow, vertical balance, image container sizing) simultaneously. No iteration needed.
+   - The vertical centering calculation with a 0.38 bias factor gave the right asymmetric feel -- text is in the upper portion but not crammed at the very top like before.
+   - Computing the correct image container height from the natural image dimensions (`right.w * (1024/1536)`) eliminated the 33.2% aspect-ratio-distortion warning and made the image container match the actual image proportions.
+   - Cache busting with ?t=2 reliably forced fresh load after edits.
+   - The lint triage was efficient -- most findings were immediately classifiable as known FPs or skippable per the triage table.
+
+2. **What was problematic:**
+   - The bash variable expansion for random port failed (same issue noted by all prior verifiers). Used hardcoded port instead.
+   - The heading overflow was only 4px (129px content in 125px auto-height box), consistent with the systematic heading overflow pattern. This suggests auto-height for 52px headings at 1.2 line-height needs ~5px extra.
+
+3. **What was surprising:**
+   - The original image container was 900px tall for an image that needed only 601px -- 50% wasted container space. The `right.h` from splitRect gives the full remaining safe zone height, which is rarely the right choice for a specific image. Learning #5 from the verifier instructions predicted this exactly.
+   - The `unbalanced-trailing-whitespace` warnings decreased from 27.8x/39.0x (before) to 17.8x/24.0x (after fix), but they are still "high" by the linter's standards. However, the DECK_PLAN explicitly calls for an asymmetric top-left layout on this slide, so these warnings are by-design for this particular slide.
+   - This was the cleanest slide I have seen in the deck -- only 3 issues, all straightforward, and fixed in one pass.
+
+4. **What instructions or tools would have helped:**
+   - A note in the learnings about computing correct image container dimensions from natural image size would save time: `containerH = containerW * (naturalH / naturalW)`. This pattern applies to slides 3, 5, and 7 (all with architecture/diagram images).
+   - The `unbalanced-trailing-whitespace` rule could benefit from a way to mark slides as "intentionally asymmetric" so it doesn't fire on deliberate top-left or other non-centered layouts.
+
+---
+
+## Slide 08: MCP Server Tools
+
+**First look:** The heading "MCP Server Tools" and subheading are centered at top -- good. Two-column layout with left column (3 tier panels: Quick Context, Medium Detail, Cross-Tier Smart Q&A) and right column (2 tier panels: Full Detail, Utility). Each tier has a colored header bar (green, blue, purple on left; orange, gray on right) which matches DECK_PLAN. Tool names in monospace bold with FAST/LLM badges and descriptions below -- all present and correct. However, there is a significant amount of empty space below the content panels -- the bottom ~35% of the slide is empty dark background. The left column ends around y=650 area and right around y=650 as well, leaving substantial dead space. The content is pushed up toward the top-center rather than being vertically balanced. The columns are roughly equal width which is correct.
+
+
+**DOM inspection:**
+- s8-heading: x=120, y=90, w=1680, h=58 (ends y=148)
+- s8-sub: x=120, y=164, w=1680, h=28 (ends y=192)
+- Left column: s8-t1 (y=210-418, h=208), s8-t2 (y=434-642, h=208), s8-tq (y=658-803, h=145)
+- Right column: s8-t3 (y=210-545, h=335), s8-tu (y=561-832, h=271)
+- Left bottom: y=803, Right bottom: y=832. Safe zone bottom: 990. Gap: 158-188px empty.
+- Inner content of all tier panels has NO real overflow (1px discrepancies are sub-pixel rounding).
+
+**Lint results (summary):**
+- 1 ERROR: `text-overflow` on s8-heading (scrollH 62 vs clientH 58 - 4px, minor but flagged)
+- 7x `unbalanced-trailing-whitespace` warnings - content is pushed up, significant empty space below
+- 2x `min-vertical-gap` warnings: heading-to-sub (16px, wants 48px), sub-to-t1 (18px, wants 36px)
+- 7x `font-too-small` warnings - known FP, the linter reads 16px default not inline styles. Skip.
+- ~30x `low-contrast` warnings at 1.00:1 and 2.56:1 - these are on white text over the glass panels which have translucent backgrounds. The linter is computing contrast against the transparent fill, not the effective visual background (dark bg shows through). These are false positives for this context - the text is clearly readable against the dark background visible through the glass.
+
+**Issues to fix:**
+1. Heading text-overflow (4px) - increase heading h: or reduce font slightly
+2. Vertical balance - the content block (heading through bottom tier) spans y=90 to y=832, but starts at top of safe zone. The content should be pushed down to center better vertically. The DECK_PLAN says "Heading and subheading centered at top" which implies they should be near top, and the tiers below. But there's ~190px of empty space at bottom which looks unbalanced.
+3. Min vertical gap heading-to-sub (16px vs 48px recommended) - this is a dense reference card, tight spacing is intentional per DECK_PLAN. Will address alongside vertical balance.
+
+
+**Fixes applied (round 1):**
+1. Moved heading from y=safe.y (90) to y=130 and added explicit h=62 to fix text-overflow
+2. Moved contentY from 210 to 256 to maintain spacing below the shifted heading
+3. Low-contrast warnings: These are false positives caused by the linter computing contrast against the transparent glass fill rather than the effective visual background (dark #0A1628 shows through). White text on glass-over-dark is clearly readable. The 2.56:1 ratio is for #94A3B8 secondary text, which is consistent with the design spec across the entire deck. Skip.
+4. font-too-small warnings: Known FP per learnings -- linter reads 16px browser default, not inline styles. Skip.
+
+
+**After fix (round 2):**
+- Heading y=155, h=62. Text-overflow: FIXED (scrollH=clientH=62).
+- Content shifted down: heading at y=155, contentY=281.
+- Vertical balance within safe zone: 65px top gap, 87px bottom gap (ratio 1.34x). From canvas edges: 155px top, 177px bottom (ratio 1.14x). Acceptable.
+- All tier inner content has zero real overflow (1px outer discrepancies are sub-pixel rounding).
+- Lint: 0 errors. Remaining warnings are:
+  - `min-vertical-gap` (2x): heading-to-sub 16px (wants 48px), sub-to-tiers 20px (wants 36px). By design for dense reference card per DECK_PLAN.
+  - `unbalanced-trailing-whitespace` (6x): Structural for stacked layout. Overall balance is adequate.
+  - `font-too-small` (7x): Known FP -- linter reads 16px default, not inline styles.
+  - `low-contrast` (34x): FP -- linter computes against transparent glass fill, not effective visual bg (dark shows through).
+- Content verification: All 13 tools present, correct tier groupings, correct badges (FAST/LLM), correct params and descriptions. Matches DECK_PLAN exactly.
+
+**Status:** PASS
+
+All warnings are either design-intentional (tight spacing on dense reference card), known false positives (font-too-small), or structural limitations of the linter (low-contrast on glass panels, trailing whitespace on stacked layouts). Zero errors.
+
+### Reflection
+
+1. **What worked well:**
+   - The DOM position extraction via `slide.layout.elements[id].resolved` was invaluable for calculating exact vertical balance ratios. This made it easy to compute precise adjustments rather than guessing from screenshots.
+   - The inner-content overflow check (checking children inside the tier panels, not just the outer container) correctly identified the 1px outer discrepancies as sub-pixel rounding rather than real overflow.
+   - Summarizing lint findings by rule with counts and sample messages (instead of listing all 49 findings individually) was much more manageable for triage.
+
+2. **What was problematic:**
+   - The `low-contrast` linter rule generates a massive number of false positives on glass-panel slides (34 in this case). It computes contrast against the element's transparent background fill rather than the effective visual background that shows through. On a slide with 5 tier panels each containing multiple text elements, this floods the results. A way to annotate elements as "glass over known dark bg" would help.
+   - The `unbalanced-trailing-whitespace` rule fires on every element in a top-to-bottom stacked layout, even when the overall content block is well-centered. It measures per-element balance rather than block-level balance, making it noisy for multi-panel layouts.
+
+3. **What was surprising:**
+   - The slide was quite well-built to begin with. The only real issue was the heading text-overflow (4px) and vertical positioning. The content, styling, tier colors, and tool reference data were all correct out of the box.
+   - The 1px sub-pixel overflow on every tier panel initially looked concerning (5 elements all showing overflow) but turned out to be harmless rounding artifacts in every case.
+
+4. **What instructions or tools would have helped:**
+   - A linter mode that computes effective contrast by compositing transparent backgrounds against their parent/bg layer would eliminate the largest category of false positives on this deck.
+   - A "content block" vertical balance check (measuring the bounding box of all content elements vs the safe zone) would be more useful than per-element trailing whitespace checks for stacked layouts.
+   - The verifier instructions mention `scrollHeight > clientHeight` for overflow checking, but should note that 1px discrepancies on auto-sized elements are almost always sub-pixel rounding. A threshold of 2-3px for "real" overflow would reduce false alarms.
+
+## Slide 09: MCP in Action -- Getting Context
+
+**First look:** The heading "MCP in Action" and the italic note are centered and readable. Two terminal panels side by side show the conversation examples. The right panel has more content than the left, which is expected (3 tool calls + agent response vs 1 tool call + agent response). However, there are two notable issues:
+1. **The left terminal panel is noticeably shorter than the right** -- the left panel ends much higher, creating visual imbalance between the two panels. They should ideally be the same height since both use `left.h` / `right.h` from `splitRect`.
+2. **There is excessive empty space below the terminal panels and above the footer text.** The footer ("No workflow change...") appears well below the terminals, with a large gap. This suggests the terminal panels may not be using their full allocated height, or the footer is positioned too low.
+3. The content within the panels looks good -- colored labels (cyan "You:", purple "Agent:"), tool insets with yellow dots, and project names in blue are all readable.
+4. The dark glass panel styling looks appropriate for the terminal aesthetic.
+
+
+**DOM inspection:**
+- `s9-heading`: x:120 y:90 w:1680 h:62 -- scrollH 67 vs clientH 62 = **5px overflow** (real)
+- `s9-note`: x:120 y:168 w:1680 h:25 -- no overflow
+- `s9-term-left`: x:120 y:217 w:824 h:709 -- no text overflow, but inner content is only 345px tall (364px of empty glass)
+- `s9-term-right`: x:976 y:217 w:824 h:709 -- no text overflow, inner content is only 425px tall (284px of empty glass)
+- `s9-footer`: x:120 y:950 w:1680 h:28 -- no overflow
+- Terminal bottom edge: 217 + 709 = 926. Footer at y:950. Gap between terminals and footer = 24px.
+- Panels are massively oversized for content (Learning #5 confirmed).
+
+**Lint results:**
+- `non-ancestor-overlap` s9-bg / s9-orb: Known FP (stacked bg layers), skip.
+- `text-overflow` s9-heading: **REAL** -- 5px overflow, needs fix (increase h from 62 to ~70).
+- `min-vertical-gap` s9-heading/s9-note (16px, wants 48px): Will address during layout rebalance.
+- `min-vertical-gap` s9-note/s9-term-left (24px, wants 36px): Will address during layout rebalance.
+- `min-vertical-gap` s9-term-right/s9-footer (24px, wants 48px): Will address during layout rebalance.
+- `unbalanced-trailing-whitespace` s9-note: Will be resolved by rebalancing layout.
+- `font-too-small` on all 5 text elements: Known FP (inline font styles), skip.
+
+**Issues:**
+1. Heading text overflow (5px) -- need to increase headingH
+2. Terminal panels massively oversized -- 709px panels for ~345/425px content. Need to size panels to content, not to full remaining space.
+3. Vertical balance is poor -- content is bunched at top, huge empty space below panels and above footer.
+
+
+**Fixes applied (round 1):**
+- Increased `headingH` from 62 to 70 and added explicit `h: headingH` to heading element -- fixes 5px text overflow
+- Changed `gapSm`(16px) to `gapHeadNote`(24px) and `gapMd`(24px) to `gapNoteTerms`(32px) -- increases gaps per linter recommendations
+- Set explicit `termH = 490` instead of filling remaining space (was 709px) -- right panel content is ~425px, so 490px gives breathing room without massive empty glass
+- Computed `contentH` as total stack height and `contentTop` to vertically center the whole content block in the safe zone
+- Moved footer to `termTop + termH + gapTermsFooter` (36px gap) instead of pinning to safe zone bottom
+
+
+**Fixes applied (round 2):**
+- Increased `gapHeadNote` from 24 to 48px (linter wanted 48px min)
+- Increased `gapNoteTerms` from 32 to 36px (linter wanted 36px min)
+- Increased `gapTermsFooter` from 36 to 48px (linter wanted 48px min)
+- New contentH = 757px, centered in 900px safe zone = ~71px margin on each side
+
+
+**After fix (round 2) -- re-check:**
+- DOM positions: heading y:162 h:70, note y:280 h:25, terminals y:341 h:490, footer y:879 h:28
+- All overflow checks: ZERO overflow on every element
+- Vertical balance: 72px above heading (from safe zone top), 83px below footer (to safe zone bottom) -- well centered
+- Terminal panels: 490px height, right content 425px (65px margin), left content 345px (145px margin -- acceptable since both must match)
+
+**Post-fix lint results:**
+- `non-ancestor-overlap` s9-bg/s9-orb: Known FP (stacked bg layers), skip.
+- `unbalanced-trailing-whitespace` s9-note: Not a real issue -- note is a subtitle under heading, linter measures its trailing space incorrectly. Skip.
+- `font-too-small` on all 5 text elements: Known FP (inline font styles), skip.
+- `min-vertical-gap`: ALL RESOLVED -- zero gap warnings remain.
+- `text-overflow`: ALL RESOLVED -- zero overflow errors.
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The DOM inspection with `scrollHeight` vs `clientHeight` was essential for confirming the heading overflow (5px) and measuring the inner content heights of the terminal panels (345px and 425px vs 709px allocated). Without these measurements, the "oversized panel" problem would have been hard to quantify.
+   - The vertical centering strategy (computing total content block height and centering in safe zone) worked cleanly to fix both the balance and the trailing whitespace issues in one move.
+   - The iterative approach (fix -> reload -> re-check) caught that the initial gap sizes still triggered min-vertical-gap warnings, which were easily fixed in round 2.
+
+2. **What was problematic:**
+   - Nothing significant. The two rounds of fixes were straightforward.
+
+3. **What was surprising:**
+   - The terminal panels were nearly 2x their needed height (709px for 345-425px of content). The `splitRect` approach of filling all available space is a very common source of oversized panels on this deck (confirming Learning #5).
+   - The `unbalanced-trailing-whitespace` warning on s9-note persisted even after centering the content block. The linter doesn't understand heading+subtitle groupings -- it treats each element independently, so a subtitle will always have a huge "below" measurement since all subsequent content counts as trailing space.
+
+4. **What instructions or tools would have helped:**
+   - A linter concept of "element groups" (e.g., heading + subtitle) would eliminate the spurious trailing whitespace warnings on subtitle elements that are intentionally positioned directly under their parent heading.
+   - The initial `headingH = 62` was too small for a 52px font at 1.2 line-height (= 62.4px, so rounding caused overflow). A rule of thumb in the instructions to use `Math.ceil(fontSize * lineHeight) + 4` for heading heights would prevent this class of issue.
+
+## Slide 10: MCP in Action -- Finding Details
+
+**First look:** Dark background with "MCP in Action: Finding Details" heading centered at the top. Single wide terminal panel below with the full conversation flow: user question ("What commands deploy..."), three tool calls with yellow dots, agent response with Architecture/Storage/Why details, and green deploy commands at the bottom. The content all renders and is readable. However, there is a significant vertical imbalance -- the terminal panel content ends roughly 60% down the slide, leaving a large gap before the footer caption, which sits near the bottom. The footer itself appears well below the terminal, creating dead space. The terminal panel appears to be sized much taller than its content needs, creating wasted glass area below the deploy commands.
+
+**DOM inspection:**
+- s10-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg)
+- s10-heading: x=120, y=90, w=1680, h=62 -- heading at top of safe zone
+- s10-terminal: x=246, y=176, w=1428, h=750 -- 85% width terminal panel centered
+- s10-footer: x=120, y=950, w=1680, h=28 -- footer caption at bottom
+
+Key measurements:
+- Terminal inner content: scrollH=554, container=750, surplus=196px of empty glass below content
+- Heading overflow: scrollH=67 vs clientH=62 -- 5px text overflow (REAL)
+- Terminal gap to footer: 24px (terminal ends at y=926, footer at y=950)
+
+**Lint results:**
+- `text-overflow` (error) on s10-heading: scrollH 67 > clientH 62. REAL issue -- need to increase headingH.
+- `min-vertical-gap` (warning) on s10-heading to s10-terminal: 24px gap vs recommended 48px. Will evaluate.
+- `min-vertical-gap` (warning) on s10-terminal to s10-footer: 24px gap vs recommended 48px. Terminal is oversized so this gap is fine once panel is shrunk.
+- `font-too-small` (warning) on s10-heading, s10-terminal, s10-footer: Known FP -- linter reads default 16px, actual inline styles are 52px, 17-18px, and 20px respectively. Skip.
+
+**Issues:**
+- Heading text overflow: headingH=62 but content needs 67px. Need to increase to at least 68.
+- Terminal panel oversized: 750px tall but content only needs ~610px (554px content + 56px padding). 196px of empty glass below the deploy commands.
+- Vertical imbalance: content block (heading + terminal) starts at y=90 and ends at ~786 (if resized to 610), but footer is at y=950. Large dead zone between terminal and footer.
+
+**Fixes applied:**
+- Increased headingH from 62 to 68 to fix text overflow (content needs 67px)
+- Set explicit termH=620 instead of filling all remaining space (content only needs ~610px)
+- Changed footerH from 40 to 28 (actual measured height)
+- Centered entire content block vertically: totalH = 68+24+620+24+28 = 764, centered in safe.h=900 gives topY = safe.y + 68
+- Updated heading y from safe.y to topY for vertical centering
+- Added explicit h: headingH on heading element to prevent overflow
+- Updated footer y to sit just below terminal (termTop + termH + gapMd) instead of at bottom of safe zone
+
+**Fixes applied:**
+- Increased headingH from 62 to 68 to fix text overflow (52px font * 1.2 line-height = 62.4, rounded up + margin)
+- Changed terminal height from fill-remaining-space calculation to explicit termH=590 (content needs ~554px inner + 56px padding = 610px box-sizing, 590px container gives reasonable fit)
+- Changed footerH from 40 to 28 (actual rendered height)
+- Vertically centered entire content block (heading + terminal + footer) in safe zone: totalH=762, centered in safe.h=900 gives topY=safe.y+69
+- Increased heading-to-terminal gap from 24 to 32px for slightly more breathing room
+- Updated footer y to sit directly below terminal + gap instead of anchored to bottom of safe zone
+
+**After fix:** Re-checked all elements:
+- Heading: scrollH=68, clientH=68 -- no overflow
+- Terminal: scrollH=590, clientH=590 -- no overflow
+- Footer: scrollH=28, clientH=28 -- no overflow
+- Vertical centering: heading starts at y=169, footer ends at y=911. Space above=169px, space below=169px -- perfectly symmetric.
+- All elements within 1920x1080 canvas bounds.
+- Lint: no errors. Remaining warnings are all skippable:
+  - `min-vertical-gap` (32px and 24px) -- acceptable for terminal-heavy layout
+  - `font-too-small` x3 -- known FP (linter reads 16px default, not inline styles)
+
+**Status:** PASS
+
+### Reflection
+
+1. **What worked well:**
+   - The `scrollHeight > clientHeight` check immediately confirmed the heading overflow that was invisible at presentation scale. This is essential -- at Reveal.js zoom the 5px overflow is invisible but would cause problems.
+   - Checking the inner div's scrollHeight vs the container gave a precise measurement of how much to shrink the terminal panel. No guessing needed.
+   - The `box-sizing: border-box` discovery was important -- the 554px clientH includes padding, so the actual content area is smaller than it appears.
+
+2. **What was problematic:**
+   - Starting the HTTP server was fiddly. The port variable expansion within the background-process command didn't work reliably in the first two attempts. A simpler hardcoded port worked.
+   - The terminal panel surplus calculation required understanding CSS box-sizing behavior. The 36px "surplus" between container and inner div was misleading until I checked box-sizing.
+
+3. **What was surprising:**
+   - The original code sized the terminal to fill all remaining space (heading to footer), creating a 750px panel for ~610px of content. This is a common pattern in generated code -- fill available space rather than size to content. It created 196px of wasted glass. After fix, the vertical centering created perfect 169px symmetry above and below.
+   - The `unbalanced-trailing-whitespace` warning went away on its own once the content was properly centered -- it was a symptom of the asymmetric layout, not a root cause.
+
+4. **What instructions or tools would have helped:**
+   - A helper snippet to check box-sizing on terminal panels would save time. The `scrollHeight > clientHeight` check is great for overflow but doesn't account for box-sizing when measuring surplus.
+   - The learnings about `headingH` sizing (Learning #9 from slide 9's verifier) were directly applicable here -- same 52px font at 1.2 line-height = 62.4px issue. The suggested formula `Math.ceil(fontSize * lineHeight) + 4` would have prevented this.
+
+---
+
+## Slide 11: MCP in Action -- Cross-Session Q&A
+
+**First look:** The slide renders with the correct heading ("MCP in Action: Cross-Session Q&A"), terminal panel, and footer. Content inside the terminal is complete - user question, ask_question tool call, routing note, agent response with 4 bullet points, and sources line. However, the terminal panel is massively oversized - content occupies roughly the top 60% of the glass panel, with a huge empty dark area below the Sources line. The footer is also pushed far down with a large gap between the bottom of the terminal and the footer. This is exactly Learning #5 - panel sized to fill remaining space rather than sized to content.
+
+**DOM inspection:**
+- s11-bg: 0,0 1920x1080 (correct)
+- s11-heading: x=120, y=90, w=1680, h=62 -- overflow detected (scrollH=67 > clientH=62)
+- s11-terminal: x=246, y=176, w=1428, h=740 -- content only needs ~411px, surplus 329px
+- s11-footer: x=120, y=940, w=1680, h=27
+- Layout: heading at top, terminal fills most of the remaining space, footer at bottom. Terminal is far too tall.
+
+**Lint results:**
+- ERROR `text-overflow` on s11-heading - real, scrollH=67 > clientH=62 (Learning #9: 52px*1.2=62.4, rounds up to 67 with browser rendering)
+- WARNING `min-vertical-gap` on s11-heading (24px gap to terminal, wants 48px) - real, worth fixing
+- WARNING `min-vertical-gap` on s11-terminal (24px gap to footer, wants 48px) - will be addressed by resizing
+- WARNING `font-too-small` on s11-heading, s11-terminal, s11-footer - known FP, skip (inline font styles)
+
+**Issues:**
+1. Heading overflow: headingH=62 too small for 52px/1.2 font
+2. Terminal panel 329px too tall for content (740px panel, ~411px content)
+3. Vertical imbalance: content crammed at top, huge empty space below terminal and above footer
+
+**Fixes applied:**
+- headingH: 62 -> 67 (fixes text-overflow for 52px/1.2 heading)
+- termH: dynamic fill -> fixed 470px (sized to content ~411px + padding buffer)
+- gaps: 24px -> 36px (heading-to-terminal and terminal-to-footer)
+- Vertical centering: calculated totalH = headingH + gap1 + termH + gap2 + footerH = 659px, then topY = safe.y + (safe.h - totalH)/2 to center the entire content block
+- Footer: changed from pinned-to-bottom (safe.y + safe.h - footerH) to positioned relative to terminal (footerY = termTop + termH + gap2)
+- Added explicit h: headingH to heading element
+- Second pass: gaps 36px -> 48px to satisfy min-vertical-gap linter rule
+
+**After fix:** Re-checked after two fix rounds.
+- Screenshot: slide-11-fix2.png / slide-11-final.png
+- Heading overflow: FIXED (scrollH=67 = clientH=67)
+- Terminal overflow: none (scrollH=470 = clientH=470)
+- Terminal surplus: 59px (470 - 411), accounted for by 28px top + 28px bottom padding -- appropriate
+- Vertical balance: space above heading 109px, space below footer 131px (22px diff) -- well balanced
+- Lint: only `font-too-small` known FPs remain on all 3 elements -- no real issues
+- min-vertical-gap warnings: resolved (gaps now 48px)
+- text-overflow error: resolved
+- unbalanced-trailing-whitespace: resolved
+- All elements within 1920x1080 canvas
+
+**Reflection:**
+
+1. **What worked well:**
+   - The Learnings section was invaluable. Learning #5 (panels sized to fill remaining space) and Learning #9 (headingH=62 too small for 52px/1.2) predicted exactly the issues found. Reading those first saved significant diagnostic time.
+   - The content-height measurement technique (using getBoundingClientRect with scale factor) gave precise numbers for sizing the terminal.
+   - Two-pass fix approach (first fix major layout, then fine-tune gaps) was efficient.
+
+2. **What was problematic:**
+   - The first content height measurement in browser pixels (305px) was misleading -- needed to convert to 1920x1080 space using the scale factor (0.7422). Would have been easy to size the panel wrong without the conversion.
+
+3. **What was surprising:**
+   - The terminal had 329px of surplus in the original -- nearly half the panel was empty glass. This is a huge visual problem that was hard to notice in the initial screenshot because the dark glass blends with the dark background.
+   - The vertical centering approach (calculate totalH, center in safe zone) produced near-perfect balance on the first try -- only 22px asymmetry.
+
+4. **What instructions or tools would have helped:**
+   - A built-in helper to measure content height in 1920-space would avoid the manual scale conversion. Something like `sk.measureContentHeight('s11-terminal')` would be ideal.
+   - The pattern of "headingH = 67 for 52px/1.2 font" is now confirmed across multiple slides. This should be a standard constant or even a SlideKit helper.
+
+**Status:** PASS
+
+
+## Slide 12: MCP in Action -- Evolution & Search
+
+**First look:** The heading "MCP in Action: Evolution & Exact Search" is well positioned at the top-center. Two terminal panels are side by side. The left panel ("Tracking evolution") and right panel ("Needle in a haystack") both display correctly with monospace font, tool calls in dark boxes with yellow dots, and agent responses. The content is readable. However, there are notable issues:
+1. The panels are vertically too high on the slide -- there is a huge gap between the bottom of the panels and the footer. The terminal panels only occupy about the top third of the available vertical space, leaving roughly 200px of empty space between panels and footer.
+2. The panels appear to be sized to the full terminal area height but content only fills about half of each panel. The glass panels extend well below their content (Learning #5 from verifier.md).
+3. The footer text is at the very bottom and well separated from the panels.
+4. The left panel content wraps slightly (ask_sessions line), making it slightly taller than the right panel, but both look balanced enough.
+
+**DOM inspection:**
+- s12-bg: 0,0 1920x1080 (full bleed background)
+- s12-heading: 120,90 1680x62
+- s12-term-left: 120,176 824x740
+- s12-term-right: 976,176 824x740
+- s12-footer: 120,940 1680x27
+- Terminal panels are 740px tall but inner content is only ~341-347px. That's over 2x the needed height -- massive empty glass space (Learning #5).
+- Heading scrollH=67 vs clientH=62 -- 5px overflow (real).
+- No overflow on terminal panels.
+
+**Lint results:**
+- ERROR: text-overflow on s12-heading (scrollH 67 > clientH 62) -- REAL, needs fix
+- WARNING: min-vertical-gap s12-heading to s12-term-left (24px, recommends 48px) -- will address when resizing panels
+- WARNING: min-vertical-gap s12-term-right to s12-footer (24px, recommends 48px) -- this is between 740px-tall panels and footer; will fix when panels shrink
+- WARNING: font-too-small on s12-heading, s12-term-left, s12-term-right, s12-footer -- known FP, skip (all have inline font styles)
+
+**Issues:**
+1. Heading overflow: 5px overflow. Need to increase heading height from 62 to ~70.
+2. Terminal panels massively oversized: 740px tall with only ~347px of content. Need to shrink panels to fit content + some padding (~400px).
+3. With smaller panels, the content cluster (heading + panels + footer) will be much shorter, leaving the question of vertical centering. Should push content down to center it vertically on the slide.
+
+**Fixes applied (round 1):**
+- Increased headingH from 62 to 70 to fix heading text overflow
+- Added explicit h: headingH to heading element
+- Changed termH from dynamic fill-all-space to fixed 420px (content is ~350px + padding)
+- Centered the entire content cluster vertically: startY = safe.y + (safe.h - totalH) / 2
+- Increased gaps: gapMd=32, gapFooter=32 (addresses min-vertical-gap warnings)
+- Footer now positioned relative to terminal bottom + gap, not at absolute bottom of safe area
+
+**Fixes applied (round 2):**
+- Increased gaps from 32px to 48px (fixes min-vertical-gap lint warnings)
+- Reduced termH from 420 to 400 (tighter fit for content, reduces internal whitespace)
+
+**After fix:**
+- DOM positions: heading at y=232, terminals at y=350 (h=400), footer at y=798 (h=27)
+- Vertical balance: 232px above, 255px below -- nearly centered, good balance
+- Heading overflow: FIXED (scrollH=clientH=70, no overflow)
+- Terminal overflow: None (both scrollH=clientH=400)
+- Lint: Only font-too-small on all 4 elements -- known FP (inline font styles, linter reads browser default 16px)
+- No errors, no real warnings remaining
+- Visual: Heading centered at top, two side-by-side terminal panels with balanced content, footer centered below. Glass panels nicely sized for their content with minimal wasted space. Content is readable, colors are consistent with other demo slides.
+
+**Status:** PASS
+
+---
+
+### Reflection (Slide 12)
+
+**What worked well:**
+- The DOM scrollHeight/clientHeight checks were essential for verifying the heading overflow (only 5px, invisible to the eye) and confirming the terminal panels had no overflow.
+- The iterative fix-screenshot-lint cycle was efficient. Two rounds of fixes got everything clean.
+- Learning #5 from previous verifiers (panels sized to splitRect heights being way too tall) was exactly the main issue here. Reading the learnings upfront saved investigation time.
+
+**What was problematic:**
+- The PORT variable not persisting across Bash calls wasted a step. Had to hardcode the port instead.
+- The unbalanced-trailing-whitespace warnings were somewhat misleading -- they flagged internal panel whitespace that's actually just padding behavior, not a layout problem. The second round of fixes (reducing termH from 420 to 400) was more about satisfying the linter than visual improvement.
+
+**What was surprising:**
+- The heading overflow was only 5px -- completely invisible in the screenshot but real per the linter. The 52px font at 1.2 line-height needs 62.4px, so 62px clips by a fraction. Good that the linter catches these.
+- The original termH calculation (`(safe.y + safe.h) - termTop - footerH - 24`) creates 740px panels for ~350px of content. That's a 2.1x oversize. This pattern appears to come from the code skeleton in DECK_PLAN.md itself, so it's a systematic issue in the plan, not a writer mistake.
+
+**What instructions or tools would have helped:**
+- A quick way to compute "ideal panel height" from content height + padding would save the manual calculation. Something like a `contentHeight('s12-term-left')` helper that returns the minimum height needed.
+- The verifier instructions could note that `PORT=$((RANDOM...))` won't persist across separate Bash calls in this environment -- recommend hardcoding a port value instead.
+
+## Slide 13: Under the Hood
+
+**First look:** The slide renders with a dark background and the "Under the Hood" heading top-left. A glass panel contains all five technical highlight items stacked vertically with divider lines between them. The accent-colored text for "(database only), sub-second" and "2-5 seconds" renders in cyan as intended. However, the glass panel appears quite tall -- there is significant empty space below the panel content and above the bottom of the slide. The panel height is 710px but the content probably does not need that much. The overall layout matches the DECK_PLAN intent reasonably well but the panel could be tighter. The heading and content are properly left-aligned.
+
+**DOM inspection:**
+- s13-title: x=120, y=90, w=1680, h=70 (heading top-left, good)
+- s13-panel-bg: x=120, y=192, w=1344, h=710 (glass panel)
+- s13-items: x=160, y=232, w=1264, h=584 (content inside panel)
+- Text overflow on s13-items: scrollHeight=619 > clientHeight=584 (35px overflow)
+- Panel is 710px but content only needs ~619 + 2*40 padding = ~699px. The items element at h=584 is too short for the 619px content.
+- Panel bottom edge: 192 + 710 = 902, which is within safe zone (bottom at 990). Good.
+
+**Lint results:**
+- `non-ancestor-overlap` s13-bg vs s13-bg-img -- known FP, skip (stacked bg layers)
+- `non-ancestor-overlap` s13-panel-bg vs s13-items -- known FP, skip (panel-behind-content pattern)
+- `text-overflow` on s13-items -- REAL. scrollHeight 619 > clientHeight 584. Must fix.
+- `min-vertical-gap` s13-title vs s13-panel-bg: gap is 32px, minimum recommended 48px -- worth fixing
+- `font-too-small` on s13-title -- known FP (inline font 52px, linter reads 16px default)
+- `font-too-small` on s13-items -- known FP (inline font styles)
+
+**Issues:**
+1. Text overflow on s13-items: 35px clipped. Need to either increase the items element height or increase the panel and items together.
+2. Gap between title and panel is only 32px; linter recommends 48px.
+
+**Fixes applied:**
+1. Changed gap between heading and panel from 32px to 48px (panelY = safe.y + 70 + 48) to satisfy min-vertical-gap lint rule.
+2. Set explicit h:630 on s13-items element to prevent text overflow (content needed 619px, was auto-sized to 584px).
+
+**After fix:**
+- Text overflow: FIXED. scrollH=630, clientH=630, no overflow.
+- Gap warning: FIXED. Gap is now 48px (title bottom at 160, panel top at 208).
+- Panel dimensions: panelY=208, h=710, bottom=918 (within safe zone bottom of 990).
+- Items: y=248, h=630, bottom=878. Panel padding: 40px top and bottom. Perfect fit.
+- Remaining lint findings are all known FPs:
+  - non-ancestor-overlap s13-bg/s13-bg-img (stacked bg layers, known FP)
+  - non-ancestor-overlap s13-panel-bg/s13-items (panel-behind-content, known FP)
+  - font-too-small on s13-title and s13-items (linter reads 16px default, known FP)
+- Visual check: All five items visible, cyan accent colors render correctly, divider lines present, content is well-spaced within the panel.
+
+**Status:** PASS
+
+**Reflection:**
+
+**What worked well:**
+- The verifier workflow was smooth for this slide. Reading the DECK_PLAN spec first, then comparing to the screenshot, then confirming with DOM measurements and linter gave a clear progression. The scrollHeight vs clientHeight check was essential -- the text overflow was subtle visually (only 35px clipped at the bottom of the "Cheap-first design" description) and would have been easy to miss by eyeballing alone.
+- The learnings doc was accurate: `font-too-small` and `non-ancestor-overlap` were indeed false positives, and knowing that up front saved investigation time.
+- The fix was small and targeted: one gap adjustment (32 to 48) and one explicit height (h:630). No major rewrite needed.
+
+**What was problematic:**
+- Nothing significant. This was a clean slide with only two real issues, both straightforward to fix.
+
+**What was surprising:**
+- The auto-sizing of the items element to 584px when the content needed 619px. The panel was 710px with 40px padding, so you might expect the items to get 710-80=630px, but SlideKit apparently sized it differently (perhaps based on some other constraint). Setting an explicit h: was the reliable fix.
+- The gap between heading and panel was flagged by the linter at 32px (recommending 48px). This came from the DECK_PLAN code skeleton itself which used `+ 32` for the gap calculation, so the original spec had a lint-unfriendly value.
+
+**What instructions or tools would have helped:**
+- A note in the verifier doc about how SlideKit auto-sizes elements that lack an explicit `h:` would help explain why overflow occurs even when the parent container seems large enough. The mental model of "items height = panel height - 2*padding" is not always correct.
+
+---
+
+## Slide 16: The Session Graph
+
+**First look:** Light background slide (bg.secondary). The heading "The Session Graph" and subheading are centered at top. Left side has a white card with "How sessions connect" title and 6 bulleted connection items with gradient dots, plus an italic footer. Right side has 5 scenario cards with gradient accent lines at top. Two main issues are visible: (1) The left panel is considerably taller than its content - there is a large empty white area below the footer text. (2) The layout overall looks vertically unbalanced - content is in the upper-middle third of the slide with empty space above and below. The gradient accent lines on the scenario cards look good. Text appears readable. The 40/60 split looks reasonable.
+
+**DOM inspection:**
+- s16-bg: 0,0 1920x1080 (full bleed, correct)
+- s16-heading: 120,90 1680x70
+- s16-subheading: 120,176 1680x25
+- s16-left-bg: 120,258 659x732 (the white panel -- bottom edge at 990)
+- s16-left-title: 148,286 603x29
+- s16-connections: 148,339 603x644 (bottom edge at 983, content area)
+- s16-scenario-0 through s16-scenario-4: 811,258 to 811,850, each 989x138
+- Scenario cards span from y=258 to y=988 (850+138)
+- Left panel spans from y=258 to y=990 (258+732)
+- No text overflow on any element (confirmed with scrollHeight checks)
+- The left panel (h=732) is significantly taller than its visible content. The connections element alone is given h=644 but the actual connection items + footer probably only need ~320px. This creates a large empty white area.
+- Content starts at y=258 and goes to y=990, leaving only 90px at bottom of safe zone. The heading area (y=90 to y=201) uses about 111px. So content is pushed to upper portion.
+
+**Lint results:** Many findings, triaging by category:
+- `non-ancestor-overlap` (2 errors): s16-left-bg overlaps s16-left-title and s16-connections -- known FP, intentional panel-behind-content pattern, skip.
+- `font-too-small` (10 warnings): All elements report 16px -- known FP (Learning #2), linter reads browser default not inline styles, skip.
+- `low-contrast` (many warnings): All report 1.03:1 or 2.56:1 -- this is a light-background slide (Learning #3 from assignment), these are false positives, skip.
+- `min-vertical-gap`: heading-to-subheading 16px (wants 48px), left-title-to-connections 24px (wants 36px), scenario card gaps 10px (wants 48px). The scenario card gaps at 10px are tight but this is a dense 5-card layout -- increasing to 48px would not fit. The heading gap is worth checking.
+- `unbalanced-trailing-whitespace`: Multiple warnings about vertical imbalance. The most relevant one is about the overall content being pushed high with empty space below.
+
+**Issues:**
+1. Left panel (s16-left-bg) height is 732px but content only needs ~400px. This creates a large empty white glass area at the bottom. (Learning #5)
+2. The heading-to-subheading gap of 16px is small but acceptable for section heading + subtitle. The scenario card 10px gaps are intentional for a tight card stack.
+3. Vertical balance could be improved slightly -- content block starts high.
+
+**Fixes applied:**
+1. Calculated explicit left panel height based on content: pad(28) + title(30) + gap(24) + content(310) + pad(28) = 420px, instead of using the full splitRect height (732px). This eliminates the large empty white area.
+2. Reduced right scenario card height from 138px to 106px (cards have ~80px of actual content, so 106px gives breathing room without waste).
+3. Increased card gap from 10px to 14px for slightly better spacing.
+4. Vertically centered both the left panel and right card stack within the content area. Both columns now center at y=624.
+
+**After fix (v2):**
+- Left panel: y=414, h=420, bottom at y=834 -- properly sized to content, no empty glass.
+- Right cards: y=331 to y=917, 5 cards at 106px each with 14px gaps = 586px total.
+- Both centered vertically: left center at 624, right center at 624. Aligned.
+- No text overflow on any element (confirmed scrollHeight checks).
+- Lint re-check: all remaining warnings are known FPs:
+  - `non-ancestor-overlap`: panel-behind-content pattern, known FP, skip.
+  - `font-too-small`: all report 16px, known FP (Learning #2), skip.
+  - `low-contrast`: light-background slide, known FP (assignment note / Learning #3), skip.
+  - `min-vertical-gap`: heading-subheading at 16px and card gaps at 14px are intentional tight spacing for this layout. Cards must fit 5 in the vertical space; increasing gaps would push cards off canvas.
+  - `unbalanced-trailing-whitespace`: expected for centered content within a split layout; each element's local above/below ratio doesn't reflect the overall centering.
+- Visual inspection: slide looks well balanced. Left panel is compact and the content is readable. Right cards are evenly spaced with gradient accent lines. The 40/60 split reads well. No cramming, no wasted space.
+
+**Status:** PASS
+
+---
+
+### Reflection
+
+**What worked well:**
+- The DOM position inspection immediately revealed the core issue (left panel h=732 vs content needing ~400px). The scrollHeight check on the inner div confirmed the actual content height (303px), giving precise sizing data.
+- Having the DECK_PLAN spec made it easy to verify the slide matched intent (40/60 split, white cards on light bg, gradient accent lines, connection list with dots, etc.).
+- The incremental logging approach kept the investigation organized and made it easy to track before/after.
+
+**What was problematic:**
+- Nothing major. The fix was straightforward once the panel oversizing was identified.
+
+**What was surprising:**
+- The connections inner content was only 303px but was allocated 644px -- more than double the needed height. The splitRect approach of using `left.h` for the panel is a recurring pattern that leads to oversized panels (confirmed Learning #5).
+- The vertical centering math worked cleanly on the first try because the content areas were well-defined.
+
+**What instructions or tools would have helped:**
+- A utility to quickly check "what is the natural content height of this element's children" without having to manually traverse the DOM would speed up panel sizing investigations.
+
+---
+
+## Slide 17: What's Next
+
+**First look:** Dark background with ambient orbs visible. Heading "What's Next" is centered at top. Three glass panel cards stacked vertically, each with a gradient accent bar on the left and gradient title text. Content is: GraphRAG Zero, Team Memory, More Parsers. Each card shows title + body text. Primary issue: all three cards have significant empty space at the bottom -- the cards are much taller than their text content requires. The text only fills roughly the top 40-50% of each card. This matches the known pattern from Learning #5 where auto-computed card heights (using availableH/3) are oversized for the actual content. The gradient accent bars are visible on the left edge. Text is readable. Overall layout matches the DECK_PLAN spec in structure but needs card height tightening.
+
+**DOM inspection:**
+- s17-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg)
+- s17-bg-img: x=0, y=0, w=1920, h=1080 (ambient orb image at 45% opacity)
+- s17-heading: x=120, y=90, w=1680, h=76 (56px heading, centered)
+- s17-card-bg-0: x=288, y=202, w=1344, h=246 -- card 1 glass bg
+- s17-card-content-0: x=320, y=230, w=1284, h=190 -- actual child content: 102px (88px wasted)
+- s17-card-bg-1: x=288, y=472, w=1344, h=246 -- card 2 glass bg
+- s17-card-content-1: x=320, y=500, w=1284, h=190 -- actual child content: 102px (88px wasted)
+- s17-card-bg-2: x=288, y=742, w=1344, h=246 -- card 3 glass bg
+- s17-card-content-2: x=320, y=770, w=1284, h=190 -- actual child content: 72px (118px wasted)
+- Cards end at y=988, just inside safe zone (990). Gap heading-to-card-1 is 36px.
+- No text overflow on any element (scrollH == clientH for all).
+
+**Lint results:**
+- `non-ancestor-overlap` (error) x7: bg overlaps bg-img, card-bg overlaps accent and content -- all known FP (stacked bg layers, panel-behind-content pattern). SKIP.
+- `horizontal-center-consistency` (error) x3: accent bars s17-accent-0/1/2 off-center -- these are intentionally left-aligned accent bars, not centered content. Known FP for accent bars. SKIP.
+- `min-vertical-gap` (warning): heading to card-bg-0 gap is 36px, recommended 48px. REAL but minor -- will address.
+- `unbalanced-trailing-whitespace` (warning) x5: cards positioned too high with lots of trailing whitespace below. REAL -- cards are oversized, causing trailing space issues.
+- `font-too-small` (warning) x4: heading and card content report 16px -- known FP, linter reads browser default not inline styles. SKIP.
+
+**Issues:**
+1. Cards are significantly oversized: each card bg is 246px tall, but content only needs ~102px (cards 0,1) or ~72px (card 2). ~88-118px of empty glass at the bottom of each card.
+2. Heading-to-first-card gap is only 36px (linter recommends 48px).
+3. Vertical imbalance: content is crammed into the top/middle area with cards filling all available space rather than being sized to content.
+
+**Fixes applied:**
+1. Changed cardH from dynamic `Math.floor((availableH - 2*cardGap) / 3)` (=246px) to fixed `160px` (fits ~102px content + 2*28px padding with a small buffer).
+2. Increased heading-to-card gap from 36px to 48px to meet linter min-vertical-gap recommendation.
+3. Vertically centered the entire block (heading + gap + 3 cards + 2 gaps = 652px total) within the 900px safe zone. Heading y moved from safe.y (90) to ~214, giving equal space above and below.
+
+**After fix:**
+- Re-screenshotted and re-inspected. Cards are now properly sized (160px each vs 246px before).
+- No text overflow on any card (scrollH == clientH for all three).
+- Vertical centering confirmed: 124px above heading, 124px below last card -- perfectly balanced.
+- Content height: cards 0 & 1 use 102px of 104px allocated; card 2 uses 72px of 104px -- appropriate fit.
+- Heading-to-card gap now 48px (was 36px) -- min-vertical-gap warning resolved.
+- Remaining lint findings are all known FPs:
+  - `non-ancestor-overlap` x7: stacked bg layers + panel-behind-content pattern. SKIP.
+  - `horizontal-center-consistency` x3: accent bars intentionally left-aligned on cards. SKIP.
+  - `unbalanced-trailing-whitespace` x5: linter measures individual elements vs full slide, not the card group as a whole. Visual balance is correct. SKIP.
+  - `font-too-small` x4: linter reads browser default 16px, not actual inline styles (56px heading, 26px/20px card text). Known FP. SKIP.
+
+**Status:** PASS
+
+---
+
+### Reflection
+
+**What worked well:**
+- The DOM inspection workflow (checking resolved positions, scrollHeight vs clientHeight, child content height) was efficient and gave precise data for sizing fixes.
+- The vertical centering calculation was straightforward: compute total block height, center within safe zone. Worked on first attempt.
+- Learning #5 from prior verifier runs exactly predicted the issue (auto-computed cardH from availableH/3 was oversized).
+
+**What was problematic:**
+- Nothing significant. This slide was a clean case with a well-known issue pattern.
+
+**What was surprising:**
+- The cards were 246px each when the content only needed ~102px -- more than 2x oversized. The `availableH / 3` approach is a common anti-pattern in this deck because it distributes all available vertical space into cards regardless of content size.
+- Card 2 (More Parsers) has notably less content (72px) than cards 0 and 1 (102px), but the uniform card height works well visually. No need for variable heights.
+
+**What instructions or tools would have helped:**
+- A "content-fit" mode in SlideKit that auto-sizes cards to their content (with optional min-height) would eliminate this entire class of issue across the deck.
+
+---
+
+## Slide 18: Want to Try It? (Closing CTA)
+
+**First look:** Dark background with hero-bg.png orbs visible at ~60% opacity -- bookend symmetry with Slide 1 looks great. Central glass panel with heading "Want to Try It?" centered at top. Three numbered steps with cyan gradient number circles, body text in muted secondary color, orange accent bar on the discussion prompt, and cyan "cbird@microsoft.com" at bottom. Overall layout matches the spec well.
+
+Observations:
+- The heading is centered and readable at 56px -- looks good.
+- Numbered steps are left-aligned with correct styling (gradient circles, 24px body, cyan highlights for URL and code).
+- The git clone URL in step 2 wraps to a second line with cyan monospace styling and background pill -- correctly styled.
+- Body text is centered, muted -- matches spec.
+- Discussion prompt has the orange (#FF6B35) left accent bar with italic text -- matches spec.
+- Contact email in cyan is centered -- matches spec.
+- The glass panel has significant empty space below the contact email -- roughly 100+ px. The panel may be oversized for its content (panel is 780px but content may need less).
+- The slide appears vertically centered on the canvas with the background image showing through nicely.
+
+**DOM inspection:**
+- s18-bg: x=0, y=0, w=1920, h=1080 (full-bleed dark bg) -- layer: bg
+- s18-bg-img: x=0, y=0, w=1920, h=1080 (hero-bg.png at 60% opacity) -- layer: bg
+- s18-panel-bg: x=414, y=150, w=1092, h=780 -- glass panel
+- s18-heading: x=454, y=190, w=1012, h=76 (56px Poppins 600)
+- s18-steps: x=454, y=298, w=1012, h=199 (3 numbered steps)
+- s18-body: x=454, y=522, w=1012, h=70 (22px body text)
+- s18-prompt: x=454, y=616, w=1012, h=35 (22px italic with orange bar)
+- s18-contact: x=454, y=718, w=1012, h=36 (28px cyan email)
+- No text overflow on any element (scrollHeight == clientHeight for all).
+- Panel sizing issue: panel bottom = 930, contact bottom = 754. That's 176px empty below contact vs 40px top padding. The panel is 780px tall but content only occupies ~604px (190-754 inclusive of heading to contact bottom, minus panel top 150). Panel should be ~644px (604 content + 40px bottom pad) to match the 40px top pad.
+
+**Lint results:**
+- `non-ancestor-overlap` (error) x6: s18-bg vs s18-bg-img, s18-panel-bg vs all content elements -- ALL known FPs (stacked bg layers and panel-behind-content pattern). Skip.
+- `font-too-small` (warning) x5: All text elements report 16px -- known FP (linter reads default, actual inline fonts are 56px, 24px, 22px, 22px, 28px). Skip.
+- `min-vertical-gap` (warning) x3: heading-steps gap 32px, steps-body gap 25px, body-prompt gap 24px. These are tight but this is a dense content slide. 48px between each would push content out of the panel. Acceptable given the density.
+- `unbalanced-trailing-whitespace` (warning) x3: steps, body, prompt all have huge below vs above ratios (14-16x). This is the oversized panel problem -- the panel is 780px but content only needs ~644px. This IS a real issue.
+- `low-contrast` (warning): s18-steps at 1.00:1. False positive -- linter sees white text on transparent bg, but actual visual bg is the glass panel behind it. Skip.
+
+**Issues:**
+1. Panel oversized: panelH=780 but content only needs ~610px. 176px of empty space below the contact email vs 40px top padding. (Learning #5 from prior runs predicted this.)
+2. promptH estimated at 70px but actual rendered height is 35px. This creates a 67px visual gap between prompt bottom and contact top, instead of the intended 32px.
+
+**Fixes applied:**
+- Reduced `panelH` from 780 to 610 (content height + 40px top/bottom padding). Panel now re-centers vertically at y=235 instead of y=150.
+- Reduced `promptH` from 70 to 36 (actual content is 35px, 1px buffer). This corrects the gap before the contact email from 67px visual gap down to ~33px (close to the intended 32px gap).
+
+**After fix:** Re-screenshotted and re-linted.
+- Panel now y=235, h=610, perfectly centered on slide (center=540).
+- Top padding: 40px. Bottom padding: 40px. Symmetric.
+- No text overflow on any element.
+- All content fits within panel bounds.
+- Remaining lint findings triage:
+  - `non-ancestor-overlap` x6: All known FPs (stacked bg layers, panel-behind-content). Skip.
+  - `font-too-small` x5: All known FPs (linter reads default 16px, actual fonts are 56/24/22/22/28px). Skip.
+  - `low-contrast` x1 (s18-steps): FP -- linter sees white text on transparent bg, actual visual bg is glass panel. Skip.
+  - `min-vertical-gap` x4: heading-steps 32px, steps-body 25px, body-prompt 24px, prompt-contact 33px. All within a dense content panel matching the spec's code skeleton gap values (32, 24, 24, 32). 48px gaps would make the panel too tall. Acceptable.
+  - `unbalanced-trailing-whitespace` x4: Measuring space below elements relative to the 1080px slide canvas, not the panel. Since content is contained within a well-sized glass panel, these are contextually irrelevant. Skip.
+- Visual appearance is clean: heading centered, numbered steps with gradient circles, body text centered and muted, orange accent bar on discussion prompt, cyan contact email as visual anchor at bottom. Bookend symmetry with Slide 1's hero-bg.png at same 0.6 opacity is clear and satisfying.
+
+**Status:** PASS
+
+### Reflection
+
+**What worked well:**
+- The DOM inspection workflow was efficient: resolved positions from `slide.layout.elements[id].resolved` immediately showed the 176px vs 40px padding asymmetry, making the oversized panel obvious without even needing visual inspection.
+- The scrollHeight vs clientHeight overflow checks confirmed no text clipping on the first pass, narrowing the investigation to just the panel sizing issue.
+- The lint triage table from the verifier instructions was invaluable -- I could skip 16 of 20 findings in seconds by recognizing known FP patterns (non-ancestor-overlap, font-too-small, low-contrast on transparent bg).
+- The fix was small and targeted: two number changes (panelH 780->610, promptH 70->36) with perfect results on first attempt.
+
+**What was problematic:**
+- Nothing significant. This was a clean, focused verification with one well-understood issue.
+
+**What was surprising:**
+- The panel's `panelH=780` from the original code skeleton was based on a generous budget calculation (the spec's Pitfall Warnings section estimated ~597px needed plus margins), but the actual rendered content came in even smaller because `promptH` was overestimated at 70px vs actual 35px (one line vs two). The spec's height budget was good engineering, but actual rendered heights always need verification.
+- The `unbalanced-trailing-whitespace` linter rule is misleading for panel-based layouts. It measures whitespace relative to the full 1080px canvas rather than the containing panel, so every element inside a panel that doesn't fill the full slide height triggers it. A panel-aware version of this rule would be much more useful.
+
+**What instructions or tools would have helped:**
+- A linter mode that understands visual containment (e.g., recognizing that elements inside a glass panel should be measured relative to the panel, not the canvas) would eliminate the misleading `unbalanced-trailing-whitespace` warnings on panel slides.
+- The `below()` API with object form for gaps (noted in Learning #1) was not used in this slide -- all positioning is hardcoded with manual Y calculations. This is actually more reliable since it avoids the `below('ref', 'sm')` bug, but it does mean the verifier needs to trace the math manually.
+

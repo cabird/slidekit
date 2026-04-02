@@ -10,6 +10,7 @@ import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
 import { lintSlide, lintDeck } from './lint.js';
 import { routeConnector } from './connectorRouting.js';
+import { enableKeyboardToggle } from './debug.js';
 import type { SlideElement, SlideDefinition, LayoutResult } from './types.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
@@ -898,6 +899,7 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
       return lintDeck(skObj as any, sectionEls);
     };
     (window as unknown as Record<string, unknown>).sk = skObj;
+    enableKeyboardToggle();
   }
 
   return { sections, layouts };

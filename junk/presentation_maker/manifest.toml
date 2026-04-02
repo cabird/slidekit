@@ -1,0 +1,3 @@
+output = "PRESENTATION_MAKER.mdpack"
+unpack_dir = "presentation_maker"
+bootstrap = "bootstrap.md"

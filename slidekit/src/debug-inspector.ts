@@ -617,7 +617,125 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   `;
   body.appendChild(createSection("Identity", identityDiv));
 
-  // Section 2: Resolved Bounds
+  // Section 2: Inner HTML (editable for el type elements) — shown early for quick access
+  const authored = sceneEl.authored;
+  const htmlDiv = document.createElement("div");
+  if (authored?.content !== undefined) {
+    const textarea = document.createElement("textarea");
+    textarea.value = authored.content;
+    textarea.style.cssText = `
+      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
+      box-sizing: border-box; line-height: 1.4;
+    `;
+    textarea.setAttribute("data-sk-html-editor", "true");
+    textarea.spellcheck = false;
+
+    const statusMsg = document.createElement("div");
+    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
+
+    let committedContent = authored.content;
+    let lastPreviewedContent = authored.content;
+    let previewSeq = 0;
+
+    /** Apply content to the slide for live preview (no undo entry). */
+    const previewHtml = async (content: string) => {
+      const sk = (window as any).sk;
+      if (!sk?._definitions?.[slideIndex]) return;
+      const def = sk._definitions[slideIndex];
+      const flat = flattenElements(def.elements);
+      const defElement = flat.flatMap.get(elementId);
+      if (!defElement || !('content' in defElement)) return;
+
+      (defElement as unknown as Record<string, unknown>).content = content;
+
+      const rerender = sk._rerenderSlide as (i: number, d: any) => Promise<any>;
+      if (!rerender) return;
+      const seq = ++previewSeq;
+      await rerender(slideIndex, def);
+      if (seq !== previewSeq) return;
+
+      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
+      lastPreviewedContent = content;
+    };
+
+    /** Commit the current value: push undo entry for the delta since last commit. */
+    const commitHtmlEdit = async () => {
+      const newContent = textarea.value;
+      if (newContent === committedContent) return;
+
+      if (lastPreviewedContent !== newContent) {
+        await previewHtml(newContent);
+      }
+
+      const ds = debugController.state;
+      ds.undoStack.push({ elementId, propKey: '_content', oldValue: committedContent, newValue: newContent, slideIndex });
+      ds.redoStack.length = 0;
+      updateDiffDirtyIndicator();
+
+      committedContent = newContent;
+      statusMsg.textContent = "Committed";
+      statusMsg.style.color = "#4caf50";
+      setTimeout(() => { if (statusMsg.textContent === "Committed") statusMsg.textContent = ""; }, 2000);
+    };
+
+    let inputDebounce: ReturnType<typeof setTimeout> | null = null;
+    textarea.addEventListener("input", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        const content = textarea.value;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
+        const errors = doc.querySelectorAll("parsererror");
+        if (errors.length > 0) {
+          statusMsg.textContent = "Invalid HTML";
+          statusMsg.style.color = "#ea4335";
+          textarea.style.borderColor = "#ea4335";
+          return;
+        }
+        textarea.style.borderColor = "#4a9eff";
+        statusMsg.textContent = content !== committedContent ? "Preview" : "";
+        statusMsg.style.color = "#ff8c32";
+        previewHtml(content);
+      }, 150);
+    });
+
+    textarea.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") {
+        e.preventDefault();
+        commitHtmlEdit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        textarea.value = committedContent;
+        textarea.style.borderColor = "#ddd";
+        statusMsg.textContent = "";
+        if (lastPreviewedContent !== committedContent) {
+          previewHtml(committedContent);
+        }
+      }
+    });
+
+    textarea.addEventListener("blur", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      commitHtmlEdit();
+    });
+
+    const hint = document.createElement("div");
+    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
+    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
+
+    htmlDiv.appendChild(textarea);
+    htmlDiv.appendChild(statusMsg);
+    htmlDiv.appendChild(hint);
+  } else {
+    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
+  }
+  body.appendChild(createSection("Inner HTML", htmlDiv));
+
+  // Section 3: Resolved Bounds
   const boundsDiv = document.createElement("div");
   const r = sceneEl.resolved;
   boundsDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;">
@@ -628,9 +746,8 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   </table>`;
   body.appendChild(createSection("Resolved Bounds", boundsDiv));
 
-  // Section 3: Authored Props
+  // Section 4: Authored Props
   const propsDiv = document.createElement("div");
-  const authored = sceneEl.authored;
   if (authored?.props) {
     const prov = sceneEl.provenance;
     const lockedSources = new Set(["constraint", "stack", "transform"]);
@@ -743,7 +860,7 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   }
   body.appendChild(createSection("Authored Props", propsDiv));
 
-  // Section 4: Provenance
+  // Section 5: Provenance
   const provDiv = document.createElement("div");
   const prov = sceneEl.provenance;
   let provHtml = '';
@@ -772,7 +889,7 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   provDiv.innerHTML = provHtml;
   body.appendChild(createSection("Provenance", provDiv));
 
-  // Section 5: Relationships
+  // Section 6: Relationships
   const relsDiv = document.createElement("div");
   const allEdges = extractRelationshipEdges(layoutResult.elements);
   const relEdges = allEdges.filter(e => e.fromId === elementId || e.toId === elementId);
@@ -871,7 +988,7 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   }
   body.appendChild(createSection("Relationships", relsDiv));
 
-  // Section 6: CSS Pass-through Styles
+  // Section 7: CSS Pass-through Styles
   const stylesDiv = document.createElement("div");
   const styleObj = authored?.props?.style as Record<string, unknown> | undefined;
   if (styleObj && Object.keys(styleObj).length > 0) {
@@ -884,131 +1001,6 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
     stylesDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(createSection("CSS Styles", stylesDiv, true));
-
-  // Section 7: Inner HTML (editable for el type elements)
-  const htmlDiv = document.createElement("div");
-  if (authored?.content !== undefined) {
-    const textarea = document.createElement("textarea");
-    textarea.value = authored.content;
-    textarea.style.cssText = `
-      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-      font-size: 11px; color: #1a1a2e; background: #fff;
-      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
-      box-sizing: border-box; line-height: 1.4;
-    `;
-    textarea.setAttribute("data-sk-html-editor", "true");
-    textarea.spellcheck = false;
-
-    const statusMsg = document.createElement("div");
-    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
-
-    // committedContent = last value pushed to undo stack (Ctrl+Enter / blur)
-    // We preview live but only create undo entries on commit.
-    let committedContent = authored.content;
-    let lastPreviewedContent = authored.content;
-    let previewSeq = 0;
-
-    /** Apply content to the slide for live preview (no undo entry). */
-    const previewHtml = async (content: string) => {
-      const sk = (window as any).sk;
-      if (!sk?._definitions?.[slideIndex]) return;
-      const def = sk._definitions[slideIndex];
-      const flat = flattenElements(def.elements);
-      const defElement = flat.flatMap.get(elementId);
-      if (!defElement || !('content' in defElement)) return;
-
-      (defElement as unknown as Record<string, unknown>).content = content;
-
-      const rerender = sk._rerenderSlide as (i: number, d: any) => Promise<any>;
-      if (!rerender) return;
-      const seq = ++previewSeq;
-      await rerender(slideIndex, def);
-      if (seq !== previewSeq) return;
-
-      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
-      lastPreviewedContent = content;
-    };
-
-    /** Commit the current value: push undo entry for the delta since last commit. */
-    const commitHtmlEdit = async () => {
-      const newContent = textarea.value;
-      if (newContent === committedContent) return;
-
-      // Ensure the slide shows the committed content
-      if (lastPreviewedContent !== newContent) {
-        await previewHtml(newContent);
-      }
-
-      // Push undo
-      const ds = debugController.state;
-      ds.undoStack.push({ elementId, propKey: '_content', oldValue: committedContent, newValue: newContent, slideIndex });
-      ds.redoStack.length = 0;
-      updateDiffDirtyIndicator();
-
-      committedContent = newContent;
-      statusMsg.textContent = "Committed";
-      statusMsg.style.color = "#4caf50";
-      setTimeout(() => { if (statusMsg.textContent === "Committed") statusMsg.textContent = ""; }, 2000);
-    };
-
-    // Live preview on input
-    let inputDebounce: ReturnType<typeof setTimeout> | null = null;
-    textarea.addEventListener("input", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      inputDebounce = setTimeout(() => {
-        const content = textarea.value;
-        // Validate HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
-        const errors = doc.querySelectorAll("parsererror");
-        if (errors.length > 0) {
-          statusMsg.textContent = "Invalid HTML";
-          statusMsg.style.color = "#ea4335";
-          textarea.style.borderColor = "#ea4335";
-          return;
-        }
-        textarea.style.borderColor = "#4a9eff";
-        statusMsg.textContent = content !== committedContent ? "Preview" : "";
-        statusMsg.style.color = "#ff8c32";
-        previewHtml(content);
-      }, 150);
-    });
-
-    // Ctrl+Enter to commit, Esc to revert
-    textarea.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
-        commitHtmlEdit();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        textarea.value = committedContent;
-        textarea.style.borderColor = "#ddd";
-        statusMsg.textContent = "";
-        if (lastPreviewedContent !== committedContent) {
-          previewHtml(committedContent);
-        }
-      }
-    });
-
-    // Commit on blur
-    textarea.addEventListener("blur", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      commitHtmlEdit();
-    });
-
-    const hint = document.createElement("div");
-    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
-    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
-
-    htmlDiv.appendChild(textarea);
-    htmlDiv.appendChild(statusMsg);
-    htmlDiv.appendChild(hint);
-  } else {
-    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
-  }
-  body.appendChild(createSection("Inner HTML", htmlDiv, true));
 }
 
 // =============================================================================

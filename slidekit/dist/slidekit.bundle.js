@@ -8,181 +8,6 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// slidekit/src/layout/helpers.ts
-function isRelMarker(value) {
-  return value !== null && typeof value === "object" && typeof value._rel === "string";
-}
-function deepClone2(obj) {
-  if (typeof structuredClone === "function") {
-    return structuredClone(obj);
-  }
-  return JSON.parse(JSON.stringify(obj));
-}
-function flattenElements(elements) {
-  const flatMap = /* @__PURE__ */ new Map();
-  const groupParent = /* @__PURE__ */ new Map();
-  const stackParent = /* @__PURE__ */ new Map();
-  const stackChildren = /* @__PURE__ */ new Map();
-  const groupChildren = /* @__PURE__ */ new Map();
-  const panelInternals = /* @__PURE__ */ new Set();
-  const idCounts = /* @__PURE__ */ new Map();
-  function walk(els, parentGroupId) {
-    for (const el2 of els) {
-      idCounts.set(el2.id, (idCounts.get(el2.id) || 0) + 1);
-      flatMap.set(el2.id, el2);
-      if (parentGroupId) {
-        groupParent.set(el2.id, parentGroupId);
-      }
-      if (el2.type === "group" && el2.children) {
-        const childIds = el2.children.map((c) => c.id);
-        groupChildren.set(el2.id, childIds);
-        if (el2._compound === "panel" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
-        if (el2._compound === "figure" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
-        walk(el2.children, el2.id);
-      }
-      if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
-        const childIds = [];
-        for (const child of el2.children) {
-          flatMap.set(child.id, child);
-          stackParent.set(child.id, el2.id);
-          childIds.push(child.id);
-          if ((child.type === "vstack" || child.type === "hstack") && child.children) {
-            walk([child], parentGroupId);
-          } else if (child.type === "group" && child.children) {
-            const gcIds = child.children.map((c) => c.id);
-            groupChildren.set(child.id, gcIds);
-            if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            walk(child.children, child.id);
-          }
-        }
-        stackChildren.set(el2.id, childIds);
-      }
-    }
-  }
-  walk(elements, null);
-  const duplicateIds = /* @__PURE__ */ new Map();
-  for (const [id, count] of idCounts) {
-    if (count > 1) duplicateIds.set(id, count);
-  }
-  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
-}
-function getRelRef(marker) {
-  if (!isRelMarker(marker)) return null;
-  if (marker._rel === "centerIn") return null;
-  return marker.ref || null;
-}
-function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
-  const rel = marker._rel;
-  const gap = marker.gap ?? 0;
-  switch (rel) {
-    case "below":
-      return refBounds.y + refBounds.h + gap;
-    case "above":
-      return refBounds.y - ownH - gap;
-    case "rightOf":
-      return refBounds.x + refBounds.w + gap;
-    case "leftOf":
-      return refBounds.x - ownW - gap;
-    case "centerV":
-      return refBounds.y + refBounds.h / 2 - ownH / 2;
-    case "centerH":
-      return refBounds.x + refBounds.w / 2 - ownW / 2;
-    case "alignTop":
-      return refBounds.y;
-    case "alignBottom":
-      return refBounds.y + refBounds.h - ownH;
-    case "alignLeft":
-      return refBounds.x;
-    case "alignRight":
-      return refBounds.x + refBounds.w - ownW;
-    case "centerIn": {
-      const r = marker.rect;
-      if (axis === "x") {
-        return r.x + r.w / 2 - ownW / 2;
-      } else {
-        return r.y + r.h / 2 - ownH / 2;
-      }
-    }
-    default:
-      throw new Error(`Unknown _rel type: "${rel}"`);
-  }
-}
-function buildProvenance(authoredValue, prop, element, wasMeasured) {
-  if (isRelMarker(authoredValue)) {
-    const prov = { source: "constraint", type: authoredValue._rel };
-    if (authoredValue.ref) prov.ref = authoredValue.ref;
-    if (authoredValue.ref2 !== void 0) prov.ref2 = authoredValue.ref2;
-    if (authoredValue.gap !== void 0) prov.gap = authoredValue.gap;
-    if (authoredValue.bias !== void 0) prov.bias = authoredValue.bias;
-    if (authoredValue.rect) prov.rect = authoredValue.rect;
-    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
-    if (anchors) {
-      prov.sourceAnchor = anchors[0];
-      prov.targetAnchor = anchors[1];
-    }
-    return prov;
-  }
-  if (wasMeasured && (prop === "w" || prop === "h")) {
-    return {
-      source: "measured",
-      measuredAt: {
-        w: element.props?.w ?? null,
-        className: element.props?.className || ""
-      }
-    };
-  }
-  return { source: "authored", value: authoredValue };
-}
-function computeAABBIntersection(a, b) {
-  const x1 = Math.max(a.x, b.x);
-  const y1 = Math.max(a.y, b.y);
-  const x2 = Math.min(a.x + a.w, b.x + b.w);
-  const y2 = Math.min(a.y + a.h, b.y + b.h);
-  const w = x2 - x1;
-  const h = y2 - y1;
-  if (w > 0 && h > 0) {
-    return { x: x1, y: y1, w, h };
-  }
-  return null;
-}
-var _CONSTRAINT_ANCHORS;
-var init_helpers = __esm({
-  "slidekit/src/layout/helpers.ts"() {
-    "use strict";
-    _CONSTRAINT_ANCHORS = {
-      below: ["bc", "tc"],
-      above: ["tc", "bc"],
-      rightOf: ["cr", "cl"],
-      leftOf: ["cl", "cr"],
-      centerV: ["cc", "cc"],
-      centerH: ["cc", "cc"],
-      alignTop: ["tc", "tc"],
-      alignBottom: ["bc", "bc"],
-      alignLeft: ["cl", "cl"],
-      alignRight: ["cr", "cr"],
-      centerIn: ["cc", "cc"],
-      between: ["bc", "cc"],
-      matchWidth: ["cr", "cl"],
-      matchHeight: ["bc", "tc"],
-      centerHSlide: ["cc", "cc"],
-      centerVSlide: ["cc", "cc"]
-    };
-  }
-});
-
 // slidekit/src/debug-state.ts
 function initialState() {
   return {
@@ -1166,6 +991,181 @@ var init_debug_inspector_diff = __esm({
   "slidekit/src/debug-inspector-diff.ts"() {
     "use strict";
     init_debug_state();
+  }
+});
+
+// slidekit/src/layout/helpers.ts
+function isRelMarker(value) {
+  return value !== null && typeof value === "object" && typeof value._rel === "string";
+}
+function deepClone(obj) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(obj);
+  }
+  return JSON.parse(JSON.stringify(obj));
+}
+function flattenElements(elements) {
+  const flatMap = /* @__PURE__ */ new Map();
+  const groupParent = /* @__PURE__ */ new Map();
+  const stackParent = /* @__PURE__ */ new Map();
+  const stackChildren = /* @__PURE__ */ new Map();
+  const groupChildren = /* @__PURE__ */ new Map();
+  const panelInternals = /* @__PURE__ */ new Set();
+  const idCounts = /* @__PURE__ */ new Map();
+  function walk(els, parentGroupId) {
+    for (const el2 of els) {
+      idCounts.set(el2.id, (idCounts.get(el2.id) || 0) + 1);
+      flatMap.set(el2.id, el2);
+      if (parentGroupId) {
+        groupParent.set(el2.id, parentGroupId);
+      }
+      if (el2.type === "group" && el2.children) {
+        const childIds = el2.children.map((c) => c.id);
+        groupChildren.set(el2.id, childIds);
+        if (el2._compound === "panel" && el2.children.length >= 2) {
+          panelInternals.add(el2.children[0].id);
+          panelInternals.add(el2.children[1].id);
+        }
+        if (el2._compound === "figure" && el2.children.length >= 2) {
+          panelInternals.add(el2.children[0].id);
+          panelInternals.add(el2.children[1].id);
+        }
+        walk(el2.children, el2.id);
+      }
+      if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
+        const childIds = [];
+        for (const child of el2.children) {
+          flatMap.set(child.id, child);
+          stackParent.set(child.id, el2.id);
+          childIds.push(child.id);
+          if ((child.type === "vstack" || child.type === "hstack") && child.children) {
+            walk([child], parentGroupId);
+          } else if (child.type === "group" && child.children) {
+            const gcIds = child.children.map((c) => c.id);
+            groupChildren.set(child.id, gcIds);
+            if (child._compound === "panel" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
+            if (child._compound === "figure" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
+            walk(child.children, child.id);
+          }
+        }
+        stackChildren.set(el2.id, childIds);
+      }
+    }
+  }
+  walk(elements, null);
+  const duplicateIds = /* @__PURE__ */ new Map();
+  for (const [id, count] of idCounts) {
+    if (count > 1) duplicateIds.set(id, count);
+  }
+  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
+}
+function getRelRef(marker) {
+  if (!isRelMarker(marker)) return null;
+  if (marker._rel === "centerIn") return null;
+  return marker.ref || null;
+}
+function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
+  const rel = marker._rel;
+  const gap = marker.gap ?? 0;
+  switch (rel) {
+    case "below":
+      return refBounds.y + refBounds.h + gap;
+    case "above":
+      return refBounds.y - ownH - gap;
+    case "rightOf":
+      return refBounds.x + refBounds.w + gap;
+    case "leftOf":
+      return refBounds.x - ownW - gap;
+    case "centerV":
+      return refBounds.y + refBounds.h / 2 - ownH / 2;
+    case "centerH":
+      return refBounds.x + refBounds.w / 2 - ownW / 2;
+    case "alignTop":
+      return refBounds.y;
+    case "alignBottom":
+      return refBounds.y + refBounds.h - ownH;
+    case "alignLeft":
+      return refBounds.x;
+    case "alignRight":
+      return refBounds.x + refBounds.w - ownW;
+    case "centerIn": {
+      const r = marker.rect;
+      if (axis === "x") {
+        return r.x + r.w / 2 - ownW / 2;
+      } else {
+        return r.y + r.h / 2 - ownH / 2;
+      }
+    }
+    default:
+      throw new Error(`Unknown _rel type: "${rel}"`);
+  }
+}
+function buildProvenance(authoredValue, prop, element, wasMeasured) {
+  if (isRelMarker(authoredValue)) {
+    const prov = { source: "constraint", type: authoredValue._rel };
+    if (authoredValue.ref) prov.ref = authoredValue.ref;
+    if (authoredValue.ref2 !== void 0) prov.ref2 = authoredValue.ref2;
+    if (authoredValue.gap !== void 0) prov.gap = authoredValue.gap;
+    if (authoredValue.bias !== void 0) prov.bias = authoredValue.bias;
+    if (authoredValue.rect) prov.rect = authoredValue.rect;
+    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
+    if (anchors) {
+      prov.sourceAnchor = anchors[0];
+      prov.targetAnchor = anchors[1];
+    }
+    return prov;
+  }
+  if (wasMeasured && (prop === "w" || prop === "h")) {
+    return {
+      source: "measured",
+      measuredAt: {
+        w: element.props?.w ?? null,
+        className: element.props?.className || ""
+      }
+    };
+  }
+  return { source: "authored", value: authoredValue };
+}
+function computeAABBIntersection(a, b) {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = x2 - x1;
+  const h = y2 - y1;
+  if (w > 0 && h > 0) {
+    return { x: x1, y: y1, w, h };
+  }
+  return null;
+}
+var _CONSTRAINT_ANCHORS;
+var init_helpers = __esm({
+  "slidekit/src/layout/helpers.ts"() {
+    "use strict";
+    _CONSTRAINT_ANCHORS = {
+      below: ["bc", "tc"],
+      above: ["tc", "bc"],
+      rightOf: ["cr", "cl"],
+      leftOf: ["cl", "cr"],
+      centerV: ["cc", "cc"],
+      centerH: ["cc", "cc"],
+      alignTop: ["tc", "tc"],
+      alignBottom: ["bc", "bc"],
+      alignLeft: ["cl", "cl"],
+      alignRight: ["cr", "cr"],
+      centerIn: ["cc", "cc"],
+      between: ["bc", "cc"],
+      matchWidth: ["cr", "cl"],
+      matchHeight: ["bc", "tc"],
+      centerHSlide: ["cc", "cc"],
+      centerVSlide: ["cc", "cc"]
+    };
   }
 });
 
@@ -3863,7 +3863,7 @@ function refreshElementList() {
   listBody.style.padding = "0 8px 8px 8px";
   listBody.style.maxHeight = "300px";
   listBody.style.overflowY = "auto";
-  for (const layerName of LAYER_ORDER2) {
+  for (const layerName of LAYER_ORDER) {
     const items = byLayer[layerName];
     if (!items || items.length === 0) continue;
     const layerRow = document.createElement("div");
@@ -4124,6 +4124,107 @@ function renderElementDetail(elementId, slideIndex) {
     ${sceneEl._internal ? '<div style="color:#ff8c32;">Internal element</div>' : ""}
   `;
   body.appendChild(createSection("Identity", identityDiv));
+  const authored = sceneEl.authored;
+  const htmlDiv = document.createElement("div");
+  if (authored?.content !== void 0) {
+    const textarea = document.createElement("textarea");
+    textarea.value = authored.content;
+    textarea.style.cssText = `
+      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
+      box-sizing: border-box; line-height: 1.4;
+    `;
+    textarea.setAttribute("data-sk-html-editor", "true");
+    textarea.spellcheck = false;
+    const statusMsg = document.createElement("div");
+    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
+    let committedContent = authored.content;
+    let lastPreviewedContent = authored.content;
+    let previewSeq = 0;
+    const previewHtml = async (content) => {
+      const sk2 = window.sk;
+      if (!sk2?._definitions?.[slideIndex]) return;
+      const def = sk2._definitions[slideIndex];
+      const flat = flattenElements(def.elements);
+      const defElement = flat.flatMap.get(elementId);
+      if (!defElement || !("content" in defElement)) return;
+      defElement.content = content;
+      const rerender = sk2._rerenderSlide;
+      if (!rerender) return;
+      const seq = ++previewSeq;
+      await rerender(slideIndex, def);
+      if (seq !== previewSeq) return;
+      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
+      lastPreviewedContent = content;
+    };
+    const commitHtmlEdit = async () => {
+      const newContent = textarea.value;
+      if (newContent === committedContent) return;
+      if (lastPreviewedContent !== newContent) {
+        await previewHtml(newContent);
+      }
+      const ds = debugController.state;
+      ds.undoStack.push({ elementId, propKey: "_content", oldValue: committedContent, newValue: newContent, slideIndex });
+      ds.redoStack.length = 0;
+      updateDiffDirtyIndicator();
+      committedContent = newContent;
+      statusMsg.textContent = "Committed";
+      statusMsg.style.color = "#4caf50";
+      setTimeout(() => {
+        if (statusMsg.textContent === "Committed") statusMsg.textContent = "";
+      }, 2e3);
+    };
+    let inputDebounce = null;
+    textarea.addEventListener("input", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        const content = textarea.value;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
+        const errors = doc.querySelectorAll("parsererror");
+        if (errors.length > 0) {
+          statusMsg.textContent = "Invalid HTML";
+          statusMsg.style.color = "#ea4335";
+          textarea.style.borderColor = "#ea4335";
+          return;
+        }
+        textarea.style.borderColor = "#4a9eff";
+        statusMsg.textContent = content !== committedContent ? "Preview" : "";
+        statusMsg.style.color = "#ff8c32";
+        previewHtml(content);
+      }, 150);
+    });
+    textarea.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") {
+        e.preventDefault();
+        commitHtmlEdit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        textarea.value = committedContent;
+        textarea.style.borderColor = "#ddd";
+        statusMsg.textContent = "";
+        if (lastPreviewedContent !== committedContent) {
+          previewHtml(committedContent);
+        }
+      }
+    });
+    textarea.addEventListener("blur", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      commitHtmlEdit();
+    });
+    const hint = document.createElement("div");
+    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
+    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
+    htmlDiv.appendChild(textarea);
+    htmlDiv.appendChild(statusMsg);
+    htmlDiv.appendChild(hint);
+  } else {
+    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
+  }
+  body.appendChild(createSection("Inner HTML", htmlDiv));
   const boundsDiv = document.createElement("div");
   const r = sceneEl.resolved;
   boundsDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;">
@@ -4134,7 +4235,6 @@ function renderElementDetail(elementId, slideIndex) {
   </table>`;
   body.appendChild(createSection("Resolved Bounds", boundsDiv));
   const propsDiv = document.createElement("div");
-  const authored = sceneEl.authored;
   if (authored?.props) {
     const prov2 = sceneEl.provenance;
     const lockedSources = /* @__PURE__ */ new Set(["constraint", "stack", "transform"]);
@@ -4372,106 +4472,6 @@ function renderElementDetail(elementId, slideIndex) {
     stylesDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(createSection("CSS Styles", stylesDiv, true));
-  const htmlDiv = document.createElement("div");
-  if (authored?.content !== void 0) {
-    const textarea = document.createElement("textarea");
-    textarea.value = authored.content;
-    textarea.style.cssText = `
-      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-      font-size: 11px; color: #1a1a2e; background: #fff;
-      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
-      box-sizing: border-box; line-height: 1.4;
-    `;
-    textarea.setAttribute("data-sk-html-editor", "true");
-    textarea.spellcheck = false;
-    const statusMsg = document.createElement("div");
-    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
-    let committedContent = authored.content;
-    let lastPreviewedContent = authored.content;
-    let previewSeq = 0;
-    const previewHtml = async (content) => {
-      const sk2 = window.sk;
-      if (!sk2?._definitions?.[slideIndex]) return;
-      const def = sk2._definitions[slideIndex];
-      const flat = flattenElements(def.elements);
-      const defElement = flat.flatMap.get(elementId);
-      if (!defElement || !("content" in defElement)) return;
-      defElement.content = content;
-      const rerender = sk2._rerenderSlide;
-      if (!rerender) return;
-      const seq = ++previewSeq;
-      await rerender(slideIndex, def);
-      if (seq !== previewSeq) return;
-      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
-      lastPreviewedContent = content;
-    };
-    const commitHtmlEdit = async () => {
-      const newContent = textarea.value;
-      if (newContent === committedContent) return;
-      if (lastPreviewedContent !== newContent) {
-        await previewHtml(newContent);
-      }
-      const ds = debugController.state;
-      ds.undoStack.push({ elementId, propKey: "_content", oldValue: committedContent, newValue: newContent, slideIndex });
-      ds.redoStack.length = 0;
-      updateDiffDirtyIndicator();
-      committedContent = newContent;
-      statusMsg.textContent = "Committed";
-      statusMsg.style.color = "#4caf50";
-      setTimeout(() => {
-        if (statusMsg.textContent === "Committed") statusMsg.textContent = "";
-      }, 2e3);
-    };
-    let inputDebounce = null;
-    textarea.addEventListener("input", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      inputDebounce = setTimeout(() => {
-        const content = textarea.value;
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
-        const errors = doc.querySelectorAll("parsererror");
-        if (errors.length > 0) {
-          statusMsg.textContent = "Invalid HTML";
-          statusMsg.style.color = "#ea4335";
-          textarea.style.borderColor = "#ea4335";
-          return;
-        }
-        textarea.style.borderColor = "#4a9eff";
-        statusMsg.textContent = content !== committedContent ? "Preview" : "";
-        statusMsg.style.color = "#ff8c32";
-        previewHtml(content);
-      }, 150);
-    });
-    textarea.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
-        commitHtmlEdit();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        textarea.value = committedContent;
-        textarea.style.borderColor = "#ddd";
-        statusMsg.textContent = "";
-        if (lastPreviewedContent !== committedContent) {
-          previewHtml(committedContent);
-        }
-      }
-    });
-    textarea.addEventListener("blur", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      commitHtmlEdit();
-    });
-    const hint = document.createElement("div");
-    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
-    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
-    htmlDiv.appendChild(textarea);
-    htmlDiv.appendChild(statusMsg);
-    htmlDiv.appendChild(hint);
-  } else {
-    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
-  }
-  body.appendChild(createSection("Inner HTML", htmlDiv, true));
 }
 function updateSelectionHighlight(elementId, slideIndex) {
   const s = debugController.state;
@@ -4554,7 +4554,7 @@ function detachClickHandler() {
   detachContextMenuHandler();
   s.clickHandlerAttached = false;
 }
-var VISIBILITY_OPTIONS, LAYER_ORDER2, LAYER_LABELS;
+var VISIBILITY_OPTIONS, LAYER_ORDER, LAYER_LABELS;
 var init_debug_inspector = __esm({
   "slidekit/src/debug-inspector.ts"() {
     "use strict";
@@ -4577,7 +4577,7 @@ var init_debug_inspector = __esm({
       { key: "showCollisions", label: "Collisions", default: true },
       { key: "showRelationships", label: "Constraints", default: true }
     ];
-    LAYER_ORDER2 = ["overlay", "content", "bg"];
+    LAYER_ORDER = ["overlay", "content", "bg"];
     LAYER_LABELS = { overlay: "Overlay", content: "Content", bg: "Background" };
   }
 });
@@ -7308,19 +7308,335 @@ function deduplicatePoints(points) {
   return result;
 }
 
+// slidekit/src/debug.ts
+init_debug_state();
+init_debug_overlay();
+init_debug_inspector();
+init_debug_inspector_viewport();
+init_debug_inspector_edit();
+init_debug_inspector_drag();
+init_debug_inspector_constraint();
+init_debug_inspector_pick();
+debugController.callbacks.renderElementDetail = (elementId, slideIndex) => {
+  renderElementDetail(elementId, slideIndex);
+};
+debugController.callbacks.renderDebugOverlay = (options) => {
+  refreshOverlayOnly(options.slideIndex ?? 0);
+};
+debugController.callbacks.refreshOverlayOnly = (slideIndex) => {
+  refreshOverlayOnly(slideIndex);
+};
+debugController.callbacks.renderConstraintDetail = (elementId, axis, slideIndex) => {
+  renderConstraintDetail(elementId, axis, slideIndex);
+};
+function _getCurrentSlideIndex() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.getIndices === "function") {
+    return Reveal.getIndices().h ?? 0;
+  }
+  return 0;
+}
+function _onSlideChanged() {
+  const s = debugController.state;
+  if (s.debugMode === 0) return;
+  const newIndex = _getCurrentSlideIndex();
+  if (newIndex === s.currentSlideIndex) return;
+  s.selectedElementId = null;
+  s.selectedConstraint = null;
+  if (s.pickMode) exitPickMode();
+  const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
+  renderDebugOverlay({ ...s.lastToggleOptions, ...modeOpts, slideIndex: newIndex });
+}
+function _attachSlideChangeListener() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.on === "function") {
+    Reveal.on("slidechanged", _onSlideChanged);
+  }
+}
+function _detachSlideChangeListener() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.off === "function") {
+    Reveal.off("slidechanged", _onSlideChanged);
+  }
+}
+var _CONNECTOR_MIN_HIT = 8;
+function _enableConnectorPointerEvents(layer) {
+  const wrappers = layer.querySelectorAll("[data-sk-id]");
+  for (const el2 of wrappers) {
+    const htmlEl = el2;
+    if (htmlEl.style.pointerEvents === "none" && htmlEl.querySelector("svg")) {
+      htmlEl.style.pointerEvents = "auto";
+      htmlEl.setAttribute("data-sk-debug-pe-override", "true");
+      const w = htmlEl.offsetWidth;
+      const h = htmlEl.offsetHeight;
+      if (w < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - w;
+        htmlEl.setAttribute("data-sk-debug-orig-left", htmlEl.style.left);
+        htmlEl.setAttribute("data-sk-debug-orig-width", htmlEl.style.width);
+        htmlEl.style.left = `${parseFloat(htmlEl.style.left) - expand / 2}px`;
+        htmlEl.style.width = `${_CONNECTOR_MIN_HIT}px`;
+      }
+      if (h < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - h;
+        htmlEl.setAttribute("data-sk-debug-orig-top", htmlEl.style.top);
+        htmlEl.setAttribute("data-sk-debug-orig-height", htmlEl.style.height);
+        htmlEl.style.top = `${parseFloat(htmlEl.style.top) - expand / 2}px`;
+        htmlEl.style.height = `${_CONNECTOR_MIN_HIT}px`;
+      }
+    }
+  }
+}
+function _restoreConnectorPointerEvents(layer) {
+  const overridden = layer.querySelectorAll("[data-sk-debug-pe-override]");
+  for (const el2 of overridden) {
+    const htmlEl = el2;
+    htmlEl.style.pointerEvents = "none";
+    const origLeft = el2.getAttribute("data-sk-debug-orig-left");
+    const origWidth = el2.getAttribute("data-sk-debug-orig-width");
+    const origTop = el2.getAttribute("data-sk-debug-orig-top");
+    const origHeight = el2.getAttribute("data-sk-debug-orig-height");
+    if (origLeft !== null) {
+      htmlEl.style.left = origLeft;
+      el2.removeAttribute("data-sk-debug-orig-left");
+    }
+    if (origWidth !== null) {
+      htmlEl.style.width = origWidth;
+      el2.removeAttribute("data-sk-debug-orig-width");
+    }
+    if (origTop !== null) {
+      htmlEl.style.top = origTop;
+      el2.removeAttribute("data-sk-debug-orig-top");
+    }
+    if (origHeight !== null) {
+      htmlEl.style.height = origHeight;
+      el2.removeAttribute("data-sk-debug-orig-height");
+    }
+    el2.removeAttribute("data-sk-debug-pe-override");
+  }
+}
+var _DEBUG_MODE_OPTIONS = [
+  {},
+  // placeholder for mode 0 (off)
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: false },
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: true },
+  { showBoxes: false, showIds: false, showAnchors: false, showSafeZone: false, showCollisions: false, showRelationships: true }
+];
+function getDebugMode() {
+  return debugController.state.debugMode;
+}
+function _handleDebugKeydown(event) {
+  const target = event.target;
+  const s = debugController.state;
+  if (target === s.editInputElement) {
+    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
+      return;
+    }
+    if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      undo();
+      return;
+    }
+    return;
+  }
+  if (target) {
+    const tagName = target.tagName;
+    if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
+      return;
+    }
+  }
+  if (event.ctrlKey && event.key === ".") {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleDebugOverlay(s.lastToggleOptions);
+    return;
+  }
+  if (s.inspectorPanel) {
+    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
+    } else if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      undo();
+    }
+  }
+}
+function cycleDebugMode(baseOptions = {}) {
+  const s = debugController.state;
+  s.debugMode = (s.debugMode + 1) % 4;
+  if (s.debugMode === 0) {
+    removeDebugOverlay();
+    _detachSlideChangeListener();
+  } else {
+    const slideIndex = baseOptions.slideIndex ?? _getCurrentSlideIndex();
+    const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
+    renderDebugOverlay({ ...baseOptions, ...modeOpts, slideIndex });
+    _attachSlideChangeListener();
+  }
+  return s.debugMode;
+}
+function enableKeyboardToggle(options = {}) {
+  const s = debugController.state;
+  s.lastToggleOptions = options;
+  if (s.keyboardListenerAttached) return;
+  document.addEventListener("keydown", _handleDebugKeydown, true);
+  s.keyboardListenerAttached = true;
+}
+function disableKeyboardToggle() {
+  const s = debugController.state;
+  if (!s.keyboardListenerAttached) return;
+  document.removeEventListener("keydown", _handleDebugKeydown, true);
+  s.keyboardListenerAttached = false;
+  s.debugMode = 0;
+}
+function renderDebugOverlay(options = {}) {
+  const slideIndex = options.slideIndex ?? 0;
+  removeDebugOverlay();
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk || !sk.layouts || !sk.layouts[slideIndex]) {
+    console.warn("SlideKit debug overlay: no scene model found. Call render() first.");
+    return null;
+  }
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneElements = layoutResult.elements || {};
+  const collisions = layoutResult.collisions || [];
+  const s_baseline = debugController.state;
+  if (!s_baseline.baselineSceneGraphs[slideIndex]) {
+    s_baseline.baselineSceneGraphs[slideIndex] = JSON.parse(JSON.stringify(sceneElements));
+  }
+  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
+  const targetLayer = slidekitLayers[slideIndex];
+  if (!targetLayer) {
+    console.warn("SlideKit debug overlay: no slidekit-layer found at index", slideIndex);
+    return null;
+  }
+  const slideW = sk._config?.slide?.w ?? 1920;
+  const slideH = sk._config?.slide?.h ?? 1080;
+  const overlay = document.createElement("div");
+  overlay.className = "slidekit-debug-overlay";
+  overlay.setAttribute("data-sk-role", "debug-overlay");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.width = `${slideW}px`;
+  overlay.style.height = `${slideH}px`;
+  overlay.style.pointerEvents = "none";
+  overlay.style.zIndex = "9999";
+  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, options);
+  targetLayer.appendChild(overlay);
+  debugController.state.debugOverlay = overlay;
+  _enableConnectorPointerEvents(targetLayer);
+  const showInspector = options.showInspector !== false;
+  if (showInspector) {
+    const s = debugController.state;
+    s.currentSlideIndex = slideIndex;
+    createInspectorPanel();
+    attachClickHandler();
+    attachDragHandlers();
+    if (s.selectedElementId && sceneElements[s.selectedElementId]) {
+      renderElementDetail(s.selectedElementId, slideIndex);
+      updateSelectionHighlight(s.selectedElementId, slideIndex);
+      renderResizeHandles(s.selectedElementId, slideIndex);
+    }
+  }
+  return overlay;
+}
+function refreshOverlayOnly(slideIndex) {
+  const s = debugController.state;
+  if (s.debugOverlay && s.debugOverlay.parentNode) {
+    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
+  }
+  s.debugOverlay = null;
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk?.layouts?.[slideIndex]) return;
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneElements = layoutResult.elements || {};
+  const collisions = layoutResult.collisions || [];
+  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
+  const targetLayer = slidekitLayers[slideIndex];
+  if (!targetLayer) return;
+  const slideW = sk._config?.slide?.w ?? 1920;
+  const slideH = sk._config?.slide?.h ?? 1080;
+  const overlay = document.createElement("div");
+  overlay.className = "slidekit-debug-overlay";
+  overlay.setAttribute("data-sk-role", "debug-overlay");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.width = `${slideW}px`;
+  overlay.style.height = `${slideH}px`;
+  overlay.style.pointerEvents = "none";
+  overlay.style.zIndex = "9999";
+  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, s.lastToggleOptions);
+  targetLayer.appendChild(overlay);
+  s.debugOverlay = overlay;
+  _enableConnectorPointerEvents(targetLayer);
+  if (s.selectedElementId) {
+    updateSelectionHighlight(s.selectedElementId, slideIndex);
+  }
+  if (s.selectedConstraint) {
+    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
+  }
+  refreshDragState(slideIndex);
+}
+function removeDebugOverlay() {
+  const s = debugController.state;
+  _detachSlideChangeListener();
+  if (s.pickMode) exitPickMode();
+  clearConstraintSelection();
+  if (s.debugOverlay && s.debugOverlay.parentNode) {
+    _restoreConnectorPointerEvents(s.debugOverlay.parentNode);
+    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
+  }
+  s.debugOverlay = null;
+  removeInspectorPanel();
+  detachClickHandler();
+  detachDragHandlers();
+}
+function isDebugOverlayVisible() {
+  const s = debugController.state;
+  return s.debugOverlay !== null && s.debugOverlay.parentNode !== null;
+}
+function toggleDebugOverlay(options = {}) {
+  const s = debugController.state;
+  if (isDebugOverlayVisible()) {
+    removeDebugOverlay();
+    s.debugMode = 0;
+    return false;
+  } else {
+    const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
+    renderDebugOverlay({ ...s.lastToggleOptions, ...options, slideIndex });
+    _attachSlideChangeListener();
+    s.debugMode = 1;
+    return true;
+  }
+}
+function _resetDebugForTests() {
+  removeDebugOverlay();
+  removeInspectorPanel();
+  detachClickHandler();
+  debugController.reset();
+  resetViewport();
+}
+
 // slidekit/src/renderer.ts
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
 }
-var LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
+var LAYER_ORDER2 = { bg: 0, content: 1, overlay: 2 };
 function computeZOrder(elements) {
   const indexed = elements.map((el2, i) => ({ el: el2, idx: i }));
   indexed.sort((a, b) => {
     const layerKeyA = a.el.props.layer || "content";
     const layerKeyB = b.el.props.layer || "content";
-    const layerA = LAYER_ORDER[layerKeyA] ?? LAYER_ORDER.content;
-    const layerB = LAYER_ORDER[layerKeyB] ?? LAYER_ORDER.content;
+    const layerA = LAYER_ORDER2[layerKeyA] ?? LAYER_ORDER2.content;
+    const layerB = LAYER_ORDER2[layerKeyB] ?? LAYER_ORDER2.content;
     if (layerA !== layerB) return layerA - layerB;
     const zA = a.el.props.z ?? 0;
     const zB = b.el.props.z ?? 0;
@@ -7934,6 +8250,7 @@ async function render(slides, options = {}) {
       return lintDeck(skObj, sectionEls);
     };
     window.sk = skObj;
+    enableKeyboardToggle();
   }
   return { sections, layouts };
 }
@@ -8159,7 +8476,7 @@ function figure(opts = {}) {
 }
 
 // slidekit/src/utilities.ts
-function deepClone(obj) {
+function deepClone2(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
   }
@@ -8278,7 +8595,7 @@ function repeat(element, config = {}) {
     const row = Math.floor(i / cols);
     const x = startX + col * (elemW + gapX);
     const y = startY + row * (elemH + gapY);
-    const copy = deepClone(element);
+    const copy = deepClone2(element);
     const suffix = `-${i + 1}`;
     copy.id = `${baseId}${suffix}`;
     _reIdChildren(copy, suffix);
@@ -8383,7 +8700,7 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   for (const [id, el2] of flatMap) {
     const spec = {
       type: el2.type,
-      props: deepClone2(el2.props)
+      props: deepClone(el2.props)
     };
     if (el2.type === "el") {
       spec.content = el2.content;
@@ -9749,7 +10066,7 @@ async function layout(slideDefinition, options = {}) {
   if (hasErrors) {
     return {
       elements: {},
-      transforms: deepClone2(transforms),
+      transforms: deepClone(transforms),
       warnings,
       errors,
       collisions: []
@@ -9759,7 +10076,7 @@ async function layout(slideDefinition, options = {}) {
   if (!phase2Result) {
     return {
       elements: {},
-      transforms: deepClone2(transforms),
+      transforms: deepClone(transforms),
       warnings,
       errors,
       collisions: []
@@ -9774,7 +10091,7 @@ async function layout(slideDefinition, options = {}) {
       resolvedTransforms.push(t);
       continue;
     }
-    const transformCopy = deepClone2(t);
+    const transformCopy = deepClone(t);
     if (!transformCopy._transformId) {
       transformCopy._transformId = nextTransformId();
     }
@@ -9893,322 +10210,6 @@ async function layout(slideDefinition, options = {}) {
     errors,
     collisionThreshold
   });
-}
-
-// slidekit/src/debug.ts
-init_debug_state();
-init_debug_overlay();
-init_debug_inspector();
-init_debug_inspector_viewport();
-init_debug_inspector_edit();
-init_debug_inspector_drag();
-init_debug_inspector_constraint();
-init_debug_inspector_pick();
-debugController.callbacks.renderElementDetail = (elementId, slideIndex) => {
-  renderElementDetail(elementId, slideIndex);
-};
-debugController.callbacks.renderDebugOverlay = (options) => {
-  refreshOverlayOnly(options.slideIndex ?? 0);
-};
-debugController.callbacks.refreshOverlayOnly = (slideIndex) => {
-  refreshOverlayOnly(slideIndex);
-};
-debugController.callbacks.renderConstraintDetail = (elementId, axis, slideIndex) => {
-  renderConstraintDetail(elementId, axis, slideIndex);
-};
-function _getCurrentSlideIndex() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.getIndices === "function") {
-    return Reveal.getIndices().h ?? 0;
-  }
-  return 0;
-}
-function _onSlideChanged() {
-  const s = debugController.state;
-  if (s.debugMode === 0) return;
-  const newIndex = _getCurrentSlideIndex();
-  if (newIndex === s.currentSlideIndex) return;
-  s.selectedElementId = null;
-  s.selectedConstraint = null;
-  if (s.pickMode) exitPickMode();
-  const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
-  renderDebugOverlay({ ...s.lastToggleOptions, ...modeOpts, slideIndex: newIndex });
-}
-function _attachSlideChangeListener() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.on === "function") {
-    Reveal.on("slidechanged", _onSlideChanged);
-  }
-}
-function _detachSlideChangeListener() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.off === "function") {
-    Reveal.off("slidechanged", _onSlideChanged);
-  }
-}
-var _CONNECTOR_MIN_HIT = 8;
-function _enableConnectorPointerEvents(layer) {
-  const wrappers = layer.querySelectorAll("[data-sk-id]");
-  for (const el2 of wrappers) {
-    const htmlEl = el2;
-    if (htmlEl.style.pointerEvents === "none" && htmlEl.querySelector("svg")) {
-      htmlEl.style.pointerEvents = "auto";
-      htmlEl.setAttribute("data-sk-debug-pe-override", "true");
-      const w = htmlEl.offsetWidth;
-      const h = htmlEl.offsetHeight;
-      if (w < _CONNECTOR_MIN_HIT) {
-        const expand = _CONNECTOR_MIN_HIT - w;
-        htmlEl.setAttribute("data-sk-debug-orig-left", htmlEl.style.left);
-        htmlEl.setAttribute("data-sk-debug-orig-width", htmlEl.style.width);
-        htmlEl.style.left = `${parseFloat(htmlEl.style.left) - expand / 2}px`;
-        htmlEl.style.width = `${_CONNECTOR_MIN_HIT}px`;
-      }
-      if (h < _CONNECTOR_MIN_HIT) {
-        const expand = _CONNECTOR_MIN_HIT - h;
-        htmlEl.setAttribute("data-sk-debug-orig-top", htmlEl.style.top);
-        htmlEl.setAttribute("data-sk-debug-orig-height", htmlEl.style.height);
-        htmlEl.style.top = `${parseFloat(htmlEl.style.top) - expand / 2}px`;
-        htmlEl.style.height = `${_CONNECTOR_MIN_HIT}px`;
-      }
-    }
-  }
-}
-function _restoreConnectorPointerEvents(layer) {
-  const overridden = layer.querySelectorAll("[data-sk-debug-pe-override]");
-  for (const el2 of overridden) {
-    const htmlEl = el2;
-    htmlEl.style.pointerEvents = "none";
-    const origLeft = el2.getAttribute("data-sk-debug-orig-left");
-    const origWidth = el2.getAttribute("data-sk-debug-orig-width");
-    const origTop = el2.getAttribute("data-sk-debug-orig-top");
-    const origHeight = el2.getAttribute("data-sk-debug-orig-height");
-    if (origLeft !== null) {
-      htmlEl.style.left = origLeft;
-      el2.removeAttribute("data-sk-debug-orig-left");
-    }
-    if (origWidth !== null) {
-      htmlEl.style.width = origWidth;
-      el2.removeAttribute("data-sk-debug-orig-width");
-    }
-    if (origTop !== null) {
-      htmlEl.style.top = origTop;
-      el2.removeAttribute("data-sk-debug-orig-top");
-    }
-    if (origHeight !== null) {
-      htmlEl.style.height = origHeight;
-      el2.removeAttribute("data-sk-debug-orig-height");
-    }
-    el2.removeAttribute("data-sk-debug-pe-override");
-  }
-}
-var _DEBUG_MODE_OPTIONS = [
-  {},
-  // placeholder for mode 0 (off)
-  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: false },
-  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: true },
-  { showBoxes: false, showIds: false, showAnchors: false, showSafeZone: false, showCollisions: false, showRelationships: true }
-];
-function getDebugMode() {
-  return debugController.state.debugMode;
-}
-function _handleDebugKeydown(event) {
-  const target = event.target;
-  const s = debugController.state;
-  if (target === s.editInputElement) {
-    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      redo();
-      return;
-    }
-    if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      undo();
-      return;
-    }
-    return;
-  }
-  if (target) {
-    const tagName = target.tagName;
-    if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
-      return;
-    }
-  }
-  if (event.ctrlKey && event.key === ".") {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleDebugOverlay(s.lastToggleOptions);
-    return;
-  }
-  if (s.inspectorPanel) {
-    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      redo();
-    } else if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      undo();
-    }
-  }
-}
-function cycleDebugMode(baseOptions = {}) {
-  const s = debugController.state;
-  s.debugMode = (s.debugMode + 1) % 4;
-  if (s.debugMode === 0) {
-    removeDebugOverlay();
-    _detachSlideChangeListener();
-  } else {
-    const slideIndex = baseOptions.slideIndex ?? _getCurrentSlideIndex();
-    const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
-    renderDebugOverlay({ ...baseOptions, ...modeOpts, slideIndex });
-    _attachSlideChangeListener();
-  }
-  return s.debugMode;
-}
-function enableKeyboardToggle(options = {}) {
-  const s = debugController.state;
-  s.lastToggleOptions = options;
-  if (s.keyboardListenerAttached) return;
-  document.addEventListener("keydown", _handleDebugKeydown, true);
-  s.keyboardListenerAttached = true;
-}
-function disableKeyboardToggle() {
-  const s = debugController.state;
-  if (!s.keyboardListenerAttached) return;
-  document.removeEventListener("keydown", _handleDebugKeydown, true);
-  s.keyboardListenerAttached = false;
-  s.debugMode = 0;
-}
-function renderDebugOverlay(options = {}) {
-  const slideIndex = options.slideIndex ?? 0;
-  removeDebugOverlay();
-  const sk = typeof window !== "undefined" ? window.sk : null;
-  if (!sk || !sk.layouts || !sk.layouts[slideIndex]) {
-    console.warn("SlideKit debug overlay: no scene model found. Call render() first.");
-    return null;
-  }
-  const layoutResult = sk.layouts[slideIndex];
-  const sceneElements = layoutResult.elements || {};
-  const collisions = layoutResult.collisions || [];
-  const s_baseline = debugController.state;
-  if (!s_baseline.baselineSceneGraphs[slideIndex]) {
-    s_baseline.baselineSceneGraphs[slideIndex] = JSON.parse(JSON.stringify(sceneElements));
-  }
-  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
-  const targetLayer = slidekitLayers[slideIndex];
-  if (!targetLayer) {
-    console.warn("SlideKit debug overlay: no slidekit-layer found at index", slideIndex);
-    return null;
-  }
-  const slideW = sk._config?.slide?.w ?? 1920;
-  const slideH = sk._config?.slide?.h ?? 1080;
-  const overlay = document.createElement("div");
-  overlay.className = "slidekit-debug-overlay";
-  overlay.setAttribute("data-sk-role", "debug-overlay");
-  overlay.style.position = "absolute";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.width = `${slideW}px`;
-  overlay.style.height = `${slideH}px`;
-  overlay.style.pointerEvents = "none";
-  overlay.style.zIndex = "9999";
-  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, options);
-  targetLayer.appendChild(overlay);
-  debugController.state.debugOverlay = overlay;
-  _enableConnectorPointerEvents(targetLayer);
-  const showInspector = options.showInspector !== false;
-  if (showInspector) {
-    const s = debugController.state;
-    s.currentSlideIndex = slideIndex;
-    createInspectorPanel();
-    attachClickHandler();
-    attachDragHandlers();
-    if (s.selectedElementId && sceneElements[s.selectedElementId]) {
-      renderElementDetail(s.selectedElementId, slideIndex);
-      updateSelectionHighlight(s.selectedElementId, slideIndex);
-      renderResizeHandles(s.selectedElementId, slideIndex);
-    }
-  }
-  return overlay;
-}
-function refreshOverlayOnly(slideIndex) {
-  const s = debugController.state;
-  if (s.debugOverlay && s.debugOverlay.parentNode) {
-    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
-  }
-  s.debugOverlay = null;
-  const sk = typeof window !== "undefined" ? window.sk : null;
-  if (!sk?.layouts?.[slideIndex]) return;
-  const layoutResult = sk.layouts[slideIndex];
-  const sceneElements = layoutResult.elements || {};
-  const collisions = layoutResult.collisions || [];
-  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
-  const targetLayer = slidekitLayers[slideIndex];
-  if (!targetLayer) return;
-  const slideW = sk._config?.slide?.w ?? 1920;
-  const slideH = sk._config?.slide?.h ?? 1080;
-  const overlay = document.createElement("div");
-  overlay.className = "slidekit-debug-overlay";
-  overlay.setAttribute("data-sk-role", "debug-overlay");
-  overlay.style.position = "absolute";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.width = `${slideW}px`;
-  overlay.style.height = `${slideH}px`;
-  overlay.style.pointerEvents = "none";
-  overlay.style.zIndex = "9999";
-  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, s.lastToggleOptions);
-  targetLayer.appendChild(overlay);
-  s.debugOverlay = overlay;
-  _enableConnectorPointerEvents(targetLayer);
-  if (s.selectedElementId) {
-    updateSelectionHighlight(s.selectedElementId, slideIndex);
-  }
-  if (s.selectedConstraint) {
-    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
-  }
-  refreshDragState(slideIndex);
-}
-function removeDebugOverlay() {
-  const s = debugController.state;
-  _detachSlideChangeListener();
-  if (s.pickMode) exitPickMode();
-  clearConstraintSelection();
-  if (s.debugOverlay && s.debugOverlay.parentNode) {
-    _restoreConnectorPointerEvents(s.debugOverlay.parentNode);
-    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
-  }
-  s.debugOverlay = null;
-  removeInspectorPanel();
-  detachClickHandler();
-  detachDragHandlers();
-}
-function isDebugOverlayVisible() {
-  const s = debugController.state;
-  return s.debugOverlay !== null && s.debugOverlay.parentNode !== null;
-}
-function toggleDebugOverlay(options = {}) {
-  const s = debugController.state;
-  if (isDebugOverlayVisible()) {
-    removeDebugOverlay();
-    s.debugMode = 0;
-    return false;
-  } else {
-    const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
-    renderDebugOverlay({ ...s.lastToggleOptions, ...options, slideIndex });
-    _attachSlideChangeListener();
-    s.debugMode = 1;
-    return true;
-  }
-}
-function _resetDebugForTests() {
-  removeDebugOverlay();
-  removeInspectorPanel();
-  detachClickHandler();
-  debugController.reset();
-  resetViewport();
 }
 
 // slidekit/slidekit.ts
