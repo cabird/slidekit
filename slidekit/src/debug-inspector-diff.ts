@@ -93,9 +93,7 @@ export function serializeSceneGraph(elements: Record<string, SceneElement>): str
 
     // Content
     if (el.authored?.content) {
-      let content = el.authored.content;
-      if (content.length > 300) content = content.slice(0, 300) + '...';
-      lines.push(`  content: ${JSON.stringify(content)}`);
+      lines.push(`  content: ${JSON.stringify(el.authored.content)}`);
     }
 
     // Provenance
@@ -217,8 +215,8 @@ export function generateSceneGraphDiff(
       lines.push(`## ${id} (${aEl.type})`);
 
       if (contentChanged) {
-        const bStr = bContent ? (bContent.length > 200 ? bContent.slice(0, 200) + '...' : bContent) : '(none)';
-        const aStr = aContent ? (aContent.length > 200 ? aContent.slice(0, 200) + '...' : aContent) : '(none)';
+        const bStr = bContent ?? '(none)';
+        const aStr = aContent ?? '(none)';
         lines.push(`  content: ${JSON.stringify(bStr)} \u2192 ${JSON.stringify(aStr)}`);
       }
 

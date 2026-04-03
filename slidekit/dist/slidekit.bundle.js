@@ -644,9 +644,7 @@ function serializeSceneGraph(elements) {
       }
     }
     if (el2.authored?.content) {
-      let content = el2.authored.content;
-      if (content.length > 300) content = content.slice(0, 300) + "...";
-      lines.push(`  content: ${JSON.stringify(content)}`);
+      lines.push(`  content: ${JSON.stringify(el2.authored.content)}`);
     }
     lines.push("  provenance:");
     for (const axis of ["x", "y", "w", "h"]) {
@@ -725,8 +723,8 @@ function generateSceneGraphDiff(before, after, slideIndex) {
       hasChanges = true;
       lines.push(`## ${id} (${aEl.type})`);
       if (contentChanged) {
-        const bStr = bContent ? bContent.length > 200 ? bContent.slice(0, 200) + "..." : bContent : "(none)";
-        const aStr = aContent ? aContent.length > 200 ? aContent.slice(0, 200) + "..." : aContent : "(none)";
+        const bStr = bContent ?? "(none)";
+        const aStr = aContent ?? "(none)";
         lines.push(`  content: ${JSON.stringify(bStr)} \u2192 ${JSON.stringify(aStr)}`);
       }
       for (const { key, before: bVal, after: aVal } of changes) {
@@ -5476,6 +5474,13 @@ async function measure(html, props = {}) {
   div.setAttribute("data-sk-measure", "");
   div.innerHTML = html;
   state.measureContainer.appendChild(div);
+  const FONT_TIMEOUT_MS = 5e3;
+  if (document.fonts?.ready) {
+    await Promise.race([
+      document.fonts.ready,
+      new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
+    ]);
+  }
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
     const IMAGE_TIMEOUT_MS = 3e3;
