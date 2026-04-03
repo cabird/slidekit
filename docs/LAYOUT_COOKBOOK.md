@@ -658,7 +658,7 @@ vstack([
  el('...headline...', { id: 'headline', w: safe.w }),
  el('...body...', { id: 'body', w: safe.w }),
  el('', { id: 'divider', w: 120, h: 3,
- style: { background: accent, borderRadius: '2px' }, layer: 'overlay' }),
+ style: { background: accent, borderRadius: '2px' } }),
  el('...footer...', { id: 'footer', w: safe.w }),
 ], { id: 'stack', x: safe.x, y: safe.y + 80, w: safe.w, gap: 'md' });
 ```
@@ -1111,9 +1111,9 @@ metrics.map((m, i) => {
  const cardY = gridY + row * (cardH + gap);
  return panel([
  ...icon,
- el('...value...', { id: `val${i}`, y: below(`icon${i}`, 'sm'), w: cardW - 64 }),
- el('...label...', { id: `lbl${i}`, y: below(`val${i}`, 'xs'), w: cardW - 64 }),
- el('...trend...', { id: `trend${i}`, y: below(`lbl${i}`, 12), w: cardW - 64 }),
+ el('...value...', { id: `val${i}`, w: cardW - 64 }),
+ el('...label...', { id: `lbl${i}`, w: cardW - 64 }),
+ el('...trend...', { id: `trend${i}`, w: cardW - 64 }),
  ], {
  id: `card${i}`, x: cardX, y: cardY, w: cardW, h: cardH,
  padding: 'lg', fill: surface, radius: 16, border: `1px solid ${C.border}`,
@@ -1121,7 +1121,7 @@ metrics.map((m, i) => {
 });
 ```
 
-**Key detail:** Use `h` on panel for uniform card height. Chain `below()` inside for internal layout.
+**Key detail:** Use `h` on panel for uniform card height. The panel's `gap` prop handles spacing between children.
 
 ---
 
@@ -1242,8 +1242,8 @@ const islandW = 600;
 const pos = centerIn({ x: 0, y: 0, w: 1920, h: 1080 });
 panel([
  el('', { id: 'deco-line', w: 48, h: 3, style: { background: accent, borderRadius: '2px' } }),
- el('...quote...', { id: 'quote', y: below('deco-line', 'md'), w: islandW - 80 }),
- el('...attribution...', { id: 'attr', y: below('quote', 20), w: islandW - 80 }),
+ el('...quote...', { id: 'quote', w: islandW - 80 }),
+ el('...attribution...', { id: 'attr', w: islandW - 80 }),
 ], {
  id: 'panel', x: pos.x, y: pos.y, w: islandW,
  padding: 40, fill: surface, radius: 20,
@@ -1414,10 +1414,10 @@ members.map((member, i) => {
  figure({ id: `avatar${i}`, src: './avatar.png',
  x: (colW - 64) / 2 - avatarSize / 2, y: 0, w: avatarSize, h: avatarSize,
  fit: 'cover', containerRadius: avatarSize / 2 }),
- el('...name...', { id: `name${i}`, y: below(`avatar${i}`, 20), w: colW - 64 }),
- el('...role...', { id: `role${i}`, y: below(`name${i}`, 'xs'), w: colW - 64 }),
- el('', { id: `div${i}`, y: below(`role${i}`, 'sm'), w: 40, h: 2, style: { background: border } }),
- el('...bio...', { id: `bio${i}`, y: below(`div${i}`, 'sm'), w: colW - 64 }),
+ el('...name...', { id: `name${i}`, w: colW - 64 }),
+ el('...role...', { id: `role${i}`, w: colW - 64 }),
+ el('', { id: `div${i}`, w: 40, h: 2, style: { background: border } }),
+ el('...bio...', { id: `bio${i}`, w: colW - 64 }),
  ], { id: `card${i}`, x: cardX, y: cardY, w: colW, h: cardH,
  padding: 32, fill: surface, radius: 16, border: `1px solid ${border}` });
 });
