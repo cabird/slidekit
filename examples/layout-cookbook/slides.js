@@ -1623,13 +1623,13 @@ export async function run() {
                 id: `g4-icon${i}`, w: 50,
               }),
               el(`<p style="font:700 56px ${FONT};color:${C.text};letter-spacing:-2px">${m.value}</p>`, {
-                id: `g4-val${i}`, y: below(`g4-icon${i}`, { gap: 'sm' }), w: cardW - 64,
+                id: `g4-val${i}`, w: cardW - 64,
               }),
               el(`<p style="font:400 20px ${FONT};color:${C.textMuted}">${m.label}</p>`, {
-                id: `g4-lbl${i}`, y: below(`g4-val${i}`, { gap: 'xs' }), w: cardW - 64,
+                id: `g4-lbl${i}`, w: cardW - 64,
               }),
               el(`<p style="font:600 18px ${FONT};color:${m.trendColor}">${m.trend}</p>`, {
-                id: `g4-trend${i}`, y: below(`g4-lbl${i}`, { gap: 12 }), w: cardW - 64,
+                id: `g4-trend${i}`, w: cardW - 64,
               }),
             ], {
               id: `g4-card${i}`, x: cardX, y: cardY, w: cardW, h: cardH,
@@ -1824,10 +1824,10 @@ export async function run() {
               style: { background: C.accent, borderRadius: '2px' },
             }),
             el(`<p style="font:italic 400 26px ${FONT};color:${C.text};line-height:1.7">"The best interface is no interface. The best code is no code. Strive to remove, not to add."</p>`, {
-              id: 'i1-quote', y: below('i1-deco-line', { gap: 'md' }), w: islandW - 80,
+              id: 'i1-quote', w: islandW - 80,
             }),
             el(`<p style="font:600 16px ${FONT};color:${C.textMuted};letter-spacing:1px">— GOLDEN KRISHNA</p>`, {
-              id: 'i1-attr', y: below('i1-quote', { gap: 20 }), w: islandW - 80,
+              id: 'i1-attr', w: islandW - 80,
             }),
           ], {
             id: 'i1-panel', x: pos.x, y: pos.y, w: islandW,
@@ -2126,17 +2126,17 @@ export async function run() {
                 fit: 'cover', containerRadius: avatarSize / 2,
               }),
               el(`<p style="font:700 24px ${FONT};color:${C.text};text-align:center">${member.name}</p>`, {
-                id: `j4-name${i}`, y: below(`j4-avatar${i}`, { gap: 20 }), w: colW - 64,
+                id: `j4-name${i}`, w: colW - 64,
               }),
               el(`<p style="font:600 16px ${FONT};color:${C.accent};text-align:center;text-transform:uppercase;letter-spacing:2px">${member.role}</p>`, {
-                id: `j4-role${i}`, y: below(`j4-name${i}`, { gap: 'xs' }), w: colW - 64,
+                id: `j4-role${i}`, w: colW - 64,
               }),
               el('', {
-                id: `j4-divider${i}`, y: below(`j4-role${i}`, { gap: 'sm' }), w: 40, h: 2,
+                id: `j4-divider${i}`, w: 40, h: 2,
                 style: { background: C.border },
               }),
               el(`<p style="font:400 17px ${FONT};color:${C.textMuted};text-align:center;line-height:1.7">${member.bio}</p>`, {
-                id: `j4-bio${i}`, y: below(`j4-divider${i}`, { gap: 'sm' }), w: colW - 64,
+                id: `j4-bio${i}`, w: colW - 64,
               }),
             ], {
               id: `j4-card${i}`, x: cardX, y: cardY, w: colW, h: cardH,
