@@ -99,7 +99,6 @@ Beyond the core elements, SlideKit provides compound primitives for common slide
 
 - **Connectors** that draw lines and arrows between elements, with straight, elbow, and curved routing. Essential for flowcharts and relationship diagrams.
 - **Panels** — visual containers with a background, padding, and vertically stacked child elements. The "card" pattern that appears constantly in presentations. Panels emit overflow warnings when content exceeds an explicit height.
-- **Figures** — image containers with a background rect, optional padding, and optional caption. A structured alternative to manual `el('<img ...>')` setups.
 - **Card grids** — arrange panels in a multi-row grid with `align: 'stretch'` so cards in each row share equal height.
 
 ## Alignment and Distribution
@@ -146,7 +145,7 @@ SlideKit is decomposed into 19 focused TypeScript modules under `src/`, plus a 6
 | `measure.ts` | DOM-based text measurement with caching |
 | `transforms.ts` | Post-solve alignment, distribution, size matching |
 | `renderer.ts` | DOM rendering into Reveal.js `<section>` elements |
-| `compounds.ts` | Higher-level primitives: `connect()`, `panel()`, `figure()` |
+| `compounds.ts` | Higher-level primitives: `connect()`, `panel()` |
 | `utilities.ts` | `grid()`, `snap()`, `repeat()`, percentage resolution |
 | `dom-helpers.ts` | Shared DOM utilities |
 | `types.ts` | TypeScript type definitions |

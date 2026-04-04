@@ -111,29 +111,6 @@ panel([
 
 ---
 
-## Figure with Framed Image
-
-`figure()` creates a group with background, image, and optional caption. Use `containerFill` + `containerPadding` for a framed look.
-
-```typescript
-figure({
-  id: 'chart',
-  src: 'assets/chart.png',
-  x: 960, y: 300, w: 900, h: 500,
-  anchor: 'tc',
-  containerFill: '#f8f9fa',
-  containerRadius: 10,
-  containerPadding: 10,
-  fit: 'contain',
-  caption: 'Figure 1: Results overview',
-  captionStyle: 'font-family:Inter;font-size:18px;color:#888',
-})
-```
-
-Figure internals (bg rect, img) are automatically marked `_internal` — the linter won't flag them as overlapping each other.
-
----
-
 ## Accent Bars and Decorative Elements
 
 Thin decorative elements (dividers, accent bars) are common. The linter's horizontal-center-consistency rule automatically excludes very small elements (w<20 or h<12).

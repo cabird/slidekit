@@ -1017,10 +1017,6 @@ function flattenElements(elements) {
           panelInternals.add(el2.children[0].id);
           panelInternals.add(el2.children[1].id);
         }
-        if (el2._compound === "figure" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
         walk(el2.children, el2.id);
       }
       if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
@@ -1035,10 +1031,6 @@ function flattenElements(elements) {
             const gcIds = child.children.map((c) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
               panelInternals.add(child.children[1].id);
             }
@@ -8772,80 +8764,6 @@ function panel(children, props = {}) {
   };
   return result;
 }
-function figure(opts = {}) {
-  const {
-    id: customId,
-    src = "",
-    x = 0,
-    y = 0,
-    w = 0,
-    h = 0,
-    anchor = "tl",
-    layer = "content",
-    containerFill = "transparent",
-    containerRadius = 0,
-    containerPadding = 0,
-    caption,
-    captionGap = 0,
-    fit = "contain",
-    style = {}
-  } = opts;
-  const padPx = resolveSpacing(containerPadding);
-  const gapPx = resolveSpacing(captionGap);
-  const figId = customId || nextId();
-  const radiusVal = typeof containerRadius === "number" ? `${containerRadius}px` : containerRadius;
-  const bgRect = el("", {
-    id: `${figId}-bg`,
-    x: 0,
-    y: 0,
-    w,
-    h,
-    style: { background: containerFill, borderRadius: radiusVal }
-  });
-  const innerW = Math.max(0, w - 2 * padPx);
-  const innerH = Math.max(0, h - 2 * padPx);
-  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
-    id: `${figId}-img`,
-    x: padPx,
-    y: padPx,
-    w: innerW,
-    h: innerH
-  });
-  const children = [bgRect, img];
-  if (caption) {
-    const cap = el(caption, {
-      id: `${figId}-caption`,
-      x: 0,
-      y: h + gapPx,
-      w
-    });
-    children.push(cap);
-  }
-  const figureConfig = {
-    src,
-    containerFill,
-    containerRadius,
-    containerPadding: padPx,
-    captionGap: gapPx,
-    fit
-  };
-  const groupBase = group(children, {
-    id: figId,
-    x,
-    y,
-    w,
-    h,
-    anchor,
-    layer,
-    style
-  });
-  const result = {
-    ...groupBase,
-    _compound: "figure",
-    _figureConfig: figureConfig
-  };
-  return result;
-}
 function resolvePercentage(value, axis) {
   if (typeof value !== "string") return value;
   const slideW = state.config?.slide?.w ?? 1920;
@@ -11260,55 +11178,7 @@ async function run() {
       ]
     },
     // ================================================================
-    // SLIDE 13: Figures
-    // ================================================================
-    {
-      id: "figures",
-      background: C.bg,
-      elements: [
-        title("Figure Compound", "s13-title", { x: safe.x, y: safe.y }),
-        // Figure with caption
-        figure({
-          id: "s13-fig1",
-          src: PLACEHOLDER_SVG,
-          x: 150,
-          y: 200,
-          w: 400,
-          h: 300,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">Figure with caption</span>`,
-          captionGap: 12
-        }),
-        // Figure with container styling
-        figure({
-          id: "s13-fig2",
-          src: PLACEHOLDER_SVG,
-          x: 650,
-          y: 200,
-          w: 400,
-          h: 300,
-          containerFill: "rgba(0,212,255,0.1)",
-          containerRadius: 16,
-          containerPadding: 20,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">Container fill + radius + padding</span>`,
-          captionGap: 12
-        }),
-        // Figure without src (empty image)
-        figure({
-          id: "s13-fig3",
-          x: 1150,
-          y: 200,
-          w: 400,
-          h: 300,
-          containerFill: "rgba(255,107,157,0.1)",
-          containerRadius: 8,
-          containerPadding: 10,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">No src (empty image)</span>`,
-          captionGap: 12
-        })
-      ]
-    },
-    // ================================================================
-    // SLIDE 14: Overlapping Elements / Layers
+    // SLIDE 13: Overlapping Elements / Layers
     // ================================================================
     {
       id: "layers",

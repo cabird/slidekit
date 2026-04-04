@@ -864,7 +864,7 @@ Omit `h` on panels -- let content auto-size. Use `fromAnchor: 'cr'` / `toAnchor:
 | `ArrowType` | `"none"` `"end"` `"start"` `"both"` |
 | `ShadowPreset` | `"sm"` `"md"` `"lg"` `"xl"` `"glow"` |
 | `ElementType` | `"el"` `"group"` `"vstack"` `"hstack"` `"connector"` |
-| `CompoundType` | `"panel"` `"figure"` |
+| `CompoundType` | `"panel"` |
 | `ProvenanceSource` | `"authored"` `"measured"` `"stack"` `"constraint"` `"transform"` `"default"` |
 
 ### Data Types
@@ -882,14 +882,13 @@ Omit `h` on panels -- let content auto-size. Use `fromAnchor: 'cr'` / `toAnchor:
 
 | Type | Description |
 |------|-------------|
-| `SlideElement` | Union: `ElElement \| GroupElement \| VStackElement \| HStackElement \| ConnectorElement \| PanelElement \| FigureElement` |
+| `SlideElement` | Union: `ElElement \| GroupElement \| VStackElement \| HStackElement \| ConnectorElement \| PanelElement` |
 | `ElElement` | `{ type: "el", id, content, props }` |
 | `GroupElement` | `{ type: "group", id, children, props }` |
 | `VStackElement` | `{ type: "vstack", id, children, props }` |
 | `HStackElement` | `{ type: "hstack", id, children, props }` |
 | `ConnectorElement` | `{ type: "connector", id, props: ConnectorProps }` |
 | `PanelElement` | `GroupElement` with `_compound: "panel"` |
-| `FigureElement` | `GroupElement` with `_compound: "figure"` |
 
 ### Configuration & Layout Types
 

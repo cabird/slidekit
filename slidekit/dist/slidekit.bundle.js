@@ -1025,10 +1025,6 @@ function flattenElements(elements) {
           panelInternals.add(el2.children[0].id);
           panelInternals.add(el2.children[1].id);
         }
-        if (el2._compound === "figure" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
         walk(el2.children, el2.id);
       }
       if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
@@ -1043,10 +1039,6 @@ function flattenElements(elements) {
             const gcIds = child.children.map((c) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
               panelInternals.add(child.children[1].id);
             }
@@ -8932,80 +8924,6 @@ function panel(children, props = {}) {
   };
   return result;
 }
-function figure(opts = {}) {
-  const {
-    id: customId,
-    src = "",
-    x = 0,
-    y = 0,
-    w = 0,
-    h = 0,
-    anchor = "tl",
-    layer = "content",
-    containerFill = "transparent",
-    containerRadius = 0,
-    containerPadding = 0,
-    caption,
-    captionGap = 0,
-    fit = "contain",
-    style = {}
-  } = opts;
-  const padPx = resolveSpacing(containerPadding);
-  const gapPx = resolveSpacing(captionGap);
-  const figId = customId || nextId();
-  const radiusVal = typeof containerRadius === "number" ? `${containerRadius}px` : containerRadius;
-  const bgRect = el("", {
-    id: `${figId}-bg`,
-    x: 0,
-    y: 0,
-    w,
-    h,
-    style: { background: containerFill, borderRadius: radiusVal }
-  });
-  const innerW = Math.max(0, w - 2 * padPx);
-  const innerH = Math.max(0, h - 2 * padPx);
-  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
-    id: `${figId}-img`,
-    x: padPx,
-    y: padPx,
-    w: innerW,
-    h: innerH
-  });
-  const children = [bgRect, img];
-  if (caption) {
-    const cap = el(caption, {
-      id: `${figId}-caption`,
-      x: 0,
-      y: h + gapPx,
-      w
-    });
-    children.push(cap);
-  }
-  const figureConfig = {
-    src,
-    containerFill,
-    containerRadius,
-    containerPadding: padPx,
-    captionGap: gapPx,
-    fit
-  };
-  const groupBase = group(children, {
-    id: figId,
-    x,
-    y,
-    w,
-    h,
-    anchor,
-    layer,
-    style
-  });
-  const result = {
-    ...groupBase,
-    _compound: "figure",
-    _figureConfig: figureConfig
-  };
-  return result;
-}
 
 // slidekit/src/utilities.ts
 function deepClone2(obj) {
@@ -11215,7 +11133,6 @@ var SlideKit = {
   // Compound primitives
   connect,
   panel,
-  figure,
   getAnchorPoint,
   routeConnector,
   // Utilities
@@ -11283,7 +11200,6 @@ export {
   distributeV,
   el,
   enableKeyboardToggle,
-  figure,
   filterStyle,
   fitToRect,
   getAnchorPoint,

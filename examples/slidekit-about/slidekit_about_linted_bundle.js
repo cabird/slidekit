@@ -1017,10 +1017,6 @@ function flattenElements(elements) {
           panelInternals.add(el2.children[0].id);
           panelInternals.add(el2.children[1].id);
         }
-        if (el2._compound === "figure" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
         walk(el2.children, el2.id);
       }
       if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
@@ -1035,10 +1031,6 @@ function flattenElements(elements) {
             const gcIds = child.children.map((c) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
               panelInternals.add(child.children[1].id);
             }
@@ -8792,80 +8784,6 @@ function panel(children, props = {}) {
   };
   return result;
 }
-function figure(opts = {}) {
-  const {
-    id: customId,
-    src = "",
-    x = 0,
-    y = 0,
-    w = 0,
-    h = 0,
-    anchor = "tl",
-    layer = "content",
-    containerFill = "transparent",
-    containerRadius = 0,
-    containerPadding = 0,
-    caption: caption2,
-    captionGap = 0,
-    fit = "contain",
-    style = {}
-  } = opts;
-  const padPx = resolveSpacing(containerPadding);
-  const gapPx = resolveSpacing(captionGap);
-  const figId = customId || nextId();
-  const radiusVal = typeof containerRadius === "number" ? `${containerRadius}px` : containerRadius;
-  const bgRect = el("", {
-    id: `${figId}-bg`,
-    x: 0,
-    y: 0,
-    w,
-    h,
-    style: { background: containerFill, borderRadius: radiusVal }
-  });
-  const innerW = Math.max(0, w - 2 * padPx);
-  const innerH = Math.max(0, h - 2 * padPx);
-  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
-    id: `${figId}-img`,
-    x: padPx,
-    y: padPx,
-    w: innerW,
-    h: innerH
-  });
-  const children = [bgRect, img];
-  if (caption2) {
-    const cap = el(caption2, {
-      id: `${figId}-caption`,
-      x: 0,
-      y: h + gapPx,
-      w
-    });
-    children.push(cap);
-  }
-  const figureConfig = {
-    src,
-    containerFill,
-    containerRadius,
-    containerPadding: padPx,
-    captionGap: gapPx,
-    fit
-  };
-  const groupBase = group(children, {
-    id: figId,
-    x,
-    y,
-    w,
-    h,
-    anchor,
-    layer,
-    style
-  });
-  const result = {
-    ...groupBase,
-    _compound: "figure",
-    _figureConfig: figureConfig
-  };
-  return result;
-}
 function deepClone2(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -12324,162 +12242,7 @@ w: 800, h: 400`,
       })()
     },
     // ================================================================
-    // SLIDE 12: FIGURES — "Structured Visual Containers"
-    // ================================================================
-    {
-      id: "figures",
-      background: C.bg,
-      notes: "Figures wrap images with structured containers, padding, and optional captions.",
-      elements: (() => {
-        const placeholderSvg = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22%3E%3Crect fill=%22%2300d4ff%22 width=%22400%22 height=%22300%22 opacity=%220.3%22/%3E%3C/svg%3E";
-        return [
-          // Title
-          vstack([
-            mkEyebrow("Compound Elements", "s12-eyebrow", C.accent1),
-            slideTitle("Figures", "s12-title"),
-            bodyText("Structured visual containers with padding, radius & captions", "s12-subtitle")
-          ], {
-            id: "s12-title-stack",
-            x: safe.x,
-            y: safe.y,
-            w: safe.w,
-            gap: "sm",
-            align: "left"
-          }),
-          // Three figures in hstack
-          hstack([
-            // Figure 1: basic with containerFill
-            figure({
-              id: "s12-fig1",
-              src: placeholderSvg,
-              w: 320,
-              h: 240,
-              containerFill: "rgba(0,212,255,0.08)"
-            }),
-            // Figure 2: with radius and padding
-            figure({
-              id: "s12-fig2",
-              src: placeholderSvg,
-              w: 320,
-              h: 240,
-              containerFill: "rgba(124,92,191,0.08)",
-              containerRadius: 16,
-              containerPadding: 16
-            }),
-            // Figure 3: with caption and captionGap
-            figure({
-              id: "s12-fig3",
-              src: placeholderSvg,
-              w: 320,
-              h: 240,
-              containerFill: "rgba(0,255,136,0.08)",
-              containerRadius: 12,
-              containerPadding: 12,
-              caption: `<span style="font-family:${FONT};font-size:16px;color:${C.textSec};">Fig 3 \u2014 with caption</span>`,
-              captionGap: 12
-            })
-          ], {
-            id: "s12-figures-row",
-            x: safe.x,
-            y: below("s12-title-stack", { gap: "xl" }),
-            w: safe.w,
-            gap: "lg",
-            align: "top"
-          }),
-          // Labels beneath each figure
-          caption("containerFill", "s12-label1", {
-            x: safe.x + 160,
-            y: below("s12-figures-row", { gap: "sm" }),
-            w: 320,
-            h: 24,
-            anchor: "tc",
-            style: { textAlign: "center" }
-          }),
-          caption("containerRadius + Padding", "s12-label2", {
-            x: safe.x + 160 + 320 + getSpacing("lg"),
-            y: below("s12-figures-row", { gap: "sm" }),
-            w: 320,
-            h: 24,
-            anchor: "tc",
-            style: { textAlign: "center" }
-          }),
-          caption("caption + captionGap", "s12-label3", {
-            x: safe.x + 160 + (320 + getSpacing("lg")) * 2,
-            y: below("s12-figures-row", { gap: "sm" }),
-            w: 320,
-            h: 24,
-            anchor: "tc",
-            style: { textAlign: "center" }
-          }),
-          // Anatomy section: annotation lines
-          group([
-            // Container outline
-            el('<div style="width:100%;height:100%;border:2px dashed rgba(0,212,255,0.3);border-radius:12px;"></div>', {
-              id: "s12-anatomy-outline",
-              x: 0,
-              y: 0,
-              w: 400,
-              h: 260
-            }),
-            // Padding area
-            el('<div style="width:100%;height:100%;border:1px dashed rgba(124,92,191,0.4);border-radius:8px;background:rgba(124,92,191,0.05);"></div>', {
-              id: "s12-anatomy-padding",
-              x: 16,
-              y: 16,
-              w: 368,
-              h: 196
-            }),
-            // Image placeholder
-            el(`<div style="width:100%;height:100%;background:rgba(0,120,160,0.5);border-radius:4px;display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:14px;color:#ffffff;">image</span></div>`, {
-              id: "s12-anatomy-image",
-              x: 28,
-              y: 28,
-              w: 344,
-              h: 172
-            }),
-            // Caption area
-            el(`<div style="width:100%;height:100%;background:rgba(255,255,255,0.04);border-radius:4px;display:flex;align-items:center;justify-content:center;"><span style="font-family:${MONO};font-size:14px;color:${C.textTer};">caption</span></div>`, {
-              id: "s12-anatomy-caption",
-              x: 16,
-              y: 228,
-              w: 368,
-              h: 24
-            }),
-            // Labels
-            el(`<span style="font-family:${MONO};font-size:13px;color:${C.accent1};">containerFill</span>`, {
-              id: "s12-anatomy-lbl1",
-              x: 410,
-              y: 4,
-              w: 120,
-              h: 18
-            }),
-            el(`<span style="font-family:${MONO};font-size:13px;color:${C.accent2};">containerPadding</span>`, {
-              id: "s12-anatomy-lbl2",
-              x: 410,
-              y: 40,
-              w: 140,
-              h: 18
-            }),
-            el(`<span style="font-family:${MONO};font-size:13px;color:${C.textTer};">captionGap</span>`, {
-              id: "s12-anatomy-lbl3",
-              x: 410,
-              y: 218,
-              w: 100,
-              h: 18
-            })
-          ], {
-            id: "s12-anatomy",
-            x: safe.x + safe.w - 600,
-            y: below("s12-label1", { gap: "lg" }),
-            w: 560,
-            h: 270,
-            bounds: "hug"
-          })
-        ];
-      })()
-    },
-    // ================================================================
-    // SLIDE 13: STYLING — "You Own the Pixels"
+    // SLIDE 12: STYLING — "You Own the Pixels"
     // ================================================================
     {
       id: "styling",
@@ -12656,7 +12419,7 @@ w: 800, h: 400`,
       })()
     },
     // ================================================================
-    // SLIDE 14: MEASUREMENT & VALIDATION — "Catch Problems Before You See Them"
+    // SLIDE 13: MEASUREMENT & VALIDATION — "Catch Problems Before You See Them"
     // ================================================================
     {
       id: "measurement-validation",
@@ -12840,7 +12603,7 @@ w: 800, h: 400`,
       })()
     },
     // ================================================================
-    // SLIDE 15: FULL EXAMPLE — "Putting It All Together"
+    // SLIDE 14: FULL EXAMPLE — "Putting It All Together"
     // ================================================================
     {
       id: "full-example",
@@ -12986,7 +12749,7 @@ w: 800, h: 400`,
       })()
     },
     // ================================================================
-    // SLIDE 16: CLOSING — "Start Building"
+    // SLIDE 15: CLOSING — "Start Building"
     // ================================================================
     {
       id: "closing",

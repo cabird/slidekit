@@ -667,7 +667,7 @@ export async function resolveIntrinsicSizes(
   // bounds: 'hug' — compute group w/h from children bounding box
   for (const [id, el] of flatMap) {
     if (el.type !== "group" || el.props.bounds !== "hug") continue;
-    // Skip compound groups (panel, figure) — they manage their own sizing
+    // Skip compound groups (panel) — they manage their own sizing
     if (el._compound) continue;
     const childIds = groupChildren.get(id);
     if (!childIds || childIds.length === 0) continue;

@@ -108,7 +108,7 @@ graph TD
 | `relative.ts` | Relative positioning helpers and dimension constraints that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, `centerHOnSlide()`, `centerVOnSlide()`, `matchWidthOf()`, `matchHeightOf()`, `matchMaxWidth()`, `matchMaxHeight()`, etc. |
 | `measure.ts` | Off-screen DOM measurement with caching. Creates a hidden container with baseline CSS. | `measure()`, `clearMeasureCache()` |
 | `transforms.ts` | PowerPoint-style alignment, distribution, and size-matching transforms. Both factory functions and the `applyTransform()` executor. | `alignTop()`, `distributeH()`, `matchWidth()`, `fitToRect()`, etc. |
-| `compounds.ts` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `figure()`, `getAnchorPoint()` |
+| `compounds.ts` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `getAnchorPoint()` |
 | `utilities.ts` | Grid system, snap, percentage resolution, repeat/duplicate, rotated AABB. | `grid()`, `snap()`, `resolvePercentage()`, `repeat()`, `rotatedAABB()` |
 | `renderer.ts` | DOM rendering, z-order computation, SVG connector building, Reveal.js integration, post-render overflow detection. | `render()`, `renderElementFromScene()`, `computeZOrder()` |
 | `connectorRouting.ts` | Orthogonal polyline routing for connectors with obstacle avoidance. | `routeConnector()` |
@@ -193,19 +193,12 @@ graph TD
     GROUP_P --> BG_RECT["el('') — background rect"]
     GROUP_P --> VSTACK_P["vstack — child content"]
 
-    FIGURE["figure(opts)"] --> GROUP_F["group"]
-    GROUP_F --> BG_F["el('') — background rect"]
-    GROUP_F --> IMG_F["el('&lt;img&gt;') — image"]
-    GROUP_F --> CAP_F["el(caption) — optional"]
-
     CARDGRID["cardGrid(items, props)"] --> VSTACK_G["vstack — rows"]
     VSTACK_G --> HSTACK_R1["hstack — row 0 (stretch)"]
     VSTACK_G --> HSTACK_R2["hstack — row 1 (stretch)"]
 ```
 
 **Panel internals:** `panel()` creates a `group` tagged with `_compound: "panel"` and `_panelConfig: { padding, gap, panelW, panelH }`. The layout pipeline uses these tags to compute auto-height and emit overflow warnings. Children using `w: "fill"` are resolved at panel creation time to `panelW - 2 * padding`.
-
-**Figure internals:** `figure()` creates a `group` tagged with `_compound: "figure"` and `_figureConfig`. The image element is inset by `containerPadding`, and an optional caption is positioned below the container at `y: h + captionGap`.
 
 ### Default Merging
 

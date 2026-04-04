@@ -64,11 +64,6 @@ export function flattenElements(elements: SlideElement[]): FlattenResult {
           panelInternals.add(el.children[0].id); // bgRect
           panelInternals.add(el.children[1].id); // childStack
         }
-        // If this group is a figure compound, mark bg and img as internal
-        if (el._compound === "figure" && el.children.length >= 2) {
-          panelInternals.add(el.children[0].id); // bgRect
-          panelInternals.add(el.children[1].id); // img
-        }
         walk(el.children, el.id);
       }
       if ((el.type === "vstack" || el.type === "hstack") && el.children) {
@@ -89,10 +84,6 @@ export function flattenElements(elements: SlideElement[]): FlattenResult {
             const gcIds = child.children.map((c: SlideElement) => c.id);
             groupChildren.set(child.id, gcIds);
             if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
               panelInternals.add(child.children[0].id);
               panelInternals.add(child.children[1].id);
             }

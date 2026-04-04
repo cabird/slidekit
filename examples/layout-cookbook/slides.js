@@ -6,9 +6,50 @@
 import {
   init, render, safeRect, splitRect,
   el, below, rightOf, centerIn, centerVWith,
-  hstack, vstack, panel, figure, group, connect,
+  hstack, vstack, panel, group, connect,
   grid, repeat, getSpacing, distributeH, matchWidth,
 } from '../../slidekit/dist/slidekit.bundle.js';
+
+// -- Local figure() helper (image container with optional caption) ---------------
+// Replaces the removed library figure() compound with equivalent el()+group() code.
+function figure(opts = {}) {
+  const {
+    id, src = '', x = 0, y = 0, w = 0, h = 0,
+    anchor = 'tl', layer = 'content',
+    containerFill = 'transparent', containerRadius = 0,
+    containerPadding = 0,
+    caption, captionGap = 0,
+    fit = 'contain',
+    style = {},
+  } = opts;
+  const pad = typeof containerPadding === 'number' ? containerPadding : 0;
+  const gap = typeof captionGap === 'number' ? captionGap : 0;
+  const radius = typeof containerRadius === 'number' ? `${containerRadius}px` : containerRadius;
+  const innerW = Math.max(0, w - 2 * pad);
+  const innerH = Math.max(0, h - 2 * pad);
+  const bgRect = el('', {
+    id: id ? `${id}-bg` : undefined,
+    x: 0, y: 0, w, h,
+    style: { background: containerFill, borderRadius: radius },
+  });
+  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
+    id: id ? `${id}-img` : undefined,
+    x: pad, y: pad, w: innerW, h: innerH,
+  });
+  const children = [bgRect, img];
+  if (caption) {
+    children.push(el(caption, {
+      id: id ? `${id}-caption` : undefined,
+      x: 0, y: h + gap, w,
+    }));
+  }
+  return group(children, {
+    id, x, y, w,
+    h: caption ? undefined : h,
+    bounds: caption ? 'hug' : undefined,
+    anchor, layer, style,
+  });
+}
 
 // -- Image Manifest --------------------------------------------------------------
 

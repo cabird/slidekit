@@ -86,7 +86,6 @@ The anchor point is pinned to (x, y). The rest of the element extends away from 
 ### Compounds
 
 - `panel()` supports `vAlign` for centering content vertically within an explicit `h`.
-- Don't use `anchor: 'tc'` on `figure()` — it causes linter false positives. Use explicit `x`/`y` math to center figures.
 - Connector curves need corner anchors to render correctly — use `tr` to `tl` or `br` to `bl`, not center-edge pairs like `cr` to `cl` (those produce straight lines, not curves).
 - Connector `dash` is **space-separated** (`'6 4'`), not comma-separated (`'6,4'`).
 
@@ -161,9 +160,9 @@ A common and non-obvious failure: using your accent color for **both** text and 
 | 1 | title | Title / Cover | Cover | `el`, `layer:'bg'`, `anchor:'cc'` |
 | 2 | a1 | Equal Split (50/50) | A: Split | `splitRect(0.5)`, `panel`, `vstack` |
 | 3 | a2 | Asymmetric Split (35/65) | A: Split | `splitRect(0.35)`, `panel`, `vstack` |
-| 4 | a3 | Image Left, Text Right | A: Split | `splitRect(0.45)`, `figure`, `below` |
-| 5 | a4 | Text Left, Image Right | A: Split | `splitRect(0.55)`, `figure`, `below` |
-| 6 | a5 | Narrow Sidebar (20/80) | A: Split | `splitRect(0.20)`, `figure` |
+| 4 | a3 | Image Left, Text Right | A: Split | `splitRect(0.45)`, `el` (image), `below` |
+| 5 | a4 | Text Left, Image Right | A: Split | `splitRect(0.55)`, `el` (image), `below` |
+| 6 | a5 | Narrow Sidebar (20/80) | A: Split | `splitRect(0.20)`, `el` (image) |
 | 7 | a6 | Split with Overlap | A: Split | `splitRect(0.50, gap:0)`, `panel`, `shadow`, `z` |
 | 8 | b1 | Full-Bleed + Text Overlay | B: Hero | `el`, `layer:'bg'`, safe-zone text |
 | 9 | b2 | Full-Bleed + Gradient Overlay | B: Hero | `layer:'bg'`, `layer:'overlay'`, gradient div |
@@ -174,7 +173,7 @@ A common and non-obvious failure: using your accent color for **both** text and 
 | 14 | c2 | 3-Column Card Grid | C: Grid | manual col calc, `panel`, `.map()` |
 | 15 | c3 | 4-Column Compact Grid | C: Grid | manual col calc, `panel`, `.map()` |
 | 16 | c4 | Uneven Grid (1+2) | C: Grid | `splitRect(0.6)`, `panel`, stacked right |
-| 17 | c5 | Icon Grid (4×2) | C: Grid | `figure`, `group`, grid math |
+| 17 | c5 | Icon Grid (4×2) | C: Grid | `el` (image), `group`, grid math |
 | 18 | d1 | Vertical Stack | D: Stacked | `vstack`, `el` |
 | 19 | d2 | Stacked Dividers | D: Stacked | `below`, divider `el` |
 | 20 | d3 | Vertical Timeline | D: Stacked | `connect`, trig positioning |
@@ -192,17 +191,17 @@ A common and non-obvious failure: using your accent color for **both** text and 
 | 32 | g2 | Process Flow | G: Data | `panel`, `connect(type:'curved')`, `arrow` |
 | 33 | g3 | Comparison Table | G: Data | `splitRect(0.5)`, row stacking, alt. bg |
 | 34 | g4 | KPI Dashboard | G: Data | 2×2 grid calc, `panel`, `below` |
-| 35 | h1 | 3-Image Gallery | H: Image | `figure`, col calc, `below` captions |
-| 36 | h2 | Hero Image + Text | H: Image | `figure`, gradient bar, `below` |
-| 37 | h3 | Image + Caption | H: Image | `figure`, `vstack` caption block |
-| 38 | h4 | Before / After | H: Image | `splitRect(0.5)`, `figure`, divider |
+| 35 | h1 | 3-Image Gallery | H: Image | `el` (image), col calc, `below` captions |
+| 36 | h2 | Hero Image + Text | H: Image | `el` (image), gradient bar, `below` |
+| 37 | h3 | Image + Caption | H: Image | `el` (image), `vstack` caption block |
+| 38 | h4 | Before / After | H: Image | `splitRect(0.5)`, `el` (image), divider |
 | 39 | i1 | Centered Island | I: Whitespace | `centerIn`, `panel`, `shadow:'xl'` |
 | 40 | i2 | Radial Hub-Spoke | I: Whitespace | trig layout, `connect`, `panel` |
-| 41 | i3 | Magazine Editorial | I: Whitespace | `figure`, asymmetric manual layout |
+| 41 | i3 | Magazine Editorial | I: Whitespace | `el` (image), asymmetric manual layout |
 | 42 | j1 | Section Divider | J: Utility | `layer:'bg'`, huge muted text, `below` |
 | 43 | j2 | Agenda | J: Utility | `below`, dot leaders, `rightOf` |
-| 44 | j3 | Closing | J: Utility | `figure(layer:'bg')`, overlay, `below` |
-| 45 | j4 | Team Cards | J: Utility | col calc, `panel`, `figure`, `below` |
+| 44 | j3 | Closing | J: Utility | `el` (image, `layer:'bg'`), overlay, `below` |
+| 45 | j4 | Team Cards | J: Utility | col calc, `panel`, `el` (image), `below` |
 | 46 | k7 | Crop-to-Shape (clip-path) | K: Bonus | `el`, CSS `clip-path`, `object-fit` |
 | 47 | k8 | Flip Horizontal / Vertical | K: Bonus | `el`, `flipH`, `flipV` |
 
@@ -283,18 +282,18 @@ el('...body...', { id: 'body', x: right.x, y: below('main-title', 'md'), w: righ
 
 **Intent:** Visual evidence on left with explanatory text on right.
 
-**Visual:** `figure()` fills the left column; right column has eyebrow → title → body → stat chain.
+**Visual:** `el()` with `<img>` fills the left column; right column has eyebrow → title → body → stat chain.
 
 **Variations:** Ratio 0.40–0.50 depending on image importance. Add stat callout at bottom.
 
-**Pairs well with:** `figure`, `below()` chains for text hierarchy.
+**Pairs well with:** `el()` images, `below()` chains for text hierarchy.
 
 #### Implementation
 
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.45, gap: 40 });
-figure({ id: 'photo', src: './image.png', x: left.x, y: safe.y, w: left.w, h: left.h, fit: 'cover', containerRadius: 12 });
+el('<img src="./image.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'photo', x: left.x, y: safe.y, w: left.w, h: left.h });
 el('...eyebrow...', { id: 'eyebrow', x: right.x, y: safe.y, w: right.w });
 el('...title...', { id: 'title', x: right.x, y: below('eyebrow', 'sm'), w: right.w });
 ```
@@ -305,7 +304,7 @@ el('...title...', { id: 'title', x: right.x, y: below('eyebrow', 'sm'), w: right
 
 **Intent:** Narrative-first layout where text leads and image supports.
 
-**Visual:** Left column has title → body → inline stats; right column is a full-height `figure()`.
+**Visual:** Left column has title → body → inline stats; right column is a full-height `el()` with `<img>`.
 
 **Variations:** Ratio 0.50–0.60 for text column. Omit stats for a simpler text-plus-image layout.
 
@@ -322,7 +321,7 @@ el('...stat1-val...', { id: 'stat1-val', x: left.x, y: below('body', 'lg'), w: 2
 el('...stat1-lbl...', { id: 'stat1-lbl', x: left.x, y: below('stat1-val', 'xs'), w: 200 });
 el('...stat2-val...', { id: 'stat2-val', x: rightOf('stat1-val', 40), y: below('body', 'lg'), w: 200 });
 el('...stat2-lbl...', { id: 'stat2-lbl', x: rightOf('stat1-lbl', 40), y: below('stat2-val', 'xs'), w: 200 });
-figure({ id: 'photo', src: './image.png', x: right.x, y: safe.y, w: right.w, h: right.h, fit: 'cover', containerRadius: 12 });
+el('<img src="./image.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'photo', x: right.x, y: safe.y, w: right.w, h: right.h });
 ```
 
 ---
@@ -331,18 +330,18 @@ figure({ id: 'photo', src: './image.png', x: right.x, y: safe.y, w: right.w, h: 
 
 **Intent:** Vertical accent strip (portrait image, author photo) with wide text area.
 
-**Visual:** Thin 20% column with portrait `figure()`; 80% column has name → role → bio.
+**Visual:** Thin 20% column with portrait `el()` with `<img>`; 80% column has name → role → bio.
 
 **Variations:** 0.15–0.25 for sidebar width. Good for accent color strips too.
 
-**Pairs well with:** `figure` for portraits, `below()` for text chain.
+**Pairs well with:** `el()` images for portraits, `below()` for text chain.
 
 #### Implementation
 
 **Key code:**
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.20, gap: 'lg' });
-figure({ id: 'portrait', src: './portrait.png', x: left.x, y: safe.y, w: left.w, h: left.h, fit: 'cover', containerRadius: 12 });
+el('<img src="./portrait.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'portrait', x: left.x, y: safe.y, w: left.w, h: left.h });
 el('...name...', { id: 'name', x: right.x, y: safe.y, w: right.w });
 ```
 
@@ -366,7 +365,7 @@ const { left, right } = splitRect(safe, { ratio: 0.50, gap: 0 });
 const overlapW = 560;
 const overlapX = safe.x + (safe.w - overlapW) / 2;
 panel([], { id: 'left-bg', x: left.x, y: safe.y, w: left.w, h: left.h, fill: C.surface, radius: 0, layer: 'bg' });
-figure({ id: 'right-img', ... });
+el('<img src="./image.png" style="object-fit:cover;width:100%;height:100%;">', { id: 'right-img', ... });
 panel([...], { id: 'overlap-card', x: overlapX, y: safe.y + safe.h / 2 - 100, w: overlapW,
  padding: 'lg', gap: 'sm', fill: '#0d1b3e', radius: 16, shadow: 'xl', border: '...', z: 10 });
 ```
@@ -600,7 +599,7 @@ hstack(items.map((item, i) => {
 ```javascript
 const { left, right } = splitRect(safe, { ratio: 0.6, gap: 'lg' });
 const smallCardH = (safe.h - 32) / 2;
-panel([figure(...), ...text...], { id: 'large', x: left.x, y: safe.y, w: left.w, padding: 'md', gap: 'sm', fill: C.surface, radius: 12 });
+panel([el('<img ...>'), ...text...], { id: 'large', x: left.x, y: safe.y, w: left.w, padding: 'md', gap: 'sm', fill: C.surface, radius: 12 });
 panel([...], { id: 'small1', x: right.x, y: safe.y, w: right.w, padding: 'md', gap: 12 });
 panel([...], { id: 'small2', x: right.x, y: safe.y + smallCardH + 32, w: right.w, padding: 'md', gap: 12 });
 ```
@@ -632,7 +631,7 @@ items.map((label, i) => {
  const cellX = safe.x + col * (cellW + cellGap);
  const cellY = gridTop + row * rowH;
  return group([
- figure({ id: `icon${i}`, src: './icon.png', w: iconSize, h: iconSize, fit: 'cover', containerRadius: 12 }),
+ el('<img src="./icon.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: `icon${i}`, w: iconSize, h: iconSize }),
  el('...label...', { id: `label${i}`, y: below(`icon${i}`, 12), w: cellW }),
  ], { id: `cell${i}`, x: cellX, y: cellY, w: cellW, h: rowH });
 });
@@ -1132,7 +1131,7 @@ metrics.map((m, i) => {
 
 **Intent:** Display three images side by side with captions.
 
-**Visual:** Title → three equal-width `figure()`s with centered caption text below each.
+**Visual:** Title → three equal-width `el()` with `<img>`s with centered caption text below each.
 
 **Variations:** Use 2 or 4 images by adjusting `cols`. Vary image heights (300–600px) for different aspect ratios.
 
@@ -1147,7 +1146,7 @@ const colW = (safe.w - (cols - 1) * colGap) / cols;
 images.flatMap((img, i) => {
  const colX = safe.x + i * (colW + colGap);
  return [
- figure({ id: `img${i}`, src: img.src, x: colX, y: imgY, w: colW, h: 480, fit: 'cover', containerRadius: 12 }),
+ el(`<img src="${img.src}" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">`, { id: `img${i}`, x: colX, y: imgY, w: colW, h: 480 }),
  el('...caption...', { id: `cap${i}`, x: colX, y: below(`img${i}`, 'sm'), w: colW }),
  ];
 });
@@ -1159,7 +1158,7 @@ images.flatMap((img, i) => {
 
 **Intent:** Visual-first slide with text bar below the image.
 
-**Visual:** Full-width `figure()` (0-780px), gradient fade bar, title and description below.
+**Visual:** Full-width `el()` with `<img>` (0-780px), gradient fade bar, title and description below.
 
 **Variations:** Adjust image height (600–850px) to control image-to-text ratio. Place text bar at top instead for a different emphasis.
 
@@ -1167,7 +1166,7 @@ images.flatMap((img, i) => {
 
 **Key code:**
 ```javascript
-figure({ id: 'hero', src: './hero.png', x: 0, y: 0, w: 1920, h: 780, fit: 'cover', layer: 'bg' });
+el('<img src="./hero.png" style="object-fit:cover;width:100%;height:100%;">', { id: 'hero', x: 0, y: 0, w: 1920, h: 780, layer: 'bg' });
 el('', { id: 'textbar', x: 0, y: 780, w: 1920, h: 300,
  style: { background: `linear-gradient(180deg, ${bg}00, ${bg} 30%)` }, layer: 'bg' });
 el('...title...', { id: 'title', x: safe.x, y: 820, w: safe.w });
@@ -1182,7 +1181,7 @@ el('...desc...', { id: 'desc', x: safe.x, y: below('title', 'sm'), w: safe.w * 0
 
 **Intent:** Large image with multi-line explanatory caption below.
 
-**Visual:** Full-width `figure()` taking 60% of safe height; `vstack` caption with title + body below.
+**Visual:** Full-width `el()` with `<img>` taking 60% of safe height; `vstack` caption with title + body below.
 
 **Variations:** Adjust image height ratio (0.4–0.7 of safe height). Place caption alongside the image using `splitRect` for a side-by-side variant.
 
@@ -1192,7 +1191,7 @@ el('...desc...', { id: 'desc', x: safe.x, y: below('title', 'sm'), w: safe.w * 0
 
 **Key code:**
 ```javascript
-figure({ id: 'photo', src: './image.png', x: safe.x, y: safe.y, w: safe.w, h: safe.h * 0.6, fit: 'cover', containerRadius: 16 });
+el('<img src="./image.png" style="object-fit:cover;width:100%;height:100%;border-radius:16px;">', { id: 'photo', x: safe.x, y: safe.y, w: safe.w, h: safe.h * 0.6 });
 vstack([
  el('...caption title...', { id: 'cap-title', w: safe.w * 0.8 }),
  el('...caption body...', { id: 'cap-body', w: safe.w * 0.8 }),
@@ -1215,10 +1214,10 @@ vstack([
 ```javascript
 const { left: colL, right: colR } = splitRect(safe, { ratio: 0.5, gap: 'md' });
 el('Before', { id: 'lbl-before', x: colL.x, y: colL.y, w: colL.w }); // red accent
-figure({ id: 'img-before', src: './before.png', x: colL.x, y: imgY, w: colL.w, h: imgH, fit: 'cover', containerRadius: 12 });
+el('<img src="./before.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'img-before', x: colL.x, y: imgY, w: colL.w, h: imgH });
 el('', { id: 'divider', x: safe.x + safe.w / 2 - 1, y: safe.y, w: 2, h: safe.h, style: { background: borderColor } });
 el('After', { id: 'lbl-after', x: colR.x, y: colR.y, w: colR.w }); // green accent
-figure({ id: 'img-after', src: './after.png', x: colR.x, y: imgY, w: colR.w, h: imgH, fit: 'cover', containerRadius: 12 });
+el('<img src="./after.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'img-after', x: colR.x, y: imgY, w: colR.w, h: imgH });
 ```
 
 **Key detail:** Place the divider element explicitly at the midpoint of the safe zone.
@@ -1304,10 +1303,10 @@ spokes.map((s, i) => connect('hub', `spoke${i}`, { type: 'straight', color: s.co
 const imgW = Math.round(safe.w * 0.3);
 const rightX = safe.x + imgW + 48;
 const rightW = safe.w - imgW - 48;
-figure({ id: 'portrait', src: './portrait.png', x: safe.x, y: safe.y, w: imgW, h: safe.h, fit: 'cover', containerRadius: 16 });
+el('<img src="./portrait.png" style="object-fit:cover;width:100%;height:100%;border-radius:16px;">', { id: 'portrait', x: safe.x, y: safe.y, w: imgW, h: safe.h });
 el('...pull quote (italic)...', { id: 'pullquote', x: rightX, y: safe.y + 40, w: rightW });
 el('...body text...', { id: 'body', x: rightX, y: below('pullquote', 40), w: rightW });
-figure({ id: 'detail', src: './detail.png', x: rightX + rightW - 200, y: safe.y + safe.h - 200, w: 180, h: 180, fit: 'cover', containerRadius: 12 });
+el('<img src="./detail.png" style="object-fit:cover;width:100%;height:100%;border-radius:12px;">', { id: 'detail', x: rightX + rightW - 200, y: safe.y + safe.h - 200, w: 180, h: 180 });
 ```
 
 ---
@@ -1373,7 +1372,7 @@ items.flatMap((item, i) => {
 
 **Intent:** Elegant closing slide with background imagery and contact info.
 
-**Visual:** Background figure + dark overlay on `bg` layer; large "Thank You" text, accent line, contact info.
+**Visual:** Background image + dark overlay on `bg` layer; large "Thank You" text, accent line, contact info.
 
 **Variations:** Use a solid gradient background instead of an image. Add social media icons or QR code below contact info.
 
@@ -1381,7 +1380,7 @@ items.flatMap((item, i) => {
 
 **Key code:**
 ```javascript
-figure({ id: 'bg', src: './hero.png', x: 0, y: 0, w: 1920, h: 1080, fit: 'cover', layer: 'bg' });
+el('<img src="./hero.png" style="object-fit:cover;width:100%;height:100%;">', { id: 'bg', x: 0, y: 0, w: 1920, h: 1080, layer: 'bg' });
 el('', { id: 'overlay', x: 0, y: 0, w: 1920, h: 1080,
  style: { background: 'rgba(10,10,26,0.75)' }, layer: 'bg' });
 el('Thank You', { id: 'thanks', x: safe.x, y: centerIn(safe).y, w: safe.w });
@@ -1390,7 +1389,7 @@ el('', { id: 'line', x: 960 - 40, y: below('thanks', 'md'), w: 80, h: 3,
 el('...contact info...', { id: 'contact', x: safe.x, y: below('line', 'md'), w: safe.w });
 ```
 
-**Key detail:** Stack two elements on `layer: 'bg'` -- first the figure, then a semi-transparent overlay div. Use `centerIn(safe).y` for vertical centering. Accent line needs `layer: 'overlay'` to render above the bg overlay.
+**Key detail:** Stack two elements on `layer: 'bg'` -- first the image, then a semi-transparent overlay div. Use `centerIn(safe).y` for vertical centering. Accent line needs `layer: 'overlay'` to render above the bg overlay.
 
 ---
 
@@ -1398,7 +1397,7 @@ el('...contact info...', { id: 'contact', x: safe.x, y: below('line', 'md'), w: 
 
 **Intent:** Row of team member cards with avatar, name, role, and bio.
 
-**Visual:** 3 equal-width panels, each with circular avatar figure, name, role, divider, bio.
+**Visual:** 3 equal-width panels, each with circular avatar image, name, role, divider, bio.
 
 **Variations:** Use 2 or 4 cards by adjusting `cols`. Add social links or email below bio for contact details.
 
@@ -1412,9 +1411,8 @@ const avatarSize = 80;
 members.map((member, i) => {
  const cardX = safe.x + i * (colW + colGap);
  return panel([
- figure({ id: `avatar${i}`, src: './avatar.png',
- x: (colW - 64) / 2 - avatarSize / 2, y: 0, w: avatarSize, h: avatarSize,
- fit: 'cover', containerRadius: avatarSize / 2 }),
+ el(`<img src="./avatar.png" style="object-fit:cover;width:100%;height:100%;border-radius:${avatarSize / 2}px;">`, {
+ id: `avatar${i}`, x: (colW - 64) / 2 - avatarSize / 2, y: 0, w: avatarSize, h: avatarSize }),
  el('...name...', { id: `name${i}`, w: colW - 64 }),
  el('...role...', { id: `role${i}`, w: colW - 64 }),
  el('', { id: `div${i}`, w: 40, h: 2, style: { background: border } }),
@@ -1424,19 +1422,11 @@ members.map((member, i) => {
 });
 ```
 
-**Key detail:** Use `containerRadius: avatarSize / 2` for circular avatars. Center the figure inside the panel with calculated `x`. The `64` in `colW - 64` accounts for panel padding (32px each side).
+**Key detail:** Use `border-radius: 50%` for circular avatars. Center the image inside the panel with calculated `x`. The `64` in `colW - 64` accounts for panel padding (32px each side).
 
 ---
 
 ## Anti-Patterns
-
-### ❌ Center-anchored figures
-
-**Problem:** `figure()` does not support the `anchor` prop. Setting `anchor: 'cc'` on a figure will be silently ignored, causing the image to render at the wrong position.
-
-**Fix:** Use explicit `x`, `y` math to center figures: `x: cx - w/2, y: cy - h/2`.
-
----
 
 ### ❌ Deeply nested panels
 
@@ -1483,7 +1473,7 @@ panel([...text children...], { x: left.x, y: left.y, w: left.w, h: left.h, fill:
 // ✅ Panel auto-sizes to content height
 panel([...text children...], { x: left.x, y: left.y, w: left.w, fill: C.surface });
 // ✅ Image fills column — h: right.h is correct here
-figure({ id: 'right-img', src: './photo.png', x: right.x, y: right.y, w: right.w, h: right.h, fit: 'cover' });
+el('<img src="./photo.png" style="object-fit:cover;width:100%;height:100%;">', { id: 'right-img', x: right.x, y: right.y, w: right.w, h: right.h });
 // ✅ Background rect fills column — h: left.h is correct with layer: 'bg'
 panel([], { id: 'left-bg', x: left.x, y: left.y, w: left.w, h: left.h, fill: C.surface, layer: 'bg' });
 ```
@@ -1708,13 +1698,13 @@ el('<img src="./headshot.jpg" style="width:100%;height:100%;object-fit:cover;cli
 });
 ```
 
-**Rounded rectangle** (alternative to `containerRadius` on `figure()`):
+**Rounded rectangle** (using CSS `border-radius`):
 ```javascript
 el('<img src="./card-bg.jpg" style="width:100%;height:100%;object-fit:cover;clip-path:inset(0 round 24px)">', {
   id: 'rounded-img', x: 400, y: 200, w: 600, h: 400,
 });
 ```
-> For simple rounded corners, `borderRadius` on the container or `containerRadius` on `figure()` is simpler. Use `clip-path: inset(0 round ...)` when you need different radii per corner (e.g., `inset(0 round 24px 24px 0 0)` for top-only rounding).
+> For simple rounded corners, `borderRadius` in the element's style is simpler. Use `clip-path: inset(0 round ...)` when you need different radii per corner (e.g., `inset(0 round 24px 24px 0 0)` for top-only rounding).
 
 **Diamond:**
 ```javascript

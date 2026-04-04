@@ -62,7 +62,7 @@ export type ArrowType = "none" | "end" | "start" | "both";
 export type ElementType = "el" | "group" | "vstack" | "hstack" | "connector";
 
 /** Compound type discriminator. */
-export type CompoundType = "panel" | "figure";
+export type CompoundType = "panel";
 
 // =============================================================================
 // Element Props — all properties that can appear in an element's `props` bag
@@ -274,7 +274,6 @@ export interface GroupElement extends BaseElement {
   /** Plain groups are never compounds. Use _compound narrowing to distinguish. */
   _compound?: never;
   _panelConfig?: never;
-  _figureConfig?: never;
 }
 
 /** A vertical stack element. Children are laid out top-to-bottom. */
@@ -321,26 +320,9 @@ export interface PanelElement extends BaseElement {
 }
 
 /**
- * A figure compound element — a container with image + optional caption.
- *
- * Under the hood, figures ARE groups with compound metadata attached.
- */
-export interface FigureElement extends BaseElement {
-  type: "group";
-  /** Child elements (typically [bgRect, imgEl, ?captionEl]). */
-  children: SlideElement[];
-  /** Authored properties. */
-  props: ElementProps;
-  /** Compound type marker. */
-  _compound: "figure";
-  /** Figure-specific configuration. */
-  _figureConfig: FigureConfig;
-}
-
-/**
  * Discriminated union of all element types in the slide tree.
  *
- * Use `element.type` to narrow. For compound elements (Panel, Figure),
+ * Use `element.type` to narrow. For compound elements (Panel),
  * further narrow with `element._compound`.
  */
 export type SlideElement =
@@ -349,8 +331,7 @@ export type SlideElement =
   | VStackElement
   | HStackElement
   | ConnectorElement
-  | PanelElement
-  | FigureElement;
+  | PanelElement;
 
 /** Configuration for panel compound elements. */
 export interface PanelConfig {
@@ -362,22 +343,6 @@ export interface PanelConfig {
   panelW?: number;
   /** Explicit panel height. */
   panelH?: number;
-}
-
-/** Configuration for figure compound elements. */
-export interface FigureConfig {
-  /** Image source URL or path. */
-  src: string;
-  /** Background fill color for the container. */
-  containerFill: string;
-  /** Border radius for the container (number in px or string like "50%"). */
-  containerRadius: number | string;
-  /** Padding inside the container. */
-  containerPadding: number;
-  /** Gap between image and caption. */
-  captionGap: number;
-  /** Object-fit value for the image (e.g., "contain", "cover"). */
-  fit: string;
 }
 
 /** Slide canvas dimensions. */
@@ -641,8 +606,6 @@ export interface AuthoredSpec {
   type: ElementType;
   /** HTML content (for el() elements). */
   content?: string;
-  /** Image source (for figure compound elements). */
-  src?: string;
   /** Deep-cloned copy of the element's original props. */
   props: ElementProps | ConnectorProps;
   /** Ordered child element IDs (for containers). */
@@ -718,12 +681,7 @@ export function isPanelElement(el: SlideElement): el is PanelElement {
   return el.type === "group" && '_compound' in el && (el as unknown as PanelElement)._compound === "panel";
 }
 
-/** Narrow a SlideElement to a FigureElement. */
-export function isFigureElement(el: SlideElement): el is FigureElement {
-  return el.type === "group" && '_compound' in el && (el as unknown as FigureElement)._compound === "figure";
-}
-
-/** Narrow a SlideElement to any compound element (Panel or Figure). */
-export function isCompoundElement(el: SlideElement): el is PanelElement | FigureElement {
+/** Narrow a SlideElement to any compound element (Panel). */
+export function isCompoundElement(el: SlideElement): el is PanelElement {
   return el.type === "group" && '_compound' in el;
 }

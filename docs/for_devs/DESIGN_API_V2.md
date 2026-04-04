@@ -323,7 +323,7 @@ function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
 - **Explicit intent.** The author says "place between A and B with 35% bias."
   No magic formulas based on font sizes.
 - **Generalizable.** Works for any vertical (or horizontal) balancing situation,
-  not just caption-under-figure.
+  not just caption-under-image.
 - **Debuggable.** Provenance records: `source: "between", topRef, bottomRef, bias`.
 - **Non-local, but intentionally so.** The author is making a layout decision
   about global balance, which is inherently non-local.
@@ -350,46 +350,7 @@ but eliminates a class of "slide looks top-heavy" issues.
 
 ---
 
-### P2.3: `figure()` — Image + Caption Compound ✅ IMPLEMENTED
-
-**Prevents:** Issues 7, 10, 12 (partially)
-
-Encapsulates the recurring pattern: background container + image + caption with
-proper spacing.
-
-```js
-import { figure } from './slidekit.js';
-
-figure({
-  id: 's15-figure',
-  src: 'assets/images/chart.png',
-  x: 960, y: below('s15-headline', { gap: 'lg' }),
-  w: 1100,
-  anchor: 'tc',
-  containerFill: '#f8f9fa',
-  containerRadius: 10,
-  containerPadding: 10,
-  caption: `<p style="...">Caption text here</p>`,
-  captionGap: 'lg',
-});
-```
-
-**v1 scope (geometry only):**
-- Background container with fill/radius/padding
-- Image element with proper inset from container
-- Caption positioned below container with configurable gap
-- Auto-computes container height from image height + padding
-
-**v2 scope (future — not in this round):**
-- `containerFill: 'auto'` — samples image corner pixel to match background
-- Export `naturalWidth`/`naturalHeight` for `<img>` elements in scene model
-- Compute `object-fit: contain` content rect for containment linting
-
-**Cost:** ~80 lines. Eliminates 3-element manual setup for every diagram slide.
-
----
-
-### P2.4: Panel Default to Content-Driven Height ✅ IMPLEMENTED
+### P2.3: Panel Default to Content-Driven Height ✅ IMPLEMENTED
 
 **Prevents:** Issues 4, 6, 8 (content overflow in panels)
 
@@ -582,8 +543,7 @@ Semantic spacing tokens solve the same problem deterministically.
 ### Phase 2: Layout Intent (P2) ✅ COMPLETE
 6. ✅ `splitRect()` helper
 7. ✅ `placeBetween()` positioning
-8. ✅ `figure()` v1 (geometry only)
-9. ✅ Panel overflow warnings
+8. ✅ Panel overflow warnings
 10. ✅ `group({ bounds: 'hug' })`
 
 ### Phase 3: Polish (P3) ✅ COMPLETE
@@ -592,7 +552,6 @@ Semantic spacing tokens solve the same problem deterministically.
 13. ✅ Alignment consistency heuristics in scene model
 
 ### Phase 4: Future (not scoped)
-- `figure()` v2: image intrinsic dimensions, color sampling
 - `panel({ overflow: 'grow' })` opt-in with caps
 - Per-element gap overrides in stacks
 - `columns()` declarative compound (built on `splitRect`)
@@ -609,11 +568,11 @@ Semantic spacing tokens solve the same problem deterministically.
 | 4 | Panel content overflow | Panel default hug + warning | DOM overflow |
 | 5 | Cluster cards unequal height | `align: 'stretch'` | Ragged-bottom check |
 | 6 | Panel internal text overlap | Panel default hug + warning | Hierarchical model + DOM overflow |
-| 7 | Caption too close to chart | Spacing tokens / `figure()` | Gap analysis |
+| 7 | Caption too close to chart | Spacing tokens | Gap analysis |
 | 8 | Bullet list overflow risk | Panel default hug + warning | DOM overflow |
 | 9 | Spectrum bar off-center | `group({ bounds: 'hug' })` | Alignment consistency |
-| 10 | Chart spills past container | `figure()` | Image metadata (v2) |
-| 11 | Chart/container color mismatch | `figure()` v2 | Pixel sampling (v2) |
+| 10 | Chart spills past container | Explicit `w`/`h` on image el | Image metadata (future) |
+| 11 | Chart/container color mismatch | — | Pixel sampling (future) |
 | 12 | Caption unbalanced spacing | `placeBetween()` / tokens | Trailing whitespace check |
 | 13 | Principle cards unequal height | `align: 'stretch'` | Ragged-bottom check |
 

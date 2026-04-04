@@ -7,7 +7,7 @@ import {
   centerHWith, centerVWith, alignTopWith, alignLeftWith, between,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
-  cardGrid, figure,
+  cardGrid,
   matchMaxHeight, matchMaxWidth,
 } from '../../slidekit/dist/slidekit.bundle.js';
 
@@ -424,47 +424,7 @@ export async function run() {
     },
 
     // ================================================================
-    // SLIDE 13: Figures
-    // ================================================================
-    {
-      id: 'figures',
-      background: C.bg,
-      elements: [
-        title('Figure Compound', 's13-title', { x: safe.x, y: safe.y }),
-        // Figure with caption
-        figure({
-          id: 's13-fig1',
-          src: PLACEHOLDER_SVG,
-          x: 150, y: 200, w: 400, h: 300,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">Figure with caption</span>`,
-          captionGap: 12,
-        }),
-        // Figure with container styling
-        figure({
-          id: 's13-fig2',
-          src: PLACEHOLDER_SVG,
-          x: 650, y: 200, w: 400, h: 300,
-          containerFill: 'rgba(0,212,255,0.1)',
-          containerRadius: 16,
-          containerPadding: 20,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">Container fill + radius + padding</span>`,
-          captionGap: 12,
-        }),
-        // Figure without src (empty image)
-        figure({
-          id: 's13-fig3',
-          x: 1150, y: 200, w: 400, h: 300,
-          containerFill: 'rgba(255,107,157,0.1)',
-          containerRadius: 8,
-          containerPadding: 10,
-          caption: `<span style="font-family:${FONT};font-size:14px;color:${C.textSec};text-align:center;">No src (empty image)</span>`,
-          captionGap: 12,
-        }),
-      ],
-    },
-
-    // ================================================================
-    // SLIDE 14: Overlapping Elements / Layers
+    // SLIDE 13: Overlapping Elements / Layers
     // ================================================================
     {
       id: 'layers',

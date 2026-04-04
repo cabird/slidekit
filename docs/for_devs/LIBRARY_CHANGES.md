@@ -86,7 +86,6 @@ These fallbacks fail silently with no warning. Users have no way to know somethi
 | 6 | `relative.ts:143` | placeBetween bias out of range → clamped | `invalid_bias` |
 | 7 | `transforms.ts:287` | distributeH with < 2 elements → no-op | `distribute_too_few` |
 | 8 | `transforms.ts:334` | distributeV with < 2 elements → no-op | `distribute_too_few` |
-| 9 | `compounds.ts` | Figure inner dims < 0 → clamped to 0 | `figure_too_small` |
 
 **Previously silent, now fixed:**
 - Blocked CSS property → `style.ts:227-233` now emits `blocked_css_property` warning ✅

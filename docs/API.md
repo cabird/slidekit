@@ -11,7 +11,7 @@
 1. [Prerequisites](#prerequisites)
 2. [Core Elements](#core-elements) — `el`, `group`
 3. [Stack Layouts](#stack-layouts) — `vstack`, `hstack`, `cardGrid`
-4. [Compound Elements](#compound-elements) — `panel`, `figure`, `connect`
+4. [Compound Elements](#compound-elements) — `panel`, `connect`
 5. [Positioning & Anchors](#positioning--anchors) — anchor system, relative helpers, `getAnchorPoint`
 6. [Transforms](#transforms) — alignment, distribution, sizing
 7. [Styling](#styling) — CSS pass-through, blocked props, shadow presets, CSS auto-promotion
@@ -363,38 +363,6 @@ Plus all [common properties](#common-properties).
 #### Panel Overflow Warnings
 
 When a panel has an explicit `h` and its content exceeds that height, a `panel_overflow` warning is emitted. **Fix:** Remove the explicit `h` to let the panel auto-size, or increase `h`.
-
----
-
-### `figure(opts?)`
-
-Creates a figure element: a background container with an image and optional caption.
-
-**Signature:** `figure(opts?: FigureInputProps): FigureElement`
-
-**Returns:** A group containing `{id}-bg` (background rect), `{id}-img` (image element), and optionally `{id}-caption`.
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `id` | `string` | auto | Figure ID |
-| `src` | `string` | `""` | Image source URL |
-| `x` | `number` | `0` | X position |
-| `y` | `number` | `0` | Y position |
-| `w` | `number` | `0` | Container width |
-| `h` | `number` | `0` | Container height |
-| `anchor` | `AnchorPoint` | `"tl"` | Anchor point |
-| `layer` | `LayerName` | `"content"` | Render layer |
-| `containerFill` | `string` | `"transparent"` | Background fill color/gradient |
-| `containerRadius` | `number \| string` | `0` | Border radius (number → px, string → pass through) |
-| `containerPadding` | `number \| string` | `0` | Padding around the image (px or spacing token) |
-| `caption` | `string` | — | Optional HTML caption string |
-| `captionGap` | `number \| string` | `0` | Gap between container bottom and caption (px or spacing token) |
-| `fit` | `string` | `"contain"` | CSS `object-fit` for the image |
-| `style` | `object` | `{}` | Additional style for the group container |
-
-> ⚠️ **Anti-pattern:** Don't guess image container dimensions — render first, read `img.naturalWidth`/`img.naturalHeight` from the DOM, then compute exact container size so `object-fit: contain` is a no-op.
-
-> ⚠️ **Anti-pattern:** Avoid `anchor: 'tc'` on `figure()` compounds — the linter resolves children at raw group-relative coordinates and reports false overflow/overlap. Use `anchor: 'tl'` and manually compute centered x: `x: 960 - w/2`.
 
 ---
 
@@ -1389,7 +1357,7 @@ Splits a rectangle into left and right sub-rectangles. This is a convenience fun
 ```typescript
 // Image-left / content-right layout (55% / 45% split with 40px gap)
 const { left, right } = splitRect(safeRect(), { ratio: 0.55, gap: 40 });
-const img = figure('photo.png', { ...left });
+const img = el('<img src="photo.png" style="object-fit:cover;width:100%;height:100%;">', { ...left });
 const content = vstack({ x: right.x, y: right.y, w: right.w }, [
   el('Heading', { style: { fontSize: 48 } }),
   el('Body text here...', { w: right.w }),
@@ -1409,7 +1377,7 @@ const { left: colA, right: colB } = splitRect(safeRect(), { gap: 'md' });
 > // ✅ Content panel auto-sizes to fit its children
 > panel([...], { x: left.x, y: left.y, w: left.w, fill: '#1a1a3e' });
 > // ✅ Full-height image — h: right.h is correct here
-> figure({ src: './photo.png', x: right.x, y: right.y, w: right.w, h: right.h, fit: 'cover' });
+> el('<img src="./photo.png" style="object-fit:cover;width:100%;height:100%;">', { x: right.x, y: right.y, w: right.w, h: right.h });
 > ```
 
 ### `getConfig()`
@@ -1544,7 +1512,6 @@ Key types for users building presentations:
 | `HStackElement` | `{ type: "hstack", id, children, props, _layoutFlags }` |
 | `ConnectorElement` | `{ type: "connector", id, props, _layoutFlags }` |
 | `PanelElement` | Group with `_compound: "panel"` and `_panelConfig` |
-| `FigureElement` | Group with `_compound: "figure"` and `_figureConfig` |
 
 ### String Unions
 
@@ -1559,7 +1526,7 @@ Key types for users building presentations:
 | `ConnectorType` | `"straight" \| "curved" \| "elbow" \| "orthogonal"` |
 | `ArrowType` | `"none" \| "end" \| "start" \| "both"` |
 | `ElementType` | `"el" \| "group" \| "vstack" \| "hstack" \| "connector"` |
-| `CompoundType` | `"panel" \| "figure"` |
+| `CompoundType` | `"panel"` |
 | `BoundsMode` | `"hug" \| undefined` |
 | `ProvenanceSource` | `"authored" \| "measured" \| "stack" \| "constraint" \| "transform" \| "default"` |
 | `ShadowPreset` | `"sm" \| "md" \| "lg" \| "xl" \| "glow"` |
@@ -1602,4 +1569,3 @@ Key types for users building presentations:
 | `CardGridOptions` | `InputProps & { cols?: number }` |
 | `ConnectorInputProps` | Connector-specific input: `{ id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, cornerRadius?, obstacleMargin?, layer?, opacity?, style?, className? }` |
 | `PanelInputProps` | `InputProps & { padding?, fill?, radius?, border?, vAlign? }` |
-| `FigureInputProps` | `{ id?, src?, x?, y?, w?, h?, anchor?, layer?, containerFill?, containerRadius?, containerPadding?, caption?, captionGap?, fit?, style? }` |

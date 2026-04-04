@@ -13,7 +13,7 @@ export { clearMeasureCache, measure } from './src/measure.js';
 export { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, placeBetween, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide, matchMaxWidth, matchMaxHeight } from './src/relative.js';
 export { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
 export { render, computeZOrder, applyStyleToDOM, applySlideBackground, renderElementFromScene, rerenderSlide } from './src/renderer.js';
-export { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
+export { connect, panel, getAnchorPoint } from './src/compounds.js';
 export { routeConnector } from './src/connectorRouting.js';
 export { grid, snap, resolvePercentage, repeat, rotatedAABB } from './src/utilities.js';
 export { layout, getEffectiveDimensions } from './src/layout.js';
@@ -40,7 +40,7 @@ import { measure, clearMeasureCache } from './src/measure.js';
 import { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide, matchMaxWidth, matchMaxHeight } from './src/relative.js';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
 import { render } from './src/renderer.js';
-import { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
+import { connect, panel, getAnchorPoint } from './src/compounds.js';
 import { grid, snap, repeat, resolvePercentage, rotatedAABB } from './src/utilities.js';
 import { lintSlide, lintDeck } from './src/lint.js';
 import { VERSION } from './src/version.js';
@@ -121,7 +121,6 @@ const SlideKit = {
   // Compound primitives
   connect,
   panel,
-  figure,
   getAnchorPoint,
   routeConnector,
   // Utilities

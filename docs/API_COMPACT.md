@@ -189,21 +189,6 @@ When panel has explicit `h` and content exceeds it → `panel_overflow` warning.
 DONT: `w: 'fill'` in nested panels — inner `fill` resolves before outer sets width.
 DO: When panel children cause false-positive overlaps, flatten to single `el()` with inline HTML.
 
-### `figure(opts?) → FigureElement`
-
-Image container with background + optional caption. Returns group containing `{id}-bg`, `{id}-img`, optionally `{id}-caption`.
-
-Props:
-- `id?, src: string def="", x?, y?, w?, h?, anchor?, layer?`
-- `containerFill: string def="transparent"`, `containerRadius: number|string def=0`, `containerPadding: px|tok def=0`
-- `caption: string?` — HTML caption
-- `captionGap: px|tok def=0` — gap between container bottom and caption
-- `fit: string def="contain"` — CSS `object-fit`
-- `style: object def={}`
-
-DONT: Guess image dimensions — render first, read `naturalWidth`/`naturalHeight`, compute exact size.
-DONT: `anchor: 'tc'` on `figure()` — linter resolves children at raw group-relative coords → false overflow. Use `anchor: 'tl'` and compute `x: 960 - w/2`.
-
 ### `connect(fromId, toId, props?) → ConnectorElement`
 
 Connector line between two elements. SVG with optional arrowheads/labels. Endpoints resolved during layout Phase 4.
@@ -696,7 +681,6 @@ Axis-aligned bounding box of rotated rectangle.
 - `HStackElement = { type: "hstack", id, children, props, _layoutFlags }`
 - `ConnectorElement = { type: "connector", id, props, _layoutFlags }`
 - `PanelElement` = Group with `_compound: "panel"`, `_panelConfig`
-- `FigureElement` = Group with `_compound: "figure"`, `_figureConfig`
 
 ### String Unions
 - `AnchorPoint`: `tl|tc|tr|cl|cc|cr|bl|bc|br`
@@ -708,7 +692,7 @@ Axis-aligned bounding box of rotated rectangle.
 - `ConnectorType`: `straight|curved|elbow|orthogonal`
 - `ArrowType`: `none|end|start|both`
 - `ElementType`: `el|group|vstack|hstack|connector`
-- `CompoundType`: `panel|figure`
+- `CompoundType`: `panel`
 - `BoundsMode`: `hug|undefined`
 - `ProvenanceSource`: `authored|measured|stack|constraint|transform|default`
 - `ShadowPreset`: `sm|md|lg|xl|glow`
@@ -739,7 +723,6 @@ Axis-aligned bounding box of rotated rectangle.
 - `CardGridOptions = InputProps & { cols? }`
 - `ConnectorInputProps = { id?, type?, arrow?, color?, thickness?, dash?, fromAnchor?, toAnchor?, label?, labelStyle?, cornerRadius?, obstacleMargin?, layer?, opacity?, style?, className? }`
 - `PanelInputProps = InputProps & { padding?, fill?, radius?, border?, vAlign? }`
-- `FigureInputProps = { id?, src?, x?, y?, w?, h?, anchor?, layer?, containerFill?, containerRadius?, containerPadding?, caption?, captionGap?, fit?, style? }`
 
 ---
 

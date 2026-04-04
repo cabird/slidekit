@@ -1,4 +1,4 @@
-// Compound Primitives — connect, panel, figure
+// Compound Primitives — connect, panel
 
 import { nextId } from './id.js';
 import { el, group, vstack } from './elements.js';
@@ -12,11 +12,8 @@ import type {
   ArrowType,
   PanelElement,
   PanelConfig,
-  FigureElement,
-  FigureConfig,
   Rect,
   AnchorPointResult,
-  LayerName,
 } from './types.js';
 
 // =============================================================================
@@ -243,125 +240,6 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
     ...groupBase,
     _compound: "panel",
     _panelConfig: panelConfig,
-  };
-
-  return result;
-}
-
-// =============================================================================
-// Figure Compound (P2.3)
-// =============================================================================
-
-/** Input properties for figure creation. */
-export interface FigureInputProps {
-  id?: string;
-  /** Image source URL or path. */
-  src?: string;
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
-  anchor?: string;
-  layer?: LayerName;
-  /** Background fill for the container. */
-  containerFill?: string;
-  /** Border radius for the container. */
-  containerRadius?: number | string;
-  /** Padding inside the container. */
-  containerPadding?: number | string;
-  /** Caption text (HTML string). */
-  caption?: string;
-  /** Gap between image and caption. */
-  captionGap?: number | string;
-  /** Object-fit for the image. */
-  fit?: string;
-  /** CSS style object. */
-  style?: Record<string, unknown>;
-}
-
-/**
- * Create a figure element: background container + image + optional caption.
- *
- * Returns a group containing:
- *   1. Background rect (el with fill/radius)
- *   2. Image element (el with <img>, inset by containerPadding)
- *   3. Caption (optional el, positioned below the container)
- *
- * @param opts - Figure configuration
- * @returns A FigureElement node
- */
-export function figure(opts: FigureInputProps = {}): FigureElement {
-  const {
-    id: customId, src = '', x = 0, y = 0, w = 0, h = 0,
-    anchor = 'tl', layer = 'content',
-    containerFill = 'transparent', containerRadius = 0,
-    containerPadding = 0,
-    caption, captionGap = 0,
-    fit = 'contain',
-    style = {},
-  } = opts;
-
-  const padPx = resolveSpacing(containerPadding);
-  const gapPx = resolveSpacing(captionGap);
-
-  const figId = customId || nextId();
-
-  // Resolve border-radius: number -> "Npx", string -> pass through
-  const radiusVal = typeof containerRadius === 'number'
-    ? `${containerRadius}px`
-    : containerRadius;
-
-  // Background container rect
-  const bgRect = el('', {
-    id: `${figId}-bg`,
-    x: 0, y: 0, w, h,
-    style: { background: containerFill, borderRadius: radiusVal },
-  });
-
-  // Image element — clamp to 0 to prevent negative sizes when padding exceeds half
-  const innerW = Math.max(0, w - 2 * padPx);
-  const innerH = Math.max(0, h - 2 * padPx);
-  const img = el(`<img src="${src}" style="object-fit: ${fit}; width: 100%; height: 100%; display: block;">`, {
-    id: `${figId}-img`,
-    x: padPx, y: padPx,
-    w: innerW,
-    h: innerH,
-  });
-
-  const children: SlideElement[] = [bgRect, img];
-
-  // Optional caption
-  if (caption) {
-    const cap = el(caption, {
-      id: `${figId}-caption`,
-      x: 0, y: h + gapPx,
-      w,
-    });
-    children.push(cap);
-  }
-
-  const figureConfig: FigureConfig = {
-    src,
-    containerFill,
-    containerRadius,
-    containerPadding: padPx,
-    captionGap: gapPx,
-    fit,
-  };
-
-  // Construct the FigureElement directly — avoids @ts-ignore on group return
-  const groupBase = group(children, {
-    id: figId,
-    x, y, w, h,
-    anchor,
-    layer,
-    style,
-  });
-
-  const result: FigureElement = {
-    ...groupBase,
-    _compound: 'figure',
-    _figureConfig: figureConfig,
   };
 
   return result;

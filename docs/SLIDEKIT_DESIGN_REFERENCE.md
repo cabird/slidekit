@@ -86,7 +86,7 @@ Custom tokens can be added (e.g., compact: 4). **The linter flags gaps below 8px
 | **Grid (2x2, 3x2, KPI Tiles)** | Feature comparisons, dashboards, team grids, icon arrays | Similar content length across cards; width = (1680 - gaps) / cols; title < 40 chars for 3-col | Content varies dramatically; more than 6 cards overcrowds |
 | **Stacked / Sequential** | Standard content slides, agendas, sequential explanations | Explicit width per element; total height + gaps <= 900px | More than 6-7 vertical items; bullet lists > 5-6 items |
 | **Panels (Cards)** | Grouped content, callouts, quote blocks, glass cards | Explicit width; auto-computed height (not fixed); children use "fill" width | Nesting > 2 levels; unpredictable content with fixed height |
-| **Figure / Image** | Charts, photos, screenshots with captions | Explicit width + height; deliberate fit mode; 24-40px caption gap | Unknown image dimensions; cover mode with non-crop-safe subjects |
+| **Image** | Charts, photos, screenshots with captions | Explicit width + height; deliberate `object-fit` mode; 24-40px caption gap | Unknown image dimensions; cover mode with non-crop-safe subjects |
 | **Connector Diagrams** | Process flows, architecture, org charts, timelines | Nodes with explicit coords and unique IDs; max ~8-10 nodes | More than 10-12 nodes; many crossing connectors |
 | **Typography-Forward** | Quotes, big-number stats, thesis statements | Large fonts (48-96px); generous whitespace; short text (< 20 words) | Text exceeds two lines at intended size |
 | **Layered Compositions** | Background shapes behind cards, decorative framing | Clear layer assignment; intentional overlap marked; contrast verified | More than 3-4 overlapping layers |
@@ -155,4 +155,4 @@ Custom tokens can be added (e.g., compact: 4). **The linter flags gaps below 8px
 - [ ] **Contrast/readability verified?** Text on backgrounds at >= 4.5:1 ratio; semi-transparent fills at opacity >= 0.25
 - [ ] **Vertical budget checked?** All elements + gaps in a chain fit within 900px
 - [ ] **Text widths explicit?** Every text element has a width; max ~1200px for body copy
-- [ ] **Image dimensions explicit?** Every figure has width and height; no auto-sizing from file dimensions
+- [ ] **Image dimensions explicit?** Every image element has width and height; no auto-sizing from file dimensions
