@@ -13,7 +13,7 @@
   <script type="module">
     import {
       init, render, safeRect, el, below, rightOf,
-      matchMaxHeight, matchMaxWidth, enableKeyboardToggle,
+      matchMaxHeight, matchMaxWidth,
     } from '../../slidekit/dist/slidekit.bundle.js';
 
     await init({
@@ -155,7 +155,6 @@
       controls: false, progress: false, margin: 0,
     });
 
-    enableKeyboardToggle();
     console.log('matchMax stress test loaded.', window.__testResults);
   </script>
 </body>

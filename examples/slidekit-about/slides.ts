@@ -9,7 +9,6 @@ import {
   alignTop, distributeH, matchWidth, matchHeight, fitToRect,
   cardGrid, figure, grid, snap, repeat,
   getSpacing, resolveShadow,
-  enableKeyboardToggle,
 } from '../../slidekit/dist/slidekit.bundle.js';
 
 import type {
@@ -2006,7 +2005,5 @@ w: 800, h: 400`,
     }
   ];
 
-  const result = await render(slides);
-  enableKeyboardToggle();
-  return result;
+  return await render(slides);
 }

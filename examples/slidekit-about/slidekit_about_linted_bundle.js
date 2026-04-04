@@ -10967,6 +10967,9 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 _setLayoutFn(layout);
+if (typeof document !== "undefined") {
+  enableKeyboardToggle();
+}
 
 // examples/slidekit-about/slides.ts
 var C = {
@@ -13213,9 +13216,7 @@ w: 800, h: 400`,
       ]
     }
   ];
-  const result = await render(slides);
-  enableKeyboardToggle();
-  return result;
+  return await render(slides);
 }
 export {
   run

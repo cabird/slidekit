@@ -55,6 +55,12 @@ import {
 // Inject layout function into renderer (avoids circular import)
 _setLayoutFn(layout);
 
+// Auto-enable Ctrl+. keyboard toggle for the debug inspector.
+// This runs when the bundle is imported — no need to call enableKeyboardToggle() manually.
+if (typeof document !== 'undefined') {
+  enableKeyboardToggle();
+}
+
 // =============================================================================
 // Namespace Export (for convenient SlideKit.* usage)
 // =============================================================================

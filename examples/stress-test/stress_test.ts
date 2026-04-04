@@ -8,7 +8,7 @@ import {
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
   cardGrid, figure,
-  matchMaxHeight, matchMaxWidth, enableKeyboardToggle,
+  matchMaxHeight, matchMaxWidth,
 } from '../../slidekit/dist/slidekit.bundle.js';
 
 import type {
@@ -706,6 +706,5 @@ export async function run() {
   ];
 
   const result = await render(slides);
-  enableKeyboardToggle();
   return result;
 }

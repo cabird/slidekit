@@ -10839,6 +10839,9 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 _setLayoutFn(layout);
+if (typeof document !== "undefined") {
+  enableKeyboardToggle();
+}
 
 // examples/stress-test/stress_test.ts
 var C = {
@@ -11576,7 +11579,6 @@ async function run() {
     }
   ];
   const result = await render(slides);
-  enableKeyboardToggle();
   return result;
 }
 export {

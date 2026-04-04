@@ -11156,6 +11156,9 @@ async function layout(slideDefinition, options = {}) {
 
 // slidekit/slidekit.ts
 _setLayoutFn(layout);
+if (typeof document !== "undefined") {
+  enableKeyboardToggle();
+}
 var SlideKit = {
   VERSION,
   el,
