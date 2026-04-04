@@ -175,12 +175,14 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
 
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = typeof rest.w === 'number' ? rest.w : undefined;
-  const panelH = typeof rest.h === 'number' ? rest.h : undefined;
+  const panelW = rest.w as number | undefined;
+  const panelH = rest.h as number | undefined;
 
   // Resolve "fill" width on children: fill = panelW - 2 * padding
-  // When panelW is numeric, compute content width now. When panelW is "fill",
-  // defer — the layout pipeline will sync internal widths after resolving the panel.
+  // Clamp to 0 to prevent negative widths when panel is narrower than 2*padding
+  // NOTE: "fill" resolution happens at creation time. This works correctly as long
+  // as panelW is a concrete number at panel() call time. If panelW is not known
+  // until layout, wrap the panel creation after layout resolves the parent's width.
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : undefined;
   const resolvedChildren = children.map((child: SlideElement) => {
     if (child.props && child.props.w === "fill" && contentW !== undefined) {
@@ -230,9 +232,7 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl",
   };
-  // Preserve non-numeric width tokens (e.g. 'fill') for layout to resolve
-  if (typeof rest.w === 'string') groupProps.w = rest.w as unknown as number;
-  else if (panelW != null) groupProps.w = panelW;
+  if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
 
   const panelConfig: PanelConfig = { padding, gap, panelW, panelH };
@@ -350,17 +350,12 @@ export function figure(opts: FigureInputProps = {}): FigureElement {
   };
 
   // Construct the FigureElement directly — avoids @ts-ignore on group return
-  // When a caption exists, expand group height to include it (caption is placed
-  // below the image container at y = h + captionGap, with auto-measured height).
-  // We estimate caption height here; the layout pipeline will refine via hug bounds.
-  const groupH = caption ? undefined : h;  // with caption, let hug bounds compute height
   const groupBase = group(children, {
     id: figId,
-    x, y, w, h: groupH,
+    x, y, w, h,
     anchor,
     layer,
     style,
-    bounds: caption ? 'hug' : undefined,
   });
 
   const result: FigureElement = {

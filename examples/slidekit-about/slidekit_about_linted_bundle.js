@@ -8741,8 +8741,8 @@ function panel(children, props = {}) {
   const id = customId || nextId();
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = typeof rest.w === "number" ? rest.w : void 0;
-  const panelH = typeof rest.h === "number" ? rest.h : void 0;
+  const panelW = rest.w;
+  const panelH = rest.h;
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : void 0;
   const resolvedChildren = children.map((child) => {
     if (child.props && child.props.w === "fill" && contentW !== void 0) {
@@ -8779,8 +8779,7 @@ function panel(children, props = {}) {
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl"
   };
-  if (typeof rest.w === "string") groupProps.w = rest.w;
-  else if (panelW != null) groupProps.w = panelW;
+  if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
   const panelConfig = { padding, gap, panelW, panelH };
   const groupBase = group([bgRect, childStack], groupProps);
@@ -8848,17 +8847,15 @@ function figure(opts = {}) {
     captionGap: gapPx,
     fit
   };
-  const groupH = caption2 ? void 0 : h;
   const groupBase = group(children, {
     id: figId,
     x,
     y,
     w,
-    h: groupH,
+    h,
     anchor,
     layer,
-    style,
-    bounds: caption2 ? "hug" : void 0
+    style
   });
   const result = {
     ...groupBase,
