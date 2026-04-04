@@ -299,7 +299,12 @@ export async function addConstraint(
   if (!element) return;
 
   const props = element.props as Record<string, unknown>;
-  const oldValue = props[axis];
+
+  // Resolve the correct property key — dimension constraint types (matchWidth,
+  // matchHeight) target w/h, not the x/y axis passed by pick mode.
+  const dimAxis = dimensionAxisForType(constraintType);
+  const propKey: string = dimAxis ?? axis;
+  const oldValue = props[propKey];
 
   // Build the RelMarker
   const newMarker: Record<string, unknown> = {
@@ -311,6 +316,68 @@ export async function addConstraint(
   if (DIRECTIONAL_TYPES.has(constraintType)) {
     newMarker.gap = Math.round(gap);
   }
+
+  // Mutate and re-render
+  props[propKey] = newMarker;
+
+  const rerender = sk._rerenderSlide as (i: number, d: SlideDefinition) => Promise<LayoutResult>;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+
+  // Push undo entry
+  const s = debugController.state;
+  s.undoStack.push({
+    elementId,
+    propKey,
+    oldValue,
+    newValue: JSON.parse(JSON.stringify(newMarker)),
+    slideIndex,
+  });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+
+  // Refresh overlay
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+
+  // For dimension constraints, select the element; for position constraints, select the constraint
+  if (dimAxis) {
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+  } else {
+    s.selectedElementId = null;
+    s.selectedConstraint = { elementId, axis };
+    renderConstraintDetail(elementId, axis, slideIndex);
+    updateConstraintHighlight(elementId, axis, slideIndex);
+  }
+}
+
+// =============================================================================
+// Add group constraint (matchMaxWidth / matchMaxHeight)
+// =============================================================================
+
+/** Add a group-based dimension constraint (matchMaxWidth or matchMaxHeight). */
+export async function addGroupConstraint(
+  elementId: string,
+  axis: 'w' | 'h',
+  constraintType: string,
+  groupName: string,
+  slideIndex: number,
+): Promise<void> {
+  const sk = (window as any).sk;
+  if (!sk?._definitions?.[slideIndex]) return;
+
+  const definition: SlideDefinition = sk._definitions[slideIndex];
+  const element = findElement(definition, elementId);
+  if (!element) return;
+
+  const props = element.props as Record<string, unknown>;
+  const oldValue = props[axis];
+
+  // Build the RelMarker with group
+  const newMarker: Record<string, unknown> = {
+    _rel: constraintType,
+    group: groupName,
+  };
 
   // Mutate and re-render
   props[axis] = newMarker;
@@ -334,11 +401,62 @@ export async function addConstraint(
   // Refresh overlay
   debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
 
-  // Select the new constraint
-  s.selectedElementId = null;
-  s.selectedConstraint = { elementId, axis };
-  renderConstraintDetail(elementId, axis, slideIndex);
-  updateConstraintHighlight(elementId, axis, slideIndex);
+  // Select the element and refresh detail
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+}
+
+// =============================================================================
+// Add refless constraint (centerHSlide / centerVSlide)
+// =============================================================================
+
+/** Add a refless constraint (centerHSlide or centerVSlide). */
+export async function addReflessConstraint(
+  elementId: string,
+  axis: 'x' | 'y',
+  constraintType: string,
+  slideIndex: number,
+): Promise<void> {
+  const sk = (window as any).sk;
+  if (!sk?._definitions?.[slideIndex]) return;
+
+  const definition: SlideDefinition = sk._definitions[slideIndex];
+  const element = findElement(definition, elementId);
+  if (!element) return;
+
+  const props = element.props as Record<string, unknown>;
+  const oldValue = props[axis];
+
+  // Build the RelMarker (no ref, no gap)
+  const newMarker: Record<string, unknown> = {
+    _rel: constraintType,
+  };
+
+  // Mutate and re-render
+  props[axis] = newMarker;
+
+  const rerender = sk._rerenderSlide as (i: number, d: SlideDefinition) => Promise<LayoutResult>;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+
+  // Push undo entry
+  const s = debugController.state;
+  s.undoStack.push({
+    elementId,
+    propKey: axis,
+    oldValue,
+    newValue: JSON.parse(JSON.stringify(newMarker)),
+    slideIndex,
+  });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+
+  // Refresh overlay
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+
+  // Select the element and refresh detail
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
 }
 
 // =============================================================================

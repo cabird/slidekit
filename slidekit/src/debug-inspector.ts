@@ -17,9 +17,275 @@ import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag
 import {
   clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight,
   changeConstraintType, typesForAxis, axisForType, REFLESS_TYPES,
+  addReflessConstraint, addGroupConstraint,
 } from './debug-inspector-constraint.js';
 import { attachContextMenuHandler, detachContextMenuHandler } from './debug-context-menu.js';
 import { enterPickMode } from './debug-inspector-pick.js';
+
+// =============================================================================
+// Constraint Picker — Registry + Popover
+// =============================================================================
+
+interface ConstraintTypeInfo {
+  id: string;
+  label: string;
+  axis: 'x' | 'y' | 'w' | 'h';
+  requiresRef: boolean;
+  hasGap: boolean;
+  requiresGroup: boolean;
+}
+
+const CONSTRAINT_REGISTRY: ConstraintTypeInfo[] = [
+  // x axis
+  { id: 'rightOf', label: 'Right of...', axis: 'x', requiresRef: true, hasGap: true, requiresGroup: false },
+  { id: 'leftOf', label: 'Left of...', axis: 'x', requiresRef: true, hasGap: true, requiresGroup: false },
+  { id: 'centerH', label: 'Center with...', axis: 'x', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'alignLeft', label: 'Align left with...', axis: 'x', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'alignRight', label: 'Align right with...', axis: 'x', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'centerHSlide', label: 'Center on slide', axis: 'x', requiresRef: false, hasGap: false, requiresGroup: false },
+  // y axis
+  { id: 'below', label: 'Below...', axis: 'y', requiresRef: true, hasGap: true, requiresGroup: false },
+  { id: 'above', label: 'Above...', axis: 'y', requiresRef: true, hasGap: true, requiresGroup: false },
+  { id: 'centerV', label: 'Center with...', axis: 'y', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'alignTop', label: 'Align top with...', axis: 'y', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'alignBottom', label: 'Align bottom with...', axis: 'y', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'centerVSlide', label: 'Center on slide', axis: 'y', requiresRef: false, hasGap: false, requiresGroup: false },
+  // w axis
+  { id: 'matchWidth', label: 'Match width of...', axis: 'w', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'matchMaxWidth', label: 'Match widest in group...', axis: 'w', requiresRef: false, hasGap: false, requiresGroup: true },
+  // h axis
+  { id: 'matchHeight', label: 'Match height of...', axis: 'h', requiresRef: true, hasGap: false, requiresGroup: false },
+  { id: 'matchMaxHeight', label: 'Match tallest in group...', axis: 'h', requiresRef: false, hasGap: false, requiresGroup: true },
+];
+
+/** Currently open constraint picker popover (only one at a time). */
+let activeConstraintPopover: HTMLElement | null = null;
+let activePopoverCleanup: (() => void) | null = null;
+
+/** Close any open constraint picker popover. */
+function closeConstraintPopover(): void {
+  if (activeConstraintPopover) {
+    activeConstraintPopover.remove();
+    activeConstraintPopover = null;
+  }
+  if (activePopoverCleanup) {
+    activePopoverCleanup();
+    activePopoverCleanup = null;
+  }
+}
+
+/** Collect existing group names from the current slide definition. */
+function collectGroupNames(slideIndex: number): string[] {
+  const sk = typeof window !== 'undefined' ? (window as any).sk : null;
+  const def = sk?._definitions?.[slideIndex];
+  if (!def) return [];
+  const { flatMap } = flattenElements(def.elements);
+  const names = new Set<string>();
+  for (const [, el] of flatMap) {
+    const props = el.props as Record<string, unknown> | undefined;
+    if (!props) continue;
+    for (const axis of ['w', 'h'] as const) {
+      const val = props[axis];
+      if (isRelMarker(val) && val.group) {
+        names.add(val.group);
+      }
+    }
+  }
+  return Array.from(names).sort();
+}
+
+/** Show constraint picker popover anchored to a "+" button. */
+function showConstraintPopover(
+  btnEl: HTMLElement,
+  axis: 'x' | 'y' | 'w' | 'h',
+  elementId: string,
+  slideIndex: number,
+): void {
+  // Close any existing popover
+  closeConstraintPopover();
+
+  const options = CONSTRAINT_REGISTRY.filter(c => c.axis === axis);
+  if (options.length === 0) return;
+
+  const popover = document.createElement('div');
+  popover.setAttribute('data-sk-debug', 'constraint-popover');
+  popover.style.cssText = `
+    position: fixed; background: #fff; border: 1px solid #ddd;
+    border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 4px 0; z-index: 100001; font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    min-width: 180px;
+  `;
+
+  // Position relative to the button
+  const rect = btnEl.getBoundingClientRect();
+  popover.style.top = `${rect.bottom + 2}px`;
+  popover.style.left = `${rect.left}px`;
+
+  for (const opt of options) {
+    const row = document.createElement('div');
+    row.style.cssText = `
+      padding: 4px 12px; cursor: pointer; color: #1a1a2e;
+      white-space: nowrap;
+    `;
+    row.textContent = opt.label;
+    row.addEventListener('mouseenter', () => { row.style.background = '#e8f0fe'; });
+    row.addEventListener('mouseleave', () => { row.style.background = ''; });
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleConstraintPickerSelection(opt, elementId, slideIndex, popover);
+    });
+    popover.appendChild(row);
+  }
+
+  document.body.appendChild(popover);
+  activeConstraintPopover = popover;
+
+  // Adjust position if popover goes off-screen
+  const popRect = popover.getBoundingClientRect();
+  if (popRect.right > window.innerWidth) {
+    popover.style.left = `${window.innerWidth - popRect.width - 8}px`;
+  }
+  if (popRect.bottom > window.innerHeight) {
+    popover.style.top = `${rect.top - popRect.height - 2}px`;
+  }
+
+  // Close on click outside or Escape
+  const onClickOutside = (e: MouseEvent) => {
+    if (!popover.contains(e.target as Node) && e.target !== btnEl) {
+      closeConstraintPopover();
+    }
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeConstraintPopover();
+    }
+  };
+  document.addEventListener('pointerdown', onClickOutside, true);
+  document.addEventListener('keydown', onKeyDown, true);
+  activePopoverCleanup = () => {
+    document.removeEventListener('pointerdown', onClickOutside, true);
+    document.removeEventListener('keydown', onKeyDown, true);
+  };
+}
+
+/** Handle selection of a constraint type from the popover. */
+function handleConstraintPickerSelection(
+  opt: ConstraintTypeInfo,
+  elementId: string,
+  slideIndex: number,
+  popover: HTMLElement,
+): void {
+  if (!opt.requiresRef && !opt.requiresGroup) {
+    // Refless — apply immediately (centerHSlide, centerVSlide)
+    closeConstraintPopover();
+    addReflessConstraint(elementId, opt.axis as 'x' | 'y', opt.id, slideIndex);
+  } else if (opt.requiresRef) {
+    // Ref-based — enter pick mode
+    closeConstraintPopover();
+    // matchWidth/matchHeight use w/h axis but enterPickMode expects 'x'|'y'
+    // Map w→x and h→y for pick mode (the axis used by enterPickMode is for
+    // the constraint arrow display; addConstraint in pick's confirmPick
+    // determines the actual axis from the constraint type)
+    const pickAxis: 'x' | 'y' = (opt.axis === 'w' || opt.axis === 'x') ? 'x' : 'y';
+    enterPickMode(elementId, pickAxis, opt.id, slideIndex);
+  } else if (opt.requiresGroup) {
+    // Group-based — switch popover to group name input
+    showGroupNameInput(popover, opt, elementId, slideIndex);
+  }
+}
+
+/** Replace the popover content with a group name text input. */
+function showGroupNameInput(
+  popover: HTMLElement,
+  opt: ConstraintTypeInfo,
+  elementId: string,
+  slideIndex: number,
+): void {
+  popover.innerHTML = '';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'padding: 6px 12px 4px; font-weight: 600; color: #1a1a2e; font-size: 11px;';
+  title.textContent = opt.label.replace('...', '');
+  popover.appendChild(title);
+
+  const inputWrap = document.createElement('div');
+  inputWrap.style.cssText = 'padding: 0 12px 6px;';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Group name';
+  input.style.cssText = `
+    width: 100%; padding: 4px 6px; font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    border: 1px solid #4a9eff; border-radius: 3px;
+    background: #fff; color: #1a1a2e; outline: none;
+    box-sizing: border-box;
+  `;
+  inputWrap.appendChild(input);
+  popover.appendChild(inputWrap);
+
+  // Autocomplete with existing group names
+  const existingGroups = collectGroupNames(slideIndex);
+  let autocompleteDiv: HTMLElement | null = null;
+
+  const showAutocomplete = (filter: string) => {
+    if (autocompleteDiv) { autocompleteDiv.remove(); autocompleteDiv = null; }
+    const matches = filter
+      ? existingGroups.filter(g => g.toLowerCase().includes(filter.toLowerCase()))
+      : existingGroups;
+    if (matches.length === 0) return;
+
+    autocompleteDiv = document.createElement('div');
+    autocompleteDiv.style.cssText = 'padding: 0 12px 4px;';
+    for (const name of matches) {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding: 3px 6px; cursor: pointer; color: #555; border-radius: 3px;';
+      item.textContent = name;
+      item.addEventListener('mouseenter', () => { item.style.background = '#e8f0fe'; });
+      item.addEventListener('mouseleave', () => { item.style.background = ''; });
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        applyGroupConstraint(opt, elementId, name, slideIndex);
+      });
+      autocompleteDiv.appendChild(item);
+    }
+    popover.appendChild(autocompleteDiv);
+  };
+
+  input.addEventListener('input', () => {
+    showAutocomplete(input.value);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && input.value.trim()) {
+      e.preventDefault();
+      applyGroupConstraint(opt, elementId, input.value.trim(), slideIndex);
+    }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeConstraintPopover();
+    }
+  });
+
+  // Show all existing groups initially
+  showAutocomplete('');
+
+  // Focus the input
+  requestAnimationFrame(() => input.focus());
+}
+
+/** Apply a group-based constraint. */
+function applyGroupConstraint(
+  opt: ConstraintTypeInfo,
+  elementId: string,
+  groupName: string,
+  slideIndex: number,
+): void {
+  closeConstraintPopover();
+  addGroupConstraint(elementId, opt.axis as 'w' | 'h', opt.id, groupName, slideIndex);
+}
 
 // =============================================================================
 // Inspector Panel Lifecycle
@@ -1035,6 +1301,26 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
         propRow.style.color = "#1a1a2e";
         propRow.setAttribute("data-sk-prop-status", "readonly");
         propRow.textContent = `${key}: ${displayVal}`;
+      }
+
+      // Add "+" constraint button for x, y, w, h rows with explicit values
+      const constraintAxes = new Set(['x', 'y', 'w', 'h']);
+      if (constraintAxes.has(key) && !isLocked && !isRelMarker(val)) {
+        const addBtn = document.createElement('span');
+        addBtn.textContent = '+';
+        addBtn.title = 'Add constraint';
+        addBtn.style.cssText = `
+          font-size: 10px; color: #4a9eff; cursor: pointer;
+          margin-left: 4px; font-weight: 700; display: inline-block;
+          line-height: 1; padding: 0 2px;
+        `;
+        addBtn.addEventListener('mouseenter', () => { addBtn.style.color = '#1a73e8'; });
+        addBtn.addEventListener('mouseleave', () => { addBtn.style.color = '#4a9eff'; });
+        addBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showConstraintPopover(addBtn, key as 'x' | 'y' | 'w' | 'h', elementId, slideIndex);
+        });
+        propRow.appendChild(addBtn);
       }
 
       propsDiv.appendChild(propRow);
