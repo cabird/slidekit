@@ -310,7 +310,7 @@ When `axis: 'y'`: positions in the vertical gap between refA's bottom edge and r
 x: between('node3', 'node5', { axis: 'x' }),
 
 // Place label between header and content, biased toward top
-y: between('header', 'content', { axis: 'y', bias: 0.35 }),
+y: between('header', 'content', { axis: 'y', bias: 0.35 }),  // explicit bias overrides default 0.5
 
 // Between an element and a raw coordinate
 y: between('lastCard', 990, { axis: 'y' }),
@@ -326,7 +326,7 @@ DONT: Assign to the wrong prop (e.g., `y: between(..., { axis: 'x' })`). Emits `
 Positions element vertically between two references.
 - `topRef: string` — ID above (uses bottom edge)
 - `bottomYOrRef: string|number` — ID below (uses top edge) or raw Y px
-- `opts.bias: number def=0.35` — 0.0 = flush top, 1.0 = flush bottom
+- `opts.bias: number def=0.5` — 0.0 = flush top, 1.0 = flush bottom, 0.5 = centered
 
 DONT: Falls back silently if element doesn't fit. Ensure gap ≥ element height. Check for `between_no_fit` warnings.
 

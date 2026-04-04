@@ -4,7 +4,7 @@
 import {
   init, render, safeRect, splitRect, el,
   below, above, rightOf, leftOf, centerHWith, centerVWith, centerIn,
-  alignTopWith, placeBetween,
+  alignTopWith, between,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchWidth, matchHeight, fitToRect,
   cardGrid, figure, grid, snap, repeat,
@@ -193,7 +193,7 @@ export async function run() {
           id: 's1-badges',
           x: 960, y: 880,
           anchor: 'bc',
-          gap: 16,
+          gap: 'md',
           align: 'middle',
         }),
 
@@ -330,7 +330,7 @@ export async function run() {
             ], {
               id: 's3-code-panel',
               w: left.w,
-              padding: 'md', gap: 8,
+              padding: 'md', gap: 'sm',
               fill: 'rgba(0,255,136,0.04)',
               radius: 12,
               border: `1px solid rgba(0,255,136,0.15)`,
@@ -685,10 +685,10 @@ w: 800, h: 400`,
           (() => { const b = mkBox('C', 's6-boxC', C.accent3); (b as any).props.x = rightOf('s6-boxA', { gap: 40 }); (b as any).props.y = alignTopWith('s6-boxA'); return b; })(),
 
           // Box D — left of A, above A
-          (() => { const b = mkBox('D', 's6-boxD', C.accent4); (b as any).props.x = leftOf('s6-boxA', { gap: 40 }); (b as any).props.y = above('s6-boxA', { gap: 24 }); return b; })(),
+          (() => { const b = mkBox('D', 's6-boxD', C.accent4); (b as any).props.x = leftOf('s6-boxA', { gap: 40 }); (b as any).props.y = above('s6-boxA', { gap: 'lg' }); return b; })(),
 
           // Box E — placed between A and B, offset right
-          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = placeBetween('s6-boxA', 's6-boxB'); return b; })(),
+          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = between('s6-boxA', 's6-boxB', { axis: 'y' }); return b; })(),
 
           // Connectors
           connect('s6-boxA', 's6-boxB', {
@@ -710,16 +710,16 @@ w: 800, h: 400`,
 
           // Code labels next to each box
           codeLabel('below(\'A\', {gap:150})', 's6-labelB', C.accent2, {
-            x: leftOf('s6-boxB', { gap: 16 }), y: centerVWith('s6-boxB'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxB', { gap: 'md' }), y: centerVWith('s6-boxB'), style: { textAlign: 'right' },
           }),
           codeLabel('rightOf(\'A\') + alignTopWith(\'A\')', 's6-labelC', C.accent3, {
-            x: rightOf('s6-boxC', { gap: 16 }), y: centerVWith('s6-boxC'),
+            x: rightOf('s6-boxC', { gap: 'md' }), y: centerVWith('s6-boxC'),
           }),
           codeLabel('leftOf(\'A\') + above(\'A\')', 's6-labelD', C.accent4, {
-            x: leftOf('s6-boxD', { gap: 16 }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxD', { gap: 'md' }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
           }),
-          codeLabel('placeBetween(\'A\', \'B\')', 's6-labelE', C.textSec, {
-            x: rightOf('s6-boxE', { gap: 16 }), y: centerVWith('s6-boxE'),
+          codeLabel('between(\'A\', \'B\', {axis:\'y\'})', 's6-labelE', C.textSec, {
+            x: rightOf('s6-boxE', { gap: 'md' }), y: centerVWith('s6-boxE'),
           }),
 
           // centerIn() demo — outlined rect with centered label
@@ -781,13 +781,13 @@ w: 800, h: 400`,
                 bar(`s7-vs-${align}-c`, C.accent3, 130, 16),
               ], {
                 id: `s7-vs-${align}`,
-                w: 160, gap: 8,
+                w: 160, gap: 'sm',
                 align: align as any,
               }),
             ], {
               id: panelId,
               w: left.w,
-              padding: 'sm', gap: 8,
+              padding: 'sm', gap: 'sm',
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`,
@@ -810,13 +810,13 @@ w: 800, h: 400`,
                 bar(`s7-hs-${align}-c`, C.accent3, 30, 70),
               ], {
                 id: `s7-hs-${align}`,
-                h: 80, gap: 8,
+                h: 80, gap: 'sm',
                 align: align as any,
               }),
             ], {
               id: `s7-hs-panel-${align}`,
               w: right.w,
-              padding: 'sm', gap: 8,
+              padding: 'sm', gap: 'sm',
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`,
@@ -1715,7 +1715,7 @@ w: 800, h: 400`,
             }),
           ], {
             id: 's14-mini-group',
-            x: placeBetween('s14-measure-panel', 's14-valid-panel'),
+            x: between('s14-measure-panel', 's14-valid-panel', { axis: 'x' }),
             y: below('s14-measure-panel', { gap: 'lg' }),
             w: 400, h: 225,
             bounds: 'hug',

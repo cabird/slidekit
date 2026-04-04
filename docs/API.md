@@ -603,7 +603,7 @@ Positions an element in the gap between two references on a given axis. Supersed
 x: between('node3', 'node5', { axis: 'x' }),
 
 // Place label between header and content, biased toward top
-y: between('header', 'content', { axis: 'y', bias: 0.35 }),
+y: between('header', 'content', { axis: 'y', bias: 0.35 }),  // explicit bias overrides default 0.5
 
 // Between an element and a raw coordinate
 y: between('lastCard', 990, { axis: 'y' }),
@@ -638,7 +638,7 @@ Positions an element vertically between two references.
 |---|---|---|---|
 | `topRef` | `string` | — | ID of the element above (uses its bottom edge) |
 | `bottomYOrRef` | `string \| number` | — | ID of element below (uses its top edge), or a raw Y pixel value |
-| `options.bias` | `number` | `0.35` | 0.0 = flush with top, 1.0 = flush with bottom, 0.35 = biased toward top |
+| `options.bias` | `number` | `0.5` | 0.0 = flush with top, 1.0 = flush with bottom, 0.5 = centered |
 
 > ⚠️ **Anti-pattern:** `placeBetween` falls back silently when the element doesn't fit. If element height exceeds the gap between references, it overlaps. Always ensure `gap ≥ element height + padding`. Check for `between_no_fit` warnings in the layout result.
 > ```js

@@ -285,13 +285,13 @@ export async function run() {
             id: 'a4-stat1-val', x: left.x, y: below('a4-body', { gap: 'lg' }), w: 200,
           }),
           el(`<p style="font:400 16px ${FONT};color:${C.textMuted}">Active stations</p>`, {
-            id: 'a4-stat1-lbl', x: left.x, y: below('a4-stat1-val', { gap: 4 }), w: 200,
+            id: 'a4-stat1-lbl', x: left.x, y: below('a4-stat1-val', { gap: 'xs' }), w: 200,
           }),
           el(`<p style="font:700 56px ${FONT};color:${C.accentGrn}">98.7%</p>`, {
             id: 'a4-stat2-val', x: rightOf('a4-stat1-val', { gap: 40 }), y: below('a4-body', { gap: 'lg' }), w: 200,
           }),
           el(`<p style="font:400 16px ${FONT};color:${C.textMuted}">Uptime (30d)</p>`, {
-            id: 'a4-stat2-lbl', x: rightOf('a4-stat1-lbl', { gap: 40 }), y: below('a4-stat2-val', { gap: 4 }), w: 200,
+            id: 'a4-stat2-lbl', x: rightOf('a4-stat1-lbl', { gap: 40 }), y: below('a4-stat2-val', { gap: 'xs' }), w: 200,
           }),
 
           figure({
@@ -314,7 +314,7 @@ export async function run() {
       id: 'a5-narrow-sidebar',
       background: C.bg,
       elements: (() => {
-        const { left, right } = splitRect(safe, { ratio: 0.20, gap: 32 });
+        const { left, right } = splitRect(safe, { ratio: 0.20, gap: 'xl' });
         return [
           patternLabel('A5 · Narrow Sidebar', 'a5'),
 
@@ -569,7 +569,7 @@ export async function run() {
         const contentY = safe.y + 70 + 32;
         const contentH = safe.h - 70 - 32;
         const contentRect = { x: safe.x, y: contentY, w: safe.w, h: contentH };
-        const { left, right } = splitRect(contentRect, { ratio: 0.5, gap: 32 });
+        const { left, right } = splitRect(contentRect, { ratio: 0.5, gap: 'xl' });
         return [
           patternLabel('C1 · 2-Column Card Grid', 'c1'),
 
@@ -722,7 +722,7 @@ export async function run() {
       id: 'c4-uneven-grid',
       background: C.bg,
       elements: (() => {
-        const { left, right } = splitRect(safe, { ratio: 0.6, gap: 32 });
+        const { left, right } = splitRect(safe, { ratio: 0.6, gap: 'xl' });
         const cardY = safe.y;
         const smallCardH = (safe.h - 32) / 2;
         return [
@@ -1534,7 +1534,7 @@ export async function run() {
       elements: (() => {
         const { left: colL, right: colR } = splitRect(
           { x: safe.x, y: safe.y + 120, w: safe.w, h: safe.h - 120 },
-          { ratio: 0.5, gap: 4 },
+          { ratio: 0.5, gap: 'xs' },
         );
         const rowH = 56;
         const rows = [
@@ -1766,7 +1766,7 @@ export async function run() {
       id: 'h4-before-after',
       background: C.bg,
       elements: (() => {
-        const { left: colL, right: colR } = splitRect(safe, { ratio: 0.5, gap: 24 });
+        const { left: colL, right: colR } = splitRect(safe, { ratio: 0.5, gap: 'lg' });
         const labelH = 48;
         const imgY = safe.y + labelH + 16;
         const imgH = safe.h - labelH - 16;
@@ -2193,14 +2193,14 @@ export async function run() {
               id: 'l1-stat-value', w: 400,
             }),
             el(`<p style="font:600 20px ${FONT};color:${C.text}">Engagement Lift</p>`, {
-              id: 'l1-stat-label', y: below('l1-stat-value', { gap: 'xs' }), w: 400,
+              id: 'l1-stat-label', w: 400,
             }),
             el(`<p style="font:400 17px ${FONT};color:${C.textMuted};line-height:1.6">Dynamic layouts outperform static grids in average viewer attention span and recall metrics.</p>`, {
-              id: 'l1-stat-desc', y: below('l1-stat-label', { gap: 12 }), w: 400,
+              id: 'l1-stat-desc', w: 400,
             }),
           ], {
             id: 'l1-stat-card', x: safe.x + safe.w - 500, y: safe.y + safe.h - 300,
-            w: 500, padding: 32, fill: C.surface, radius: 16,
+            w: 500, padding: 32, gap: 'sm', fill: C.surface, radius: 16,
             border: `1px solid ${C.border}`,
           }),
         ];
@@ -2570,7 +2570,7 @@ export async function run() {
           }),
 
           el(`<p style="font:400 16px ${FONT};color:${C.textDim}">Documentation / Architecture / Overview</p>`, {
-            id: 'l7-breadcrumb', x: rightOf('l7-logo', { gap: 20 }), y: below('l7-header-title', { gap: 4 }), w: 600,
+            id: 'l7-breadcrumb', x: rightOf('l7-logo', { gap: 20 }), y: below('l7-header-title', { gap: 'xs' }), w: 600,
           }),
 
           // Accent divider line

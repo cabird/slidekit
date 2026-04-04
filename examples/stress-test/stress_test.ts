@@ -4,7 +4,7 @@
 import {
   init, render, safeRect,
   el, below, above, rightOf, leftOf,
-  centerHWith, centerVWith, alignTopWith, alignLeftWith, placeBetween,
+  centerHWith, centerVWith, alignTopWith, alignLeftWith, between,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
   cardGrid, figure,
@@ -122,7 +122,7 @@ export async function run() {
                 el(`<span style="font-family:${FONT};font-size:14px;color:${C.accent1};">Level 5 — F</span>`, { id: 's2-l5f', w: 140, h: 30 }),
               ], { id: 's2-hstack3', gap: 12 }),
             ], { id: 's2-panel2', w: 400, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16 }),
-          ], { id: 's2-vstack', gap: 16 }),
+          ], { id: 's2-vstack', gap: 'md' }),
         ], { id: 's2-group', x: safe.x, y: 190, w: safe.w, h: 600 }),
       ],
     },
@@ -205,7 +205,7 @@ export async function run() {
           panel([
             el(`<span style="font-family:${FONT};font-size:14px;color:${C.text};">Tall<br>with<br>three lines</span>`, { id: 's5-hs-c', w: 200, h: 90 }),
           ], { id: 's5-hs-p3', w: 220, fill: 'rgba(255,107,157,0.15)', radius: 8, border: `1px solid ${C.glassBr}`, padding: 10 }),
-        ], { id: 's5-hstack', x: 150, y: 230, gap: 16, align: 'stretch' }),
+        ], { id: 's5-hstack', x: 150, y: 230, gap: 'md', align: 'stretch' }),
         // vstack with align: 'center'
         label('vstack align: center', 's5-lbl2', { x: 1000, y: 190, w: 300, h: 30 }),
         vstack([
@@ -324,7 +324,7 @@ export async function run() {
           el(`<span style="font-family:${FONT};font-size:13px;color:${C.text};">Item 6</span>`, { id: 's9-item6', w: 'fill' as unknown as number, h: 22 }),
           el(`<span style="font-family:${FONT};font-size:13px;color:${C.text};">Item 7</span>`, { id: 's9-item7', w: 'fill' as unknown as number, h: 22 }),
           el(`<span style="font-family:${FONT};font-size:13px;color:${C.text};">Item 8</span>`, { id: 's9-item8', w: 'fill' as unknown as number, h: 22 }),
-        ], { id: 's9-many', x: 700, y: 200, w: 300, fill: C.glass, radius: 10, border: `1px solid ${C.glassBr}`, padding: 12, gap: 8 }),
+        ], { id: 's9-many', x: 700, y: 200, w: 300, fill: C.glass, radius: 10, border: `1px solid ${C.glassBr}`, padding: 12, gap: 'sm' }),
         // Tiny padding panel
         panel([
           el(`<span style="font-family:${FONT};font-size:12px;color:${C.text};">Tiny pad (2px)</span>`, { id: 's9-tiny-lbl', w: 'fill' as unknown as number, h: 20 }),
@@ -398,27 +398,27 @@ export async function run() {
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent1};">Card 1</span>`, { id: 's12-c1-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">Short content</span>`, { id: 's12-c1-body', w: 'fill' as unknown as number, h: 20 }),
-          ], { id: 's12-c1', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c1', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent2};">Card 2</span>`, { id: 's12-c2-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">This card has significantly more content to test how the grid handles uneven heights across columns.</span>`, { id: 's12-c2-body', w: 'fill' as unknown as number, h: 60 }),
-          ], { id: 's12-c2', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c2', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent3};">Card 3</span>`, { id: 's12-c3-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">Medium text</span>`, { id: 's12-c3-body', w: 'fill' as unknown as number, h: 30 }),
-          ], { id: 's12-c3', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c3', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent4};">Card 4</span>`, { id: 's12-c4-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">Content</span>`, { id: 's12-c4-body', w: 'fill' as unknown as number, h: 20 }),
-          ], { id: 's12-c4', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c4', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent1};">Card 5</span>`, { id: 's12-c5-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">Another card here</span>`, { id: 's12-c5-body', w: 'fill' as unknown as number, h: 20 }),
-          ], { id: 's12-c5', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c5', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
           panel([
             el(`<span style="font-family:${FONT};font-size:16px;font-weight:600;color:${C.accent2};">Card 6</span>`, { id: 's12-c6-title', w: 'fill' as unknown as number, h: 24 }),
             el(`<span style="font-family:${FONT};font-size:13px;color:${C.textSec};">Last card in the 3-column grid</span>`, { id: 's12-c6-body', w: 'fill' as unknown as number, h: 20 }),
-          ], { id: 's12-c6', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 8 }),
+          ], { id: 's12-c6', w: 480, fill: C.glass, radius: 12, border: `1px solid ${C.glassBr}`, padding: 16, gap: 'sm' }),
         ], { id: 's12-grid', cols: 3, gap: 20, x: 150, y: 200, w: 1600 }),
       ],
     },
@@ -491,29 +491,29 @@ export async function run() {
     },
 
     // ================================================================
-    // SLIDE 15: placeBetween
+    // SLIDE 15: between
     // ================================================================
     {
       id: 'place-between',
       background: C.bg,
       elements: [
-        title('placeBetween', 's15-title', { x: safe.x, y: safe.y }),
+        title('between', 's15-title', { x: safe.x, y: safe.y }),
         // Reference elements with gap
         box('s15-top', 'Top Ref', 300, 220, 300, 80, 'rgba(0,212,255,0.2)'),
         box('s15-bottom', 'Bottom Ref', 300, 600, 300, 80, 'rgba(255,107,157,0.2)'),
-        // Default bias (0.35)
-        el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(0,255,136,0.2);border:2px dashed ${C.accent4};border-radius:8px;font-family:${FONT};font-size:14px;color:${C.text};">placeBetween default</div>`,
-          { id: 's15-between-default', x: 300, y: placeBetween('s15-top', 's15-bottom'), w: 300, h: 60 }),
+        // Default bias (0.5)
+        el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(0,255,136,0.2);border:2px dashed ${C.accent4};border-radius:8px;font-family:${FONT};font-size:14px;color:${C.text};">between default</div>`,
+          { id: 's15-between-default', x: 300, y: between('s15-top', 's15-bottom', { axis: 'y' }), w: 300, h: 60 }),
         // Bias 0.75
         box('s15-top2', 'Top Ref 2', 800, 220, 300, 80, 'rgba(124,92,191,0.2)'),
         box('s15-bottom2', 'Bottom Ref 2', 800, 600, 300, 80, 'rgba(255,165,0,0.2)'),
-        el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(124,92,191,0.2);border:2px dashed ${C.accent2};border-radius:8px;font-family:${FONT};font-size:14px;color:${C.text};">placeBetween bias:0.75</div>`,
-          { id: 's15-between-biased', x: 800, y: placeBetween('s15-top2', 's15-bottom2', { bias: 0.75 }), w: 300, h: 60 }),
+        el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(124,92,191,0.2);border:2px dashed ${C.accent2};border-radius:8px;font-family:${FONT};font-size:14px;color:${C.text};">between bias:0.75</div>`,
+          { id: 's15-between-biased', x: 800, y: between('s15-top2', 's15-bottom2', { axis: 'y', bias: 0.75 }), w: 300, h: 60 }),
         // Tight gap (barely fits)
         box('s15-tight-top', 'Tight Top', 1350, 400, 250, 80, 'rgba(200,200,0,0.2)'),
         box('s15-tight-bot', 'Tight Bot', 1350, 560, 250, 80, 'rgba(200,200,0,0.2)'),
         el(`<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:rgba(200,200,0,0.15);border:1px dashed ${C.textSec};border-radius:4px;font-family:${FONT};font-size:12px;color:${C.text};">Tight fit</div>`,
-          { id: 's15-tight-mid', x: 1350, y: placeBetween('s15-tight-top', 's15-tight-bot'), w: 250, h: 50 }),
+          { id: 's15-tight-mid', x: 1350, y: between('s15-tight-top', 's15-tight-bot', { axis: 'y' }), w: 250, h: 50 }),
       ],
     },
 
@@ -557,17 +557,17 @@ export async function run() {
             box('s17-a1', 'A1', 0, 0, 180, 60, 'rgba(0,212,255,0.15)'),
             box('s17-a2', 'A2', 0, 0, 180, 60, 'rgba(0,212,255,0.15)'),
             box('s17-a3', 'A3', 0, 0, 180, 60, 'rgba(0,212,255,0.15)'),
-          ], { id: 's17-vs1', gap: 16 }),
+          ], { id: 's17-vs1', gap: 'md' }),
           vstack([
             box('s17-b1', 'B1', 0, 0, 180, 60, 'rgba(124,92,191,0.15)'),
             box('s17-b2', 'B2', 0, 0, 180, 60, 'rgba(124,92,191,0.15)'),
             box('s17-b3', 'B3', 0, 0, 180, 60, 'rgba(124,92,191,0.15)'),
-          ], { id: 's17-vs2', gap: 16 }),
+          ], { id: 's17-vs2', gap: 'md' }),
           vstack([
             box('s17-c1', 'C1', 0, 0, 180, 60, 'rgba(255,107,157,0.15)'),
             box('s17-c2', 'C2', 0, 0, 180, 60, 'rgba(255,107,157,0.15)'),
             box('s17-c3', 'C3', 0, 0, 180, 60, 'rgba(255,107,157,0.15)'),
-          ], { id: 's17-vs3', gap: 16 }),
+          ], { id: 's17-vs3', gap: 'md' }),
         ], { id: 's17-hstack', x: 300, y: 220, gap: 120 }),
         // Connectors between elements in different stacks
         connect('s17-a1', 's17-b1', { id: 's17-conn1', type: 'straight', arrow: 'end', color: C.accent1, fromAnchor: 'cr', toAnchor: 'cl' }),
@@ -685,7 +685,7 @@ export async function run() {
         el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:8px;padding:16px;">
           <span style="font:700 22px ${FONT};color:${C.text}">Email Address</span>
         </div>`, {
-          id: 's20-label-b', x: safe.x, y: below('s20-label-a', { gap: 16 }),
+          id: 's20-label-b', x: safe.x, y: below('s20-label-a', { gap: 'md' }),
           w: matchMaxWidth('s20-labels'),
         }),
 
@@ -693,7 +693,7 @@ export async function run() {
         el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:8px;padding:16px;">
           <span style="font:700 22px ${FONT};color:${C.text}">Organization Department</span>
         </div>`, {
-          id: 's20-label-c', x: safe.x, y: below('s20-label-b', { gap: 16 }),
+          id: 's20-label-c', x: safe.x, y: below('s20-label-b', { gap: 'md' }),
           w: matchMaxWidth('s20-labels'),
         }),
 

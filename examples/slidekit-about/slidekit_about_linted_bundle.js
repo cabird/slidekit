@@ -8,179 +8,6 @@ var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
 };
-function isRelMarker(value) {
-  return value !== null && typeof value === "object" && typeof value._rel === "string";
-}
-function deepClone2(obj) {
-  if (typeof structuredClone === "function") {
-    return structuredClone(obj);
-  }
-  return JSON.parse(JSON.stringify(obj));
-}
-function flattenElements(elements) {
-  const flatMap = /* @__PURE__ */ new Map();
-  const groupParent = /* @__PURE__ */ new Map();
-  const stackParent = /* @__PURE__ */ new Map();
-  const stackChildren = /* @__PURE__ */ new Map();
-  const groupChildren = /* @__PURE__ */ new Map();
-  const panelInternals = /* @__PURE__ */ new Set();
-  const idCounts = /* @__PURE__ */ new Map();
-  function walk(els, parentGroupId) {
-    for (const el2 of els) {
-      idCounts.set(el2.id, (idCounts.get(el2.id) || 0) + 1);
-      flatMap.set(el2.id, el2);
-      if (parentGroupId) {
-        groupParent.set(el2.id, parentGroupId);
-      }
-      if (el2.type === "group" && el2.children) {
-        const childIds = el2.children.map((c) => c.id);
-        groupChildren.set(el2.id, childIds);
-        if (el2._compound === "panel" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
-        if (el2._compound === "figure" && el2.children.length >= 2) {
-          panelInternals.add(el2.children[0].id);
-          panelInternals.add(el2.children[1].id);
-        }
-        walk(el2.children, el2.id);
-      }
-      if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
-        const childIds = [];
-        for (const child of el2.children) {
-          flatMap.set(child.id, child);
-          stackParent.set(child.id, el2.id);
-          childIds.push(child.id);
-          if ((child.type === "vstack" || child.type === "hstack") && child.children) {
-            walk([child], parentGroupId);
-          } else if (child.type === "group" && child.children) {
-            const gcIds = child.children.map((c) => c.id);
-            groupChildren.set(child.id, gcIds);
-            if (child._compound === "panel" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            if (child._compound === "figure" && child.children.length >= 2) {
-              panelInternals.add(child.children[0].id);
-              panelInternals.add(child.children[1].id);
-            }
-            walk(child.children, child.id);
-          }
-        }
-        stackChildren.set(el2.id, childIds);
-      }
-    }
-  }
-  walk(elements, null);
-  const duplicateIds = /* @__PURE__ */ new Map();
-  for (const [id, count] of idCounts) {
-    if (count > 1) duplicateIds.set(id, count);
-  }
-  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
-}
-function getRelRef(marker) {
-  if (!isRelMarker(marker)) return null;
-  if (marker._rel === "centerIn") return null;
-  return marker.ref || null;
-}
-function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
-  const rel = marker._rel;
-  const gap = marker.gap ?? 0;
-  switch (rel) {
-    case "below":
-      return refBounds.y + refBounds.h + gap;
-    case "above":
-      return refBounds.y - ownH - gap;
-    case "rightOf":
-      return refBounds.x + refBounds.w + gap;
-    case "leftOf":
-      return refBounds.x - ownW - gap;
-    case "centerV":
-      return refBounds.y + refBounds.h / 2 - ownH / 2;
-    case "centerH":
-      return refBounds.x + refBounds.w / 2 - ownW / 2;
-    case "alignTop":
-      return refBounds.y;
-    case "alignBottom":
-      return refBounds.y + refBounds.h - ownH;
-    case "alignLeft":
-      return refBounds.x;
-    case "alignRight":
-      return refBounds.x + refBounds.w - ownW;
-    case "centerIn": {
-      const r = marker.rect;
-      if (axis === "x") {
-        return r.x + r.w / 2 - ownW / 2;
-      } else {
-        return r.y + r.h / 2 - ownH / 2;
-      }
-    }
-    default:
-      throw new Error(`Unknown _rel type: "${rel}"`);
-  }
-}
-function buildProvenance(authoredValue, prop, element, wasMeasured) {
-  if (isRelMarker(authoredValue)) {
-    const prov = { source: "constraint", type: authoredValue._rel };
-    if (authoredValue.ref) prov.ref = authoredValue.ref;
-    if (authoredValue.ref2 !== void 0) prov.ref2 = authoredValue.ref2;
-    if (authoredValue.gap !== void 0) prov.gap = authoredValue.gap;
-    if (authoredValue.bias !== void 0) prov.bias = authoredValue.bias;
-    if (authoredValue.rect) prov.rect = authoredValue.rect;
-    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
-    if (anchors) {
-      prov.sourceAnchor = anchors[0];
-      prov.targetAnchor = anchors[1];
-    }
-    return prov;
-  }
-  if (wasMeasured && (prop === "w" || prop === "h")) {
-    return {
-      source: "measured",
-      measuredAt: {
-        w: element.props?.w ?? null,
-        className: element.props?.className || ""
-      }
-    };
-  }
-  return { source: "authored", value: authoredValue };
-}
-function computeAABBIntersection(a, b) {
-  const x1 = Math.max(a.x, b.x);
-  const y1 = Math.max(a.y, b.y);
-  const x2 = Math.min(a.x + a.w, b.x + b.w);
-  const y2 = Math.min(a.y + a.h, b.y + b.h);
-  const w = x2 - x1;
-  const h = y2 - y1;
-  if (w > 0 && h > 0) {
-    return { x: x1, y: y1, w, h };
-  }
-  return null;
-}
-var _CONSTRAINT_ANCHORS;
-var init_helpers = __esm({
-  "slidekit/src/layout/helpers.ts"() {
-    "use strict";
-    _CONSTRAINT_ANCHORS = {
-      below: ["bc", "tc"],
-      above: ["tc", "bc"],
-      rightOf: ["cr", "cl"],
-      leftOf: ["cl", "cr"],
-      centerV: ["cc", "cc"],
-      centerH: ["cc", "cc"],
-      alignTop: ["tc", "tc"],
-      alignBottom: ["bc", "bc"],
-      alignLeft: ["cl", "cl"],
-      alignRight: ["cr", "cr"],
-      centerIn: ["cc", "cc"],
-      between: ["bc", "cc"],
-      matchWidth: ["cr", "cl"],
-      matchHeight: ["bc", "tc"],
-      centerHSlide: ["cc", "cc"],
-      centerVSlide: ["cc", "cc"]
-    };
-  }
-});
 function initialState() {
   return {
     debugOverlay: null,
@@ -811,9 +638,7 @@ function serializeSceneGraph(elements) {
       }
     }
     if (el2.authored?.content) {
-      let content = el2.authored.content;
-      if (content.length > 300) content = content.slice(0, 300) + "...";
-      lines.push(`  content: ${JSON.stringify(content)}`);
+      lines.push(`  content: ${JSON.stringify(el2.authored.content)}`);
     }
     lines.push("  provenance:");
     for (const axis of ["x", "y", "w", "h"]) {
@@ -892,8 +717,8 @@ function generateSceneGraphDiff(before, after, slideIndex) {
       hasChanges = true;
       lines.push(`## ${id} (${aEl.type})`);
       if (contentChanged) {
-        const bStr = bContent ? bContent.length > 200 ? bContent.slice(0, 200) + "..." : bContent : "(none)";
-        const aStr = aContent ? aContent.length > 200 ? aContent.slice(0, 200) + "..." : aContent : "(none)";
+        const bStr = bContent ?? "(none)";
+        const aStr = aContent ?? "(none)";
         lines.push(`  content: ${JSON.stringify(bStr)} \u2192 ${JSON.stringify(aStr)}`);
       }
       for (const { key, before: bVal, after: aVal } of changes) {
@@ -1158,6 +983,181 @@ var init_debug_inspector_diff = __esm({
   "slidekit/src/debug-inspector-diff.ts"() {
     "use strict";
     init_debug_state();
+  }
+});
+function isRelMarker(value) {
+  return value !== null && typeof value === "object" && typeof value._rel === "string";
+}
+function deepClone(obj) {
+  if (typeof structuredClone === "function") {
+    return structuredClone(obj);
+  }
+  return JSON.parse(JSON.stringify(obj));
+}
+function flattenElements(elements) {
+  const flatMap = /* @__PURE__ */ new Map();
+  const groupParent = /* @__PURE__ */ new Map();
+  const stackParent = /* @__PURE__ */ new Map();
+  const stackChildren = /* @__PURE__ */ new Map();
+  const groupChildren = /* @__PURE__ */ new Map();
+  const panelInternals = /* @__PURE__ */ new Set();
+  const idCounts = /* @__PURE__ */ new Map();
+  function walk(els, parentGroupId) {
+    for (const el2 of els) {
+      idCounts.set(el2.id, (idCounts.get(el2.id) || 0) + 1);
+      flatMap.set(el2.id, el2);
+      if (parentGroupId) {
+        groupParent.set(el2.id, parentGroupId);
+      }
+      if (el2.type === "group" && el2.children) {
+        const childIds = el2.children.map((c) => c.id);
+        groupChildren.set(el2.id, childIds);
+        if (el2._compound === "panel" && el2.children.length >= 2) {
+          panelInternals.add(el2.children[0].id);
+          panelInternals.add(el2.children[1].id);
+        }
+        if (el2._compound === "figure" && el2.children.length >= 2) {
+          panelInternals.add(el2.children[0].id);
+          panelInternals.add(el2.children[1].id);
+        }
+        walk(el2.children, el2.id);
+      }
+      if ((el2.type === "vstack" || el2.type === "hstack") && el2.children) {
+        const childIds = [];
+        for (const child of el2.children) {
+          flatMap.set(child.id, child);
+          stackParent.set(child.id, el2.id);
+          childIds.push(child.id);
+          if ((child.type === "vstack" || child.type === "hstack") && child.children) {
+            walk([child], parentGroupId);
+          } else if (child.type === "group" && child.children) {
+            const gcIds = child.children.map((c) => c.id);
+            groupChildren.set(child.id, gcIds);
+            if (child._compound === "panel" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
+            if (child._compound === "figure" && child.children.length >= 2) {
+              panelInternals.add(child.children[0].id);
+              panelInternals.add(child.children[1].id);
+            }
+            walk(child.children, child.id);
+          }
+        }
+        stackChildren.set(el2.id, childIds);
+      }
+    }
+  }
+  walk(elements, null);
+  const duplicateIds = /* @__PURE__ */ new Map();
+  for (const [id, count] of idCounts) {
+    if (count > 1) duplicateIds.set(id, count);
+  }
+  return { flatMap, groupParent, stackParent, stackChildren, groupChildren, panelInternals, duplicateIds };
+}
+function getRelRef(marker) {
+  if (!isRelMarker(marker)) return null;
+  if (marker._rel === "centerIn") return null;
+  return marker.ref || null;
+}
+function resolveRelMarker(marker, axis, refBounds, ownW, ownH) {
+  const rel = marker._rel;
+  const gap = marker.gap ?? 0;
+  switch (rel) {
+    case "below":
+      return refBounds.y + refBounds.h + gap;
+    case "above":
+      return refBounds.y - ownH - gap;
+    case "rightOf":
+      return refBounds.x + refBounds.w + gap;
+    case "leftOf":
+      return refBounds.x - ownW - gap;
+    case "centerV":
+      return refBounds.y + refBounds.h / 2 - ownH / 2;
+    case "centerH":
+      return refBounds.x + refBounds.w / 2 - ownW / 2;
+    case "alignTop":
+      return refBounds.y;
+    case "alignBottom":
+      return refBounds.y + refBounds.h - ownH;
+    case "alignLeft":
+      return refBounds.x;
+    case "alignRight":
+      return refBounds.x + refBounds.w - ownW;
+    case "centerIn": {
+      const r = marker.rect;
+      if (axis === "x") {
+        return r.x + r.w / 2 - ownW / 2;
+      } else {
+        return r.y + r.h / 2 - ownH / 2;
+      }
+    }
+    default:
+      throw new Error(`Unknown _rel type: "${rel}"`);
+  }
+}
+function buildProvenance(authoredValue, prop, element, wasMeasured) {
+  if (isRelMarker(authoredValue)) {
+    const prov = { source: "constraint", type: authoredValue._rel };
+    if (authoredValue.ref) prov.ref = authoredValue.ref;
+    if (authoredValue.ref2 !== void 0) prov.ref2 = authoredValue.ref2;
+    if (authoredValue.gap !== void 0) prov.gap = authoredValue.gap;
+    if (authoredValue.bias !== void 0) prov.bias = authoredValue.bias;
+    if (authoredValue.rect) prov.rect = authoredValue.rect;
+    const anchors = _CONSTRAINT_ANCHORS[authoredValue._rel];
+    if (anchors) {
+      prov.sourceAnchor = anchors[0];
+      prov.targetAnchor = anchors[1];
+    }
+    return prov;
+  }
+  if (wasMeasured && (prop === "w" || prop === "h")) {
+    return {
+      source: "measured",
+      measuredAt: {
+        w: element.props?.w ?? null,
+        className: element.props?.className || ""
+      }
+    };
+  }
+  return { source: "authored", value: authoredValue };
+}
+function computeAABBIntersection(a, b) {
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = x2 - x1;
+  const h = y2 - y1;
+  if (w > 0 && h > 0) {
+    return { x: x1, y: y1, w, h };
+  }
+  return null;
+}
+var _CONSTRAINT_ANCHORS;
+var init_helpers = __esm({
+  "slidekit/src/layout/helpers.ts"() {
+    "use strict";
+    _CONSTRAINT_ANCHORS = {
+      below: ["bc", "tc"],
+      above: ["tc", "bc"],
+      rightOf: ["cr", "cl"],
+      leftOf: ["cl", "cr"],
+      centerV: ["cc", "cc"],
+      centerH: ["cc", "cc"],
+      alignTop: ["tc", "tc"],
+      alignBottom: ["bc", "bc"],
+      alignLeft: ["cl", "cl"],
+      alignRight: ["cr", "cr"],
+      centerIn: ["cc", "cc"],
+      between: ["bc", "cc"],
+      matchWidth: ["cr", "cl"],
+      matchHeight: ["bc", "tc"],
+      centerHSlide: ["cc", "cc"],
+      centerVSlide: ["cc", "cc"],
+      matchMaxWidth: ["cr", "cl"],
+      matchMaxHeight: ["bc", "tc"]
+    };
   }
 });
 var debug_inspector_edit_exports = {};
@@ -2771,7 +2771,7 @@ var init_debug_inspector_constraint = __esm({
     Y_AXIS_TYPES = ["below", "above", "centerV", "alignTop", "alignBottom", "centerVSlide"];
     X_AXIS_TYPES = ["rightOf", "leftOf", "centerH", "alignLeft", "alignRight", "centerHSlide"];
     DIRECTIONAL_TYPES = /* @__PURE__ */ new Set(["below", "above", "rightOf", "leftOf"]);
-    REFLESS_TYPES = /* @__PURE__ */ new Set(["centerHSlide", "centerVSlide"]);
+    REFLESS_TYPES = /* @__PURE__ */ new Set(["centerHSlide", "centerVSlide", "matchMaxWidth", "matchMaxHeight"]);
   }
 });
 var debug_inspector_delete_exports = {};
@@ -3874,7 +3874,7 @@ function refreshElementList() {
   listBody.style.padding = "0 8px 8px 8px";
   listBody.style.maxHeight = "300px";
   listBody.style.overflowY = "auto";
-  for (const layerName of LAYER_ORDER2) {
+  for (const layerName of LAYER_ORDER) {
     const items = byLayer[layerName];
     if (!items || items.length === 0) continue;
     const layerRow = document.createElement("div");
@@ -4135,6 +4135,107 @@ function renderElementDetail(elementId, slideIndex) {
     ${sceneEl._internal ? '<div style="color:#ff8c32;">Internal element</div>' : ""}
   `;
   body.appendChild(createSection("Identity", identityDiv));
+  const authored = sceneEl.authored;
+  const htmlDiv = document.createElement("div");
+  if (authored?.content !== void 0) {
+    const textarea = document.createElement("textarea");
+    textarea.value = authored.content;
+    textarea.style.cssText = `
+      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 11px; color: #1a1a2e; background: #fff;
+      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
+      box-sizing: border-box; line-height: 1.4;
+    `;
+    textarea.setAttribute("data-sk-html-editor", "true");
+    textarea.spellcheck = false;
+    const statusMsg = document.createElement("div");
+    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
+    let committedContent = authored.content;
+    let lastPreviewedContent = authored.content;
+    let previewSeq = 0;
+    const previewHtml = async (content) => {
+      const sk2 = window.sk;
+      if (!sk2?._definitions?.[slideIndex]) return;
+      const def = sk2._definitions[slideIndex];
+      const flat = flattenElements(def.elements);
+      const defElement = flat.flatMap.get(elementId);
+      if (!defElement || !("content" in defElement)) return;
+      defElement.content = content;
+      const rerender = sk2._rerenderSlide;
+      if (!rerender) return;
+      const seq = ++previewSeq;
+      await rerender(slideIndex, def);
+      if (seq !== previewSeq) return;
+      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
+      lastPreviewedContent = content;
+    };
+    const commitHtmlEdit = async () => {
+      const newContent = textarea.value;
+      if (newContent === committedContent) return;
+      if (lastPreviewedContent !== newContent) {
+        await previewHtml(newContent);
+      }
+      const ds = debugController.state;
+      ds.undoStack.push({ elementId, propKey: "_content", oldValue: committedContent, newValue: newContent, slideIndex });
+      ds.redoStack.length = 0;
+      updateDiffDirtyIndicator();
+      committedContent = newContent;
+      statusMsg.textContent = "Committed";
+      statusMsg.style.color = "#4caf50";
+      setTimeout(() => {
+        if (statusMsg.textContent === "Committed") statusMsg.textContent = "";
+      }, 2e3);
+    };
+    let inputDebounce = null;
+    textarea.addEventListener("input", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        const content = textarea.value;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
+        const errors = doc.querySelectorAll("parsererror");
+        if (errors.length > 0) {
+          statusMsg.textContent = "Invalid HTML";
+          statusMsg.style.color = "#ea4335";
+          textarea.style.borderColor = "#ea4335";
+          return;
+        }
+        textarea.style.borderColor = "#4a9eff";
+        statusMsg.textContent = content !== committedContent ? "Preview" : "";
+        statusMsg.style.color = "#ff8c32";
+        previewHtml(content);
+      }, 150);
+    });
+    textarea.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") {
+        e.preventDefault();
+        commitHtmlEdit();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        textarea.value = committedContent;
+        textarea.style.borderColor = "#ddd";
+        statusMsg.textContent = "";
+        if (lastPreviewedContent !== committedContent) {
+          previewHtml(committedContent);
+        }
+      }
+    });
+    textarea.addEventListener("blur", () => {
+      if (inputDebounce) clearTimeout(inputDebounce);
+      commitHtmlEdit();
+    });
+    const hint = document.createElement("div");
+    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
+    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
+    htmlDiv.appendChild(textarea);
+    htmlDiv.appendChild(statusMsg);
+    htmlDiv.appendChild(hint);
+  } else {
+    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
+  }
+  body.appendChild(createSection("Inner HTML", htmlDiv));
   const boundsDiv = document.createElement("div");
   const r = sceneEl.resolved;
   boundsDiv.innerHTML = `<table style="width:100%;border-collapse:collapse;">
@@ -4145,7 +4246,6 @@ function renderElementDetail(elementId, slideIndex) {
   </table>`;
   body.appendChild(createSection("Resolved Bounds", boundsDiv));
   const propsDiv = document.createElement("div");
-  const authored = sceneEl.authored;
   if (authored?.props) {
     const prov2 = sceneEl.provenance;
     const lockedSources = /* @__PURE__ */ new Set(["constraint", "stack", "transform"]);
@@ -4383,106 +4483,6 @@ function renderElementDetail(elementId, slideIndex) {
     stylesDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
   body.appendChild(createSection("CSS Styles", stylesDiv, true));
-  const htmlDiv = document.createElement("div");
-  if (authored?.content !== void 0) {
-    const textarea = document.createElement("textarea");
-    textarea.value = authored.content;
-    textarea.style.cssText = `
-      width: 100%; min-height: 80px; max-height: 300px; padding: 6px;
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-      font-size: 11px; color: #1a1a2e; background: #fff;
-      border: 1px solid #ddd; border-radius: 3px; resize: vertical;
-      box-sizing: border-box; line-height: 1.4;
-    `;
-    textarea.setAttribute("data-sk-html-editor", "true");
-    textarea.spellcheck = false;
-    const statusMsg = document.createElement("div");
-    statusMsg.style.cssText = "font-size: 10px; margin-top: 4px; min-height: 14px;";
-    let committedContent = authored.content;
-    let lastPreviewedContent = authored.content;
-    let previewSeq = 0;
-    const previewHtml = async (content) => {
-      const sk2 = window.sk;
-      if (!sk2?._definitions?.[slideIndex]) return;
-      const def = sk2._definitions[slideIndex];
-      const flat = flattenElements(def.elements);
-      const defElement = flat.flatMap.get(elementId);
-      if (!defElement || !("content" in defElement)) return;
-      defElement.content = content;
-      const rerender = sk2._rerenderSlide;
-      if (!rerender) return;
-      const seq = ++previewSeq;
-      await rerender(slideIndex, def);
-      if (seq !== previewSeq) return;
-      debugController.callbacks.refreshOverlayOnly?.(slideIndex);
-      lastPreviewedContent = content;
-    };
-    const commitHtmlEdit = async () => {
-      const newContent = textarea.value;
-      if (newContent === committedContent) return;
-      if (lastPreviewedContent !== newContent) {
-        await previewHtml(newContent);
-      }
-      const ds = debugController.state;
-      ds.undoStack.push({ elementId, propKey: "_content", oldValue: committedContent, newValue: newContent, slideIndex });
-      ds.redoStack.length = 0;
-      updateDiffDirtyIndicator();
-      committedContent = newContent;
-      statusMsg.textContent = "Committed";
-      statusMsg.style.color = "#4caf50";
-      setTimeout(() => {
-        if (statusMsg.textContent === "Committed") statusMsg.textContent = "";
-      }, 2e3);
-    };
-    let inputDebounce = null;
-    textarea.addEventListener("input", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      inputDebounce = setTimeout(() => {
-        const content = textarea.value;
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(`<body>${content}</body>`, "text/html");
-        const errors = doc.querySelectorAll("parsererror");
-        if (errors.length > 0) {
-          statusMsg.textContent = "Invalid HTML";
-          statusMsg.style.color = "#ea4335";
-          textarea.style.borderColor = "#ea4335";
-          return;
-        }
-        textarea.style.borderColor = "#4a9eff";
-        statusMsg.textContent = content !== committedContent ? "Preview" : "";
-        statusMsg.style.color = "#ff8c32";
-        previewHtml(content);
-      }, 150);
-    });
-    textarea.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.key === "Enter") {
-        e.preventDefault();
-        commitHtmlEdit();
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        textarea.value = committedContent;
-        textarea.style.borderColor = "#ddd";
-        statusMsg.textContent = "";
-        if (lastPreviewedContent !== committedContent) {
-          previewHtml(committedContent);
-        }
-      }
-    });
-    textarea.addEventListener("blur", () => {
-      if (inputDebounce) clearTimeout(inputDebounce);
-      commitHtmlEdit();
-    });
-    const hint = document.createElement("div");
-    hint.textContent = "Live preview \u2022 Ctrl+Enter to commit, Esc to revert";
-    hint.style.cssText = "font-size: 10px; color: #999; margin-top: 2px;";
-    htmlDiv.appendChild(textarea);
-    htmlDiv.appendChild(statusMsg);
-    htmlDiv.appendChild(hint);
-  } else {
-    htmlDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
-  }
-  body.appendChild(createSection("Inner HTML", htmlDiv, true));
 }
 function updateSelectionHighlight(elementId, slideIndex) {
   const s = debugController.state;
@@ -4566,7 +4566,7 @@ function detachClickHandler() {
   s.clickHandlerAttached = false;
 }
 var VISIBILITY_OPTIONS;
-var LAYER_ORDER2;
+var LAYER_ORDER;
 var LAYER_LABELS;
 var init_debug_inspector = __esm({
   "slidekit/src/debug-inspector.ts"() {
@@ -4590,7 +4590,7 @@ var init_debug_inspector = __esm({
       { key: "showCollisions", label: "Collisions", default: true },
       { key: "showRelationships", label: "Constraints", default: true }
     ];
-    LAYER_ORDER2 = ["overlay", "content", "bg"];
+    LAYER_ORDER = ["overlay", "content", "bg"];
     LAYER_LABELS = { overlay: "Overlay", content: "Content", bg: "Background" };
   }
 });
@@ -5421,7 +5421,7 @@ function _ensureMeasureContainer() {
 }
 function _elMeasureCacheKey(html, props) {
   const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
-  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || ""]);
+  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || "", props.shrinkWrap || false]);
 }
 async function measure(html, props = {}) {
   const cacheKey = _elMeasureCacheKey(html, props);
@@ -5431,7 +5431,11 @@ async function measure(html, props = {}) {
   _ensureMeasureContainer();
   const div = document.createElement("div");
   div.style.boxSizing = "border-box";
-  if (props.w != null) div.style.width = `${props.w}px`;
+  if (props.w != null) {
+    div.style.width = `${props.w}px`;
+  } else if (props.shrinkWrap) {
+    div.style.display = "inline-block";
+  }
   if (props.className) div.className = props.className;
   if (props.style) {
     const { filtered } = filterStyle(props.style, "el");
@@ -5440,6 +5444,13 @@ async function measure(html, props = {}) {
   div.setAttribute("data-sk-measure", "");
   div.innerHTML = html;
   state.measureContainer.appendChild(div);
+  const FONT_TIMEOUT_MS = 5e3;
+  if (document.fonts?.ready) {
+    await Promise.race([
+      document.fonts.ready,
+      new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
+    ]);
+  }
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
     const IMAGE_TIMEOUT_MS = 3e3;
@@ -5496,10 +5507,22 @@ function centerIn(rectParam) {
   const marker = { _rel: "centerIn", rect: rectParam };
   return { x: marker, y: marker };
 }
-function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
-  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
+function between(refA, refB, { axis, bias = 0.5 }) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
-  return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+  let ref;
+  let ref2;
+  if (typeof refA === "number" && typeof refB === "number") {
+    throw new Error("between() requires at least one element ID reference");
+  } else if (typeof refA === "number") {
+    ref = refB;
+    ref2 = refA;
+    return { _rel: "between", ref, ref2, bias: 1 - clampedBias, axis };
+  } else {
+    ref = refA;
+    ref2 = refB;
+  }
+  return { _rel: "between", ref, ref2, bias: clampedBias, axis };
 }
 function mustGet(map, key, msg) {
   const value = map.get(key);
@@ -7202,18 +7225,301 @@ function deduplicatePoints(points) {
   }
   return result;
 }
+init_debug_state();
+init_debug_overlay();
+init_debug_inspector();
+init_debug_inspector_viewport();
+init_debug_inspector_edit();
+init_debug_inspector_drag();
+init_debug_inspector_constraint();
+init_debug_inspector_pick();
+debugController.callbacks.renderElementDetail = (elementId, slideIndex) => {
+  renderElementDetail(elementId, slideIndex);
+};
+debugController.callbacks.renderDebugOverlay = (options) => {
+  refreshOverlayOnly(options.slideIndex ?? 0);
+};
+debugController.callbacks.refreshOverlayOnly = (slideIndex) => {
+  refreshOverlayOnly(slideIndex);
+};
+debugController.callbacks.renderConstraintDetail = (elementId, axis, slideIndex) => {
+  renderConstraintDetail(elementId, axis, slideIndex);
+};
+function _getCurrentSlideIndex() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.getIndices === "function") {
+    return Reveal.getIndices().h ?? 0;
+  }
+  return 0;
+}
+function _onSlideChanged() {
+  const s = debugController.state;
+  if (s.debugMode === 0) return;
+  const newIndex = _getCurrentSlideIndex();
+  if (newIndex === s.currentSlideIndex) return;
+  s.selectedElementId = null;
+  s.selectedConstraint = null;
+  if (s.pickMode) exitPickMode();
+  const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
+  renderDebugOverlay({ ...s.lastToggleOptions, ...modeOpts, slideIndex: newIndex });
+}
+function _attachSlideChangeListener() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.on === "function") {
+    Reveal.on("slidechanged", _onSlideChanged);
+  }
+}
+function _detachSlideChangeListener() {
+  const Reveal = window.Reveal;
+  if (Reveal && typeof Reveal.off === "function") {
+    Reveal.off("slidechanged", _onSlideChanged);
+  }
+}
+var _CONNECTOR_MIN_HIT = 8;
+function _enableConnectorPointerEvents(layer) {
+  const wrappers = layer.querySelectorAll("[data-sk-id]");
+  for (const el2 of wrappers) {
+    const htmlEl = el2;
+    if (htmlEl.style.pointerEvents === "none" && htmlEl.querySelector("svg")) {
+      htmlEl.style.pointerEvents = "auto";
+      htmlEl.setAttribute("data-sk-debug-pe-override", "true");
+      const w = htmlEl.offsetWidth;
+      const h = htmlEl.offsetHeight;
+      if (w < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - w;
+        htmlEl.setAttribute("data-sk-debug-orig-left", htmlEl.style.left);
+        htmlEl.setAttribute("data-sk-debug-orig-width", htmlEl.style.width);
+        htmlEl.style.left = `${parseFloat(htmlEl.style.left) - expand / 2}px`;
+        htmlEl.style.width = `${_CONNECTOR_MIN_HIT}px`;
+      }
+      if (h < _CONNECTOR_MIN_HIT) {
+        const expand = _CONNECTOR_MIN_HIT - h;
+        htmlEl.setAttribute("data-sk-debug-orig-top", htmlEl.style.top);
+        htmlEl.setAttribute("data-sk-debug-orig-height", htmlEl.style.height);
+        htmlEl.style.top = `${parseFloat(htmlEl.style.top) - expand / 2}px`;
+        htmlEl.style.height = `${_CONNECTOR_MIN_HIT}px`;
+      }
+    }
+  }
+}
+function _restoreConnectorPointerEvents(layer) {
+  const overridden = layer.querySelectorAll("[data-sk-debug-pe-override]");
+  for (const el2 of overridden) {
+    const htmlEl = el2;
+    htmlEl.style.pointerEvents = "none";
+    const origLeft = el2.getAttribute("data-sk-debug-orig-left");
+    const origWidth = el2.getAttribute("data-sk-debug-orig-width");
+    const origTop = el2.getAttribute("data-sk-debug-orig-top");
+    const origHeight = el2.getAttribute("data-sk-debug-orig-height");
+    if (origLeft !== null) {
+      htmlEl.style.left = origLeft;
+      el2.removeAttribute("data-sk-debug-orig-left");
+    }
+    if (origWidth !== null) {
+      htmlEl.style.width = origWidth;
+      el2.removeAttribute("data-sk-debug-orig-width");
+    }
+    if (origTop !== null) {
+      htmlEl.style.top = origTop;
+      el2.removeAttribute("data-sk-debug-orig-top");
+    }
+    if (origHeight !== null) {
+      htmlEl.style.height = origHeight;
+      el2.removeAttribute("data-sk-debug-orig-height");
+    }
+    el2.removeAttribute("data-sk-debug-pe-override");
+  }
+}
+var _DEBUG_MODE_OPTIONS = [
+  {},
+  // placeholder for mode 0 (off)
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: false },
+  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: true },
+  { showBoxes: false, showIds: false, showAnchors: false, showSafeZone: false, showCollisions: false, showRelationships: true }
+];
+function _handleDebugKeydown(event) {
+  const target = event.target;
+  const s = debugController.state;
+  if (target === s.editInputElement) {
+    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
+      return;
+    }
+    if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      undo();
+      return;
+    }
+    return;
+  }
+  if (target) {
+    const tagName = target.tagName;
+    if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
+      return;
+    }
+  }
+  if (event.ctrlKey && event.key === ".") {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleDebugOverlay(s.lastToggleOptions);
+    return;
+  }
+  if (s.inspectorPanel) {
+    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      redo();
+    } else if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
+      event.preventDefault();
+      event.stopPropagation();
+      undo();
+    }
+  }
+}
+function enableKeyboardToggle(options = {}) {
+  const s = debugController.state;
+  s.lastToggleOptions = options;
+  if (s.keyboardListenerAttached) return;
+  document.addEventListener("keydown", _handleDebugKeydown, true);
+  s.keyboardListenerAttached = true;
+}
+function renderDebugOverlay(options = {}) {
+  const slideIndex = options.slideIndex ?? 0;
+  removeDebugOverlay();
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk || !sk.layouts || !sk.layouts[slideIndex]) {
+    console.warn("SlideKit debug overlay: no scene model found. Call render() first.");
+    return null;
+  }
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneElements = layoutResult.elements || {};
+  const collisions = layoutResult.collisions || [];
+  const s_baseline = debugController.state;
+  if (!s_baseline.baselineSceneGraphs[slideIndex]) {
+    s_baseline.baselineSceneGraphs[slideIndex] = JSON.parse(JSON.stringify(sceneElements));
+  }
+  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
+  const targetLayer = slidekitLayers[slideIndex];
+  if (!targetLayer) {
+    console.warn("SlideKit debug overlay: no slidekit-layer found at index", slideIndex);
+    return null;
+  }
+  const slideW = sk._config?.slide?.w ?? 1920;
+  const slideH = sk._config?.slide?.h ?? 1080;
+  const overlay = document.createElement("div");
+  overlay.className = "slidekit-debug-overlay";
+  overlay.setAttribute("data-sk-role", "debug-overlay");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.width = `${slideW}px`;
+  overlay.style.height = `${slideH}px`;
+  overlay.style.pointerEvents = "none";
+  overlay.style.zIndex = "9999";
+  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, options);
+  targetLayer.appendChild(overlay);
+  debugController.state.debugOverlay = overlay;
+  _enableConnectorPointerEvents(targetLayer);
+  const showInspector = options.showInspector !== false;
+  if (showInspector) {
+    const s = debugController.state;
+    s.currentSlideIndex = slideIndex;
+    createInspectorPanel();
+    attachClickHandler();
+    attachDragHandlers();
+    if (s.selectedElementId && sceneElements[s.selectedElementId]) {
+      renderElementDetail(s.selectedElementId, slideIndex);
+      updateSelectionHighlight(s.selectedElementId, slideIndex);
+      renderResizeHandles(s.selectedElementId, slideIndex);
+    }
+  }
+  return overlay;
+}
+function refreshOverlayOnly(slideIndex) {
+  const s = debugController.state;
+  if (s.debugOverlay && s.debugOverlay.parentNode) {
+    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
+  }
+  s.debugOverlay = null;
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  if (!sk?.layouts?.[slideIndex]) return;
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneElements = layoutResult.elements || {};
+  const collisions = layoutResult.collisions || [];
+  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
+  const targetLayer = slidekitLayers[slideIndex];
+  if (!targetLayer) return;
+  const slideW = sk._config?.slide?.w ?? 1920;
+  const slideH = sk._config?.slide?.h ?? 1080;
+  const overlay = document.createElement("div");
+  overlay.className = "slidekit-debug-overlay";
+  overlay.setAttribute("data-sk-role", "debug-overlay");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.top = "0";
+  overlay.style.width = `${slideW}px`;
+  overlay.style.height = `${slideH}px`;
+  overlay.style.pointerEvents = "none";
+  overlay.style.zIndex = "9999";
+  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, s.lastToggleOptions);
+  targetLayer.appendChild(overlay);
+  s.debugOverlay = overlay;
+  _enableConnectorPointerEvents(targetLayer);
+  if (s.selectedElementId) {
+    updateSelectionHighlight(s.selectedElementId, slideIndex);
+  }
+  if (s.selectedConstraint) {
+    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
+  }
+  refreshDragState(slideIndex);
+}
+function removeDebugOverlay() {
+  const s = debugController.state;
+  _detachSlideChangeListener();
+  if (s.pickMode) exitPickMode();
+  clearConstraintSelection();
+  if (s.debugOverlay && s.debugOverlay.parentNode) {
+    _restoreConnectorPointerEvents(s.debugOverlay.parentNode);
+    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
+  }
+  s.debugOverlay = null;
+  removeInspectorPanel();
+  detachClickHandler();
+  detachDragHandlers();
+}
+function isDebugOverlayVisible() {
+  const s = debugController.state;
+  return s.debugOverlay !== null && s.debugOverlay.parentNode !== null;
+}
+function toggleDebugOverlay(options = {}) {
+  const s = debugController.state;
+  if (isDebugOverlayVisible()) {
+    removeDebugOverlay();
+    s.debugMode = 0;
+    return false;
+  } else {
+    const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
+    renderDebugOverlay({ ...s.lastToggleOptions, ...options, slideIndex });
+    _attachSlideChangeListener();
+    s.debugMode = 1;
+    return true;
+  }
+}
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
 }
-var LAYER_ORDER = { bg: 0, content: 1, overlay: 2 };
+var LAYER_ORDER2 = { bg: 0, content: 1, overlay: 2 };
 function computeZOrder(elements) {
   const indexed = elements.map((el2, i) => ({ el: el2, idx: i }));
   indexed.sort((a, b) => {
     const layerKeyA = a.el.props.layer || "content";
     const layerKeyB = b.el.props.layer || "content";
-    const layerA = LAYER_ORDER[layerKeyA] ?? LAYER_ORDER.content;
-    const layerB = LAYER_ORDER[layerKeyB] ?? LAYER_ORDER.content;
+    const layerA = LAYER_ORDER2[layerKeyA] ?? LAYER_ORDER2.content;
+    const layerB = LAYER_ORDER2[layerKeyB] ?? LAYER_ORDER2.content;
     if (layerA !== layerB) return layerA - layerB;
     const zA = a.el.props.z ?? 0;
     const zB = b.el.props.z ?? 0;
@@ -7827,6 +8133,7 @@ async function render(slides, options = {}) {
       return lintDeck(skObj, sectionEls);
     };
     window.sk = skObj;
+    enableKeyboardToggle();
   }
   return { sections, layouts };
 }
@@ -8048,7 +8355,7 @@ function figure(opts = {}) {
   };
   return result;
 }
-function deepClone(obj) {
+function deepClone2(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
   }
@@ -8163,7 +8470,7 @@ function repeat(element, config = {}) {
     const row = Math.floor(i / cols);
     const x = startX + col * (elemW + gapX);
     const y = startY + row * (elemH + gapY);
-    const copy = deepClone(element);
+    const copy = deepClone2(element);
     const suffix = `-${i + 1}`;
     copy.id = `${baseId}${suffix}`;
     _reIdChildren(copy, suffix);
@@ -8236,29 +8543,56 @@ init_helpers();
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
-async function getEffectiveDimensions(element) {
+async function getEffectiveWidth(element) {
   const { props, type } = element;
-  const wIsDeferred = isRelMarker(props.w);
-  const hIsDeferred = isRelMarker(props.h);
-  const effectiveW = wIsDeferred ? 0 : props.w || 0;
-  const effectiveH = hIsDeferred ? 0 : props.h || 0;
-  if (type === "el" && !hIsDeferred && (props.h === void 0 || props.h === null)) {
-    const html = element.content || "";
-    const measureW = wIsDeferred ? void 0 : props.w;
-    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: effectiveW, h: 0, _autoHeight: true };
-    }
-    const metrics = await measure(html, { w: measureW, style: props.style, className: props.className });
-    return { w: effectiveW || metrics.w, h: metrics.h, _autoHeight: true };
+  const wRel = isRelMarker(props.w) ? props.w._rel : null;
+  const hRel = isRelMarker(props.h) ? props.h._rel : null;
+  const wIsDeferred = wRel === "matchWidth";
+  const wIsMatchMax = wRel === "matchMaxWidth";
+  const hIsDeferred = hRel === "matchHeight";
+  const hIsMatchMax = hRel === "matchMaxHeight";
+  const needsAutoHeight = (props.h === void 0 || props.h === null || hIsMatchMax) && !hIsDeferred;
+  if (wIsDeferred) {
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
   }
-  return { w: effectiveW, h: effectiveH, _autoHeight: false };
+  if (wIsMatchMax) {
+    if (type === "el") {
+      const html = element.content || "";
+      if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+        return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+      }
+      const metrics = await measure(html, {
+        style: props.style,
+        className: props.className,
+        shrinkWrap: true
+      });
+      return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+  if (typeof props.w === "number") {
+    return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
+  }
+  if (type === "el") {
+    const html = element.content || "";
+    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+      return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    const metrics = await measure(html, {
+      style: props.style,
+      className: props.className,
+      shrinkWrap: true
+    });
+    return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+  return { w: props.w || 0, wMeasured: false, hMeasured: needsAutoHeight };
 }
 async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, _warnings) {
   const authoredSpecs = /* @__PURE__ */ new Map();
   for (const [id, el2] of flatMap) {
     const spec = {
       type: el2.type,
-      props: deepClone2(el2.props)
+      props: deepClone(el2.props)
     };
     if (el2.type === "el") {
       spec.content = el2.content;
@@ -8282,21 +8616,23 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       el2.props.h = resolvePercentage(el2.props.h, "h");
     }
   }
+  const VALID_W_RELS = /* @__PURE__ */ new Set(["matchWidth", "matchMaxWidth"]);
+  const VALID_H_RELS = /* @__PURE__ */ new Set(["matchHeight", "matchMaxHeight"]);
   for (const [id, el2] of flatMap) {
-    if (isRelMarker(el2.props.w) && el2.props.w._rel !== "matchWidth") {
+    if (isRelMarker(el2.props.w) && !VALID_W_RELS.has(el2.props.w._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "w",
-        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() is valid on w.`
+        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() or matchMaxWidth() are valid on w.`
       });
     }
-    if (isRelMarker(el2.props.h) && el2.props.h._rel !== "matchHeight") {
+    if (isRelMarker(el2.props.h) && !VALID_H_RELS.has(el2.props.h._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "h",
-        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() is valid on h.`
+        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() or matchMaxHeight() are valid on h.`
       });
     }
   }
@@ -8306,12 +8642,13 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   }
   for (const [id, el2] of flatMap) {
     if (el2.type === "vstack" || el2.type === "hstack") continue;
-    const dims = await getEffectiveDimensions(el2);
+    const widthInfo = await getEffectiveWidth(el2);
     resolvedSizes.set(id, {
-      w: dims.w,
-      h: dims.h,
-      wMeasured: el2.type === "el" && (el2.props.w === void 0 || el2.props.w === null),
-      hMeasured: dims._autoHeight
+      w: widthInfo.w,
+      h: 0,
+      // placeholder — resolved in Step D
+      wMeasured: widthInfo.wMeasured,
+      hMeasured: widthInfo.hMeasured
     });
   }
   const pendingStacks = /* @__PURE__ */ new Set();
@@ -8326,7 +8663,6 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
     for (const stackId of pendingStacks) {
       const el2 = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
       const childIds = stackChildren.get(stackId) || [];
-      const gap = resolveSpacing(el2.props.gap ?? 0);
       const stackW = el2.props.w ?? 0;
       let allChildrenSized = true;
       for (const cid of childIds) {
@@ -8345,15 +8681,8 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
             break;
           }
           if (childStack && resolvedSizes.has(childStack.id)) {
-            const stackSizes = resolvedSizes.get(childStack.id);
-            const autoH = config.panelH ?? stackSizes.h + 2 * config.padding;
             const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
-            panelSizes.h = autoH;
             if (config.panelW != null) panelSizes.w = config.panelW;
-            const bgRect = panelChildren[0];
-            if (bgRect && resolvedSizes.has(bgRect.id)) {
-              resolvedSizes.get(bgRect.id).h = autoH;
-            }
           }
         }
       }
@@ -8363,52 +8692,35 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
           if ((child.props.w === void 0 || child.props.w === null) && stackW > 0) {
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
-            if (child.type === "el") {
-              const html = child.content || "";
-              if (html || child.props.style && Object.keys(child.props.style).length > 0) {
-                const metrics = await measure(html, { ...child.props, w: stackW });
-                childSize.w = stackW;
-                childSize.h = metrics.h;
-                childSize.hMeasured = true;
-              } else {
-                childSize.w = stackW;
-              }
-            } else {
-              childSize.w = stackW;
-            }
+            childSize.w = stackW;
           }
         }
-        let totalH = 0;
         let maxW = 0;
-        for (let i = 0; i < childIds.length; i++) {
-          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
-          totalH += cs.h;
-          if (i > 0) totalH += gap;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
           maxW = Math.max(maxW, cs.w);
         }
         const finalW = stackW || maxW;
-        const finalH = el2.props.h !== void 0 && el2.props.h !== null ? el2.props.h : totalH;
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,
+          // placeholder — resolved in Step D
           wMeasured: false,
           hMeasured: el2.props.h === void 0 || el2.props.h === null
         });
       } else {
-        const stackH = el2.props.h ?? 0;
+        const gap = resolveSpacing(el2.props.gap ?? 0);
         let totalW = 0;
-        let maxH = 0;
         for (let i = 0; i < childIds.length; i++) {
           const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing hstack child: ${childIds[i]}`);
           totalW += cs.w;
           if (i > 0) totalW += gap;
-          maxH = Math.max(maxH, cs.h);
         }
         const finalW = el2.props.w !== void 0 && el2.props.w !== null ? el2.props.w : totalW;
-        const finalH = stackH || maxH;
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,
+          // placeholder — resolved in Step D
           wMeasured: el2.props.w === void 0 || el2.props.w === null,
           hMeasured: el2.props.h === void 0 || el2.props.h === null
         });
@@ -8424,6 +8736,201 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       message: `Could not resolve sizes for stacks: ${Array.from(pendingStacks).join(", ")}`
     });
     return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  const maxWidthGroups = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchMaxWidth") {
+      const group2 = el2.props.w.group;
+      if (!maxWidthGroups.has(group2)) maxWidthGroups.set(group2, []);
+      maxWidthGroups.get(group2).push(id);
+    }
+  }
+  for (const [, ids] of maxWidthGroups) {
+    let maxW = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.w > maxW) maxW = s.w;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.w = maxW;
+    }
+  }
+  const matchWidthElements = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchWidth") {
+      const refId = el2.props.w.ref;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "w",
+          ref: refId,
+          message: `Element "${id}": w references unknown element "${refId}"`
+        });
+        continue;
+      }
+      matchWidthElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchWidthElements.size > 0) {
+    let visitWidth2 = function(id) {
+      if (visited.has(id)) return true;
+      if (visiting.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "w",
+          message: `Element "${id}": circular matchWidthOf dependency detected`
+        });
+        return false;
+      }
+      visiting.add(id);
+      for (const dep of widthDeps.get(id) || []) {
+        if (!visitWidth2(dep)) return false;
+      }
+      visiting.delete(id);
+      visited.add(id);
+      widthOrder.push(id);
+      return true;
+    };
+    var visitWidth = visitWidth2;
+    const widthDeps = /* @__PURE__ */ new Map();
+    const allWidthIds = /* @__PURE__ */ new Set();
+    for (const [id, refId] of matchWidthElements) {
+      allWidthIds.add(id);
+      allWidthIds.add(refId);
+      if (!widthDeps.has(id)) widthDeps.set(id, /* @__PURE__ */ new Set());
+      widthDeps.get(id).add(refId);
+    }
+    for (const id of allWidthIds) {
+      if (!widthDeps.has(id)) widthDeps.set(id, /* @__PURE__ */ new Set());
+    }
+    const widthOrder = [];
+    const visited = /* @__PURE__ */ new Set();
+    const visiting = /* @__PURE__ */ new Set();
+    for (const id of allWidthIds) {
+      visitWidth2(id);
+    }
+    for (const id of widthOrder) {
+      const refId = matchWidthElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.w = refSizes.w;
+      }
+    }
+  }
+  for (const [id, el2] of flatMap) {
+    if (el2.type === "vstack" || el2.type === "hstack") continue;
+    const sizes = resolvedSizes.get(id);
+    if (!sizes) continue;
+    if (sizes.hMeasured && el2.type === "el") {
+      const html = el2.content || "";
+      if (!html && (!el2.props.style || Object.keys(el2.props.style).length === 0)) {
+        sizes.h = 0;
+        continue;
+      }
+      const metrics = await measure(html, {
+        w: sizes.w ?? void 0,
+        style: el2.props.style,
+        className: el2.props.className
+      });
+      sizes.h = metrics.h;
+    } else if (!sizes.hMeasured) {
+      const hRel = isRelMarker(el2.props.h) ? el2.props.h._rel : null;
+      const hIsDeferred = hRel === "matchHeight";
+      const hIsMatchMax = hRel === "matchMaxHeight";
+      if (hIsDeferred) {
+        sizes.h = 0;
+      } else if (hIsMatchMax) {
+        sizes.h = 0;
+      } else {
+        sizes.h = el2.props.h || 0;
+      }
+    }
+  }
+  const pendingStacksH = /* @__PURE__ */ new Set();
+  for (const [id, el2] of flatMap) {
+    if (el2.type === "vstack" || el2.type === "hstack") {
+      pendingStacksH.add(id);
+    }
+  }
+  progress = true;
+  while (pendingStacksH.size > 0 && progress) {
+    progress = false;
+    for (const stackId of pendingStacksH) {
+      const el2 = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+      const childIds = stackChildren.get(stackId) || [];
+      const gap = resolveSpacing(el2.props.gap ?? 0);
+      let allChildrenReady = true;
+      for (const cid of childIds) {
+        if (!resolvedSizes.has(cid)) {
+          allChildrenReady = false;
+          break;
+        }
+        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
+        if (isPanelElement(childEl)) {
+          const config = childEl._panelConfig;
+          if (!config) continue;
+          const panelChildren = childEl.children || [];
+          const childStack = panelChildren[1];
+          if (childStack && !resolvedSizes.has(childStack.id)) {
+            allChildrenReady = false;
+            break;
+          }
+          if (childStack && (childEl.children[1].type === "vstack" || childEl.children[1].type === "hstack")) {
+            if (pendingStacksH.has(childStack.id)) {
+              allChildrenReady = false;
+              break;
+            }
+          }
+          if (childStack && resolvedSizes.has(childStack.id)) {
+            const stackSizes2 = resolvedSizes.get(childStack.id);
+            const autoH = config.panelH ?? stackSizes2.h + 2 * config.padding;
+            const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
+            panelSizes.h = autoH;
+            if (config.panelW != null) panelSizes.w = config.panelW;
+            const bgRect = panelChildren[0];
+            if (bgRect && resolvedSizes.has(bgRect.id)) {
+              resolvedSizes.get(bgRect.id).h = autoH;
+            }
+          }
+        }
+      }
+      if (!allChildrenReady) continue;
+      const stackSizes = mustGet(resolvedSizes, stackId, `resolvedSizes missing stack: ${stackId}`);
+      if (el2.type === "vstack") {
+        let totalH = 0;
+        let maxW = 0;
+        for (let i = 0; i < childIds.length; i++) {
+          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
+          totalH += cs.h;
+          if (i > 0) totalH += gap;
+          maxW = Math.max(maxW, cs.w);
+        }
+        const finalH = el2.props.h !== void 0 && el2.props.h !== null ? el2.props.h : totalH;
+        stackSizes.h = finalH;
+        const stackW = el2.props.w ?? 0;
+        if (!stackW && maxW > stackSizes.w) {
+          stackSizes.w = maxW;
+        }
+      } else {
+        const stackH = el2.props.h ?? 0;
+        let maxH = 0;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
+          maxH = Math.max(maxH, cs.h);
+        }
+        stackSizes.h = stackH || maxH;
+      }
+      pendingStacksH.delete(stackId);
+      progress = true;
+    }
   }
   for (const [id, el2] of flatMap) {
     if (!isPanelElement(el2)) continue;
@@ -8483,6 +8990,94 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       resolvedSizes.set(id, { w: hugW, h: hugH, wMeasured: false, hMeasured: false });
     }
   }
+  const maxHeightGroups = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchMaxHeight") {
+      const group2 = el2.props.h.group;
+      if (!maxHeightGroups.has(group2)) maxHeightGroups.set(group2, []);
+      maxHeightGroups.get(group2).push(id);
+    }
+  }
+  for (const [, ids] of maxHeightGroups) {
+    let maxH = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.h > maxH) maxH = s.h;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.h = maxH;
+    }
+  }
+  const matchHeightElements = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchHeight") {
+      const refId = el2.props.h.ref;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "h",
+          ref: refId,
+          message: `Element "${id}": h references unknown element "${refId}"`
+        });
+        continue;
+      }
+      matchHeightElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchHeightElements.size > 0) {
+    let visitHeight2 = function(id) {
+      if (visitedH.has(id)) return true;
+      if (visitingH.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "h",
+          message: `Element "${id}": circular matchHeightOf dependency detected`
+        });
+        return false;
+      }
+      visitingH.add(id);
+      for (const dep of heightDeps.get(id) || []) {
+        if (!visitHeight2(dep)) return false;
+      }
+      visitingH.delete(id);
+      visitedH.add(id);
+      heightOrder.push(id);
+      return true;
+    };
+    var visitHeight = visitHeight2;
+    const heightDeps = /* @__PURE__ */ new Map();
+    const allHeightIds = /* @__PURE__ */ new Set();
+    for (const [id, refId] of matchHeightElements) {
+      allHeightIds.add(id);
+      allHeightIds.add(refId);
+      if (!heightDeps.has(id)) heightDeps.set(id, /* @__PURE__ */ new Set());
+      heightDeps.get(id).add(refId);
+    }
+    for (const id of allHeightIds) {
+      if (!heightDeps.has(id)) heightDeps.set(id, /* @__PURE__ */ new Set());
+    }
+    const heightOrder = [];
+    const visitedH = /* @__PURE__ */ new Set();
+    const visitingH = /* @__PURE__ */ new Set();
+    for (const id of allHeightIds) {
+      visitHeight2(id);
+    }
+    for (const id of heightOrder) {
+      const refId = matchHeightElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.h = refSizes.h;
+      }
+    }
+  }
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 init_helpers();
@@ -8529,25 +9124,6 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           });
         } else {
           depSet.add(yRef);
-        }
-      }
-      for (const prop of ["w", "h"]) {
-        const marker = el2.props[prop];
-        if (isRelMarker(marker) && (marker._rel === "matchWidth" || marker._rel === "matchHeight")) {
-          const dimRef = marker.ref;
-          if (dimRef) {
-            if (!flatMap.has(dimRef)) {
-              errors.push({
-                type: "unknown_ref",
-                elementId: id,
-                property: prop,
-                ref: dimRef,
-                message: `Element "${id}": ${prop} references unknown element "${dimRef}"`
-              });
-            } else {
-              depSet.add(dimRef);
-            }
-          }
         }
       }
       for (const prop of ["x", "y"]) {
@@ -8655,18 +9231,6 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
-    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchWidth") {
-      const marker = el2.props.w;
-      const refId = marker.ref;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchWidth: ${refId}`);
-      sizes.w = refSizes.w;
-    }
-    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchHeight") {
-      const marker = el2.props.h;
-      const refId = marker.ref;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchHeight: ${refId}`);
-      sizes.h = refSizes.h;
-    }
     const w = sizes.w;
     const h = sizes.h;
     let finalX, finalY;
@@ -9618,7 +10182,7 @@ async function layout(slideDefinition, options = {}) {
   if (hasErrors) {
     return {
       elements: {},
-      transforms: deepClone2(transforms),
+      transforms: deepClone(transforms),
       warnings,
       errors,
       collisions: []
@@ -9628,7 +10192,7 @@ async function layout(slideDefinition, options = {}) {
   if (!phase2Result) {
     return {
       elements: {},
-      transforms: deepClone2(transforms),
+      transforms: deepClone(transforms),
       warnings,
       errors,
       collisions: []
@@ -9643,7 +10207,7 @@ async function layout(slideDefinition, options = {}) {
       resolvedTransforms.push(t);
       continue;
     }
-    const transformCopy = deepClone2(t);
+    const transformCopy = deepClone(t);
     if (!transformCopy._transformId) {
       transformCopy._transformId = nextTransformId();
     }
@@ -9741,6 +10305,81 @@ async function layout(slideDefinition, options = {}) {
       });
     }
   }
+  {
+    let heightsChanged = false;
+    for (const [id, bounds] of resolvedBounds) {
+      const preBounds = preTransformBounds.get(id);
+      if (!preBounds) continue;
+      if (bounds.w === preBounds.w) continue;
+      const sizes = resolvedSizes.get(id);
+      if (!sizes || !sizes.hMeasured) continue;
+      const el2 = flatMap.get(id);
+      if (!el2 || el2.type !== "el") continue;
+      const html = el2.content || "";
+      if (!html && (!el2.props.style || Object.keys(el2.props.style).length === 0)) continue;
+      const metrics = await measure(html, {
+        w: bounds.w,
+        style: el2.props.style,
+        className: el2.props.className
+      });
+      if (metrics.h !== bounds.h) {
+        bounds.h = metrics.h;
+        sizes.h = metrics.h;
+        heightsChanged = true;
+      }
+    }
+    if (heightsChanged) {
+      for (const [stackId, childIds] of stackChildren) {
+        const stackEl = flatMap.get(stackId);
+        if (!stackEl) continue;
+        const stackBounds = resolvedBounds.get(stackId);
+        const stackSizes = resolvedSizes.get(stackId);
+        if (!stackBounds || !stackSizes) continue;
+        if (!stackSizes.hMeasured) continue;
+        const gap = resolveSpacing(stackEl.props.gap ?? 0);
+        if (stackEl.type === "vstack") {
+          let totalH = 0;
+          for (let i = 0; i < childIds.length; i++) {
+            const cs = resolvedBounds.get(childIds[i]);
+            if (cs) totalH += cs.h;
+            if (i > 0) totalH += gap;
+          }
+          stackBounds.h = totalH;
+          stackSizes.h = totalH;
+        } else if (stackEl.type === "hstack") {
+          let maxH = 0;
+          for (const cid of childIds) {
+            const cs = resolvedBounds.get(cid);
+            if (cs && cs.h > maxH) maxH = cs.h;
+          }
+          stackBounds.h = maxH;
+          stackSizes.h = maxH;
+        }
+      }
+      for (const [id, el2] of flatMap) {
+        if (!isPanelElement(el2)) continue;
+        const config = el2._panelConfig;
+        if (!config || config.panelH != null) continue;
+        const panelChildren = el2.children || [];
+        const childStack = panelChildren[1];
+        const bgRect = panelChildren[0];
+        if (!childStack) continue;
+        const stackBounds = resolvedBounds.get(childStack.id);
+        if (!stackBounds) continue;
+        const autoH = stackBounds.h + 2 * config.padding;
+        const panelBounds = resolvedBounds.get(id);
+        const panelSizes = resolvedSizes.get(id);
+        if (panelBounds) panelBounds.h = autoH;
+        if (panelSizes) panelSizes.h = autoH;
+        if (bgRect) {
+          const bgBounds = resolvedBounds.get(bgRect.id);
+          const bgSizes = resolvedSizes.get(bgRect.id);
+          if (bgBounds) bgBounds.h = autoH;
+          if (bgSizes) bgSizes.h = autoH;
+        }
+      }
+    }
+  }
   if (state.fontWarnings && state.fontWarnings.length > 0) {
     warnings.push(...state.fontWarnings);
     state.fontWarnings = [];
@@ -9762,289 +10401,6 @@ async function layout(slideDefinition, options = {}) {
     errors,
     collisionThreshold
   });
-}
-init_debug_state();
-init_debug_overlay();
-init_debug_inspector();
-init_debug_inspector_viewport();
-init_debug_inspector_edit();
-init_debug_inspector_drag();
-init_debug_inspector_constraint();
-init_debug_inspector_pick();
-debugController.callbacks.renderElementDetail = (elementId, slideIndex) => {
-  renderElementDetail(elementId, slideIndex);
-};
-debugController.callbacks.renderDebugOverlay = (options) => {
-  refreshOverlayOnly(options.slideIndex ?? 0);
-};
-debugController.callbacks.refreshOverlayOnly = (slideIndex) => {
-  refreshOverlayOnly(slideIndex);
-};
-debugController.callbacks.renderConstraintDetail = (elementId, axis, slideIndex) => {
-  renderConstraintDetail(elementId, axis, slideIndex);
-};
-function _getCurrentSlideIndex() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.getIndices === "function") {
-    return Reveal.getIndices().h ?? 0;
-  }
-  return 0;
-}
-function _onSlideChanged() {
-  const s = debugController.state;
-  if (s.debugMode === 0) return;
-  const newIndex = _getCurrentSlideIndex();
-  if (newIndex === s.currentSlideIndex) return;
-  s.selectedElementId = null;
-  s.selectedConstraint = null;
-  if (s.pickMode) exitPickMode();
-  const modeOpts = _DEBUG_MODE_OPTIONS[s.debugMode];
-  renderDebugOverlay({ ...s.lastToggleOptions, ...modeOpts, slideIndex: newIndex });
-}
-function _attachSlideChangeListener() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.on === "function") {
-    Reveal.on("slidechanged", _onSlideChanged);
-  }
-}
-function _detachSlideChangeListener() {
-  const Reveal = window.Reveal;
-  if (Reveal && typeof Reveal.off === "function") {
-    Reveal.off("slidechanged", _onSlideChanged);
-  }
-}
-var _CONNECTOR_MIN_HIT = 8;
-function _enableConnectorPointerEvents(layer) {
-  const wrappers = layer.querySelectorAll("[data-sk-id]");
-  for (const el2 of wrappers) {
-    const htmlEl = el2;
-    if (htmlEl.style.pointerEvents === "none" && htmlEl.querySelector("svg")) {
-      htmlEl.style.pointerEvents = "auto";
-      htmlEl.setAttribute("data-sk-debug-pe-override", "true");
-      const w = htmlEl.offsetWidth;
-      const h = htmlEl.offsetHeight;
-      if (w < _CONNECTOR_MIN_HIT) {
-        const expand = _CONNECTOR_MIN_HIT - w;
-        htmlEl.setAttribute("data-sk-debug-orig-left", htmlEl.style.left);
-        htmlEl.setAttribute("data-sk-debug-orig-width", htmlEl.style.width);
-        htmlEl.style.left = `${parseFloat(htmlEl.style.left) - expand / 2}px`;
-        htmlEl.style.width = `${_CONNECTOR_MIN_HIT}px`;
-      }
-      if (h < _CONNECTOR_MIN_HIT) {
-        const expand = _CONNECTOR_MIN_HIT - h;
-        htmlEl.setAttribute("data-sk-debug-orig-top", htmlEl.style.top);
-        htmlEl.setAttribute("data-sk-debug-orig-height", htmlEl.style.height);
-        htmlEl.style.top = `${parseFloat(htmlEl.style.top) - expand / 2}px`;
-        htmlEl.style.height = `${_CONNECTOR_MIN_HIT}px`;
-      }
-    }
-  }
-}
-function _restoreConnectorPointerEvents(layer) {
-  const overridden = layer.querySelectorAll("[data-sk-debug-pe-override]");
-  for (const el2 of overridden) {
-    const htmlEl = el2;
-    htmlEl.style.pointerEvents = "none";
-    const origLeft = el2.getAttribute("data-sk-debug-orig-left");
-    const origWidth = el2.getAttribute("data-sk-debug-orig-width");
-    const origTop = el2.getAttribute("data-sk-debug-orig-top");
-    const origHeight = el2.getAttribute("data-sk-debug-orig-height");
-    if (origLeft !== null) {
-      htmlEl.style.left = origLeft;
-      el2.removeAttribute("data-sk-debug-orig-left");
-    }
-    if (origWidth !== null) {
-      htmlEl.style.width = origWidth;
-      el2.removeAttribute("data-sk-debug-orig-width");
-    }
-    if (origTop !== null) {
-      htmlEl.style.top = origTop;
-      el2.removeAttribute("data-sk-debug-orig-top");
-    }
-    if (origHeight !== null) {
-      htmlEl.style.height = origHeight;
-      el2.removeAttribute("data-sk-debug-orig-height");
-    }
-    el2.removeAttribute("data-sk-debug-pe-override");
-  }
-}
-var _DEBUG_MODE_OPTIONS = [
-  {},
-  // placeholder for mode 0 (off)
-  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: false },
-  { showBoxes: true, showIds: true, showAnchors: true, showSafeZone: true, showCollisions: true, showRelationships: true },
-  { showBoxes: false, showIds: false, showAnchors: false, showSafeZone: false, showCollisions: false, showRelationships: true }
-];
-function _handleDebugKeydown(event) {
-  const target = event.target;
-  const s = debugController.state;
-  if (target === s.editInputElement) {
-    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      redo();
-      return;
-    }
-    if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      undo();
-      return;
-    }
-    return;
-  }
-  if (target) {
-    const tagName = target.tagName;
-    if (tagName === "INPUT" || tagName === "TEXTAREA" || target.isContentEditable) {
-      return;
-    }
-  }
-  if (event.ctrlKey && event.key === ".") {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleDebugOverlay(s.lastToggleOptions);
-    return;
-  }
-  if (s.inspectorPanel) {
-    if (event.ctrlKey && event.shiftKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      redo();
-    } else if (event.ctrlKey && (event.key === "z" || event.key === "Z")) {
-      event.preventDefault();
-      event.stopPropagation();
-      undo();
-    }
-  }
-}
-function enableKeyboardToggle(options = {}) {
-  const s = debugController.state;
-  s.lastToggleOptions = options;
-  if (s.keyboardListenerAttached) return;
-  document.addEventListener("keydown", _handleDebugKeydown, true);
-  s.keyboardListenerAttached = true;
-}
-function renderDebugOverlay(options = {}) {
-  const slideIndex = options.slideIndex ?? 0;
-  removeDebugOverlay();
-  const sk = typeof window !== "undefined" ? window.sk : null;
-  if (!sk || !sk.layouts || !sk.layouts[slideIndex]) {
-    console.warn("SlideKit debug overlay: no scene model found. Call render() first.");
-    return null;
-  }
-  const layoutResult = sk.layouts[slideIndex];
-  const sceneElements = layoutResult.elements || {};
-  const collisions = layoutResult.collisions || [];
-  const s_baseline = debugController.state;
-  if (!s_baseline.baselineSceneGraphs[slideIndex]) {
-    s_baseline.baselineSceneGraphs[slideIndex] = JSON.parse(JSON.stringify(sceneElements));
-  }
-  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
-  const targetLayer = slidekitLayers[slideIndex];
-  if (!targetLayer) {
-    console.warn("SlideKit debug overlay: no slidekit-layer found at index", slideIndex);
-    return null;
-  }
-  const slideW = sk._config?.slide?.w ?? 1920;
-  const slideH = sk._config?.slide?.h ?? 1080;
-  const overlay = document.createElement("div");
-  overlay.className = "slidekit-debug-overlay";
-  overlay.setAttribute("data-sk-role", "debug-overlay");
-  overlay.style.position = "absolute";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.width = `${slideW}px`;
-  overlay.style.height = `${slideH}px`;
-  overlay.style.pointerEvents = "none";
-  overlay.style.zIndex = "9999";
-  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, options);
-  targetLayer.appendChild(overlay);
-  debugController.state.debugOverlay = overlay;
-  _enableConnectorPointerEvents(targetLayer);
-  const showInspector = options.showInspector !== false;
-  if (showInspector) {
-    const s = debugController.state;
-    s.currentSlideIndex = slideIndex;
-    createInspectorPanel();
-    attachClickHandler();
-    attachDragHandlers();
-    if (s.selectedElementId && sceneElements[s.selectedElementId]) {
-      renderElementDetail(s.selectedElementId, slideIndex);
-      updateSelectionHighlight(s.selectedElementId, slideIndex);
-      renderResizeHandles(s.selectedElementId, slideIndex);
-    }
-  }
-  return overlay;
-}
-function refreshOverlayOnly(slideIndex) {
-  const s = debugController.state;
-  if (s.debugOverlay && s.debugOverlay.parentNode) {
-    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
-  }
-  s.debugOverlay = null;
-  const sk = typeof window !== "undefined" ? window.sk : null;
-  if (!sk?.layouts?.[slideIndex]) return;
-  const layoutResult = sk.layouts[slideIndex];
-  const sceneElements = layoutResult.elements || {};
-  const collisions = layoutResult.collisions || [];
-  const slidekitLayers = document.querySelectorAll(".slidekit-layer");
-  const targetLayer = slidekitLayers[slideIndex];
-  if (!targetLayer) return;
-  const slideW = sk._config?.slide?.w ?? 1920;
-  const slideH = sk._config?.slide?.h ?? 1080;
-  const overlay = document.createElement("div");
-  overlay.className = "slidekit-debug-overlay";
-  overlay.setAttribute("data-sk-role", "debug-overlay");
-  overlay.style.position = "absolute";
-  overlay.style.left = "0";
-  overlay.style.top = "0";
-  overlay.style.width = `${slideW}px`;
-  overlay.style.height = `${slideH}px`;
-  overlay.style.pointerEvents = "none";
-  overlay.style.zIndex = "9999";
-  buildOverlayContent(overlay, sceneElements, collisions, sk, slideW, slideH, s.lastToggleOptions);
-  targetLayer.appendChild(overlay);
-  s.debugOverlay = overlay;
-  _enableConnectorPointerEvents(targetLayer);
-  if (s.selectedElementId) {
-    updateSelectionHighlight(s.selectedElementId, slideIndex);
-  }
-  if (s.selectedConstraint) {
-    updateConstraintHighlight(s.selectedConstraint.elementId, s.selectedConstraint.axis, slideIndex);
-  }
-  refreshDragState(slideIndex);
-}
-function removeDebugOverlay() {
-  const s = debugController.state;
-  _detachSlideChangeListener();
-  if (s.pickMode) exitPickMode();
-  clearConstraintSelection();
-  if (s.debugOverlay && s.debugOverlay.parentNode) {
-    _restoreConnectorPointerEvents(s.debugOverlay.parentNode);
-    s.debugOverlay.parentNode.removeChild(s.debugOverlay);
-  }
-  s.debugOverlay = null;
-  removeInspectorPanel();
-  detachClickHandler();
-  detachDragHandlers();
-}
-function isDebugOverlayVisible() {
-  const s = debugController.state;
-  return s.debugOverlay !== null && s.debugOverlay.parentNode !== null;
-}
-function toggleDebugOverlay(options = {}) {
-  const s = debugController.state;
-  if (isDebugOverlayVisible()) {
-    removeDebugOverlay();
-    s.debugMode = 0;
-    return false;
-  } else {
-    const slideIndex = options.slideIndex ?? _getCurrentSlideIndex();
-    renderDebugOverlay({ ...s.lastToggleOptions, ...options, slideIndex });
-    _attachSlideChangeListener();
-    s.debugMode = 1;
-    return true;
-  }
 }
 _setLayoutFn(layout);
 
@@ -10191,7 +10547,7 @@ async function run() {
           x: 960,
           y: 880,
           anchor: "bc",
-          gap: 16,
+          gap: "md",
           align: "middle"
         }),
         // Decorative rotated rectangle (bottom-right)
@@ -10333,7 +10689,7 @@ async function run() {
               id: "s3-code-panel",
               w: left.w,
               padding: "md",
-              gap: 8,
+              gap: "sm",
               fill: "rgba(0,255,136,0.04)",
               radius: 12,
               border: `1px solid rgba(0,255,136,0.15)`
@@ -10717,14 +11073,14 @@ w: 800, h: 400`,
           (() => {
             const b = mkBox("D", "s6-boxD", C.accent4);
             b.props.x = leftOf("s6-boxA", { gap: 40 });
-            b.props.y = above("s6-boxA", { gap: 24 });
+            b.props.y = above("s6-boxA", { gap: "lg" });
             return b;
           })(),
           // Box E — placed between A and B, offset right
           (() => {
             const b = mkBox("E", "s6-boxE", "rgba(255,255,255,0.6)");
             b.props.x = 700;
-            b.props.y = placeBetween("s6-boxA", "s6-boxB");
+            b.props.y = between("s6-boxA", "s6-boxB", { axis: "y" });
             return b;
           })(),
           // Connectors
@@ -10746,21 +11102,21 @@ w: 800, h: 400`,
           }),
           // Code labels next to each box
           codeLabel("below('A', {gap:150})", "s6-labelB", C.accent2, {
-            x: leftOf("s6-boxB", { gap: 16 }),
+            x: leftOf("s6-boxB", { gap: "md" }),
             y: centerVWith("s6-boxB"),
             style: { textAlign: "right" }
           }),
           codeLabel("rightOf('A') + alignTopWith('A')", "s6-labelC", C.accent3, {
-            x: rightOf("s6-boxC", { gap: 16 }),
+            x: rightOf("s6-boxC", { gap: "md" }),
             y: centerVWith("s6-boxC")
           }),
           codeLabel("leftOf('A') + above('A')", "s6-labelD", C.accent4, {
-            x: leftOf("s6-boxD", { gap: 16 }),
+            x: leftOf("s6-boxD", { gap: "md" }),
             y: centerVWith("s6-boxD"),
             style: { textAlign: "right" }
           }),
-          codeLabel("placeBetween('A', 'B')", "s6-labelE", C.textSec, {
-            x: rightOf("s6-boxE", { gap: 16 }),
+          codeLabel("between('A', 'B', {axis:'y'})", "s6-labelE", C.textSec, {
+            x: rightOf("s6-boxE", { gap: "md" }),
             y: centerVWith("s6-boxE")
           }),
           // centerIn() demo — outlined rect with centered label
@@ -10819,14 +11175,14 @@ w: 800, h: 400`,
               ], {
                 id: `s7-vs-${align}`,
                 w: 160,
-                gap: 8,
+                gap: "sm",
                 align
               })
             ], {
               id: panelId,
               w: left.w,
               padding: "sm",
-              gap: 8,
+              gap: "sm",
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`
@@ -10847,14 +11203,14 @@ w: 800, h: 400`,
               ], {
                 id: `s7-hs-${align}`,
                 h: 80,
-                gap: 8,
+                gap: "sm",
                 align
               })
             ], {
               id: `s7-hs-panel-${align}`,
               w: right.w,
               padding: "sm",
-              gap: 8,
+              gap: "sm",
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`
@@ -11906,7 +12262,7 @@ w: 800, h: 400`,
             })
           ], {
             id: "s14-mini-group",
-            x: placeBetween("s14-measure-panel", "s14-valid-panel"),
+            x: between("s14-measure-panel", "s14-valid-panel", { axis: "x" }),
             y: below("s14-measure-panel", { gap: "lg" }),
             w: 400,
             h: 225,

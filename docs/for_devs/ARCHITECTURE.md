@@ -283,32 +283,36 @@ The same pipeline runs, minus the DOM rendering. This is useful for inspecting t
 
 **File:** `src/layout/intrinsics.ts` -- `resolveIntrinsicSizes()`
 
-Phase 1 determines how big every element is before knowing where it goes. This phase runs asynchronously because it may call `measure()` for DOM-based text measurement.
+Phase 1 determines how big every element is before knowing where it goes. This phase runs asynchronously because it may call `measure()` for DOM-based text measurement. It uses a **widths-first** pipeline that resolves all widths before measuring heights, ensuring auto-heights are always measured at the element's final width.
+
+The widths-first pipeline runs in five steps:
+
+| Step | What it does |
+|------|-------------|
+| **A** | Deep-clone authored specs, resolve percentage strings on x/y/w/h, validate `_rel` markers on dimensions |
+| **B** | Resolve intrinsic widths only (no heights yet). `getEffectiveWidth()` measures natural width for `el()` without explicit `w`. Heights are set to placeholder 0. |
+| **C** | Resolve width constraints: `matchMaxWidth` groups pick the max natural width, `matchWidthOf` chains copy the referenced element's width. |
+| **D** | Measure auto-heights at finalized widths. Now that every element has its final width, `measure(html, { w })` produces correct wrapped-text heights. Stack sizes (bottom-up iterative), panel auto-heights, and group hug bounds are computed here. |
+| **E** | Resolve height constraints: `matchMaxHeight` groups and `matchHeightOf` chains, same logic as Step C but for heights. |
 
 ```mermaid
 flowchart TD
-    A[Start Phase 1] --> B[Deep-clone authored specs]
-    B --> C[Resolve percentage strings<br/>on x, y, w, h]
-    C --> D{_rel marker<br/>on w or h?}
-    D -->|Yes, matchWidth/matchHeight| D2[Resolve dimension constraint]
-    D -->|Yes, other| E[Error: invalid_rel_on_dimension]
-    D -->|No| F[Measure non-stack elements<br/>via getEffectiveDimensions]
-    D2 --> F
-    F --> G[Iterative bottom-up<br/>stack size computation]
-    G --> H{All stacks resolved?}
-    H -->|No, stuck| I[Error: unresolvable_stack_sizes]
-    H -->|Yes| J[Panel auto-height:<br/>stackH + 2 * padding]
-    J --> K["Group hug bounds:<br/>AABB of children"]
-    K --> L[Return authoredSpecs,<br/>resolvedSizes]
+    A["Step A: Clone specs,<br/>resolve percentages,<br/>validate markers"] --> B["Step B: Resolve intrinsic<br/>widths only (h=0 placeholder)"]
+    B --> C["Step C: Width constraints<br/>(matchMaxWidth, matchWidthOf)"]
+    C --> D["Step D: Measure auto-heights<br/>at finalized widths"]
+    D --> D2["Stack sizes (bottom-up),<br/>panel auto-height,<br/>group hug bounds"]
+    D2 --> E["Step E: Height constraints<br/>(matchMaxHeight, matchHeightOf)"]
+    E --> F[Return authoredSpecs,<br/>resolvedSizes]
 ```
 
 **Key details:**
 
-- **`getEffectiveDimensions(element)`**: For `el()` without explicit `h`, calls `measure(html, props)` to get the rendered height. Returns `{ w, h, _autoHeight: boolean }`.
-- **Stack size computation**: Iterative bottom-up. A stack can only be sized once all its children have known sizes. The loop processes stacks whose children are fully resolved, then repeats until all stacks are done. Nested stacks resolve naturally: inner stacks resolve first, then outer stacks.
-- **Panel auto-height**: For panel compounds without explicit `h`, the panel height is computed as `innerVstackHeight + 2 * padding`. The background rect height is updated to match.
-- **Hug bounds**: Groups with `bounds: "hug"` compute their `w`/`h` from the axis-aligned bounding box of their children (only children with resolved numeric positions; `_rel` markers are skipped).
-- **Percentage resolution**: Strings like `"50%"` and `"safe:25%"` are resolved to pixel values using `resolvePercentage()`. This runs before validation, so downstream phases always see numbers.
+- **Why widths-first?** In the previous pipeline, widths and heights were measured together. If a width constraint (e.g., `matchWidthOf`) changed an element's width after measurement, the auto-height was stale (measured at the wrong width). The widths-first approach ensures heights are always measured at the final width.
+- **`getEffectiveWidth(element)`** (Step B): For `el()` without explicit `w`, calls `measure(html, { shrinkWrap: true })` to get the natural width. Returns `{ w, wMeasured, hMeasured }` -- height measurement is deferred to Step D.
+- **Stack size computation** (Step D): Iterative bottom-up. A stack can only be sized once all its children have known sizes. The loop processes stacks whose children are fully resolved, then repeats until all stacks are done. Nested stacks resolve naturally: inner stacks resolve first, then outer stacks.
+- **Panel auto-height** (Step D): For panel compounds without explicit `h`, the panel height is computed as `innerVstackHeight + 2 * padding`. The background rect height is updated to match.
+- **Hug bounds** (Step D): Groups with `bounds: "hug"` compute their `w`/`h` from the axis-aligned bounding box of their children (only children with resolved numeric positions; `_rel` markers are skipped).
+- **Percentage resolution** (Step A): Strings like `"50%"` and `"safe:25%"` are resolved to pixel values using `resolvePercentage()`. This runs before validation, so downstream phases always see numbers.
 
 **Output data structures:**
 
@@ -319,7 +323,7 @@ flowchart TD
 
 **File:** `src/layout/positions.ts` -- `resolvePositions()`
 
-Phase 2 determines where every element goes. It builds a dependency graph from `_rel` markers and uses Kahn's algorithm (BFS topological sort) to resolve positions in dependency order.
+Phase 2 determines where every element goes. It builds a dependency graph from `_rel` markers and uses Kahn's algorithm (BFS topological sort) to resolve positions in dependency order. Dimension constraints (`matchWidthOf`, `matchHeightOf`, `matchMaxWidth`, `matchMaxHeight`) are now resolved in Phase 1, so this phase only handles positional `_rel` markers (`below`, `rightOf`, `centerIn`, `between`, etc.).
 
 ```mermaid
 flowchart TD
@@ -405,6 +409,12 @@ flowchart TD
 Transforms are created by factory functions (`alignTop()`, `distributeH()`, etc.) that return `{ _transform, _transformId, ids, options }` marker objects. The `_transformId` is auto-generated for deterministic ordering. `applyTransform()` validates element IDs, warns about missing ones, then mutates `resolvedBounds` directly.
 
 After all transforms run, the orchestrator compares pre-transform and post-transform bounds per-axis to build accurate provenance (only marking axes that actually changed as `source: "transform"`).
+
+### Phase 3.6: Dirty Repair
+
+**File:** `src/layout/index.ts` (orchestrator)
+
+If a transform (e.g., `fitToRect`) changed an element's width and the element has auto-height (`hMeasured`), Phase 3.6 re-measures its height at the new width via `measure()`. It then recomputes ancestor stack and panel heights bottom-up so the scene graph stays consistent. This is a post-transform fixup that complements the widths-first pipeline in Phase 1 -- Phase 1 ensures correct heights during initial measurement, while Phase 3.6 handles width changes introduced by transforms after the fact.
 
 ### Phase 4: Finalize
 

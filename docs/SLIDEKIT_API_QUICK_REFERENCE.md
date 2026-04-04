@@ -368,7 +368,7 @@ Positions element in the gap between two references on a given axis. At least on
 
 ```js
 x: between('node3', 'node5', { axis: 'x' }),           // center between two nodes
-y: between('header', 'content', { axis: 'y', bias: 0.35 }), // biased toward top
+y: between('header', 'content', { axis: 'y', bias: 0.35 }), // explicit bias overrides default 0.5
 y: between('lastCard', 990, { axis: 'y' }),             // between element and raw Y
 ```
 

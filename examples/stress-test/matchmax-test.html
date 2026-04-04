@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>matchMaxHeight / matchMaxWidth Stress Test</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/black.css">
+  <style>body { margin: 0; background: #0a0a1a; }</style>
+</head>
+<body>
+  <div class="reveal"><div class="slides"></div></div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+  <script type="module">
+    import {
+      init, render, safeRect, el, below, rightOf,
+      matchMaxHeight, matchMaxWidth, enableKeyboardToggle,
+    } from '../../slidekit/dist/slidekit.bundle.js';
+
+    await init({
+      slide: { w: 1920, h: 1080 },
+      safeZone: { left: 120, right: 120, top: 90, bottom: 90 },
+      fonts: [{ family: 'Inter', weights: [400, 700], source: 'google' }],
+    });
+
+    const safe = safeRect();
+    const FONT = "'Inter', sans-serif";
+    const cardW = 380;
+    const gap = 40;
+
+    // === Slide 1: matchMaxHeight — cards with varying text ===
+    const slide1 = {
+      elements: [
+        el(`<h2 style="font:700 48px ${FONT};color:#fff;">matchMaxHeight Stress Test</h2>`, {
+          id: 'title1', x: safe.x, y: safe.y, w: safe.w,
+        }),
+        el(`<p style="font:400 20px ${FONT};color:rgba(255,255,255,0.6);">All cards below should be the same height (matching the tallest).</p>`, {
+          id: 'subtitle1', x: safe.x, y: below('title1', { gap: 16 }), w: safe.w,
+        }),
+
+        // Card 1: short text
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:#00d4ff;margin:0 0 12px;">Card A</h3>
+          <p style="font:400 16px ${FONT};color:#fff;margin:0;">Short text.</p>
+        </div>`, {
+          id: 'card-a', x: safe.x, y: below('subtitle1', { gap: 40 }), w: cardW,
+          h: matchMaxHeight('row1'),
+        }),
+
+        // Card 2: medium text
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:#00d4ff;margin:0 0 12px;">Card B</h3>
+          <p style="font:400 16px ${FONT};color:#fff;margin:0;">Medium text with a bit more content that wraps to two lines on this card width.</p>
+        </div>`, {
+          id: 'card-b', x: safe.x + cardW + gap, y: below('subtitle1', { gap: 40 }), w: cardW,
+          h: matchMaxHeight('row1'),
+        }),
+
+        // Card 3: long text (should be tallest)
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:#00d4ff;margin:0 0 12px;">Card C</h3>
+          <p style="font:400 16px ${FONT};color:#fff;margin:0;">This card has significantly more text content than the others. It includes multiple sentences that will cause this card to be taller than cards A and B. The matchMaxHeight constraint should make all three cards match this height.</p>
+        </div>`, {
+          id: 'card-c', x: safe.x + 2 * (cardW + gap), y: below('subtitle1', { gap: 40 }), w: cardW,
+          h: matchMaxHeight('row1'),
+        }),
+
+        // Card 4: another short one
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:#00d4ff;margin:0 0 12px;">Card D</h3>
+          <p style="font:400 16px ${FONT};color:#fff;margin:0;">Tiny.</p>
+        </div>`, {
+          id: 'card-d', x: safe.x + 3 * (cardW + gap), y: below('subtitle1', { gap: 40 }), w: cardW,
+          h: matchMaxHeight('row1'),
+        }),
+
+        // Result label
+        el(`<p id="result-height" style="font:400 18px ${FONT};color:#4ade80;"></p>`, {
+          id: 'result1', x: safe.x, y: below('card-a', { gap: 30 }), w: safe.w,
+        }),
+      ],
+    };
+
+    // === Slide 2: matchMaxWidth — columns with varying label widths ===
+    const slide2 = {
+      elements: [
+        el(`<h2 style="font:700 48px ${FONT};color:#fff;">matchMaxWidth Stress Test</h2>`, {
+          id: 'title2', x: safe.x, y: safe.y, w: safe.w,
+        }),
+        el(`<p style="font:400 20px ${FONT};color:rgba(255,255,255,0.6);">All labels below should be the same width (matching the widest).</p>`, {
+          id: 'subtitle2', x: safe.x, y: below('title2', { gap: 16 }), w: safe.w,
+        }),
+
+        // Label 1: short
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;width:100%;height:100%;box-sizing:border-box;">
+          <span style="font:700 20px ${FONT};color:#fff;">Name</span>
+        </div>`, {
+          id: 'label-a', x: safe.x, y: below('subtitle2', { gap: 40 }),
+          w: matchMaxWidth('labels'), h: 60,
+        }),
+
+        // Label 2: medium
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;width:100%;height:100%;box-sizing:border-box;">
+          <span style="font:700 20px ${FONT};color:#fff;">Email Address</span>
+        </div>`, {
+          id: 'label-b', x: safe.x, y: below('label-a', { gap: 16 }),
+          w: matchMaxWidth('labels'), h: 60,
+        }),
+
+        // Label 3: long (widest)
+        el(`<div style="background:#1a1a2e;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:16px;width:100%;height:100%;box-sizing:border-box;">
+          <span style="font:700 20px ${FONT};color:#fff;">Organization Department</span>
+        </div>`, {
+          id: 'label-c', x: safe.x, y: below('label-b', { gap: 16 }),
+          w: matchMaxWidth('labels'), h: 60,
+        }),
+
+        // Result label
+        el(`<p id="result-width" style="font:400 18px ${FONT};color:#4ade80;"></p>`, {
+          id: 'result2', x: safe.x, y: below('label-c', { gap: 30 }), w: safe.w,
+        }),
+      ],
+    };
+
+    await render([slide1, slide2]);
+
+    // Verify programmatically
+    const scene0 = window.sk.layouts[0].elements;
+    const heights = ['card-a', 'card-b', 'card-c', 'card-d'].map(id => scene0[id].resolved.h);
+    const allSameH = heights.every(h => h === heights[0]);
+    const resultH = document.getElementById('result-height');
+    if (resultH) {
+      resultH.textContent = allSameH
+        ? `PASS: All cards height = ${heights[0]}px`
+        : `FAIL: Heights differ: ${heights.join(', ')}`;
+      resultH.style.color = allSameH ? '#4ade80' : '#ef4444';
+    }
+
+    const scene1 = window.sk.layouts[1].elements;
+    const widths = ['label-a', 'label-b', 'label-c'].map(id => scene1[id].resolved.w);
+    const allSameW = widths.every(w => w === widths[0]);
+    const resultW = document.getElementById('result-width');
+    if (resultW) {
+      resultW.textContent = allSameW
+        ? `PASS: All labels width = ${widths[0]}px`
+        : `FAIL: Widths differ: ${widths.join(', ')}`;
+      resultW.style.color = allSameW ? '#4ade80' : '#ef4444';
+    }
+
+    // Expose for Playwright
+    window.__testResults = { heights, widths, allSameH, allSameW };
+
+    Reveal.initialize({
+      width: 1920, height: 1080, center: false,
+      hash: true, slideNumber: true, transition: 'none',
+      controls: false, progress: false, margin: 0,
+    });
+
+    enableKeyboardToggle();
+    console.log('matchMax stress test loaded.', window.__testResults);
+  </script>
+</body>
+</html>

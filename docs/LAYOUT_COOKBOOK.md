@@ -319,9 +319,9 @@ const { left, right } = splitRect(safe, { ratio: 0.55, gap: 40 });
 el('...title...', { id: 'title', x: left.x, y: safe.y, w: left.w });
 el('...body...', { id: 'body', x: left.x, y: below('title', 'md'), w: left.w });
 el('...stat1-val...', { id: 'stat1-val', x: left.x, y: below('body', 'lg'), w: 200 });
-el('...stat1-lbl...', { id: 'stat1-lbl', x: left.x, y: below('stat1-val', 4), w: 200 });
+el('...stat1-lbl...', { id: 'stat1-lbl', x: left.x, y: below('stat1-val', 'xs'), w: 200 });
 el('...stat2-val...', { id: 'stat2-val', x: rightOf('stat1-val', 40), y: below('body', 'lg'), w: 200 });
-el('...stat2-lbl...', { id: 'stat2-lbl', x: rightOf('stat1-lbl', 40), y: below('stat2-val', 4), w: 200 });
+el('...stat2-lbl...', { id: 'stat2-lbl', x: rightOf('stat1-lbl', 40), y: below('stat2-val', 'xs'), w: 200 });
 figure({ id: 'photo', src: './image.png', x: right.x, y: safe.y, w: right.w, h: right.h, fit: 'cover', containerRadius: 12 });
 ```
 
@@ -1070,7 +1070,7 @@ steps.slice(0, -1).map((_, i) =>
 **Key code:**
 ```javascript
 const { left: colL, right: colR } = splitRect(
- { x: safe.x, y: safe.y + 120, w: safe.w, h: safe.h - 120 }, { ratio: 0.5, gap: 4 }
+ { x: safe.x, y: safe.y + 120, w: safe.w, h: safe.h - 120 }, { ratio: 0.5, gap: 'xs' }
 );
 const rowH = 56;
 // Header
@@ -1087,7 +1087,7 @@ rows.flatMap((row, i) => {
 });
 ```
 
-**Key detail:** Use tiny `gap: 4` in splitRect for visual column separation. Alternate row backgrounds for readability.
+**Key detail:** Use tiny `gap: 'xs'` in splitRect for visual column separation. Alternate row backgrounds for readability.
 
 ---
 
