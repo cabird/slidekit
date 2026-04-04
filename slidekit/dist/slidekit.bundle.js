@@ -3853,11 +3853,19 @@ function showConstraintPopover(btnEl, axis, elementId, slideIndex) {
       closeConstraintPopover();
     }
   };
+  const onScroll = () => {
+    closeConstraintPopover();
+  };
+  const inspectorPanel = debugController.state.inspectorPanel;
   document.addEventListener("pointerdown", onClickOutside, true);
   document.addEventListener("keydown", onKeyDown2, true);
+  window.addEventListener("resize", onScroll);
+  if (inspectorPanel) inspectorPanel.addEventListener("scroll", onScroll);
   activePopoverCleanup = () => {
     document.removeEventListener("pointerdown", onClickOutside, true);
     document.removeEventListener("keydown", onKeyDown2, true);
+    window.removeEventListener("resize", onScroll);
+    if (inspectorPanel) inspectorPanel.removeEventListener("scroll", onScroll);
   };
 }
 function handleConstraintPickerSelection(opt, elementId, slideIndex, popover) {
@@ -4967,25 +4975,25 @@ var init_debug_inspector = __esm({
     init_debug_inspector_pick();
     CONSTRAINT_REGISTRY = [
       // x axis
-      { id: "rightOf", label: "Right of...", axis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "leftOf", label: "Left of...", axis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "centerH", label: "Center with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignLeft", label: "Align left with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignRight", label: "Align right with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "centerHSlide", label: "Center on slide", axis: "x", requiresRef: false, hasGap: false, requiresGroup: false },
+      { id: "rightOf", label: "Right of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "leftOf", label: "Left of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerH", label: "Center with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignLeft", label: "Align left with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignRight", label: "Align right with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerHSlide", label: "Center on slide", axis: "x", targetAxis: "x", requiresRef: false, hasGap: false, requiresGroup: false },
       // y axis
-      { id: "below", label: "Below...", axis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "above", label: "Above...", axis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "centerV", label: "Center with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignTop", label: "Align top with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignBottom", label: "Align bottom with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "centerVSlide", label: "Center on slide", axis: "y", requiresRef: false, hasGap: false, requiresGroup: false },
+      { id: "below", label: "Below...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "above", label: "Above...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerV", label: "Center with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignTop", label: "Align top with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignBottom", label: "Align bottom with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerVSlide", label: "Center on slide", axis: "y", targetAxis: "y", requiresRef: false, hasGap: false, requiresGroup: false },
       // w axis
-      { id: "matchWidth", label: "Match width of...", axis: "w", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "matchMaxWidth", label: "Match widest in group...", axis: "w", requiresRef: false, hasGap: false, requiresGroup: true },
+      { id: "matchWidth", label: "Match width of...", axis: "w", targetAxis: "w", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxWidth", label: "Match widest in group...", axis: "w", targetAxis: "w", requiresRef: false, hasGap: false, requiresGroup: true },
       // h axis
-      { id: "matchHeight", label: "Match height of...", axis: "h", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "matchMaxHeight", label: "Match tallest in group...", axis: "h", requiresRef: false, hasGap: false, requiresGroup: true }
+      { id: "matchHeight", label: "Match height of...", axis: "h", targetAxis: "h", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxHeight", label: "Match tallest in group...", axis: "h", targetAxis: "h", requiresRef: false, hasGap: false, requiresGroup: true }
     ];
     activeConstraintPopover = null;
     activePopoverCleanup = null;
