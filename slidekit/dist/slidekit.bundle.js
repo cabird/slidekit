@@ -5566,8 +5566,8 @@ function matchMaxWidth(groupName) {
 function matchMaxHeight(groupName) {
   return { _rel: "matchMaxHeight", group: groupName };
 }
-function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
-  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
+function placeBetween(topRef, bottomYOrRef, { bias = 0.5 } = {}) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }

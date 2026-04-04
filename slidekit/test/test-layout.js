@@ -1631,15 +1631,15 @@ describe("P2.2: placeBetween() — marker shape", () => {
     assert.equal(m._rel, "between");
     assert.equal(m.ref, "a");
     assert.equal(m.ref2, "b");
-    assert.equal(m.bias, 0.35);
+    assert.equal(m.bias, 0.5);
   });
 
   it("returns correct _rel marker with numeric bottom and custom bias", () => {
-    const m = placeBetween("a", 500, { bias: 0.5 });
+    const m = placeBetween("a", 500, { bias: 0.75 });
     assert.equal(m._rel, "between");
     assert.equal(m.ref, "a");
     assert.equal(m.ref2, 500);
-    assert.equal(m.bias, 0.5);
+    assert.equal(m.bias, 0.75);
   });
 });
 
@@ -1648,18 +1648,18 @@ describe("P2.2: placeBetween() — marker shape", () => {
 // =============================================================================
 
 describe("P2.2: layout() — placeBetween()", () => {
-  it("positions element between two refs with default bias (0.35)", async () => {
+  it("positions element between two refs with default bias (0.5 = centered)", async () => {
     // topRef: y=100, h=50 => bottom edge = 150
     // bottomRef: y=400 => top edge = 400
     // target: h=40
     // availableSlack = 400 - 150 - 40 = 210
-    // y = 150 + 210 * 0.35 = 150 + 73.5 = 223.5
+    // y = 150 + 210 * 0.5 = 150 + 105 = 255
     const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
     const bottom = el('', { id: "bottom", x: 0, y: 400, w: 200, h: 50 });
     const target = el('', { id: "target", x: 0, y: placeBetween("top", "bottom"), w: 200, h: 40 });
     const scene = await layout({ elements: [top, bottom, target] });
 
-    assert.equal(scene.elements["target"].resolved.y, 150 + 210 * 0.35);
+    assert.equal(scene.elements["target"].resolved.y, 150 + 210 * 0.5);
   });
 
   it("positions element between ref and absolute Y", async () => {
@@ -1667,12 +1667,12 @@ describe("P2.2: layout() — placeBetween()", () => {
     // bottomY = 500 (absolute)
     // target: h=60
     // availableSlack = 500 - 150 - 60 = 290
-    // y = 150 + 290 * 0.35 = 150 + 101.5 = 251.5
+    // y = 150 + 290 * 0.5 = 150 + 145 = 295
     const top = el('', { id: "top", x: 0, y: 100, w: 200, h: 50 });
     const target = el('', { id: "target", x: 0, y: placeBetween("top", 500), w: 200, h: 60 });
     const scene = await layout({ elements: [top, target] });
 
-    assert.equal(scene.elements["target"].resolved.y, 150 + 290 * 0.35);
+    assert.equal(scene.elements["target"].resolved.y, 150 + 290 * 0.5);
   });
 
   it("bias=0 places at top edge", async () => {

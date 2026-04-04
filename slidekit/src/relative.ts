@@ -189,9 +189,9 @@ export function matchMaxHeight(groupName: string): RelMarker {
 export function placeBetween(
   topRef: string,
   bottomYOrRef: number | string,
-  { bias = 0.35 }: { bias?: number } = {},
+  { bias = 0.5 }: { bias?: number } = {},
 ): RelMarker {
-  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }

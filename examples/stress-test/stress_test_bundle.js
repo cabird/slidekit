@@ -5478,8 +5478,8 @@ function matchMaxWidth(groupName) {
 function matchMaxHeight(groupName) {
   return { _rel: "matchMaxHeight", group: groupName };
 }
-function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
-  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
+function placeBetween(topRef, bottomYOrRef, { bias = 0.5 } = {}) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
   return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
@@ -8391,30 +8391,49 @@ init_helpers();
 function isPanelElement(el2) {
   return el2.type === "group" && "_compound" in el2 && el2._compound === "panel";
 }
-async function getEffectiveDimensions(element) {
+async function getEffectiveWidth(element) {
   const { props, type } = element;
   const wRel = isRelMarker(props.w) ? props.w._rel : null;
   const hRel = isRelMarker(props.h) ? props.h._rel : null;
   const wIsDeferred = wRel === "matchWidth";
-  const hIsDeferred = hRel === "matchHeight";
   const wIsMatchMax = wRel === "matchMaxWidth";
+  const hIsDeferred = hRel === "matchHeight";
   const hIsMatchMax = hRel === "matchMaxHeight";
-  const effectiveW = wIsDeferred ? 0 : wIsMatchMax ? 0 : props.w || 0;
-  const effectiveH = hIsDeferred ? 0 : hIsMatchMax ? 0 : props.h || 0;
-  const needsAutoHeight = props.h === void 0 || props.h === null || hIsMatchMax;
-  const needsAutoWidth = wIsMatchMax;
-  if (type === "el" && !hIsDeferred && (needsAutoHeight || needsAutoWidth)) {
-    const html = element.content || "";
-    const measureW = wIsDeferred || wIsMatchMax ? void 0 : props.w;
-    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: effectiveW, h: 0, _autoHeight: needsAutoHeight };
-    }
-    const metrics = await measure(html, { w: measureW, style: props.style, className: props.className, shrinkWrap: needsAutoWidth });
-    const resolvedW = needsAutoWidth ? metrics.w : effectiveW || metrics.w;
-    const resolvedH = needsAutoHeight ? metrics.h : effectiveH;
-    return { w: resolvedW, h: resolvedH, _autoHeight: needsAutoHeight };
+  const needsAutoHeight = (props.h === void 0 || props.h === null || hIsMatchMax) && !hIsDeferred;
+  if (wIsDeferred) {
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
   }
-  return { w: effectiveW, h: effectiveH, _autoHeight: false };
+  if (wIsMatchMax) {
+    if (type === "el") {
+      const html = element.content || "";
+      if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+        return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+      }
+      const metrics = await measure(html, {
+        style: props.style,
+        className: props.className,
+        shrinkWrap: true
+      });
+      return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+  if (typeof props.w === "number") {
+    return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
+  }
+  if (type === "el") {
+    const html = element.content || "";
+    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+      return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    const metrics = await measure(html, {
+      style: props.style,
+      className: props.className,
+      shrinkWrap: true
+    });
+    return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+  return { w: props.w || 0, wMeasured: false, hMeasured: needsAutoHeight };
 }
 async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, _warnings) {
   const authoredSpecs = /* @__PURE__ */ new Map();
@@ -8471,12 +8490,13 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
   }
   for (const [id, el2] of flatMap) {
     if (el2.type === "vstack" || el2.type === "hstack") continue;
-    const dims = await getEffectiveDimensions(el2);
+    const widthInfo = await getEffectiveWidth(el2);
     resolvedSizes.set(id, {
-      w: dims.w,
-      h: dims.h,
-      wMeasured: el2.type === "el" && (el2.props.w === void 0 || el2.props.w === null),
-      hMeasured: dims._autoHeight
+      w: widthInfo.w,
+      h: 0,
+      // placeholder — resolved in Step D
+      wMeasured: widthInfo.wMeasured,
+      hMeasured: widthInfo.hMeasured
     });
   }
   const pendingStacks = /* @__PURE__ */ new Set();
@@ -8491,7 +8511,6 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
     for (const stackId of pendingStacks) {
       const el2 = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
       const childIds = stackChildren.get(stackId) || [];
-      const gap = resolveSpacing(el2.props.gap ?? 0);
       const stackW = el2.props.w ?? 0;
       let allChildrenSized = true;
       for (const cid of childIds) {
@@ -8510,15 +8529,8 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
             break;
           }
           if (childStack && resolvedSizes.has(childStack.id)) {
-            const stackSizes = resolvedSizes.get(childStack.id);
-            const autoH = config.panelH ?? stackSizes.h + 2 * config.padding;
             const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
-            panelSizes.h = autoH;
             if (config.panelW != null) panelSizes.w = config.panelW;
-            const bgRect = panelChildren[0];
-            if (bgRect && resolvedSizes.has(bgRect.id)) {
-              resolvedSizes.get(bgRect.id).h = autoH;
-            }
           }
         }
       }
@@ -8528,52 +8540,35 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
           if ((child.props.w === void 0 || child.props.w === null) && stackW > 0) {
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
-            if (child.type === "el") {
-              const html = child.content || "";
-              if (html || child.props.style && Object.keys(child.props.style).length > 0) {
-                const metrics = await measure(html, { ...child.props, w: stackW });
-                childSize.w = stackW;
-                childSize.h = metrics.h;
-                childSize.hMeasured = true;
-              } else {
-                childSize.w = stackW;
-              }
-            } else {
-              childSize.w = stackW;
-            }
+            childSize.w = stackW;
           }
         }
-        let totalH = 0;
         let maxW = 0;
-        for (let i = 0; i < childIds.length; i++) {
-          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
-          totalH += cs.h;
-          if (i > 0) totalH += gap;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
           maxW = Math.max(maxW, cs.w);
         }
         const finalW = stackW || maxW;
-        const finalH = el2.props.h !== void 0 && el2.props.h !== null ? el2.props.h : totalH;
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,
+          // placeholder — resolved in Step D
           wMeasured: false,
           hMeasured: el2.props.h === void 0 || el2.props.h === null
         });
       } else {
-        const stackH = el2.props.h ?? 0;
+        const gap = resolveSpacing(el2.props.gap ?? 0);
         let totalW = 0;
-        let maxH = 0;
         for (let i = 0; i < childIds.length; i++) {
           const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing hstack child: ${childIds[i]}`);
           totalW += cs.w;
           if (i > 0) totalW += gap;
-          maxH = Math.max(maxH, cs.h);
         }
         const finalW = el2.props.w !== void 0 && el2.props.w !== null ? el2.props.w : totalW;
-        const finalH = stackH || maxH;
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,
+          // placeholder — resolved in Step D
           wMeasured: el2.props.w === void 0 || el2.props.w === null,
           hMeasured: el2.props.h === void 0 || el2.props.h === null
         });
@@ -8589,6 +8584,201 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       message: `Could not resolve sizes for stacks: ${Array.from(pendingStacks).join(", ")}`
     });
     return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  const maxWidthGroups = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchMaxWidth") {
+      const group2 = el2.props.w.group;
+      if (!maxWidthGroups.has(group2)) maxWidthGroups.set(group2, []);
+      maxWidthGroups.get(group2).push(id);
+    }
+  }
+  for (const [, ids] of maxWidthGroups) {
+    let maxW = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.w > maxW) maxW = s.w;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.w = maxW;
+    }
+  }
+  const matchWidthElements = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchWidth") {
+      const refId = el2.props.w.ref;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "w",
+          ref: refId,
+          message: `Element "${id}": w references unknown element "${refId}"`
+        });
+        continue;
+      }
+      matchWidthElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchWidthElements.size > 0) {
+    let visitWidth2 = function(id) {
+      if (visited.has(id)) return true;
+      if (visiting.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "w",
+          message: `Element "${id}": circular matchWidthOf dependency detected`
+        });
+        return false;
+      }
+      visiting.add(id);
+      for (const dep of widthDeps.get(id) || []) {
+        if (!visitWidth2(dep)) return false;
+      }
+      visiting.delete(id);
+      visited.add(id);
+      widthOrder.push(id);
+      return true;
+    };
+    var visitWidth = visitWidth2;
+    const widthDeps = /* @__PURE__ */ new Map();
+    const allWidthIds = /* @__PURE__ */ new Set();
+    for (const [id, refId] of matchWidthElements) {
+      allWidthIds.add(id);
+      allWidthIds.add(refId);
+      if (!widthDeps.has(id)) widthDeps.set(id, /* @__PURE__ */ new Set());
+      widthDeps.get(id).add(refId);
+    }
+    for (const id of allWidthIds) {
+      if (!widthDeps.has(id)) widthDeps.set(id, /* @__PURE__ */ new Set());
+    }
+    const widthOrder = [];
+    const visited = /* @__PURE__ */ new Set();
+    const visiting = /* @__PURE__ */ new Set();
+    for (const id of allWidthIds) {
+      visitWidth2(id);
+    }
+    for (const id of widthOrder) {
+      const refId = matchWidthElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.w = refSizes.w;
+      }
+    }
+  }
+  for (const [id, el2] of flatMap) {
+    if (el2.type === "vstack" || el2.type === "hstack") continue;
+    const sizes = resolvedSizes.get(id);
+    if (!sizes) continue;
+    if (sizes.hMeasured && el2.type === "el") {
+      const html = el2.content || "";
+      if (!html && (!el2.props.style || Object.keys(el2.props.style).length === 0)) {
+        sizes.h = 0;
+        continue;
+      }
+      const metrics = await measure(html, {
+        w: sizes.w ?? void 0,
+        style: el2.props.style,
+        className: el2.props.className
+      });
+      sizes.h = metrics.h;
+    } else if (!sizes.hMeasured) {
+      const hRel = isRelMarker(el2.props.h) ? el2.props.h._rel : null;
+      const hIsDeferred = hRel === "matchHeight";
+      const hIsMatchMax = hRel === "matchMaxHeight";
+      if (hIsDeferred) {
+        sizes.h = 0;
+      } else if (hIsMatchMax) {
+        sizes.h = 0;
+      } else {
+        sizes.h = el2.props.h || 0;
+      }
+    }
+  }
+  const pendingStacksH = /* @__PURE__ */ new Set();
+  for (const [id, el2] of flatMap) {
+    if (el2.type === "vstack" || el2.type === "hstack") {
+      pendingStacksH.add(id);
+    }
+  }
+  progress = true;
+  while (pendingStacksH.size > 0 && progress) {
+    progress = false;
+    for (const stackId of pendingStacksH) {
+      const el2 = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+      const childIds = stackChildren.get(stackId) || [];
+      const gap = resolveSpacing(el2.props.gap ?? 0);
+      let allChildrenReady = true;
+      for (const cid of childIds) {
+        if (!resolvedSizes.has(cid)) {
+          allChildrenReady = false;
+          break;
+        }
+        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
+        if (isPanelElement(childEl)) {
+          const config = childEl._panelConfig;
+          if (!config) continue;
+          const panelChildren = childEl.children || [];
+          const childStack = panelChildren[1];
+          if (childStack && !resolvedSizes.has(childStack.id)) {
+            allChildrenReady = false;
+            break;
+          }
+          if (childStack && (childEl.children[1].type === "vstack" || childEl.children[1].type === "hstack")) {
+            if (pendingStacksH.has(childStack.id)) {
+              allChildrenReady = false;
+              break;
+            }
+          }
+          if (childStack && resolvedSizes.has(childStack.id)) {
+            const stackSizes2 = resolvedSizes.get(childStack.id);
+            const autoH = config.panelH ?? stackSizes2.h + 2 * config.padding;
+            const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
+            panelSizes.h = autoH;
+            if (config.panelW != null) panelSizes.w = config.panelW;
+            const bgRect = panelChildren[0];
+            if (bgRect && resolvedSizes.has(bgRect.id)) {
+              resolvedSizes.get(bgRect.id).h = autoH;
+            }
+          }
+        }
+      }
+      if (!allChildrenReady) continue;
+      const stackSizes = mustGet(resolvedSizes, stackId, `resolvedSizes missing stack: ${stackId}`);
+      if (el2.type === "vstack") {
+        let totalH = 0;
+        let maxW = 0;
+        for (let i = 0; i < childIds.length; i++) {
+          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
+          totalH += cs.h;
+          if (i > 0) totalH += gap;
+          maxW = Math.max(maxW, cs.w);
+        }
+        const finalH = el2.props.h !== void 0 && el2.props.h !== null ? el2.props.h : totalH;
+        stackSizes.h = finalH;
+        const stackW = el2.props.w ?? 0;
+        if (!stackW && maxW > stackSizes.w) {
+          stackSizes.w = maxW;
+        }
+      } else {
+        const stackH = el2.props.h ?? 0;
+        let maxH = 0;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
+          maxH = Math.max(maxH, cs.h);
+        }
+        stackSizes.h = stackH || maxH;
+      }
+      pendingStacksH.delete(stackId);
+      progress = true;
+    }
   }
   for (const [id, el2] of flatMap) {
     if (!isPanelElement(el2)) continue;
@@ -8648,6 +8838,94 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       resolvedSizes.set(id, { w: hugW, h: hugH, wMeasured: false, hMeasured: false });
     }
   }
+  const maxHeightGroups = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchMaxHeight") {
+      const group2 = el2.props.h.group;
+      if (!maxHeightGroups.has(group2)) maxHeightGroups.set(group2, []);
+      maxHeightGroups.get(group2).push(id);
+    }
+  }
+  for (const [, ids] of maxHeightGroups) {
+    let maxH = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.h > maxH) maxH = s.h;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.h = maxH;
+    }
+  }
+  const matchHeightElements = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchHeight") {
+      const refId = el2.props.h.ref;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "h",
+          ref: refId,
+          message: `Element "${id}": h references unknown element "${refId}"`
+        });
+        continue;
+      }
+      matchHeightElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchHeightElements.size > 0) {
+    let visitHeight2 = function(id) {
+      if (visitedH.has(id)) return true;
+      if (visitingH.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "h",
+          message: `Element "${id}": circular matchHeightOf dependency detected`
+        });
+        return false;
+      }
+      visitingH.add(id);
+      for (const dep of heightDeps.get(id) || []) {
+        if (!visitHeight2(dep)) return false;
+      }
+      visitingH.delete(id);
+      visitedH.add(id);
+      heightOrder.push(id);
+      return true;
+    };
+    var visitHeight = visitHeight2;
+    const heightDeps = /* @__PURE__ */ new Map();
+    const allHeightIds = /* @__PURE__ */ new Set();
+    for (const [id, refId] of matchHeightElements) {
+      allHeightIds.add(id);
+      allHeightIds.add(refId);
+      if (!heightDeps.has(id)) heightDeps.set(id, /* @__PURE__ */ new Set());
+      heightDeps.get(id).add(refId);
+    }
+    for (const id of allHeightIds) {
+      if (!heightDeps.has(id)) heightDeps.set(id, /* @__PURE__ */ new Set());
+    }
+    const heightOrder = [];
+    const visitedH = /* @__PURE__ */ new Set();
+    const visitingH = /* @__PURE__ */ new Set();
+    for (const id of allHeightIds) {
+      visitHeight2(id);
+    }
+    for (const id of heightOrder) {
+      const refId = matchHeightElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.h = refSizes.h;
+      }
+    }
+  }
   return { authoredSpecs, resolvedSizes, hasErrors: false };
 }
 init_helpers();
@@ -8694,25 +8972,6 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           });
         } else {
           depSet.add(yRef);
-        }
-      }
-      for (const prop of ["w", "h"]) {
-        const marker = el2.props[prop];
-        if (isRelMarker(marker) && (marker._rel === "matchWidth" || marker._rel === "matchHeight")) {
-          const dimRef = marker.ref;
-          if (dimRef) {
-            if (!flatMap.has(dimRef)) {
-              errors.push({
-                type: "unknown_ref",
-                elementId: id,
-                property: prop,
-                ref: dimRef,
-                message: `Element "${id}": ${prop} references unknown element "${dimRef}"`
-              });
-            } else {
-              depSet.add(dimRef);
-            }
-          }
         }
       }
       for (const prop of ["x", "y"]) {
@@ -8816,72 +9075,10 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
     });
     return null;
   }
-  const maxWidthGroups = /* @__PURE__ */ new Map();
-  const maxHeightGroups = /* @__PURE__ */ new Map();
-  for (const [id, el2] of flatMap) {
-    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchMaxWidth") {
-      const group2 = el2.props.w.group;
-      if (!maxWidthGroups.has(group2)) maxWidthGroups.set(group2, []);
-      maxWidthGroups.get(group2).push(id);
-    }
-    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchMaxHeight") {
-      const group2 = el2.props.h.group;
-      if (!maxHeightGroups.has(group2)) maxHeightGroups.set(group2, []);
-      maxHeightGroups.get(group2).push(id);
-    }
-  }
-  for (const [, ids] of maxWidthGroups) {
-    let maxW = 0;
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s && s.w > maxW) maxW = s.w;
-    }
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s) s.w = maxW;
-    }
-    for (const id of ids) {
-      const el2 = flatMap.get(id);
-      const s = resolvedSizes.get(id);
-      if (!el2 || !s || !s.hMeasured) continue;
-      if (el2.type !== "el") continue;
-      const html = el2.content || "";
-      if (!html) continue;
-      const remeasured = await measure(html, {
-        w: maxW,
-        style: el2.props.style,
-        className: el2.props.className
-      });
-      s.h = remeasured.h;
-    }
-  }
-  for (const [, ids] of maxHeightGroups) {
-    let maxH = 0;
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s && s.h > maxH) maxH = s.h;
-    }
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s) s.h = maxH;
-    }
-  }
   const resolvedBounds = /* @__PURE__ */ new Map();
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
-    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchWidth") {
-      const marker = el2.props.w;
-      const refId = marker.ref;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchWidth: ${refId}`);
-      sizes.w = refSizes.w;
-    }
-    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchHeight") {
-      const marker = el2.props.h;
-      const refId = marker.ref;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchHeight: ${refId}`);
-      sizes.h = refSizes.h;
-    }
     const w = sizes.w;
     const h = sizes.h;
     let finalX, finalY;
@@ -9954,6 +10151,81 @@ async function layout(slideDefinition, options = {}) {
         newWidth: postBounds.w,
         message: `Panel "${id}" width changed by transform (${preBounds.w} \u2192 ${postBounds.w}). Text wrapping may be inaccurate \u2014 re-measurement cannot run after transforms.`
       });
+    }
+  }
+  {
+    let heightsChanged = false;
+    for (const [id, bounds] of resolvedBounds) {
+      const preBounds = preTransformBounds.get(id);
+      if (!preBounds) continue;
+      if (bounds.w === preBounds.w) continue;
+      const sizes = resolvedSizes.get(id);
+      if (!sizes || !sizes.hMeasured) continue;
+      const el2 = flatMap.get(id);
+      if (!el2 || el2.type !== "el") continue;
+      const html = el2.content || "";
+      if (!html && (!el2.props.style || Object.keys(el2.props.style).length === 0)) continue;
+      const metrics = await measure(html, {
+        w: bounds.w,
+        style: el2.props.style,
+        className: el2.props.className
+      });
+      if (metrics.h !== bounds.h) {
+        bounds.h = metrics.h;
+        sizes.h = metrics.h;
+        heightsChanged = true;
+      }
+    }
+    if (heightsChanged) {
+      for (const [stackId, childIds] of stackChildren) {
+        const stackEl = flatMap.get(stackId);
+        if (!stackEl) continue;
+        const stackBounds = resolvedBounds.get(stackId);
+        const stackSizes = resolvedSizes.get(stackId);
+        if (!stackBounds || !stackSizes) continue;
+        if (!stackSizes.hMeasured) continue;
+        const gap = resolveSpacing(stackEl.props.gap ?? 0);
+        if (stackEl.type === "vstack") {
+          let totalH = 0;
+          for (let i = 0; i < childIds.length; i++) {
+            const cs = resolvedBounds.get(childIds[i]);
+            if (cs) totalH += cs.h;
+            if (i > 0) totalH += gap;
+          }
+          stackBounds.h = totalH;
+          stackSizes.h = totalH;
+        } else if (stackEl.type === "hstack") {
+          let maxH = 0;
+          for (const cid of childIds) {
+            const cs = resolvedBounds.get(cid);
+            if (cs && cs.h > maxH) maxH = cs.h;
+          }
+          stackBounds.h = maxH;
+          stackSizes.h = maxH;
+        }
+      }
+      for (const [id, el2] of flatMap) {
+        if (!isPanelElement(el2)) continue;
+        const config = el2._panelConfig;
+        if (!config || config.panelH != null) continue;
+        const panelChildren = el2.children || [];
+        const childStack = panelChildren[1];
+        const bgRect = panelChildren[0];
+        if (!childStack) continue;
+        const stackBounds = resolvedBounds.get(childStack.id);
+        if (!stackBounds) continue;
+        const autoH = stackBounds.h + 2 * config.padding;
+        const panelBounds = resolvedBounds.get(id);
+        const panelSizes = resolvedSizes.get(id);
+        if (panelBounds) panelBounds.h = autoH;
+        if (panelSizes) panelSizes.h = autoH;
+        if (bgRect) {
+          const bgBounds = resolvedBounds.get(bgRect.id);
+          const bgSizes = resolvedSizes.get(bgRect.id);
+          if (bgBounds) bgBounds.h = autoH;
+          if (bgSizes) bgSizes.h = autoH;
+        }
+      }
     }
   }
   if (state.fontWarnings && state.fontWarnings.length > 0) {
