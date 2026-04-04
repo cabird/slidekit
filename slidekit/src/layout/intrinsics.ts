@@ -545,10 +545,16 @@ export async function resolveIntrinsicSizes(
       const childIds = stackChildren.get(stackId) || [];
       const gap = resolveSpacing(el.props.gap as string | number ?? 0);
 
-      // Check all children have non-zero heights (or are genuinely empty)
+      // Check all children have resolved heights (not just resolvedSizes entries —
+      // stacks have entries from Step B with h=0 placeholders)
       let allChildrenReady = true;
       for (const cid of childIds) {
         if (!resolvedSizes.has(cid)) {
+          allChildrenReady = false;
+          break;
+        }
+        // If this child is a stack that hasn't computed its height yet, wait
+        if (pendingStacksH.has(cid)) {
           allChildrenReady = false;
           break;
         }

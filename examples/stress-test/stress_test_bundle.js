@@ -9305,6 +9305,10 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
           allChildrenReady = false;
           break;
         }
+        if (pendingStacksH.has(cid)) {
+          allChildrenReady = false;
+          break;
+        }
         const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
         if (isPanelElement(childEl)) {
           const config = childEl._panelConfig;
