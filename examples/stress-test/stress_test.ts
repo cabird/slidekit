@@ -8,6 +8,7 @@ import {
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchHeight, alignCenterV,
   cardGrid, figure,
+  matchMaxHeight, matchMaxWidth, enableKeyboardToggle,
 } from '../../slidekit/dist/slidekit.bundle.js';
 
 import type {
@@ -608,7 +609,103 @@ export async function run() {
       ],
     },
 
+    // ==========================================================================
+    // S19: matchMaxHeight — cards with varying content all equalize to tallest
+    // ==========================================================================
+    {
+      elements: [
+        title('S19 — matchMaxHeight: Equal-Height Cards', 's19-title', { x: safe.x, y: safe.y }),
+
+        el(`<p style="font:400 20px ${FONT};color:${C.textSec}">All four cards share h: matchMaxHeight('row'). The tallest card's measured height is applied to all.</p>`, {
+          id: 's19-subtitle', x: safe.x, y: below('s19-title', { gap: 12 }), w: safe.w,
+        }),
+
+        // Card A — short
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:${C.accent1};margin:0 0 12px">Card A</h3>
+          <p style="font:400 16px ${FONT};color:${C.text};margin:0">Short text.</p>
+        </div>`, {
+          id: 's19-card-a', x: safe.x, y: below('s19-subtitle', { gap: 40 }), w: 380,
+          h: matchMaxHeight('s19-row'),
+        }),
+
+        // Card B — medium
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:${C.accent1};margin:0 0 12px">Card B</h3>
+          <p style="font:400 16px ${FONT};color:${C.text};margin:0">Medium text with more content that wraps to two lines on this width.</p>
+        </div>`, {
+          id: 's19-card-b', x: safe.x + 420, y: below('s19-subtitle', { gap: 40 }), w: 380,
+          h: matchMaxHeight('s19-row'),
+        }),
+
+        // Card C — tall (drives the group height)
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:${C.accent1};margin:0 0 12px">Card C</h3>
+          <p style="font:400 16px ${FONT};color:${C.text};margin:0">This card has significantly more text. It includes multiple sentences that make it the tallest card. The matchMaxHeight constraint will propagate this height to all other cards in the group.</p>
+        </div>`, {
+          id: 's19-card-c', x: safe.x + 840, y: below('s19-subtitle', { gap: 40 }), w: 380,
+          h: matchMaxHeight('s19-row'),
+        }),
+
+        // Card D — short
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:12px;padding:24px;width:100%;height:100%;box-sizing:border-box;">
+          <h3 style="font:700 24px ${FONT};color:${C.accent1};margin:0 0 12px">Card D</h3>
+          <p style="font:400 16px ${FONT};color:${C.text};margin:0">Tiny.</p>
+        </div>`, {
+          id: 's19-card-d', x: safe.x + 1260, y: below('s19-subtitle', { gap: 40 }), w: 380,
+          h: matchMaxHeight('s19-row'),
+        }),
+
+        el(`<p style="font:600 18px ${FONT};color:${C.accent4}">✓ All cards above should be the same height</p>`, {
+          id: 's19-check', x: safe.x, y: below('s19-card-a', { gap: 30 }), w: safe.w,
+        }),
+      ],
+    },
+
+    // ==========================================================================
+    // S20: matchMaxWidth — labels equalize to widest measured content
+    // ==========================================================================
+    {
+      elements: [
+        title('S20 — matchMaxWidth: Equal-Width Labels', 's20-title', { x: safe.x, y: safe.y }),
+
+        el(`<p style="font:400 20px ${FONT};color:${C.textSec}">All three labels share w: matchMaxWidth('labels'). The widest label's measured width is applied to all.</p>`, {
+          id: 's20-subtitle', x: safe.x, y: below('s20-title', { gap: 12 }), w: safe.w,
+        }),
+
+        // Label A — short
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:8px;padding:16px;width:100%;height:100%;box-sizing:border-box;">
+          <span style="font:700 22px ${FONT};color:${C.text}">Name</span>
+        </div>`, {
+          id: 's20-label-a', x: safe.x, y: below('s20-subtitle', { gap: 40 }),
+          w: matchMaxWidth('s20-labels'),
+        }),
+
+        // Label B — medium
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:8px;padding:16px;">
+          <span style="font:700 22px ${FONT};color:${C.text}">Email Address</span>
+        </div>`, {
+          id: 's20-label-b', x: safe.x, y: below('s20-label-a', { gap: 16 }),
+          w: matchMaxWidth('s20-labels'),
+        }),
+
+        // Label C — long (drives the group width)
+        el(`<div style="background:${C.glass};border:1px solid ${C.glassBr};border-radius:8px;padding:16px;">
+          <span style="font:700 22px ${FONT};color:${C.text}">Organization Department</span>
+        </div>`, {
+          id: 's20-label-c', x: safe.x, y: below('s20-label-b', { gap: 16 }),
+          w: matchMaxWidth('s20-labels'),
+        }),
+
+        el(`<p style="font:600 18px ${FONT};color:${C.accent4}">✓ All labels above should be the same width</p>`, {
+          id: 's20-check', x: safe.x, y: below('s20-label-c', { gap: 30 }), w: safe.w,
+        }),
+      ],
+    },
+
   ];
 
-  return await render(slides);
+  const result = await render(slides);
+  enableKeyboardToggle();
+  return result;
 }

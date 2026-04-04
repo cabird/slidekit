@@ -50,7 +50,20 @@ const safe = safeRect(); // { x: 120, y: 90, w: 1680, h: 900 }
 
 ### Font Loading
 
-Fonts specified in `init({ fonts })` are preloaded automatically. For Google Fonts, SlideKit injects `<link>` elements into the document head. Each font/weight combination has a 5-second timeout — if loading fails, a warning is emitted and the system font is used as fallback.
+Fonts specified in `init({ fonts })` are preloaded before any measurement occurs. For Google Fonts, SlideKit injects `<link>` elements into the document head. Each font/weight combination has a 5-second timeout — if loading fails, a warning is emitted and the system font is used as fallback.
+
+**Always declare fonts used in your slides.** SlideKit measures text in an off-screen container to determine element heights. If fonts aren't loaded when measurement runs, the browser substitutes fallback fonts with different metrics, causing elements to be sized incorrectly — text overflows its allocated bounds after the real fonts load. Declaring fonts in `init()` guarantees they are loaded before any measurement.
+
+```js
+await init({
+  fonts: [
+    { family: 'Inter', weights: [400, 600, 700], source: 'google' },
+    { family: 'Playfair Display', weights: [400, 700], source: 'google' },
+  ],
+});
+```
+
+As a fallback, `measure()` also awaits `document.fonts.ready` after inserting content into the DOM (since content insertion is what triggers the browser to load referenced fonts). This catches fonts loaded via `@font-face` or `<link>` tags that aren't declared in `init()`, but explicit declaration is more reliable.
 
 ### Browser Environment
 
@@ -544,6 +557,8 @@ Match an element's width or height to another element's dimensions. These return
 |---|---|---|---|
 | `matchWidthOf(refId)` | `(refId: string) → RelMarker` | `{ _rel: "matchWidth", ref }` | Element width = ref's resolved width |
 | `matchHeightOf(refId)` | `(refId: string) → RelMarker` | `{ _rel: "matchHeight", ref }` | Element height = ref's resolved height |
+| `matchMaxWidth(group)` | `(group: string) → RelMarker` | `{ _rel: "matchMaxWidth", group }` | Element width = widest in group |
+| `matchMaxHeight(group)` | `(group: string) → RelMarker` | `{ _rel: "matchMaxHeight", group }` | Element height = tallest in group |
 
 ```js
 // Make body text the same width as the header
@@ -554,6 +569,17 @@ el('<div style="background:#1a1a3e">', { id: 'bg-box', x: 100, y: 100, w: matchW
 ```
 
 > **Note:** Unlike the transform `matchWidth(ids)` which sets all listed elements to the maximum width among them, `matchWidthOf(refId)` constrains a single element to match a specific reference. Use `matchWidthOf`/`matchHeightOf` in element props; use the transform versions in `transforms[]` for batch operations.
+
+#### Group-Max Matching
+
+`matchMaxWidth(group)` and `matchMaxHeight(group)` make all elements sharing the same group name adopt the widest or tallest element's measured size. No reference element needed -- just a group name string. Elements in the same group can be anywhere on the slide, even across layers. The layout solver measures each element's natural size, finds the max per group, and applies it.
+
+```js
+// Three cards that all match the tallest one's height
+el('Card A (short)', { id: 'a', x: 0,   y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card B (tall)',  { id: 'b', x: 340, y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card C (short)', { id: 'c', x: 680, y: 0, w: 300, h: matchMaxHeight('row') });
+```
 
 #### `between(refA, refB, options)`
 

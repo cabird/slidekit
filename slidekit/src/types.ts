@@ -45,6 +45,7 @@ export type RelMarkerKind =
   | "alignTop" | "alignBottom" | "alignLeft" | "alignRight"
   | "centerIn" | "between"
   | "matchWidth" | "matchHeight"
+  | "matchMaxWidth" | "matchMaxHeight"
   | "centerHSlide" | "centerVSlide";
 
 /** Provenance source values. */
@@ -474,6 +475,8 @@ export interface RelMarker {
   rect?: Rect;
   /** Declared axis for between() — enables mismatch validation. */
   axis?: 'x' | 'y';
+  /** Group name for matchMaxWidth/matchMaxHeight constraints. */
+  group?: string;
 }
 
 /** A transform marker attached to a slide definition. */

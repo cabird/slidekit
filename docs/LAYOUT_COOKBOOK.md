@@ -16,7 +16,7 @@ A concise, scannable reference of **47 slide composition patterns**. Use this to
 | Layers | `'bg'`, `'content'` (default), `'overlay'` |
 | Shadow presets | `'sm'`, `'md'`, `'lg'`, `'xl'`, `'glow'` |
 | Positioning helpers | `below()`, `rightOf()`, `centerVWith()`, `centerIn()`, `centerHOnSlide()`, `centerVOnSlide()` |
-| Dimension constraints | `matchWidthOf()`, `matchHeightOf()` — match `w`/`h` to a reference element |
+| Dimension constraints | `matchWidthOf()`, `matchHeightOf()` — match `w`/`h` to a reference element; `matchMaxWidth()`, `matchMaxHeight()` — equalize across a named group |
 | Layout preference | Prefer `splitRect()` over `hstack()` for lint-friendly layouts |
 | Height (`h`) | **Rarely needed.** Omit `h` on text elements — SlideKit measures from the DOM automatically. Only specify `h` on fixed-size containers (image frames, background rects, terminal blocks). |
 | Main-axis alignment | `vAlign: 'center'` on vstack, `hAlign: 'center'` on hstack — centers content within explicit bounds |
@@ -40,6 +40,7 @@ Quick-reference rules organized by category. Scan these before building a slide.
 - **If you're doing math to position elements, you're probably doing it wrong.** SlideKit provides declarative positioning APIs — `below()`, `rightOf()`, `centerVWith()`, `centerHWith()`, `alignTopWith()`, `alignBottomWith()`, `alignLeftWith()`, `alignRightWith()`, `centerIn()`, `centerHOnSlide()`, `centerVOnSlide()` — that handle relative placement using actual rendered dimensions. Manual arithmetic (e.g., `y: fy + (pillH - circSize) / 2`) assumes fixed sizes that break when content changes. Always reach for the API first. If no API exists for what you need, note the gap in the API Wish List at the bottom of this file.
 - Use `centerHOnSlide()` / `centerVOnSlide()` to center elements on the slide without needing a reference element or `centerIn(safe)`.
 - Use `matchWidthOf(refId)` / `matchHeightOf(refId)` to constrain an element's width or height to match another element, instead of hardcoding dimensions or using transform `matchWidth`.
+- Use `matchMaxWidth(group)` / `matchMaxHeight(group)` to make all elements in a named group share the widest or tallest element's size (e.g., equal-height cards).
 - Use `below()` / `rightOf()` chaining instead of manual y/x arithmetic.
 - Prefer `vstack` over chained `below()` when building a text column (5+ sequential text elements).
 - Use `centerVWith()` for labels placed next to taller elements (e.g., description text beside a large number).
@@ -1833,6 +1834,26 @@ el('', {
 ```
 
 **Key detail:** `matchWidthOf(refId)` and `matchHeightOf(refId)` are constraint functions for `w`/`h` properties. They resolve during layout, so the reference element's dimensions are always accurate (including auto-measured text). Unlike transform `matchWidth(ids)` which sets all listed elements to the max, these match a specific reference.
+
+---
+
+### K11: Group-Max Sizing (Equal-Height Cards)
+
+**Intent:** Make a row of cards (or any elements) all share the tallest one's height using `matchMaxHeight()`, without needing a reference element.
+
+**Visual:** Three cards with varying content that all render at the same height.
+
+**Pairs well with:** Card grids (C1-C5), multi-column layouts (A1-A6).
+
+#### Implementation
+
+```javascript
+el('Card A (short)', { id: 'a', x: 0,   y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card B (tall)',  { id: 'b', x: 340, y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card C (short)', { id: 'c', x: 680, y: 0, w: 300, h: matchMaxHeight('row') });
+```
+
+**Key detail:** `matchMaxWidth(group)` and `matchMaxHeight(group)` take a group name string (not a ref ID). All elements using the same group name share the largest measured dimension. Elements can be anywhere on the slide, even across layers. The layout solver auto-measures each element's natural size, finds the max per group, and applies it.
 
 ---
 

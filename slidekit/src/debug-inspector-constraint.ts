@@ -17,14 +17,14 @@ import type { SlideDefinition, SlideElement, RelMarker, LayoutResult } from './t
 
 export const Y_AXIS_TYPES = ['below', 'above', 'centerV', 'alignTop', 'alignBottom', 'centerVSlide'] as const;
 export const X_AXIS_TYPES = ['rightOf', 'leftOf', 'centerH', 'alignLeft', 'alignRight', 'centerHSlide'] as const;
-export const W_AXIS_TYPES = ['matchWidth'] as const;
-export const H_AXIS_TYPES = ['matchHeight'] as const;
+export const W_AXIS_TYPES = ['matchWidth', 'matchMaxWidth'] as const;
+export const H_AXIS_TYPES = ['matchHeight', 'matchMaxHeight'] as const;
 
 /** Types that have an editable gap parameter. */
 export const DIRECTIONAL_TYPES = new Set(['below', 'above', 'rightOf', 'leftOf']);
 
 /** Types that don't reference another element. */
-export const REFLESS_TYPES = new Set(['centerHSlide', 'centerVSlide']);
+export const REFLESS_TYPES = new Set(['centerHSlide', 'centerVSlide', 'matchMaxWidth', 'matchMaxHeight']);
 
 export function typesForAxis(axis: 'x' | 'y'): readonly string[] {
   return axis === 'y' ? Y_AXIS_TYPES : X_AXIS_TYPES;

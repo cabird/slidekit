@@ -1162,7 +1162,9 @@ var init_helpers = __esm({
       matchWidth: ["cr", "cl"],
       matchHeight: ["bc", "tc"],
       centerHSlide: ["cc", "cc"],
-      centerVSlide: ["cc", "cc"]
+      centerVSlide: ["cc", "cc"],
+      matchMaxWidth: ["cr", "cl"],
+      matchMaxHeight: ["bc", "tc"]
     };
   }
 });
@@ -2759,7 +2761,7 @@ var init_debug_inspector_constraint = __esm({
     Y_AXIS_TYPES = ["below", "above", "centerV", "alignTop", "alignBottom", "centerVSlide"];
     X_AXIS_TYPES = ["rightOf", "leftOf", "centerH", "alignLeft", "alignRight", "centerHSlide"];
     DIRECTIONAL_TYPES = /* @__PURE__ */ new Set(["below", "above", "rightOf", "leftOf"]);
-    REFLESS_TYPES = /* @__PURE__ */ new Set(["centerHSlide", "centerVSlide"]);
+    REFLESS_TYPES = /* @__PURE__ */ new Set(["centerHSlide", "centerVSlide", "matchMaxWidth", "matchMaxHeight"]);
   }
 });
 
@@ -5455,7 +5457,7 @@ function clearMeasureCache() {
 }
 function _elMeasureCacheKey(html, props) {
   const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
-  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || ""]);
+  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || "", props.shrinkWrap || false]);
 }
 async function measure(html, props = {}) {
   const cacheKey = _elMeasureCacheKey(html, props);
@@ -5465,7 +5467,11 @@ async function measure(html, props = {}) {
   _ensureMeasureContainer();
   const div = document.createElement("div");
   div.style.boxSizing = "border-box";
-  if (props.w != null) div.style.width = `${props.w}px`;
+  if (props.w != null) {
+    div.style.width = `${props.w}px`;
+  } else if (props.shrinkWrap) {
+    div.style.display = "inline-block";
+  }
   if (props.className) div.className = props.className;
   if (props.style) {
     const { filtered } = filterStyle(props.style, "el");
@@ -5553,6 +5559,12 @@ function centerHOnSlide() {
 }
 function centerVOnSlide() {
   return { _rel: "centerVSlide" };
+}
+function matchMaxWidth(groupName) {
+  return { _rel: "matchMaxWidth", group: groupName };
+}
+function matchMaxHeight(groupName) {
+  return { _rel: "matchMaxHeight", group: groupName };
 }
 function placeBetween(topRef, bottomYOrRef, { bias = 0.35 } = {}) {
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.35;
@@ -8685,18 +8697,26 @@ function isPanelElement(el2) {
 // slidekit/src/layout/intrinsics.ts
 async function getEffectiveDimensions(element) {
   const { props, type } = element;
-  const wIsDeferred = isRelMarker(props.w);
-  const hIsDeferred = isRelMarker(props.h);
-  const effectiveW = wIsDeferred ? 0 : props.w || 0;
-  const effectiveH = hIsDeferred ? 0 : props.h || 0;
-  if (type === "el" && !hIsDeferred && (props.h === void 0 || props.h === null)) {
+  const wRel = isRelMarker(props.w) ? props.w._rel : null;
+  const hRel = isRelMarker(props.h) ? props.h._rel : null;
+  const wIsDeferred = wRel === "matchWidth";
+  const hIsDeferred = hRel === "matchHeight";
+  const wIsMatchMax = wRel === "matchMaxWidth";
+  const hIsMatchMax = hRel === "matchMaxHeight";
+  const effectiveW = wIsDeferred ? 0 : wIsMatchMax ? 0 : props.w || 0;
+  const effectiveH = hIsDeferred ? 0 : hIsMatchMax ? 0 : props.h || 0;
+  const needsAutoHeight = props.h === void 0 || props.h === null || hIsMatchMax;
+  const needsAutoWidth = wIsMatchMax;
+  if (type === "el" && !hIsDeferred && (needsAutoHeight || needsAutoWidth)) {
     const html = element.content || "";
-    const measureW = wIsDeferred ? void 0 : props.w;
+    const measureW = wIsDeferred || wIsMatchMax ? void 0 : props.w;
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: effectiveW, h: 0, _autoHeight: true };
+      return { w: effectiveW, h: 0, _autoHeight: needsAutoHeight };
     }
-    const metrics = await measure(html, { w: measureW, style: props.style, className: props.className });
-    return { w: effectiveW || metrics.w, h: metrics.h, _autoHeight: true };
+    const metrics = await measure(html, { w: measureW, style: props.style, className: props.className, shrinkWrap: needsAutoWidth });
+    const resolvedW = needsAutoWidth ? metrics.w : effectiveW || metrics.w;
+    const resolvedH = needsAutoHeight ? metrics.h : effectiveH;
+    return { w: resolvedW, h: resolvedH, _autoHeight: needsAutoHeight };
   }
   return { w: effectiveW, h: effectiveH, _autoHeight: false };
 }
@@ -8729,21 +8749,23 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       el2.props.h = resolvePercentage(el2.props.h, "h");
     }
   }
+  const VALID_W_RELS = /* @__PURE__ */ new Set(["matchWidth", "matchMaxWidth"]);
+  const VALID_H_RELS = /* @__PURE__ */ new Set(["matchHeight", "matchMaxHeight"]);
   for (const [id, el2] of flatMap) {
-    if (isRelMarker(el2.props.w) && el2.props.w._rel !== "matchWidth") {
+    if (isRelMarker(el2.props.w) && !VALID_W_RELS.has(el2.props.w._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "w",
-        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() is valid on w.`
+        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() or matchMaxWidth() are valid on w.`
       });
     }
-    if (isRelMarker(el2.props.h) && el2.props.h._rel !== "matchHeight") {
+    if (isRelMarker(el2.props.h) && !VALID_H_RELS.has(el2.props.h._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "h",
-        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() is valid on h.`
+        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() or matchMaxHeight() are valid on h.`
       });
     }
   }
@@ -9099,6 +9121,56 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
       message: `Circular dependency detected among elements: ${inCycle.join(", ")}`
     });
     return null;
+  }
+  const maxWidthGroups = /* @__PURE__ */ new Map();
+  const maxHeightGroups = /* @__PURE__ */ new Map();
+  for (const [id, el2] of flatMap) {
+    if (isRelMarker(el2.props.w) && el2.props.w._rel === "matchMaxWidth") {
+      const group2 = el2.props.w.group;
+      if (!maxWidthGroups.has(group2)) maxWidthGroups.set(group2, []);
+      maxWidthGroups.get(group2).push(id);
+    }
+    if (isRelMarker(el2.props.h) && el2.props.h._rel === "matchMaxHeight") {
+      const group2 = el2.props.h.group;
+      if (!maxHeightGroups.has(group2)) maxHeightGroups.set(group2, []);
+      maxHeightGroups.get(group2).push(id);
+    }
+  }
+  for (const [, ids] of maxWidthGroups) {
+    let maxW = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.w > maxW) maxW = s.w;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.w = maxW;
+    }
+    for (const id of ids) {
+      const el2 = flatMap.get(id);
+      const s = resolvedSizes.get(id);
+      if (!el2 || !s || !s.hMeasured) continue;
+      if (el2.type !== "el") continue;
+      const html = el2.content || "";
+      if (!html) continue;
+      const remeasured = await measure(html, {
+        w: maxW,
+        style: el2.props.style,
+        className: el2.props.className
+      });
+      s.h = remeasured.h;
+    }
+  }
+  for (const [, ids] of maxHeightGroups) {
+    let maxH = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.h > maxH) maxH = s.h;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.h = maxH;
+    }
   }
   const resolvedBounds = /* @__PURE__ */ new Map();
   for (const id of sortedOrder) {
@@ -10254,6 +10326,8 @@ var SlideKit = {
   matchHeightOf,
   centerHOnSlide,
   centerVOnSlide,
+  matchMaxWidth,
+  matchMaxHeight,
   // Stack primitives
   vstack,
   hstack,
@@ -10366,6 +10440,8 @@ export {
   lintSlide,
   matchHeight,
   matchHeightOf,
+  matchMaxHeight,
+  matchMaxWidth,
   matchSize,
   matchWidth,
   matchWidthOf,

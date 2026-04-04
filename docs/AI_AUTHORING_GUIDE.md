@@ -48,6 +48,15 @@ const slides = [
 await render(slides);
 ```
 
+> **Always declare fonts in `init()`.** SlideKit measures text off-screen to determine element heights. If fonts aren't loaded yet, the browser uses fallback fonts with different metrics — elements end up too short and text overflows. Declaring fonts in `init()` guarantees they load before measurement. If you use multiple font families (e.g. a sans-serif for headings and a serif for body), list them all:
+>
+> ```js
+> await init({ fonts: [
+>   { family: 'IBM Plex Sans', weights: [400, 600, 700], source: 'google' },
+>   { family: 'IBM Plex Serif', weights: [400], source: 'google' },
+> ]});
+> ```
+
 Every element referenced by `below()`, `rightOf()`, transforms, or connectors **must have an `id`**.
 
 ### HTML Template (`presentation.html`)

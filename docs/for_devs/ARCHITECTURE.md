@@ -105,7 +105,7 @@ graph TD
 | `config.ts` | `init()`, safe zone computation, font loading, `safeRect()`, `splitRect()`, `_resetForTests()`. | `init()`, `safeRect()`, `splitRect()`, `getConfig()` |
 | `dom-helpers.ts` | Single utility: `applyStyleToDOM()` for applying camelCase CSS to DOM elements. | `applyStyleToDOM()` |
 | `elements.ts` | Core element constructors with default merging. | `el()`, `group()`, `vstack()`, `hstack()`, `cardGrid()` |
-| `relative.ts` | Relative positioning helpers and dimension constraints that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, `centerHOnSlide()`, `centerVOnSlide()`, `matchWidthOf()`, `matchHeightOf()`, etc. |
+| `relative.ts` | Relative positioning helpers and dimension constraints that produce `_rel` marker objects. | `below()`, `rightOf()`, `centerIn()`, `placeBetween()`, `centerHOnSlide()`, `centerVOnSlide()`, `matchWidthOf()`, `matchHeightOf()`, `matchMaxWidth()`, `matchMaxHeight()`, etc. |
 | `measure.ts` | Off-screen DOM measurement with caching. Creates a hidden container with baseline CSS. | `measure()`, `clearMeasureCache()` |
 | `transforms.ts` | PowerPoint-style alignment, distribution, and size-matching transforms. Both factory functions and the `applyTransform()` executor. | `alignTop()`, `distributeH()`, `matchWidth()`, `fitToRect()`, etc. |
 | `compounds.ts` | Higher-level primitives built on `el()`, `group()`, and `vstack()`. | `connect()`, `panel()`, `figure()`, `getAnchorPoint()` |

@@ -22,8 +22,8 @@ These appear on most element types. When a section says "+ CP", all of these app
 - `id: string def=auto("sk-N")` — unique identifier
 - `x: PositionValue def=0` — X position (number, percentage string `"50%"`, `"safe:25%"`, or RelMarker)
 - `y: PositionValue def=0` — Y position (same types as x)
-- `w: SizeValue?` — width in px, percentage string, `"fill"` in panels, or `matchWidthOf(refId)`. Auto-measured if omitted.
-- `h: SizeValue?` — height in px, percentage string, or `matchHeightOf(refId)`. Auto-measured if omitted.
+- `w: SizeValue?` — width in px, percentage string, `"fill"` in panels, `matchWidthOf(refId)`, or `matchMaxWidth(group)`. Auto-measured if omitted.
+- `h: SizeValue?` — height in px, percentage string, `matchHeightOf(refId)`, or `matchMaxHeight(group)`. Auto-measured if omitted.
 - `maxW: number?` — max width constraint
 - `maxH: number?` — max height constraint
 - `anchor: AnchorPoint def="tl"` — which point sits at (x,y); see Anchor System
@@ -282,12 +282,17 @@ el('Title', { x: centerHOnSlide(), y: centerVOnSlide(), w: 800, anchor: 'tc' });
 **Dimension constraints** (valid on `w`/`h`, not `x`/`y`):
 - `matchWidthOf(ref)` → `{ _rel: 'matchWidth', ref }` — element width = ref's width
 - `matchHeightOf(ref)` → `{ _rel: 'matchHeight', ref }` — element height = ref's height
+- `matchMaxWidth(group)` → `{ _rel: 'matchMaxWidth', group }` — element width = widest in group
+- `matchMaxHeight(group)` → `{ _rel: 'matchMaxHeight', group }` — element height = tallest in group
 
 ```js
 el('Body', { y: below('header', 'md'), w: matchWidthOf('header') });
+// Group-max: all three cards match the tallest one's height
+el('Card A', { id: 'a', x: 0, y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card B', { id: 'b', x: 340, y: 0, w: 300, h: matchMaxHeight('row') });
 ```
 
-DO: Use `matchWidthOf`/`matchHeightOf` to constrain a single element to a reference. Use transform `matchWidth`/`matchHeight` for batch operations on multiple elements.
+DO: Use `matchWidthOf`/`matchHeightOf` to constrain a single element to a reference. Use `matchMaxWidth`/`matchMaxHeight` to equalize sizes across a named group. Use transform `matchWidth`/`matchHeight` for batch operations on multiple elements.
 
 ### `between(refA, refB, { axis, bias? }) → RelMarker`
 

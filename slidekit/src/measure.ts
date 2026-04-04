@@ -11,6 +11,8 @@ interface MeasureProps {
   w?: number;
   style?: Record<string, unknown>;
   className?: string;
+  /** When true, use inline-block to measure natural content width. */
+  shrinkWrap?: boolean;
 }
 
 // =============================================================================
@@ -72,7 +74,7 @@ function _elMeasureCacheKey(html: string, props: MeasureProps): string {
   const styleKey = props.style
     ? JSON.stringify(props.style, Object.keys(props.style).sort())
     : null;
-  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || ""]);
+  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || "", props.shrinkWrap || false]);
 }
 
 /**
@@ -100,7 +102,12 @@ export async function measure(
 
   const div = document.createElement("div");
   div.style.boxSizing = "border-box";
-  if (props.w != null) div.style.width = `${props.w}px`;
+  if (props.w != null) {
+    div.style.width = `${props.w}px`;
+  } else if (props.shrinkWrap) {
+    // Shrink-wrap to content width (for matchMaxWidth measurement)
+    div.style.display = "inline-block";
+  }
 
   // Container styling (same as render will apply)
   if (props.className) div.className = props.className;
@@ -113,8 +120,22 @@ export async function measure(
   div.setAttribute("data-sk-measure", "");
   div.innerHTML = html;
 
-  // Append to DOM (required for images to start loading and layout to compute)
+  // Append to DOM — this triggers image loads AND font loading for any
+  // web fonts referenced in the HTML's inline styles.
   state.measureContainer!.appendChild(div);
+
+  // Wait for web fonts to finish loading. This must happen AFTER the HTML
+  // is in the DOM because inserting content that references a font family
+  // is what triggers the browser to start loading that font. Measuring
+  // before fonts are ready produces incorrect heights (fallback font metrics
+  // differ from the real font).
+  const FONT_TIMEOUT_MS = 5000;
+  if (document.fonts?.ready) {
+    await Promise.race([
+      document.fonts.ready,
+      new Promise<void>(resolve => setTimeout(resolve, FONT_TIMEOUT_MS)),
+    ]);
+  }
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");

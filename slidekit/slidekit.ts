@@ -10,7 +10,7 @@ export { filterStyle, resolveShadow, getShadowPresets } from './src/style.js';
 export { getSpacing } from './src/spacing.js';
 export { init, safeRect, splitRect, getConfig, isFontLoaded, getFontWarnings, checkVersionCompatibility, _resetForTests } from './src/config.js';
 export { clearMeasureCache, measure } from './src/measure.js';
-export { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, placeBetween, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide } from './src/relative.js';
+export { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, placeBetween, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide, matchMaxWidth, matchMaxHeight } from './src/relative.js';
 export { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
 export { render, computeZOrder, applyStyleToDOM, applySlideBackground, renderElementFromScene, rerenderSlide } from './src/renderer.js';
 export { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
@@ -37,7 +37,7 @@ import { filterStyle, resolveShadow, getShadowPresets } from './src/style.js';
 import { init, safeRect, getConfig, isFontLoaded, getFontWarnings, checkVersionCompatibility, _resetForTests } from './src/config.js';
 import { resetIdCounter } from './src/id.js';
 import { measure, clearMeasureCache } from './src/measure.js';
-import { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide } from './src/relative.js';
+import { below, above, rightOf, leftOf, centerVWith, centerHWith, alignTopWith, alignBottomWith, alignLeftWith, alignRightWith, centerIn, between, matchWidthOf, matchHeightOf, centerHOnSlide, centerVOnSlide, matchMaxWidth, matchMaxHeight } from './src/relative.js';
 import { alignLeft, alignRight, alignTop, alignBottom, alignCenterH, alignCenterV, distributeH, distributeV, matchWidth, matchHeight, matchSize, fitToRect } from './src/transforms.js';
 import { render } from './src/renderer.js';
 import { connect, panel, figure, getAnchorPoint } from './src/compounds.js';
@@ -94,6 +94,8 @@ const SlideKit = {
   matchHeightOf,
   centerHOnSlide,
   centerVOnSlide,
+  matchMaxWidth,
+  matchMaxHeight,
   // Stack primitives
   vstack,
   hstack,

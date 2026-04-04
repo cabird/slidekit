@@ -158,6 +158,26 @@ export function centerVOnSlide(): RelMarker {
 }
 
 /**
+ * Match the maximum width among all elements in the named group.
+ * All elements using the same group name will share the widest element's width.
+ * @param groupName - Shared group identifier
+ * @returns A RelMarker with _rel: "matchMaxWidth"
+ */
+export function matchMaxWidth(groupName: string): RelMarker {
+  return { _rel: "matchMaxWidth", group: groupName };
+}
+
+/**
+ * Match the maximum height among all elements in the named group.
+ * All elements using the same group name will share the tallest element's height.
+ * @param groupName - Shared group identifier
+ * @returns A RelMarker with _rel: "matchMaxHeight"
+ */
+export function matchMaxHeight(groupName: string): RelMarker {
+  return { _rel: "matchMaxHeight", group: groupName };
+}
+
+/**
  * Position Y between two vertical references with configurable bias.
  *
  * @deprecated Use `between(refA, refB, { axis: 'y' })` instead.

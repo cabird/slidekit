@@ -61,7 +61,7 @@ SlideKit does not provide auto-fitting or line counting. If you need to find the
 
 ### Relative Positioning
 
-Elements can be positioned relative to other elements — "24px below the title," "40px to the right of the sidebar." The library resolves these into absolute coordinates during layout solve using a dependency graph. Circular dependencies are detected and reported. Slide-level centering helpers (`centerHOnSlide()`, `centerVOnSlide()`) center elements on the canvas without needing a reference element. Dimension constraints (`matchWidthOf(refId)`, `matchHeightOf(refId)`) let you match an element's width or height to another element's resolved dimensions.
+Elements can be positioned relative to other elements — "24px below the title," "40px to the right of the sidebar." The library resolves these into absolute coordinates during layout solve using a dependency graph. Circular dependencies are detected and reported. Slide-level centering helpers (`centerHOnSlide()`, `centerVOnSlide()`) center elements on the canvas without needing a reference element. Dimension constraints (`matchWidthOf(refId)`, `matchHeightOf(refId)`) let you match an element's width or height to another element's resolved dimensions. Group-max constraints (`matchMaxWidth(group)`, `matchMaxHeight(group)`) make all elements in a named group share the largest measured size.
 
 ### Stacking Layouts
 
@@ -113,6 +113,7 @@ PowerPoint-style alignment and distribution operations work on arrays of element
 - **`placeBetween()`** — positions an element vertically between two references with configurable bias.
 - **`centerHOnSlide()` / `centerVOnSlide()`** — center elements on the slide canvas without needing a reference element.
 - **`matchWidthOf(refId)` / `matchHeightOf(refId)`** — dimension constraints that match an element's width or height to a reference element.
+- **`matchMaxWidth(group)` / `matchMaxHeight(group)`** — group-max constraints that make all elements in a named group share the widest or tallest element's measured size.
 - **`group({ bounds: 'hug' })`** — auto-computes group dimensions from its children's bounding box.
 - **Grid system** with configurable columns and gutters for consistent cross-slide alignment.
 - **Snap** to round positions to grid increments.
@@ -141,7 +142,7 @@ SlideKit is decomposed into 19 focused TypeScript modules under `src/`, plus a 6
 | `style.ts` | CSS property filtering (block layout props), shadow presets |
 | `spacing.ts` | Semantic spacing scale (`xs` through `section`) |
 | `id.ts` | Auto-incrementing element IDs |
-| `relative.ts` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, `centerHOnSlide`, `centerVOnSlide`, `matchWidthOf`, `matchHeightOf`, etc.) |
+| `relative.ts` | Relative positioning helpers (`below`, `rightOf`, `centerIn`, `centerHOnSlide`, `centerVOnSlide`, `matchWidthOf`, `matchHeightOf`, `matchMaxWidth`, `matchMaxHeight`, etc.) |
 | `measure.ts` | DOM-based text measurement with caching |
 | `transforms.ts` | Post-solve alignment, distribution, size matching |
 | `renderer.ts` | DOM rendering into Reveal.js `<section>` elements |

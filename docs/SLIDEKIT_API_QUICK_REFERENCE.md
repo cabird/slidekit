@@ -31,6 +31,17 @@ Initializes SlideKit. Call once before any other function.
 | `minVersion` | `string` | -- | Minimum compatible SlideKit version (semver) |
 | `debug.sourceHint` | `string` | -- | Path to slide source file, shown in inspector (e.g., `'./slides.js'`) |
 
+> **Important — declare your fonts.** If your slides use web fonts (Google Fonts, custom `@font-face`), list them in `init({ fonts })` so SlideKit preloads them before measuring text. Without this, `measure()` may run before fonts finish loading and compute incorrect element heights. SlideKit does await `document.fonts.ready` as a fallback, but explicitly declaring fonts is more reliable and avoids race conditions.
+
+```js
+await init({
+  fonts: [
+    { family: 'IBM Plex Sans', weights: [400, 600, 700], source: 'google' },
+    { family: 'IBM Plex Serif', weights: [400, 600], source: 'google' },
+  ],
+});
+```
+
 ### `safeRect()`
 
 ```ts
@@ -228,8 +239,8 @@ All element types share these properties:
 |----------|------|---------|-------|
 | `id` | `string` | auto (`sk-N`) | **Required** for referenced elements |
 | `x`, `y` | `number \| string \| RelMarker` | `0` | Accepts px, `"50%"`, `"safe:25%"`, or relative marker |
-| `w` | `number \| string \| RelMarker` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` (panels only), or `matchWidthOf(refId)` |
-| `h` | `number \| string \| RelMarker` | -- | Auto-measured for text. Accepts px, `"50%"`, or `matchHeightOf(refId)`. Set only for fixed-size boxes. |
+| `w` | `number \| string \| RelMarker` | -- | **Required for text.** Accepts px, `"50%"`, `"fill"` (panels only), `matchWidthOf(refId)`, or `matchMaxWidth(group)` |
+| `h` | `number \| string \| RelMarker` | -- | Auto-measured for text. Accepts px, `"50%"`, `matchHeightOf(refId)`, or `matchMaxHeight(group)`. Set only for fixed-size boxes. |
 | `maxW`, `maxH` | `number` | -- | Max dimension constraints |
 | `anchor` | `AnchorPoint` | `"tl"` | Which point sits at (x, y) |
 | `layer` | `LayerName` | `"content"` | `"bg"`, `"content"`, `"overlay"` |
@@ -322,6 +333,8 @@ No reference element needed -- centers relative to the full 1920x1080 canvas.
 |----------|------|-------------|
 | `matchWidthOf(refId)` | W | Element width = ref's width |
 | `matchHeightOf(refId)` | H | Element height = ref's height |
+| `matchMaxWidth(group)` | W | Element width = widest in group |
+| `matchMaxHeight(group)` | H | Element height = tallest in group |
 
 ```js
 el('<p>Same width as header</p>', { id: 'body', y: below('header', 'md'), w: matchWidthOf('header') });
@@ -329,6 +342,17 @@ el('<div style="background:#1a1a3e">', { id: 'bg-box', x: 100, y: 100, w: matchW
 ```
 
 Unlike transform `matchWidth(ids)` which sets all listed elements to the max, `matchWidthOf(refId)` / `matchHeightOf(refId)` are constraint functions usable on `w` / `h` properties to match a specific reference element.
+
+#### Group-Max Matching
+
+`matchMaxWidth(group)` and `matchMaxHeight(group)` make all elements sharing the same group name adopt the widest or tallest element's measured size. No reference element needed -- just a group name string. Elements can be anywhere on the slide (even across layers).
+
+```js
+// Three cards that all match the tallest one's height
+el('Card A (short)', { id: 'a', x: 0,   y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card B (tall)',  { id: 'b', x: 340, y: 0, w: 300, h: matchMaxHeight('row') });
+el('Card C (short)', { id: 'c', x: 680, y: 0, w: 300, h: matchMaxHeight('row') });
+```
 
 ### Between
 
@@ -629,7 +653,7 @@ A typical SlideKit slide file imports from the SlideKit bundle and exports a sli
 import { init, safeRect, splitRect, el, group, vstack, hstack, panel, connect,
          below, above, rightOf, leftOf, centerIn, between,
          alignTopWith, alignLeftWith, centerHWith, centerVWith,
-         centerHOnSlide, centerVOnSlide, matchWidthOf, matchHeightOf,
+         centerHOnSlide, centerVOnSlide, matchWidthOf, matchHeightOf, matchMaxWidth, matchMaxHeight,
          alignTop, distributeH, matchWidth,
          render, enableKeyboardToggle } from './slidekit.bundle.js';
 

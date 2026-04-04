@@ -216,6 +216,8 @@ const _CONSTRAINT_ANCHORS: Record<string, [string, string]> = {
   matchHeight: ["bc", "tc"],
   centerHSlide: ["cc", "cc"],
   centerVSlide: ["cc", "cc"],
+  matchMaxWidth: ["cr", "cl"],
+  matchMaxHeight: ["bc", "tc"],
 };
 
 /**

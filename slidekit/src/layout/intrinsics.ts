@@ -7,7 +7,7 @@ import { resolvePercentage } from '../utilities.js';
 import { isRelMarker, deepClone } from './helpers.js';
 import { mustGet } from '../assertions.js';
 import { isPanelElement } from '../types.js';
-import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec } from '../types.js';
+import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec, RelMarker } from '../types.js';
 
 /**
  * Compute the effective width and height for an element.
@@ -21,21 +21,31 @@ import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec } from '..
 export async function getEffectiveDimensions(element: SlideElement): Promise<{ w: number; h: number; _autoHeight: boolean }> {
   const { props, type } = element;
 
-  // Dimension constraints (matchWidth/matchHeight) are deferred — use 0 as placeholder
-  const wIsDeferred = isRelMarker(props.w);
-  const hIsDeferred = isRelMarker(props.h);
-  const effectiveW = wIsDeferred ? 0 : (props.w as number) || 0;
-  const effectiveH = hIsDeferred ? 0 : (props.h as number) || 0;
+  // Dimension constraints: matchWidth/matchHeight are deferred (use 0 placeholder).
+  // matchMaxWidth/matchMaxHeight still measure normally — the max is applied later.
+  const wRel = isRelMarker(props.w) ? (props.w as RelMarker)._rel : null;
+  const hRel = isRelMarker(props.h) ? (props.h as RelMarker)._rel : null;
+  const wIsDeferred = wRel === 'matchWidth';  // matchMax measures normally
+  const hIsDeferred = hRel === 'matchHeight';
+  const wIsMatchMax = wRel === 'matchMaxWidth';
+  const hIsMatchMax = hRel === 'matchMaxHeight';
+  const effectiveW = wIsDeferred ? 0 : (wIsMatchMax ? 0 : (props.w as number) || 0);
+  const effectiveH = hIsDeferred ? 0 : (hIsMatchMax ? 0 : (props.h as number) || 0);
 
-  // Auto-height for el() elements (only when h is not a deferred constraint)
-  if (type === "el" && !hIsDeferred && (props.h === undefined || props.h === null)) {
+  // Auto-measure for el() elements when h or w needs measurement.
+  // matchMax elements need their natural measured size so the group max can be computed.
+  const needsAutoHeight = props.h === undefined || props.h === null || hIsMatchMax;
+  const needsAutoWidth = wIsMatchMax;
+  if (type === "el" && !hIsDeferred && (needsAutoHeight || needsAutoWidth)) {
     const html = element.content || "";
-    const measureW = wIsDeferred ? undefined : (props.w as number | undefined);
+    const measureW = (wIsDeferred || wIsMatchMax) ? undefined : (props.w as number | undefined);
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
-      return { w: effectiveW, h: 0, _autoHeight: true };
+      return { w: effectiveW, h: 0, _autoHeight: needsAutoHeight };
     }
-    const metrics = await measure(html, { w: measureW, style: props.style as Record<string, unknown> | undefined, className: props.className });
-    return { w: effectiveW || metrics.w, h: metrics.h, _autoHeight: true };
+    const metrics = await measure(html, { w: measureW, style: props.style as Record<string, unknown> | undefined, className: props.className, shrinkWrap: needsAutoWidth });
+    const resolvedW = needsAutoWidth ? metrics.w : (effectiveW || metrics.w);
+    const resolvedH = needsAutoHeight ? metrics.h : effectiveH;
+    return { w: resolvedW, h: resolvedH, _autoHeight: needsAutoHeight };
   }
 
   return { w: effectiveW, h: effectiveH, _autoHeight: false };
@@ -107,22 +117,24 @@ export async function resolveIntrinsicSizes(
   }
 
   // Validate: _rel markers must only be on x and y, not w or h
-  // Exception: matchWidth and matchHeight are valid dimension constraints
+  // Exception: dimension constraints (matchWidth, matchHeight, matchMaxWidth, matchMaxHeight)
+  const VALID_W_RELS = new Set(['matchWidth', 'matchMaxWidth']);
+  const VALID_H_RELS = new Set(['matchHeight', 'matchMaxHeight']);
   for (const [id, el] of flatMap) {
-    if (isRelMarker(el.props.w) && (el.props.w as { _rel: string })._rel !== 'matchWidth') {
+    if (isRelMarker(el.props.w) && !VALID_W_RELS.has((el.props.w as { _rel: string })._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "w",
-        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() is valid on w.`,
+        message: `Element "${id}": _rel marker on "w" is invalid. Only matchWidthOf() or matchMaxWidth() are valid on w.`,
       });
     }
-    if (isRelMarker(el.props.h) && (el.props.h as { _rel: string })._rel !== 'matchHeight') {
+    if (isRelMarker(el.props.h) && !VALID_H_RELS.has((el.props.h as { _rel: string })._rel)) {
       errors.push({
         type: "invalid_rel_on_dimension",
         elementId: id,
         property: "h",
-        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() is valid on h.`,
+        message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() or matchMaxHeight() are valid on h.`,
       });
     }
   }

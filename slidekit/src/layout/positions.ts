@@ -238,6 +238,61 @@ export async function resolvePositions(
     return null;
   }
 
+  // Resolve matchMaxWidth / matchMaxHeight groups.
+  // Collect elements by group name, find the max measured size, apply to all members.
+  const maxWidthGroups = new Map<string, string[]>();   // group -> [elementIds]
+  const maxHeightGroups = new Map<string, string[]>();
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchMaxWidth') {
+      const group = (el.props.w as RelMarker).group!;
+      if (!maxWidthGroups.has(group)) maxWidthGroups.set(group, []);
+      maxWidthGroups.get(group)!.push(id);
+    }
+    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchMaxHeight') {
+      const group = (el.props.h as RelMarker).group!;
+      if (!maxHeightGroups.has(group)) maxHeightGroups.set(group, []);
+      maxHeightGroups.get(group)!.push(id);
+    }
+  }
+  for (const [, ids] of maxWidthGroups) {
+    let maxW = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.w > maxW) maxW = s.w;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.w = maxW;
+    }
+    // Re-measure heights for elements whose width changed and have auto-height.
+    // Text may wrap differently at the new (potentially narrower) width.
+    for (const id of ids) {
+      const el = flatMap.get(id);
+      const s = resolvedSizes.get(id);
+      if (!el || !s || !s.hMeasured) continue;
+      if (el.type !== 'el') continue;
+      const html = (el as { content?: string }).content || '';
+      if (!html) continue;
+      const remeasured = await measure(html, {
+        w: maxW,
+        style: el.props.style as Record<string, unknown> | undefined,
+        className: el.props.className,
+      });
+      s.h = remeasured.h;
+    }
+  }
+  for (const [, ids] of maxHeightGroups) {
+    let maxH = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.h > maxH) maxH = s.h;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.h = maxH;
+    }
+  }
+
   // Resolve positions in topological order
   // resolvedBounds: id -> { x, y, w, h } (top-left corner + dimensions)
   const resolvedBounds = new Map<string, Rect>();
