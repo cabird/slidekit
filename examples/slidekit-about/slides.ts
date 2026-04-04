@@ -786,7 +786,7 @@ w: 800, h: 400`,
                 bar(`s7-vs-${align}-c`, C.accent3, barC),
               ], {
                 id: `s7-vs-${align}`,
-                w: 160, gap: 'sm',
+                w: isStretch ? 'fill' : 160, gap: 'sm',
                 align: align as any,
               }),
             ], {

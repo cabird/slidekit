@@ -8988,15 +8988,17 @@ function figure(opts = {}) {
     captionGap: gapPx,
     fit
   };
+  const groupH = caption ? void 0 : h;
   const groupBase = group(children, {
     id: figId,
     x,
     y,
     w,
-    h,
+    h: groupH,
     anchor,
     layer,
-    style
+    style,
+    bounds: caption ? "hug" : void 0
   });
   const result = {
     ...groupBase,

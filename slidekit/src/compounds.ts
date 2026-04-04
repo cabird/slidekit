@@ -350,12 +350,17 @@ export function figure(opts: FigureInputProps = {}): FigureElement {
   };
 
   // Construct the FigureElement directly — avoids @ts-ignore on group return
+  // When a caption exists, expand group height to include it (caption is placed
+  // below the image container at y = h + captionGap, with auto-measured height).
+  // We estimate caption height here; the layout pipeline will refine via hug bounds.
+  const groupH = caption ? undefined : h;  // with caption, let hug bounds compute height
   const groupBase = group(children, {
     id: figId,
-    x, y, w, h,
+    x, y, w, h: groupH,
     anchor,
     layer,
     style,
+    bounds: caption ? 'hug' : undefined,
   });
 
   const result: FigureElement = {

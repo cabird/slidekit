@@ -8860,15 +8860,17 @@ function figure(opts = {}) {
     captionGap: gapPx,
     fit
   };
+  const groupH = caption2 ? void 0 : h;
   const groupBase = group(children, {
     id: figId,
     x,
     y,
     w,
-    h,
+    h: groupH,
     anchor,
     layer,
-    style
+    style,
+    bounds: caption2 ? "hug" : void 0
   });
   const result = {
     ...groupBase,
@@ -11783,7 +11785,7 @@ w: 800, h: 400`,
                 bar(`s7-vs-${align}-c`, C.accent3, barC)
               ], {
                 id: `s7-vs-${align}`,
-                w: 160,
+                w: isStretch ? "fill" : 160,
                 gap: "sm",
                 align
               })
