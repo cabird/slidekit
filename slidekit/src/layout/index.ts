@@ -6,10 +6,12 @@ import { state } from '../state.js';
 import { nextTransformId, applyTransform } from '../transforms.js';
 
 import { deepClone, flattenElements } from './helpers.js';
+import { resolveSpacing } from '../spacing.js';
 import { checkOverflowPolicies } from './overflow.js';
 import { resolveIntrinsicSizes } from './intrinsics.js';
 import { resolvePositions } from './positions.js';
 import { finalize } from './finalize.js';
+import { measure } from '../measure.js';
 import { isPanelElement } from '../types.js';
 import type { SlideDefinition, LayoutResult, TransformMarker, Rect } from '../types.js';
 
@@ -244,6 +246,97 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
         newWidth: postBounds.w,
         message: `Panel "${id}" width changed by transform (${preBounds.w} → ${postBounds.w}). Text wrapping may be inaccurate — re-measurement cannot run after transforms.`,
       });
+    }
+  }
+
+  // =========================================================================
+  // Phase 3.6: Dirty Repair — re-measure heights after width-mutating transforms
+  // =========================================================================
+  // If a transform (e.g. fitToRect) changed an element's width and the element
+  // has auto-height (hMeasured), re-measure its height at the new width.
+  // Then recompute ancestor stack/panel heights that depend on the changed child.
+  {
+    let heightsChanged = false;
+    for (const [id, bounds] of resolvedBounds) {
+      const preBounds = preTransformBounds.get(id);
+      if (!preBounds) continue;
+      if (bounds.w === preBounds.w) continue;  // width unchanged
+
+      const sizes = resolvedSizes.get(id);
+      if (!sizes || !sizes.hMeasured) continue;
+
+      const el = flatMap.get(id);
+      if (!el || el.type !== 'el') continue;
+
+      const html = el.content || '';
+      if (!html && (!el.props.style || Object.keys(el.props.style).length === 0)) continue;
+
+      const metrics = await measure(html, {
+        w: bounds.w,
+        style: el.props.style as Record<string, unknown> | undefined,
+        className: el.props.className,
+      });
+      if (metrics.h !== bounds.h) {
+        bounds.h = metrics.h;
+        sizes.h = metrics.h;
+        heightsChanged = true;
+      }
+    }
+
+    // If any heights changed, recompute ancestor stack/panel heights bottom-up
+    if (heightsChanged) {
+      for (const [stackId, childIds] of stackChildren) {
+        const stackEl = flatMap.get(stackId);
+        if (!stackEl) continue;
+        const stackBounds = resolvedBounds.get(stackId);
+        const stackSizes = resolvedSizes.get(stackId);
+        if (!stackBounds || !stackSizes) continue;
+        // Only recompute if stack height is auto (hMeasured)
+        if (!stackSizes.hMeasured) continue;
+
+        const gap = resolveSpacing((stackEl.props.gap as string | number) ?? 0);
+        if (stackEl.type === 'vstack') {
+          let totalH = 0;
+          for (let i = 0; i < childIds.length; i++) {
+            const cs = resolvedBounds.get(childIds[i]);
+            if (cs) totalH += cs.h;
+            if (i > 0) totalH += gap;
+          }
+          stackBounds.h = totalH;
+          stackSizes.h = totalH;
+        } else if (stackEl.type === 'hstack') {
+          let maxH = 0;
+          for (const cid of childIds) {
+            const cs = resolvedBounds.get(cid);
+            if (cs && cs.h > maxH) maxH = cs.h;
+          }
+          stackBounds.h = maxH;
+          stackSizes.h = maxH;
+        }
+      }
+      // Update panel auto-heights
+      for (const [id, el] of flatMap) {
+        if (!isPanelElement(el)) continue;
+        const config = el._panelConfig;
+        if (!config || config.panelH != null) continue;
+        const panelChildren = el.children || [];
+        const childStack = panelChildren[1];
+        const bgRect = panelChildren[0];
+        if (!childStack) continue;
+        const stackBounds = resolvedBounds.get(childStack.id);
+        if (!stackBounds) continue;
+        const autoH = stackBounds.h + 2 * config.padding;
+        const panelBounds = resolvedBounds.get(id);
+        const panelSizes = resolvedSizes.get(id);
+        if (panelBounds) panelBounds.h = autoH;
+        if (panelSizes) panelSizes.h = autoH;
+        if (bgRect) {
+          const bgBounds = resolvedBounds.get(bgRect.id);
+          const bgSizes = resolvedSizes.get(bgRect.id);
+          if (bgBounds) bgBounds.h = autoH;
+          if (bgSizes) bgSizes.h = autoH;
+        }
+      }
     }
   }
 

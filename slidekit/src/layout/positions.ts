@@ -1,5 +1,8 @@
 // Phase 2: Position resolution via topological sort
 // Extracted from layout.js
+//
+// Dimension constraints (matchWidthOf, matchHeightOf, matchMaxWidth, matchMaxHeight)
+// are now resolved in Phase 1 (intrinsics.ts). This phase only resolves positions.
 
 import { isRelMarker, getRelRef, resolveRelMarker } from './helpers.js';
 import { resolveSpacing } from '../spacing.js';
@@ -49,6 +52,9 @@ export async function resolvePositions(
   // For each element, find what elements it depends on (via _rel markers on x and y)
   // Stack children depend on their parent stack (not on _rel markers — their position
   // is computed by the stack layout algorithm after the stack is positioned).
+  //
+  // NOTE: Dimension constraints (matchWidthOf, matchHeightOf) are resolved in Phase 1
+  // so they are NOT included in the position dependency graph.
   const deps = new Map<string, Set<string>>(); // id -> Set<refId>
   for (const [id, el] of flatMap) {
     const depSet = new Set<string>();
@@ -95,27 +101,6 @@ export async function resolvePositions(
           });
         } else {
           depSet.add(yRef);
-        }
-      }
-
-      // Dimension constraints (matchWidth/matchHeight) — add dependency on referenced element
-      for (const prop of ["w", "h"]) {
-        const marker = el.props[prop];
-        if (isRelMarker(marker) && (marker._rel === "matchWidth" || marker._rel === "matchHeight")) {
-          const dimRef = marker.ref;
-          if (dimRef) {
-            if (!flatMap.has(dimRef)) {
-              errors.push({
-                type: "unknown_ref",
-                elementId: id,
-                property: prop,
-                ref: dimRef,
-                message: `Element "${id}": ${prop} references unknown element "${dimRef}"`,
-              });
-            } else {
-              depSet.add(dimRef);
-            }
-          }
         }
       }
 
@@ -238,61 +223,6 @@ export async function resolvePositions(
     return null;
   }
 
-  // Resolve matchMaxWidth / matchMaxHeight groups.
-  // Collect elements by group name, find the max measured size, apply to all members.
-  const maxWidthGroups = new Map<string, string[]>();   // group -> [elementIds]
-  const maxHeightGroups = new Map<string, string[]>();
-  for (const [id, el] of flatMap) {
-    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchMaxWidth') {
-      const group = (el.props.w as RelMarker).group!;
-      if (!maxWidthGroups.has(group)) maxWidthGroups.set(group, []);
-      maxWidthGroups.get(group)!.push(id);
-    }
-    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchMaxHeight') {
-      const group = (el.props.h as RelMarker).group!;
-      if (!maxHeightGroups.has(group)) maxHeightGroups.set(group, []);
-      maxHeightGroups.get(group)!.push(id);
-    }
-  }
-  for (const [, ids] of maxWidthGroups) {
-    let maxW = 0;
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s && s.w > maxW) maxW = s.w;
-    }
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s) s.w = maxW;
-    }
-    // Re-measure heights for elements whose width changed and have auto-height.
-    // Text may wrap differently at the new (potentially narrower) width.
-    for (const id of ids) {
-      const el = flatMap.get(id);
-      const s = resolvedSizes.get(id);
-      if (!el || !s || !s.hMeasured) continue;
-      if (el.type !== 'el') continue;
-      const html = (el as { content?: string }).content || '';
-      if (!html) continue;
-      const remeasured = await measure(html, {
-        w: maxW,
-        style: el.props.style as Record<string, unknown> | undefined,
-        className: el.props.className,
-      });
-      s.h = remeasured.h;
-    }
-  }
-  for (const [, ids] of maxHeightGroups) {
-    let maxH = 0;
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s && s.h > maxH) maxH = s.h;
-    }
-    for (const id of ids) {
-      const s = resolvedSizes.get(id);
-      if (s) s.h = maxH;
-    }
-  }
-
   // Resolve positions in topological order
   // resolvedBounds: id -> { x, y, w, h } (top-left corner + dimensions)
   const resolvedBounds = new Map<string, Rect>();
@@ -301,21 +231,8 @@ export async function resolvePositions(
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
     const sizes = mustGet(resolvedSizes, id, `resolvedSizes missing element: ${id}`);
 
-    // Resolve dimension constraints (matchWidth/matchHeight) before using w/h.
-    // By topological order, the referenced element's bounds are already resolved.
-    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchWidth') {
-      const marker = el.props.w as RelMarker;
-      const refId = marker.ref!;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchWidth: ${refId}`);
-      sizes.w = refSizes.w;
-    }
-    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchHeight') {
-      const marker = el.props.h as RelMarker;
-      const refId = marker.ref!;
-      const refSizes = mustGet(resolvedSizes, refId, `resolvedSizes missing ref for matchHeight: ${refId}`);
-      sizes.h = refSizes.h;
-    }
-
+    // Dimension constraints (matchWidthOf, matchHeightOf, matchMaxWidth, matchMaxHeight)
+    // are already resolved in Phase 1 (intrinsics.ts). Just read the final sizes.
     const w = sizes.w;
     const h = sizes.h;
 
@@ -494,7 +411,7 @@ export async function resolvePositions(
                 message: `Child '${cid}' has authored w=${authoredW} but stretch requires w=${stretchW}.`,
               });
             }
-            // Re-measure auto-height el() children when width changes
+            // Re-measure auto-height el() children when stretch changes their width
             const childEl = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
             const childAuth = authoredSpecs.get(cid)?.props || {};
             let childH = cs.h;

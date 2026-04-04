@@ -1,5 +1,12 @@
 // Phase 1: Intrinsic Size Resolution — extracted from layout.js
 // Handles measuring elements, resolving percentages, stack sizes, panel auto-height, and hug bounds.
+//
+// Widths-first pipeline:
+//   Step A: Authored specs + percentages + validation
+//   Step B: Resolve intrinsic widths only (no heights yet)
+//   Step C: Resolve width constraints (matchMaxWidth, matchWidthOf)
+//   Step D: Measure auto-heights at finalized widths
+//   Step E: Resolve height constraints (matchMaxHeight, matchHeightOf)
 
 import { resolveSpacing } from '../spacing.js';
 import { measure } from '../measure.js';
@@ -8,6 +15,71 @@ import { isRelMarker, deepClone } from './helpers.js';
 import { mustGet } from '../assertions.js';
 import { isPanelElement } from '../types.js';
 import type { SlideElement, ResolvedSize, PositionValue, AuthoredSpec, RelMarker } from '../types.js';
+
+/**
+ * Compute the effective width for an element (Step B — widths only).
+ *
+ * For el() elements without explicit w, or with matchMaxWidth, calls
+ * measure() with shrinkWrap to get natural width.
+ *
+ * Returns { w, wMeasured, hMeasured } — height is deferred to Step D.
+ */
+async function getEffectiveWidth(element: SlideElement): Promise<{ w: number; wMeasured: boolean; hMeasured: boolean }> {
+  const { props, type } = element;
+
+  const wRel = isRelMarker(props.w) ? (props.w as RelMarker)._rel : null;
+  const hRel = isRelMarker(props.h) ? (props.h as RelMarker)._rel : null;
+  const wIsDeferred = wRel === 'matchWidth';  // matchWidthOf — resolved in Step C
+  const wIsMatchMax = wRel === 'matchMaxWidth';
+  const hIsDeferred = hRel === 'matchHeight';
+  const hIsMatchMax = hRel === 'matchMaxHeight';
+
+  // Determine if this element will need auto-height measurement in Step D
+  const needsAutoHeight = (props.h === undefined || props.h === null || hIsMatchMax) && !hIsDeferred;
+
+  // Width resolution
+  if (wIsDeferred) {
+    // matchWidthOf: placeholder 0, resolved in Step C
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
+  }
+
+  if (wIsMatchMax) {
+    // matchMaxWidth: measure with shrinkWrap to get natural width
+    if (type === 'el') {
+      const html = element.content || '';
+      if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+        return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+      }
+      const metrics = await measure(html, {
+        style: props.style as Record<string, unknown> | undefined,
+        className: props.className,
+        shrinkWrap: true,
+      });
+      return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+
+  if (typeof props.w === 'number') {
+    return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
+  }
+
+  // No explicit w — measure natural width for el(), else 0
+  if (type === 'el') {
+    const html = element.content || '';
+    if (!html && (!props.style || Object.keys(props.style).length === 0)) {
+      return { w: 0, wMeasured: true, hMeasured: needsAutoHeight };
+    }
+    const metrics = await measure(html, {
+      style: props.style as Record<string, unknown> | undefined,
+      className: props.className,
+      shrinkWrap: true,
+    });
+    return { w: metrics.w, wMeasured: true, hMeasured: needsAutoHeight };
+  }
+
+  return { w: (props.w as number) || 0, wMeasured: false, hMeasured: needsAutoHeight };
+}
 
 /**
  * Compute the effective width and height for an element.
@@ -54,14 +126,12 @@ export async function getEffectiveDimensions(element: SlideElement): Promise<{ w
 /**
  * Resolve intrinsic sizes for all elements in the flat map.
  *
- * This is Phase 1 of the layout pipeline:
- * - Stores authored specs (deep clones before modification)
- * - Resolves percentage sugar on x, y, w, h
- * - Validates _rel markers on w/h
- * - Measures non-stack elements via getEffectiveDimensions()
- * - Computes stack sizes bottom-up from children + gaps
- * - Handles panel auto-height (M7.3)
- * - Computes group hug bounds
+ * This is Phase 1 of the layout pipeline, using a widths-first approach:
+ *   Step A: Stores authored specs, resolves percentages, validates markers
+ *   Step B: Resolve intrinsic widths only (no heights)
+ *   Step C: Resolve width constraints (matchMaxWidth groups, matchWidthOf chains)
+ *   Step D: Measure auto-heights at finalized widths
+ *   Step E: Resolve height constraints (matchMaxHeight groups, matchHeightOf chains)
  *
  * @param {Map} flatMap - id -> element map
  * @param {Map} stackChildren - stackId -> [childIds]
@@ -84,6 +154,10 @@ export async function resolveIntrinsicSizes(
   errors: Array<Record<string, unknown>>,
   _warnings: Array<Record<string, unknown>>,
 ): Promise<IntrinsicSizeResult> {
+  // =========================================================================
+  // Step A: Authored specs + percentages + validation
+  // =========================================================================
+
   // Store authored specs (deep clone before any modification)
   const authoredSpecs = new Map<string, AuthoredSpec>();
   for (const [id, el] of flatMap) {
@@ -146,21 +220,23 @@ export async function resolveIntrinsicSizes(
     return { authoredSpecs, resolvedSizes, hasErrors: true };
   }
 
-  // Resolve intrinsic sizes for all non-stack elements first
+  // =========================================================================
+  // Step B: Resolve intrinsic widths only (no heights yet)
+  // =========================================================================
+
+  // Resolve widths for all non-stack elements
   for (const [id, el] of flatMap) {
     if (el.type === "vstack" || el.type === "hstack") continue; // handled below
-    const dims = await getEffectiveDimensions(el);
+    const widthInfo = await getEffectiveWidth(el);
     resolvedSizes.set(id, {
-      w: dims.w,
-      h: dims.h,
-      wMeasured: el.type === "el" && (el.props.w === undefined || el.props.w === null),
-      hMeasured: dims._autoHeight,
+      w: widthInfo.w,
+      h: 0,  // placeholder — resolved in Step D
+      wMeasured: widthInfo.wMeasured,
+      hMeasured: widthInfo.hMeasured,
     });
   }
 
-  // Compute stack sizes from children + gaps
-  // Must handle nested stacks bottom-up. We do a simple iterative approach:
-  // repeatedly process stacks whose children all have known sizes.
+  // Compute stack widths bottom-up (no heights yet)
   const pendingStacks = new Set<string>();
   for (const [id, el] of flatMap) {
     if (el.type === "vstack" || el.type === "hstack") {
@@ -174,18 +250,16 @@ export async function resolveIntrinsicSizes(
     for (const stackId of pendingStacks) {
       const el = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
       const childIds = stackChildren.get(stackId) || [];
-      const gap = resolveSpacing(el.props.gap as string | number ?? 0);
       const stackW = (el.props.w ?? 0) as number;
 
-      // Check all children have resolved sizes.
-      // For panel compounds, also ensure the inner vstack has resolved so that
-      // the panel's auto-height is available before the containing stack resolves.
+      // Check all children have resolved sizes (widths at this point)
       let allChildrenSized = true;
       for (const cid of childIds) {
         if (!resolvedSizes.has(cid)) {
           allChildrenSized = false;
           break;
         }
+        // For panel compounds, also ensure the inner vstack has resolved
         const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
         if (isPanelElement(childEl)) {
           const config = childEl._panelConfig;
@@ -193,89 +267,57 @@ export async function resolveIntrinsicSizes(
           const panelChildren = childEl.children || [];
           const childStack = panelChildren[1]; // [bgRect, vstack]
           if (childStack && !resolvedSizes.has(childStack.id)) {
-            // Inner vstack hasn't resolved yet — can't compute panel auto-height
             allChildrenSized = false;
             break;
           }
-          // Update panel group size from inner vstack (auto-height/width)
+          // Update panel group width from config if specified
           if (childStack && resolvedSizes.has(childStack.id)) {
-            const stackSizes = resolvedSizes.get(childStack.id)!;
-            const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
             const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
-            panelSizes.h = autoH;
             if (config.panelW != null) panelSizes.w = config.panelW;
-            // Also update bgRect height
-            const bgRect = panelChildren[0];
-            if (bgRect && resolvedSizes.has(bgRect.id)) {
-              resolvedSizes.get(bgRect.id)!.h = autoH;
-            }
           }
         }
       }
       if (!allChildrenSized) continue;
 
       if (el.type === "vstack") {
-        // For vstack children without explicit w, default to stack's w
+        // Width inheritance: vstack children without explicit w get stack's width
         for (const cid of childIds) {
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
           if ((child.props.w === undefined || child.props.w === null) && stackW > 0) {
-            // Update child's resolved size width to use stack width
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
-            if (child.type === "el") {
-              // Re-measure el() with the stack width constraint
-              const html = child.content || "";
-              if (html || (child.props.style && Object.keys(child.props.style).length > 0)) {
-                const metrics = await measure(html, { ...child.props, w: stackW });
-                childSize.w = stackW;
-                childSize.h = metrics.h;
-                childSize.hMeasured = true;
-              } else {
-                childSize.w = stackW;
-              }
-            } else {
-              childSize.w = stackW;
-            }
+            childSize.w = stackW;
+            // hMeasured is already flagged — actual height measurement happens in Step D
           }
         }
 
-        // vstack total: width = max child width (or stack w), height = sum heights + gaps
-        let totalH = 0;
+        // vstack width = max child width (or stack w)
         let maxW = 0;
-        for (let i = 0; i < childIds.length; i++) {
-          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
-          totalH += cs.h;
-          if (i > 0) totalH += gap;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
           maxW = Math.max(maxW, cs.w);
         }
         const finalW = stackW || maxW;
-        const finalH = (el.props.h !== undefined && el.props.h !== null) ? (el.props.h as number) : totalH;
 
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,  // placeholder — resolved in Step D
           wMeasured: false,
           hMeasured: el.props.h === undefined || el.props.h === null,
         });
       } else {
-        // hstack
-        const stackH = (el.props.h as number) ?? 0;
-
-        // For hstack children without explicit h, default to stack's h (if provided)
-        // hstack children can have their own w; if not provided, they stay as measured
+        // hstack width = sum child widths + gaps, or authored w
+        const gap = resolveSpacing(el.props.gap as string | number ?? 0);
         let totalW = 0;
-        let maxH = 0;
         for (let i = 0; i < childIds.length; i++) {
           const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing hstack child: ${childIds[i]}`);
           totalW += cs.w;
           if (i > 0) totalW += gap;
-          maxH = Math.max(maxH, cs.h);
         }
         const finalW = (el.props.w !== undefined && el.props.w !== null) ? (el.props.w as number) : totalW;
-        const finalH = stackH || maxH;
 
         resolvedSizes.set(stackId, {
           w: finalW,
-          h: finalH,
+          h: 0,  // placeholder — resolved in Step D
           wMeasured: el.props.w === undefined || el.props.w === null,
           hMeasured: el.props.h === undefined || el.props.h === null,
         });
@@ -296,16 +338,243 @@ export async function resolveIntrinsicSizes(
     return { authoredSpecs, resolvedSizes, hasErrors: true };
   }
 
+  // =========================================================================
+  // Step C: Resolve width constraints (matchMaxWidth, matchWidthOf)
+  // =========================================================================
+
+  // matchMaxWidth groups: find max width, apply to all members
+  const maxWidthGroups = new Map<string, string[]>();
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchMaxWidth') {
+      const group = (el.props.w as RelMarker).group!;
+      if (!maxWidthGroups.has(group)) maxWidthGroups.set(group, []);
+      maxWidthGroups.get(group)!.push(id);
+    }
+  }
+  for (const [, ids] of maxWidthGroups) {
+    let maxW = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.w > maxW) maxW = s.w;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.w = maxW;
+    }
+  }
+
+  // matchWidthOf: copy referenced element's width
+  // Build a width-only dependency graph and topo sort for chains (A→B→C)
+  const matchWidthElements = new Map<string, string>(); // id -> refId
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.w) && (el.props.w as RelMarker)._rel === 'matchWidth') {
+      const refId = (el.props.w as RelMarker).ref!;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "w",
+          ref: refId,
+          message: `Element "${id}": w references unknown element "${refId}"`,
+        });
+        continue;
+      }
+      matchWidthElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchWidthElements.size > 0) {
+    // Topo sort the matchWidthOf chain
+    const widthDeps = new Map<string, Set<string>>();
+    const allWidthIds = new Set<string>();
+    for (const [id, refId] of matchWidthElements) {
+      allWidthIds.add(id);
+      allWidthIds.add(refId);
+      if (!widthDeps.has(id)) widthDeps.set(id, new Set());
+      widthDeps.get(id)!.add(refId);
+    }
+    // Elements without matchWidthOf deps
+    for (const id of allWidthIds) {
+      if (!widthDeps.has(id)) widthDeps.set(id, new Set());
+    }
+    // Simple topo sort
+    const widthOrder: string[] = [];
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    function visitWidth(id: string): boolean {
+      if (visited.has(id)) return true;
+      if (visiting.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "w",
+          message: `Element "${id}": circular matchWidthOf dependency detected`,
+        });
+        return false;
+      }
+      visiting.add(id);
+      for (const dep of widthDeps.get(id) || []) {
+        if (!visitWidth(dep)) return false;
+      }
+      visiting.delete(id);
+      visited.add(id);
+      widthOrder.push(id);
+      return true;
+    }
+    for (const id of allWidthIds) {
+      visitWidth(id);
+    }
+    // Apply in topo order
+    for (const id of widthOrder) {
+      const refId = matchWidthElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.w = refSizes.w;
+      }
+    }
+  }
+
+  // =========================================================================
+  // Step D: Measure auto-heights at finalized widths
+  // =========================================================================
+
+  // Measure heights for non-stack elements with hMeasured=true
+  for (const [id, el] of flatMap) {
+    if (el.type === "vstack" || el.type === "hstack") continue;
+    const sizes = resolvedSizes.get(id);
+    if (!sizes) continue;
+
+    if (sizes.hMeasured && el.type === 'el') {
+      const html = el.content || '';
+      if (!html && (!el.props.style || Object.keys(el.props.style).length === 0)) {
+        sizes.h = 0;
+        continue;
+      }
+      const metrics = await measure(html, {
+        w: sizes.w ?? undefined,
+        style: el.props.style as Record<string, unknown> | undefined,
+        className: el.props.className,
+      });
+      sizes.h = metrics.h;
+    } else if (!sizes.hMeasured) {
+      // Explicit height — resolve it now
+      const hRel = isRelMarker(el.props.h) ? (el.props.h as RelMarker)._rel : null;
+      const hIsDeferred = hRel === 'matchHeight';
+      const hIsMatchMax = hRel === 'matchMaxHeight';
+      if (hIsDeferred) {
+        sizes.h = 0; // resolved in Step E
+      } else if (hIsMatchMax) {
+        sizes.h = 0; // resolved in Step E
+      } else {
+        sizes.h = (el.props.h as number) || 0;
+      }
+    }
+  }
+
+  // Recompute stack heights bottom-up
+  const pendingStacksH = new Set<string>();
+  for (const [id, el] of flatMap) {
+    if (el.type === "vstack" || el.type === "hstack") {
+      pendingStacksH.add(id);
+    }
+  }
+
+  progress = true;
+  while (pendingStacksH.size > 0 && progress) {
+    progress = false;
+    for (const stackId of pendingStacksH) {
+      const el = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+      const childIds = stackChildren.get(stackId) || [];
+      const gap = resolveSpacing(el.props.gap as string | number ?? 0);
+
+      // Check all children have non-zero heights (or are genuinely empty)
+      let allChildrenReady = true;
+      for (const cid of childIds) {
+        if (!resolvedSizes.has(cid)) {
+          allChildrenReady = false;
+          break;
+        }
+        const childEl = mustGet(flatMap, cid, `flatMap missing stack child: ${cid}`);
+        if (isPanelElement(childEl)) {
+          const config = childEl._panelConfig;
+          if (!config) continue;
+          const panelChildren = childEl.children || [];
+          const childStack = panelChildren[1];
+          if (childStack && !resolvedSizes.has(childStack.id)) {
+            allChildrenReady = false;
+            break;
+          }
+          // If the inner vstack is resolved but the stack itself hasn't computed
+          // its height yet, we need to wait
+          if (childStack && (childEl.children![1].type === 'vstack' || childEl.children![1].type === 'hstack')) {
+            if (pendingStacksH.has(childStack.id)) {
+              allChildrenReady = false;
+              break;
+            }
+          }
+          // Update panel auto-height from inner vstack
+          if (childStack && resolvedSizes.has(childStack.id)) {
+            const stackSizes = resolvedSizes.get(childStack.id)!;
+            const autoH = config.panelH ?? (stackSizes.h + 2 * config.padding);
+            const panelSizes = mustGet(resolvedSizes, cid, `resolvedSizes missing panel: ${cid}`);
+            panelSizes.h = autoH;
+            if (config.panelW != null) panelSizes.w = config.panelW;
+            // Also update bgRect height
+            const bgRect = panelChildren[0];
+            if (bgRect && resolvedSizes.has(bgRect.id)) {
+              resolvedSizes.get(bgRect.id)!.h = autoH;
+            }
+          }
+        }
+      }
+      if (!allChildrenReady) continue;
+
+      const stackSizes = mustGet(resolvedSizes, stackId, `resolvedSizes missing stack: ${stackId}`);
+
+      if (el.type === "vstack") {
+        // vstack height = sum children heights + gaps
+        let totalH = 0;
+        let maxW = 0;
+        for (let i = 0; i < childIds.length; i++) {
+          const cs = mustGet(resolvedSizes, childIds[i], `resolvedSizes missing vstack child: ${childIds[i]}`);
+          totalH += cs.h;
+          if (i > 0) totalH += gap;
+          maxW = Math.max(maxW, cs.w);
+        }
+        const finalH = (el.props.h !== undefined && el.props.h !== null) ? (el.props.h as number) : totalH;
+        stackSizes.h = finalH;
+        // Also update width if it was derived from children
+        const stackW = (el.props.w ?? 0) as number;
+        if (!stackW && maxW > stackSizes.w) {
+          stackSizes.w = maxW;
+        }
+      } else {
+        // hstack height = max child height, or authored h
+        const stackH = (el.props.h as number) ?? 0;
+        let maxH = 0;
+        for (const cid of childIds) {
+          const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
+          maxH = Math.max(maxH, cs.h);
+        }
+        stackSizes.h = stackH || maxH;
+      }
+
+      pendingStacksH.delete(stackId);
+      progress = true;
+    }
+  }
+
   // Panel auto-height (M7.3)
-  // For panel compounds: set the background rect height from the vstack height + 2*padding.
-  // Also set the group's height so it participates correctly in other layouts.
   for (const [id, el] of flatMap) {
     if (!isPanelElement(el)) continue;
     const config = el._panelConfig;
     if (!config) continue;
 
     const panelChildren = el.children || [];
-    // Panel children: [bgRect, childStack]
     const bgRect = panelChildren[0];
     const childStack = panelChildren[1];
     if (!bgRect || !childStack) continue;
@@ -369,6 +638,102 @@ export async function resolveIntrinsicSizes(
       gs.h = hugH;
     } else {
       resolvedSizes.set(id, { w: hugW, h: hugH, wMeasured: false, hMeasured: false });
+    }
+  }
+
+  // =========================================================================
+  // Step E: Resolve height constraints (matchMaxHeight, matchHeightOf)
+  // =========================================================================
+
+  // matchMaxHeight groups: find max height, apply to all members
+  const maxHeightGroups = new Map<string, string[]>();
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchMaxHeight') {
+      const group = (el.props.h as RelMarker).group!;
+      if (!maxHeightGroups.has(group)) maxHeightGroups.set(group, []);
+      maxHeightGroups.get(group)!.push(id);
+    }
+  }
+  for (const [, ids] of maxHeightGroups) {
+    let maxH = 0;
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s && s.h > maxH) maxH = s.h;
+    }
+    for (const id of ids) {
+      const s = resolvedSizes.get(id);
+      if (s) s.h = maxH;
+    }
+  }
+
+  // matchHeightOf: copy referenced element's height
+  const matchHeightElements = new Map<string, string>(); // id -> refId
+  for (const [id, el] of flatMap) {
+    if (isRelMarker(el.props.h) && (el.props.h as RelMarker)._rel === 'matchHeight') {
+      const refId = (el.props.h as RelMarker).ref!;
+      if (!flatMap.has(refId)) {
+        errors.push({
+          type: "unknown_ref",
+          elementId: id,
+          property: "h",
+          ref: refId,
+          message: `Element "${id}": h references unknown element "${refId}"`,
+        });
+        continue;
+      }
+      matchHeightElements.set(id, refId);
+    }
+  }
+  if (errors.length > 0) {
+    return { authoredSpecs, resolvedSizes, hasErrors: true };
+  }
+  if (matchHeightElements.size > 0) {
+    // Topo sort the matchHeightOf chain
+    const heightDeps = new Map<string, Set<string>>();
+    const allHeightIds = new Set<string>();
+    for (const [id, refId] of matchHeightElements) {
+      allHeightIds.add(id);
+      allHeightIds.add(refId);
+      if (!heightDeps.has(id)) heightDeps.set(id, new Set());
+      heightDeps.get(id)!.add(refId);
+    }
+    for (const id of allHeightIds) {
+      if (!heightDeps.has(id)) heightDeps.set(id, new Set());
+    }
+    const heightOrder: string[] = [];
+    const visitedH = new Set<string>();
+    const visitingH = new Set<string>();
+    function visitHeight(id: string): boolean {
+      if (visitedH.has(id)) return true;
+      if (visitingH.has(id)) {
+        errors.push({
+          type: "circular_dependency",
+          elementId: id,
+          property: "h",
+          message: `Element "${id}": circular matchHeightOf dependency detected`,
+        });
+        return false;
+      }
+      visitingH.add(id);
+      for (const dep of heightDeps.get(id) || []) {
+        if (!visitHeight(dep)) return false;
+      }
+      visitingH.delete(id);
+      visitedH.add(id);
+      heightOrder.push(id);
+      return true;
+    }
+    for (const id of allHeightIds) {
+      visitHeight(id);
+    }
+    for (const id of heightOrder) {
+      const refId = matchHeightElements.get(id);
+      if (!refId) continue;
+      const refSizes = resolvedSizes.get(refId);
+      const sizes = resolvedSizes.get(id);
+      if (refSizes && sizes) {
+        sizes.h = refSizes.h;
+      }
     }
   }
 
