@@ -445,7 +445,7 @@ export function renderConstraintDetail(
   // Section 3: Actions
   const actionsDiv = document.createElement('div');
   const breakBtn = document.createElement('button');
-  breakBtn.textContent = 'Break Constraint';
+  breakBtn.textContent = 'Unlock';
   breakBtn.style.cssText = `
     padding: 6px 12px; font-size: 12px; cursor: pointer;
     font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;

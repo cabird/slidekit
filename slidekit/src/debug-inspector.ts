@@ -1,12 +1,12 @@
 // Debug Inspector — Panel UI, element detail rendering, click selection
 
-import type { SceneElement } from './types.js';
+import type { SceneElement, RelMarker, LayoutResult, SlideDefinition } from './types.js';
 import { debugController } from './debug-state.js';
 import { PROVENANCE_COLORS, TYPE_BADGE_COLORS, escapeHtml, badge } from './debug-inspector-styles.js';
 import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspector-viewport.js';
 import { createDiffActionBar, updateDiffDirtyIndicator } from './debug-inspector-diff.js';
 import { extractRelationshipEdges, absoluteBounds } from './debug-overlay.js';
-import { flattenElements } from './layout/helpers.js';
+import { flattenElements, isRelMarker } from './layout/helpers.js';
 import {
   isEditableProp, isEditableGap, isGapProp, getEnumOptions,
   isAnchorProp, startAnchorEdit,
@@ -16,7 +16,7 @@ import {
 import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag.js';
 import {
   clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight,
-  changeConstraintType, typesForAxis, axisForType,
+  changeConstraintType, typesForAxis, axisForType, REFLESS_TYPES,
 } from './debug-inspector-constraint.js';
 import { attachContextMenuHandler, detachContextMenuHandler } from './debug-context-menu.js';
 import { enterPickMode } from './debug-inspector-pick.js';
@@ -447,6 +447,197 @@ function highlightElementOnSlide(elementId: string, slideIndex: number, show: bo
     box-sizing: border-box; pointer-events: none; z-index: 10000;
   `;
   s.debugOverlay.appendChild(highlight);
+}
+
+// =============================================================================
+// Refless Constraint Rows (centerHSlide, centerVSlide, matchMaxWidth, matchMaxHeight)
+// =============================================================================
+
+/** Badge colors for each axis. */
+const AXIS_BADGE_COLORS: Record<string, string> = {
+  x: '#4a9eff',
+  y: '#34a853',
+  w: '#ff8c32',
+  h: '#ea4335',
+};
+
+/** Human-readable labels for refless constraint types. */
+const REFLESS_LABELS: Record<string, string> = {
+  centerHSlide: 'Centered horizontally on slide',
+  centerVSlide: 'Centered vertically on slide',
+  matchMaxWidth: 'Match widest in group',
+  matchMaxHeight: 'Match tallest in group',
+};
+
+/** Map refless types to their axis key. */
+const REFLESS_AXIS: Record<string, 'x' | 'y' | 'w' | 'h'> = {
+  centerHSlide: 'x',
+  centerVSlide: 'y',
+  matchMaxWidth: 'w',
+  matchMaxHeight: 'h',
+};
+
+/** Build DOM rows for refless constraints on an element. */
+function buildReflessConstraintRows(
+  elementId: string,
+  slideIndex: number,
+  _sceneEl: SceneElement,
+  authored: SceneElement['authored'] | undefined,
+): HTMLElement[] {
+  if (!authored?.props) return [];
+  const props = authored.props as Record<string, unknown>;
+  const rows: HTMLElement[] = [];
+
+  for (const axis of ['x', 'y', 'w', 'h'] as const) {
+    const val = props[axis];
+    if (!isRelMarker(val)) continue;
+    if (!REFLESS_TYPES.has(val._rel)) continue;
+
+    const marker = val as RelMarker;
+    const label = REFLESS_LABELS[marker._rel] ?? marker._rel;
+    const axisKey = REFLESS_AXIS[marker._rel] ?? axis;
+    const badgeColor = AXIS_BADGE_COLORS[axisKey] ?? '#666';
+
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:3px 0;display:flex;align-items:center;gap:6px;';
+
+    // Axis badge
+    const axisBadge = document.createElement('span');
+    axisBadge.textContent = axisKey.toUpperCase();
+    axisBadge.style.cssText = `
+      display:inline-block;padding:1px 5px;border-radius:3px;
+      font-size:10px;font-weight:700;color:#fff;background:${badgeColor};
+      line-height:1.4;letter-spacing:0.5px;flex-shrink:0;
+    `;
+    row.appendChild(axisBadge);
+
+    // Label + group info
+    const labelSpan = document.createElement('span');
+    labelSpan.style.cssText = 'color:#1a1a2e;flex:1;';
+
+    if (marker._rel === 'matchMaxWidth' || marker._rel === 'matchMaxHeight') {
+      const groupName = marker.group ?? '(unnamed)';
+      const memberCount = countGroupMembers(marker._rel, groupName, slideIndex);
+      labelSpan.innerHTML =
+        `${escapeHtml(label)} ` +
+        `<span style="color:#4a9eff;font-weight:600;">"${escapeHtml(groupName)}"</span>` +
+        `<span style="color:#999;"> \u00b7 ${memberCount} member${memberCount !== 1 ? 's' : ''}</span>`;
+
+      // Hover: highlight all group members
+      row.addEventListener('mouseenter', () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, true);
+        }
+      });
+      row.addEventListener('mouseleave', () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, false);
+        }
+      });
+    } else {
+      labelSpan.textContent = label;
+    }
+    row.appendChild(labelSpan);
+
+    // Unlock button — removes constraint, sets explicit value
+    const freezeBtn = document.createElement('button');
+    freezeBtn.textContent = 'Unlock';
+    freezeBtn.style.cssText = `
+      padding:3px 8px;font-size:10px;cursor:pointer;
+      font-family:'SF Mono','Fira Code','Consolas',monospace;
+      background:#fff;color:#4a9eff;border:1px solid #4a9eff;
+      border-radius:3px;font-weight:600;flex-shrink:0;
+    `;
+    freezeBtn.addEventListener('mouseenter', () => {
+      freezeBtn.style.background = '#4a9eff';
+      freezeBtn.style.color = '#fff';
+    });
+    freezeBtn.addEventListener('mouseleave', () => {
+      freezeBtn.style.background = '#fff';
+      freezeBtn.style.color = '#4a9eff';
+    });
+    freezeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      freezeReflessConstraint(elementId, axisKey, slideIndex);
+    });
+    row.appendChild(freezeBtn);
+
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Count how many elements share the same matchMax group on this slide. */
+function countGroupMembers(relType: string, groupName: string, slideIndex: number): number {
+  return getGroupMemberIds(relType, groupName, slideIndex).length;
+}
+
+/** Get IDs of all elements sharing a matchMax group on this slide. */
+function getGroupMemberIds(relType: string, groupName: string, slideIndex: number): string[] {
+  const sk = typeof window !== 'undefined' ? (window as any).sk : null;
+  const def = sk?._definitions?.[slideIndex];
+  if (!def) return [];
+  const { flatMap } = flattenElements(def.elements);
+  const ids: string[] = [];
+  for (const [id, el] of flatMap) {
+    const props = el.props as Record<string, unknown> | undefined;
+    if (!props) continue;
+    // Check w for matchMaxWidth, h for matchMaxHeight
+    const axis = relType === 'matchMaxWidth' ? 'w' : 'h';
+    const val = props[axis];
+    if (isRelMarker(val) && val._rel === relType && val.group === groupName) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/** Unlock a refless constraint — replace with its current resolved value. */
+async function freezeReflessConstraint(
+  elementId: string,
+  axis: 'x' | 'y' | 'w' | 'h',
+  slideIndex: number,
+): Promise<void> {
+  const sk = (window as any).sk;
+  if (!sk?._definitions?.[slideIndex] || !sk?.layouts?.[slideIndex]) return;
+
+  const layoutResult: LayoutResult = sk.layouts[slideIndex];
+  const sceneEl = layoutResult.elements[elementId];
+  if (!sceneEl?.resolved) return;
+
+  const definition: SlideDefinition = sk._definitions[slideIndex];
+  const { flatMap } = flattenElements(definition.elements);
+  const element = flatMap.get(elementId);
+  if (!element) return;
+
+  const props = element.props as Record<string, unknown>;
+  const oldValue = props[axis];
+
+  // Read the current resolved value for the axis
+  const resolvedValue = sceneEl.resolved[axis];
+
+  // Mutate to explicit number
+  props[axis] = resolvedValue;
+
+  // Re-render
+  const rerender = sk._rerenderSlide as (i: number, d: SlideDefinition) => Promise<LayoutResult>;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+
+  // Push undo entry
+  const s = debugController.state;
+  s.undoStack.push({ elementId, propKey: axis, oldValue, newValue: resolvedValue, slideIndex });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+
+  // Refresh overlay
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+
+  // Select the element and refresh detail
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
 }
 
 // =============================================================================
@@ -986,6 +1177,23 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
+
+  // Refless constraints sub-section (centerHSlide, centerVSlide, matchMaxWidth, matchMaxHeight)
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, sceneEl, authored);
+  if (reflessRows.length > 0) {
+    // If the only content was "(none)", replace it
+    if (relEdges.length === 0) {
+      relsDiv.innerHTML = '';
+    }
+    const subHeader = document.createElement("div");
+    subHeader.style.cssText = "color:#999;font-size:10px;margin-top:6px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;";
+    subHeader.textContent = "Relative to slide/group";
+    relsDiv.appendChild(subHeader);
+    for (const row of reflessRows) {
+      relsDiv.appendChild(row);
+    }
+  }
+
   body.appendChild(createSection("Relationships", relsDiv));
 
   // Section 7: CSS Pass-through Styles

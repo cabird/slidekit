@@ -2675,7 +2675,7 @@ function renderConstraintDetail(elementId, axis, slideIndex) {
   body.appendChild(createSection("Properties", propsDiv));
   const actionsDiv = document.createElement("div");
   const breakBtn = document.createElement("button");
-  breakBtn.textContent = "Break Constraint";
+  breakBtn.textContent = "Unlock";
   breakBtn.style.cssText = `
     padding: 6px 12px; font-size: 12px; cursor: pointer;
     font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -4015,6 +4015,120 @@ function highlightElementOnSlide(elementId, slideIndex, show) {
   `;
   s.debugOverlay.appendChild(highlight);
 }
+function buildReflessConstraintRows(elementId, slideIndex, _sceneEl, authored) {
+  if (!authored?.props) return [];
+  const props = authored.props;
+  const rows = [];
+  for (const axis of ["x", "y", "w", "h"]) {
+    const val = props[axis];
+    if (!isRelMarker(val)) continue;
+    if (!REFLESS_TYPES.has(val._rel)) continue;
+    const marker = val;
+    const label2 = REFLESS_LABELS[marker._rel] ?? marker._rel;
+    const axisKey = REFLESS_AXIS[marker._rel] ?? axis;
+    const badgeColor = AXIS_BADGE_COLORS[axisKey] ?? "#666";
+    const row = document.createElement("div");
+    row.style.cssText = "padding:3px 0;display:flex;align-items:center;gap:6px;";
+    const axisBadge = document.createElement("span");
+    axisBadge.textContent = axisKey.toUpperCase();
+    axisBadge.style.cssText = `
+      display:inline-block;padding:1px 5px;border-radius:3px;
+      font-size:10px;font-weight:700;color:#fff;background:${badgeColor};
+      line-height:1.4;letter-spacing:0.5px;flex-shrink:0;
+    `;
+    row.appendChild(axisBadge);
+    const labelSpan = document.createElement("span");
+    labelSpan.style.cssText = "color:#1a1a2e;flex:1;";
+    if (marker._rel === "matchMaxWidth" || marker._rel === "matchMaxHeight") {
+      const groupName = marker.group ?? "(unnamed)";
+      const memberCount = countGroupMembers(marker._rel, groupName, slideIndex);
+      labelSpan.innerHTML = `${escapeHtml(label2)} <span style="color:#4a9eff;font-weight:600;">"${escapeHtml(groupName)}"</span><span style="color:#999;"> \xB7 ${memberCount} member${memberCount !== 1 ? "s" : ""}</span>`;
+      row.addEventListener("mouseenter", () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, true);
+        }
+      });
+      row.addEventListener("mouseleave", () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, false);
+        }
+      });
+    } else {
+      labelSpan.textContent = label2;
+    }
+    row.appendChild(labelSpan);
+    const freezeBtn = document.createElement("button");
+    freezeBtn.textContent = "Unlock";
+    freezeBtn.style.cssText = `
+      padding:3px 8px;font-size:10px;cursor:pointer;
+      font-family:'SF Mono','Fira Code','Consolas',monospace;
+      background:#fff;color:#4a9eff;border:1px solid #4a9eff;
+      border-radius:3px;font-weight:600;flex-shrink:0;
+    `;
+    freezeBtn.addEventListener("mouseenter", () => {
+      freezeBtn.style.background = "#4a9eff";
+      freezeBtn.style.color = "#fff";
+    });
+    freezeBtn.addEventListener("mouseleave", () => {
+      freezeBtn.style.background = "#fff";
+      freezeBtn.style.color = "#4a9eff";
+    });
+    freezeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      freezeReflessConstraint(elementId, axisKey, slideIndex);
+    });
+    row.appendChild(freezeBtn);
+    rows.push(row);
+  }
+  return rows;
+}
+function countGroupMembers(relType, groupName, slideIndex) {
+  return getGroupMemberIds(relType, groupName, slideIndex).length;
+}
+function getGroupMemberIds(relType, groupName, slideIndex) {
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  const def = sk?._definitions?.[slideIndex];
+  if (!def) return [];
+  const { flatMap } = flattenElements(def.elements);
+  const ids = [];
+  for (const [id, el2] of flatMap) {
+    const props = el2.props;
+    if (!props) continue;
+    const axis = relType === "matchMaxWidth" ? "w" : "h";
+    const val = props[axis];
+    if (isRelMarker(val) && val._rel === relType && val.group === groupName) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+async function freezeReflessConstraint(elementId, axis, slideIndex) {
+  const sk = window.sk;
+  if (!sk?._definitions?.[slideIndex] || !sk?.layouts?.[slideIndex]) return;
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneEl = layoutResult.elements[elementId];
+  if (!sceneEl?.resolved) return;
+  const definition = sk._definitions[slideIndex];
+  const { flatMap } = flattenElements(definition.elements);
+  const element = flatMap.get(elementId);
+  if (!element) return;
+  const props = element.props;
+  const oldValue = props[axis];
+  const resolvedValue = sceneEl.resolved[axis];
+  props[axis] = resolvedValue;
+  const rerender = sk._rerenderSlide;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+  const s = debugController.state;
+  s.undoStack.push({ elementId, propKey: axis, oldValue, newValue: resolvedValue, slideIndex });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+}
 function showRelTypeDropdown(elementId, currentAxis, currentType, typeSpan, slideIndex) {
   const sameAxisTypes = typesForAxis(currentAxis);
   const otherAxis = currentAxis === "x" ? "y" : "x";
@@ -4470,6 +4584,19 @@ function renderElementDetail(elementId, slideIndex) {
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, sceneEl, authored);
+  if (reflessRows.length > 0) {
+    if (relEdges.length === 0) {
+      relsDiv.innerHTML = "";
+    }
+    const subHeader = document.createElement("div");
+    subHeader.style.cssText = "color:#999;font-size:10px;margin-top:6px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;";
+    subHeader.textContent = "Relative to slide/group";
+    relsDiv.appendChild(subHeader);
+    for (const row of reflessRows) {
+      relsDiv.appendChild(row);
+    }
+  }
   body.appendChild(createSection("Relationships", relsDiv));
   const stylesDiv = document.createElement("div");
   const styleObj = authored?.props?.style;
@@ -4568,6 +4695,9 @@ function detachClickHandler() {
 var VISIBILITY_OPTIONS;
 var LAYER_ORDER;
 var LAYER_LABELS;
+var AXIS_BADGE_COLORS;
+var REFLESS_LABELS;
+var REFLESS_AXIS;
 var init_debug_inspector = __esm({
   "slidekit/src/debug-inspector.ts"() {
     "use strict";
@@ -4592,6 +4722,24 @@ var init_debug_inspector = __esm({
     ];
     LAYER_ORDER = ["overlay", "content", "bg"];
     LAYER_LABELS = { overlay: "Overlay", content: "Content", bg: "Background" };
+    AXIS_BADGE_COLORS = {
+      x: "#4a9eff",
+      y: "#34a853",
+      w: "#ff8c32",
+      h: "#ea4335"
+    };
+    REFLESS_LABELS = {
+      centerHSlide: "Centered horizontally on slide",
+      centerVSlide: "Centered vertically on slide",
+      matchMaxWidth: "Match widest in group",
+      matchMaxHeight: "Match tallest in group"
+    };
+    REFLESS_AXIS = {
+      centerHSlide: "x",
+      centerVSlide: "y",
+      matchMaxWidth: "w",
+      matchMaxHeight: "h"
+    };
   }
 });
 var VERSION = true ? "0.3.5" : "dev";
