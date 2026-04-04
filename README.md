@@ -14,9 +14,48 @@ SlideKit gives models the styling power of full HTML while replacing CSS flow wi
 - **Overlap and boundary violations are detected automatically** — after layout, the full scene graph is available at `window.sk.layouts[N].elements`, and 30+ lint rules check for overlaps, overflow, safe-zone violations, and font-size issues. AI agents can query the scene graph, read lint findings, and fix problems programmatically.
 - **Live AI-driven editing** — with a browser MCP (like Playwright), an AI agent can modify slide code, re-render, and watch the results update in the browser in real time — iterating on layout visually without human intervention.
 
+## Live Demos
+
+See SlideKit in action — these are live presentations running in the browser:
+
+- **[What is SlideKit?](https://cabird.github.io/slidekit/examples/slidekit-about/)** — a self-referential deck that teaches SlideKit using SlideKit
+- **[Layout Cookbook](https://cabird.github.io/slidekit/examples/layout-cookbook/)** — 60+ layout patterns (cards, grids, panels, connectors, data viz)
+- **[Stress Test](https://cabird.github.io/slidekit/examples/stress-test/)** — exercises every feature and edge case
+- **[Connector Demo](https://cabird.github.io/slidekit/examples/connector-demo/)** — routed connectors between elements
+
+Press **Ctrl+.** on any demo to toggle the debug inspector.
+
 ## Getting Started
 
-### Option 1 — Clone the repo (recommended)
+### Option 1 — Just grab the bundle (recommended)
+
+You only need three files to start building presentations with an AI:
+
+1. **The SlideKit bundle** (`slidekit.bundle.js`)
+2. **The API Quick Reference** (`SLIDEKIT_API_QUICK_REFERENCE.md`) — everything an AI needs to write correct code
+3. **The AI Authoring Guide** (`AI_AUTHORING_GUIDE.md`) — workflow, pitfalls, and the render→inspect→correct loop
+
+```bash
+curl -O https://raw.githubusercontent.com/cabird/slidekit/main/slidekit/dist/slidekit.bundle.js
+curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/SLIDEKIT_API_QUICK_REFERENCE.md
+curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/AI_AUTHORING_GUIDE.md
+```
+
+For a more complete reference, also grab:
+
+```bash
+curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/API.md
+curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/LAYOUT_COOKBOOK.md
+```
+
+To view presentations, serve over HTTP (ES modules require a server — `file://` won't work):
+
+```bash
+python -m http.server 8000
+# Open http://localhost:8000/your-presentation.html
+```
+
+### Option 2 — Clone the repo
 
 ```bash
 git clone https://github.com/cabird/slidekit.git
@@ -27,35 +66,10 @@ npm run build          # Bundle → slidekit/dist/slidekit.bundle.js
 
 The built bundle is at `slidekit/dist/slidekit.bundle.js`. Copy it into your presentation project, or import directly from the clone.
 
-To view presentations, serve over HTTP (ES modules require a server — `file://` won't work):
-
-```bash
-python -m http.server 8000
-# Open http://localhost:8000/your-presentation.html
-```
-
-Other commands:
-
 ```bash
 npm run typecheck       # TypeScript type checking (tsc --noEmit)
 npm run lint            # ESLint (import/no-cycle enforced)
-node run-tests.js       # Full test suite (~1027 tests, Playwright browser runner)
-```
-
-### Option 2 — Just the bundle (no build step)
-
-You really only need three files to start building presentations with an AI:
-
-1. **The SlideKit bundle** (`slidekit.bundle.js`)
-2. **The API Quick Reference** (`SLIDEKIT_API_QUICK_REFERENCE.md`) — everything an AI needs to write correct code
-3. **The AI Authoring Guide** (`AI_AUTHORING_GUIDE.md`) — workflow, pitfalls, and the render→inspect→correct loop
-
-Grab them from a clone, or as a last resort, download directly from GitHub:
-
-```bash
-curl -O https://raw.githubusercontent.com/cabird/slidekit/main/slidekit/dist/slidekit.bundle.js
-curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/SLIDEKIT_API_QUICK_REFERENCE.md
-curl -O https://raw.githubusercontent.com/cabird/slidekit/main/docs/AI_AUTHORING_GUIDE.md
+node run-tests.js       # Full test suite (~1032 tests, Playwright browser runner)
 ```
 
 ## Example
