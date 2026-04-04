@@ -481,7 +481,6 @@ const REFLESS_AXIS: Record<string, 'x' | 'y' | 'w' | 'h'> = {
 function buildReflessConstraintRows(
   elementId: string,
   slideIndex: number,
-  _sceneEl: SceneElement,
   authored: SceneElement['authored'] | undefined,
 ): HTMLElement[] {
   if (!authored?.props) return [];
@@ -517,7 +516,7 @@ function buildReflessConstraintRows(
 
     if (marker._rel === 'matchMaxWidth' || marker._rel === 'matchMaxHeight') {
       const groupName = marker.group ?? '(unnamed)';
-      const memberCount = countGroupMembers(marker._rel, groupName, slideIndex);
+      const memberCount = getGroupMemberIds(marker._rel, groupName, slideIndex).length;
       labelSpan.innerHTML =
         `${escapeHtml(label)} ` +
         `<span style="color:#4a9eff;font-weight:600;">"${escapeHtml(groupName)}"</span>` +
@@ -567,11 +566,6 @@ function buildReflessConstraintRows(
     rows.push(row);
   }
   return rows;
-}
-
-/** Count how many elements share the same matchMax group on this slide. */
-function countGroupMembers(relType: string, groupName: string, slideIndex: number): number {
-  return getGroupMemberIds(relType, groupName, slideIndex).length;
 }
 
 /** Get IDs of all elements sharing a matchMax group on this slide. */
@@ -705,14 +699,16 @@ function showRelTypeDropdown(
     debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   };
 
-  select.addEventListener('change', commit);
+  let committed = false;
+  select.addEventListener('change', () => {
+    committed = true;
+    commit();
+  });
   select.addEventListener('blur', () => {
-    // Restore if no change
-    if (select.parentNode) {
-      const s = debugController.state;
-      s.selectedElementId = elementId;
-      debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
-    }
+    if (committed) return;  // change handler already fired
+    const s = debugController.state;
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   });
   select.addEventListener('keydown', (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -1179,7 +1175,7 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   }
 
   // Refless constraints sub-section (centerHSlide, centerVSlide, matchMaxWidth, matchMaxHeight)
-  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, sceneEl, authored);
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
   if (reflessRows.length > 0) {
     // If the only content was "(none)", replace it
     if (relEdges.length === 0) {

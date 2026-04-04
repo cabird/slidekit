@@ -527,18 +527,19 @@ function showTypeDropdown(
 
   select.focus();
 
+  let committed = false;
   select.addEventListener('change', () => {
+    committed = true;
     const newType = select.value;
     if (newType !== currentType) {
       changeConstraintType(elementId, currentAxis, newType, slideIndex);
     } else {
-      // Same type — just close
       renderConstraintDetail(elementId, currentAxis, slideIndex);
     }
   });
 
   select.addEventListener('blur', () => {
-    // Restore display
+    if (committed) return;  // change handler already fired
     renderConstraintDetail(elementId, currentAxis, slideIndex);
     updateConstraintHighlight(elementId, currentAxis, slideIndex);
   });

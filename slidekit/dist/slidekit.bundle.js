@@ -2729,7 +2729,9 @@ function showTypeDropdown(elementId, currentAxis, currentType, typeRow, slideInd
   typeRow.appendChild(label);
   typeRow.appendChild(select);
   select.focus();
+  let committed = false;
   select.addEventListener("change", () => {
+    committed = true;
     const newType = select.value;
     if (newType !== currentType) {
       changeConstraintType(elementId, currentAxis, newType, slideIndex);
@@ -2738,6 +2740,7 @@ function showTypeDropdown(elementId, currentAxis, currentType, typeRow, slideInd
     }
   });
   select.addEventListener("blur", () => {
+    if (committed) return;
     renderConstraintDetail(elementId, currentAxis, slideIndex);
     updateConstraintHighlight(elementId, currentAxis, slideIndex);
   });
@@ -4004,7 +4007,7 @@ function highlightElementOnSlide(elementId, slideIndex, show) {
   `;
   s.debugOverlay.appendChild(highlight);
 }
-function buildReflessConstraintRows(elementId, slideIndex, _sceneEl, authored) {
+function buildReflessConstraintRows(elementId, slideIndex, authored) {
   if (!authored?.props) return [];
   const props = authored.props;
   const rows = [];
@@ -4030,7 +4033,7 @@ function buildReflessConstraintRows(elementId, slideIndex, _sceneEl, authored) {
     labelSpan.style.cssText = "color:#1a1a2e;flex:1;";
     if (marker._rel === "matchMaxWidth" || marker._rel === "matchMaxHeight") {
       const groupName = marker.group ?? "(unnamed)";
-      const memberCount = countGroupMembers(marker._rel, groupName, slideIndex);
+      const memberCount = getGroupMemberIds(marker._rel, groupName, slideIndex).length;
       labelSpan.innerHTML = `${escapeHtml(label)} <span style="color:#4a9eff;font-weight:600;">"${escapeHtml(groupName)}"</span><span style="color:#999;"> \xB7 ${memberCount} member${memberCount !== 1 ? "s" : ""}</span>`;
       row.addEventListener("mouseenter", () => {
         const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
@@ -4072,9 +4075,6 @@ function buildReflessConstraintRows(elementId, slideIndex, _sceneEl, authored) {
     rows.push(row);
   }
   return rows;
-}
-function countGroupMembers(relType, groupName, slideIndex) {
-  return getGroupMemberIds(relType, groupName, slideIndex).length;
 }
 function getGroupMemberIds(relType, groupName, slideIndex) {
   const sk = typeof window !== "undefined" ? window.sk : null;
@@ -4162,13 +4162,16 @@ function showRelTypeDropdown(elementId, currentAxis, currentType, typeSpan, slid
     s.selectedElementId = elementId;
     debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   };
-  select.addEventListener("change", commit);
+  let committed = false;
+  select.addEventListener("change", () => {
+    committed = true;
+    commit();
+  });
   select.addEventListener("blur", () => {
-    if (select.parentNode) {
-      const s = debugController.state;
-      s.selectedElementId = elementId;
-      debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
-    }
+    if (committed) return;
+    const s = debugController.state;
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   });
   select.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -4573,7 +4576,7 @@ function renderElementDetail(elementId, slideIndex) {
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
-  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, sceneEl, authored);
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
   if (reflessRows.length > 0) {
     if (relEdges.length === 0) {
       relsDiv.innerHTML = "";
