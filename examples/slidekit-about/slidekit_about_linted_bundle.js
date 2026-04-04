@@ -8741,7 +8741,8 @@ function panel(children, props = {}) {
   const id = customId || nextId();
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = rest.w;
+  const isFillWidth = rest.w === "fill";
+  const panelW = isFillWidth ? void 0 : rest.w;
   const panelH = rest.h;
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : void 0;
   const resolvedChildren = children.map((child) => {
@@ -8779,7 +8780,8 @@ function panel(children, props = {}) {
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl"
   };
-  if (panelW != null) groupProps.w = panelW;
+  if (isFillWidth) groupProps.w = "fill";
+  else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
   const panelConfig = { padding, gap, panelW, panelH };
   const groupBase = group([bgRect, childStack], groupProps);
@@ -9169,50 +9171,6 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       pendingStacks.add(id);
     }
   }
-  for (const stackId of pendingStacks) {
-    const stackEl = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
-    if (stackEl.type !== "vstack") continue;
-    const stackW = stackEl.props.w ?? 0;
-    if (typeof stackW !== "number" || stackW <= 0) continue;
-    const childIds = stackChildren.get(stackId) || [];
-    for (const cid of childIds) {
-      const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
-      if (child.props.w === "fill") {
-        const childSize = resolvedSizes.get(cid);
-        if (childSize) {
-          childSize.w = stackW;
-          if (isPanelElement(child)) {
-            const config = child._panelConfig;
-            if (config) {
-              const innerContentW = Math.max(0, stackW - 2 * config.padding);
-              const panelChildren = child.children || [];
-              const bgRect = panelChildren[0];
-              const innerStack = panelChildren[1];
-              if (bgRect && resolvedSizes.has(bgRect.id)) {
-                resolvedSizes.get(bgRect.id).w = stackW;
-              }
-              if (innerStack) {
-                if (resolvedSizes.has(innerStack.id)) {
-                  resolvedSizes.get(innerStack.id).w = innerContentW;
-                } else {
-                  resolvedSizes.set(innerStack.id, { w: innerContentW, h: 0, wMeasured: false, hMeasured: true });
-                }
-                innerStack.props.w = innerContentW;
-                const innerChildIds = stackChildren.get(innerStack.id) || [];
-                for (const icid of innerChildIds) {
-                  const ic = flatMap.get(icid);
-                  if (ic && ic.props.w === "fill") {
-                    const ics = resolvedSizes.get(icid);
-                    if (ics) ics.w = innerContentW;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
   let progress = true;
   while (pendingStacks.size > 0 && progress) {
     progress = false;
@@ -9259,8 +9217,18 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
                 if (bgRect && resolvedSizes.has(bgRect.id)) {
                   resolvedSizes.get(bgRect.id).w = stackW;
                 }
-                if (innerStack && resolvedSizes.has(innerStack.id)) {
-                  resolvedSizes.get(innerStack.id).w = innerContentW;
+                if (innerStack) {
+                  if (!resolvedSizes.has(innerStack.id)) {
+                    resolvedSizes.set(innerStack.id, {
+                      w: innerContentW,
+                      h: 0,
+                      wMeasured: false,
+                      hMeasured: innerStack.props?.h === void 0 || innerStack.props?.h === null
+                    });
+                  } else {
+                    resolvedSizes.get(innerStack.id).w = innerContentW;
+                  }
+                  if (innerStack.props) innerStack.props.w = innerContentW;
                   const innerChildIds = stackChildren.get(innerStack.id) || [];
                   for (const icid of innerChildIds) {
                     const ic = flatMap.get(icid);
