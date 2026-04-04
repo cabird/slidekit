@@ -175,14 +175,13 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
 
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = rest.w as number | undefined;
+  const isFillWidth = rest.w === 'fill';
+  const panelW = isFillWidth ? undefined : (rest.w as number | undefined);
   const panelH = rest.h as number | undefined;
 
   // Resolve "fill" width on children: fill = panelW - 2 * padding
-  // Clamp to 0 to prevent negative widths when panel is narrower than 2*padding
-  // NOTE: "fill" resolution happens at creation time. This works correctly as long
-  // as panelW is a concrete number at panel() call time. If panelW is not known
-  // until layout, wrap the panel creation after layout resolves the parent's width.
+  // When panelW is numeric, compute content width now. When panelW is "fill",
+  // defer — the layout pipeline will sync internal widths after resolving the panel.
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : undefined;
   const resolvedChildren = children.map((child: SlideElement) => {
     if (child.props && child.props.w === "fill" && contentW !== undefined) {
@@ -232,10 +231,11 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl",
   };
-  if (panelW != null) groupProps.w = panelW;
+  if (isFillWidth) groupProps.w = 'fill' as unknown as number; // preserved for layout to resolve
+  else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
 
-  const panelConfig: PanelConfig = { padding, gap, panelW, panelH };
+  const panelConfig: PanelConfig = { padding, gap, panelW: isFillWidth ? undefined : panelW, panelH };
 
   // Construct the PanelElement directly — avoids @ts-ignore on group return
   const groupBase = group([bgRect, childStack], groupProps);

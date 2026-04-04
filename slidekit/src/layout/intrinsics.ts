@@ -64,6 +64,11 @@ async function getEffectiveWidth(element: SlideElement): Promise<{ w: number; wM
     return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
   }
 
+  // "fill" — placeholder 0, resolved by parent stack/panel
+  if (props.w === 'fill') {
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
+  }
+
   // No explicit w — measure natural width for el(), else 0
   if (type === 'el') {
     const html = element.content || '';
@@ -244,6 +249,58 @@ export async function resolveIntrinsicSizes(
     }
   }
 
+  // Pre-pass: resolve "fill" widths on vstack children before the bottom-up loop.
+  // This must happen early so panel internals can size correctly.
+  // A vstack with a known numeric width propagates that width to fill children.
+  for (const stackId of pendingStacks) {
+    const stackEl = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+    if (stackEl.type !== 'vstack') continue;
+    const stackW = (stackEl.props.w ?? 0) as number;
+    if (typeof stackW !== 'number' || stackW <= 0) continue;
+    const childIds = stackChildren.get(stackId) || [];
+    for (const cid of childIds) {
+      const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
+      if (child.props.w === 'fill') {
+        const childSize = resolvedSizes.get(cid);
+        if (childSize) {
+          childSize.w = stackW;
+          // Sync panel internals for fill-width panels
+          if (isPanelElement(child)) {
+            const config = child._panelConfig;
+            if (config) {
+              const innerContentW = Math.max(0, stackW - 2 * config.padding);
+              const panelChildren = child.children || [];
+              const bgRect = panelChildren[0];
+              const innerStack = panelChildren[1];
+              if (bgRect && resolvedSizes.has(bgRect.id)) {
+                resolvedSizes.get(bgRect.id)!.w = stackW;
+              }
+              if (innerStack) {
+                // Update or create resolvedSizes entry for inner stack
+                if (resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id)!.w = innerContentW;
+                } else {
+                  resolvedSizes.set(innerStack.id, { w: innerContentW, h: 0, wMeasured: false, hMeasured: true });
+                }
+                // Also update inner stack's props.w so the bottom-up loop uses it
+                innerStack.props.w = innerContentW;
+                // Propagate to inner stack's fill children
+                const innerChildIds = stackChildren.get(innerStack.id) || [];
+                for (const icid of innerChildIds) {
+                  const ic = flatMap.get(icid);
+                  if (ic && ic.props.w === 'fill') {
+                    const ics = resolvedSizes.get(icid);
+                    if (ics) ics.w = innerContentW;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   let progress = true;
   while (pendingStacks.size > 0 && progress) {
     progress = false;
@@ -280,13 +337,52 @@ export async function resolveIntrinsicSizes(
       if (!allChildrenSized) continue;
 
       if (el.type === "vstack") {
-        // Width inheritance: vstack children without explicit w get stack's width
+        // Width inheritance: vstack children without explicit w (or with "fill") get stack's width
         for (const cid of childIds) {
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
-          if ((child.props.w === undefined || child.props.w === null) && stackW > 0) {
+          if ((child.props.w === undefined || child.props.w === null || child.props.w === "fill") && stackW > 0) {
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             childSize.w = stackW;
-            // hMeasured is already flagged — actual height measurement happens in Step D
+
+            // If this child is a panel with "fill" width, sync its internal widths
+            if (isPanelElement(child) && child.props.w === 'fill') {
+              const config = child._panelConfig;
+              if (config) {
+                const innerContentW = Math.max(0, stackW - 2 * config.padding);
+                const panelChildren = child.children || [];
+                const bgRect = panelChildren[0];
+                const innerStack = panelChildren[1];
+                if (bgRect && resolvedSizes.has(bgRect.id)) {
+                  resolvedSizes.get(bgRect.id)!.w = stackW;
+                }
+                if (innerStack && resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id)!.w = innerContentW;
+                  // Also inherit into inner stack's children that have fill
+                  const innerChildIds = stackChildren.get(innerStack.id) || [];
+                  for (const icid of innerChildIds) {
+                    const ic = flatMap.get(icid);
+                    if (ic && (ic.props.w === undefined || ic.props.w === null || ic.props.w === 'fill')) {
+                      const ics = resolvedSizes.get(icid);
+                      if (ics) ics.w = innerContentW;
+                      // Recursively sync nested fill panels
+                      if (isPanelElement(ic) && ic.props.w === 'fill') {
+                        const nestedConfig = ic._panelConfig;
+                        if (nestedConfig) {
+                          const nestedContentW = Math.max(0, innerContentW - 2 * nestedConfig.padding);
+                          const nestedChildren = ic.children || [];
+                          if (nestedChildren[0] && resolvedSizes.has(nestedChildren[0].id)) {
+                            resolvedSizes.get(nestedChildren[0].id)!.w = innerContentW;
+                          }
+                          if (nestedChildren[1] && resolvedSizes.has(nestedChildren[1].id)) {
+                            resolvedSizes.get(nestedChildren[1].id)!.w = nestedContentW;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
 

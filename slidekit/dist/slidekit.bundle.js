@@ -8881,7 +8881,8 @@ function panel(children, props = {}) {
   const id = customId || nextId();
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = rest.w;
+  const isFillWidth = rest.w === "fill";
+  const panelW = isFillWidth ? void 0 : rest.w;
   const panelH = rest.h;
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : void 0;
   const resolvedChildren = children.map((child) => {
@@ -8919,9 +8920,10 @@ function panel(children, props = {}) {
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl"
   };
-  if (panelW != null) groupProps.w = panelW;
+  if (isFillWidth) groupProps.w = "fill";
+  else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
-  const panelConfig = { padding, gap, panelW, panelH };
+  const panelConfig = { padding, gap, panelW: isFillWidth ? void 0 : panelW, panelH };
   const groupBase = group([bgRect, childStack], groupProps);
   const result = {
     ...groupBase,
@@ -9238,6 +9240,9 @@ async function getEffectiveWidth(element) {
   if (typeof props.w === "number") {
     return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
   }
+  if (props.w === "fill") {
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
+  }
   if (type === "el") {
     const html = element.content || "";
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
@@ -9347,6 +9352,50 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       pendingStacks.add(id);
     }
   }
+  for (const stackId of pendingStacks) {
+    const stackEl = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+    if (stackEl.type !== "vstack") continue;
+    const stackW = stackEl.props.w ?? 0;
+    if (typeof stackW !== "number" || stackW <= 0) continue;
+    const childIds = stackChildren.get(stackId) || [];
+    for (const cid of childIds) {
+      const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
+      if (child.props.w === "fill") {
+        const childSize = resolvedSizes.get(cid);
+        if (childSize) {
+          childSize.w = stackW;
+          if (isPanelElement(child)) {
+            const config = child._panelConfig;
+            if (config) {
+              const innerContentW = Math.max(0, stackW - 2 * config.padding);
+              const panelChildren = child.children || [];
+              const bgRect = panelChildren[0];
+              const innerStack = panelChildren[1];
+              if (bgRect && resolvedSizes.has(bgRect.id)) {
+                resolvedSizes.get(bgRect.id).w = stackW;
+              }
+              if (innerStack) {
+                if (resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id).w = innerContentW;
+                } else {
+                  resolvedSizes.set(innerStack.id, { w: innerContentW, h: 0, wMeasured: false, hMeasured: true });
+                }
+                innerStack.props.w = innerContentW;
+                const innerChildIds = stackChildren.get(innerStack.id) || [];
+                for (const icid of innerChildIds) {
+                  const ic = flatMap.get(icid);
+                  if (ic && ic.props.w === "fill") {
+                    const ics = resolvedSizes.get(icid);
+                    if (ics) ics.w = innerContentW;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   let progress = true;
   while (pendingStacks.size > 0 && progress) {
     progress = false;
@@ -9380,9 +9429,45 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       if (el2.type === "vstack") {
         for (const cid of childIds) {
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
-          if ((child.props.w === void 0 || child.props.w === null) && stackW > 0) {
+          if ((child.props.w === void 0 || child.props.w === null || child.props.w === "fill") && stackW > 0) {
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             childSize.w = stackW;
+            if (isPanelElement(child) && child.props.w === "fill") {
+              const config = child._panelConfig;
+              if (config) {
+                const innerContentW = Math.max(0, stackW - 2 * config.padding);
+                const panelChildren = child.children || [];
+                const bgRect = panelChildren[0];
+                const innerStack = panelChildren[1];
+                if (bgRect && resolvedSizes.has(bgRect.id)) {
+                  resolvedSizes.get(bgRect.id).w = stackW;
+                }
+                if (innerStack && resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id).w = innerContentW;
+                  const innerChildIds = stackChildren.get(innerStack.id) || [];
+                  for (const icid of innerChildIds) {
+                    const ic = flatMap.get(icid);
+                    if (ic && (ic.props.w === void 0 || ic.props.w === null || ic.props.w === "fill")) {
+                      const ics = resolvedSizes.get(icid);
+                      if (ics) ics.w = innerContentW;
+                      if (isPanelElement(ic) && ic.props.w === "fill") {
+                        const nestedConfig = ic._panelConfig;
+                        if (nestedConfig) {
+                          const nestedContentW = Math.max(0, innerContentW - 2 * nestedConfig.padding);
+                          const nestedChildren = ic.children || [];
+                          if (nestedChildren[0] && resolvedSizes.has(nestedChildren[0].id)) {
+                            resolvedSizes.get(nestedChildren[0].id).w = innerContentW;
+                          }
+                          if (nestedChildren[1] && resolvedSizes.has(nestedChildren[1].id)) {
+                            resolvedSizes.get(nestedChildren[1].id).w = nestedContentW;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         let maxW = 0;

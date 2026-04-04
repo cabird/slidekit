@@ -591,6 +591,7 @@ function formatRelMarker(marker) {
   const opts = [];
   if (marker.gap !== void 0) opts.push(`gap: ${marker.gap}`);
   if (marker.bias !== void 0) opts.push(`bias: ${marker.bias}`);
+  if (marker.group) opts.push(`group: ${JSON.stringify(marker.group)}`);
   if (marker.ref2 !== void 0) opts.push(`ref2: ${JSON.stringify(marker.ref2)}`);
   if (opts.length > 0) parts.push(`{${opts.join(", ")}}`);
   return `${marker._rel}(${parts.join(", ")})`;
@@ -2421,6 +2422,11 @@ function axisForType(type) {
   if (X_AXIS_TYPES.includes(type)) return "x";
   return null;
 }
+function dimensionAxisForType(type) {
+  if (W_AXIS_TYPES.includes(type)) return "w";
+  if (H_AXIS_TYPES.includes(type)) return "h";
+  return null;
+}
 function findElement3(definition, elementId) {
   const { flatMap } = flattenElements(definition.elements);
   return flatMap.get(elementId);
@@ -2564,7 +2570,9 @@ async function addConstraint(elementId, axis, constraintType, refId, gap, slideI
   const element = findElement3(definition, elementId);
   if (!element) return;
   const props = element.props;
-  const oldValue = props[axis];
+  const dimAxis = dimensionAxisForType(constraintType);
+  const propKey = dimAxis ?? axis;
+  const oldValue = props[propKey];
   const newMarker = {
     _rel: constraintType
   };
@@ -2574,6 +2582,43 @@ async function addConstraint(elementId, axis, constraintType, refId, gap, slideI
   if (DIRECTIONAL_TYPES.has(constraintType)) {
     newMarker.gap = Math.round(gap);
   }
+  props[propKey] = newMarker;
+  const rerender = sk._rerenderSlide;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+  const s = debugController.state;
+  s.undoStack.push({
+    elementId,
+    propKey,
+    oldValue,
+    newValue: JSON.parse(JSON.stringify(newMarker)),
+    slideIndex
+  });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+  if (dimAxis) {
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+  } else {
+    s.selectedElementId = null;
+    s.selectedConstraint = { elementId, axis };
+    renderConstraintDetail(elementId, axis, slideIndex);
+    updateConstraintHighlight(elementId, axis, slideIndex);
+  }
+}
+async function addGroupConstraint(elementId, axis, constraintType, groupName, slideIndex) {
+  const sk = window.sk;
+  if (!sk?._definitions?.[slideIndex]) return;
+  const definition = sk._definitions[slideIndex];
+  const element = findElement3(definition, elementId);
+  if (!element) return;
+  const props = element.props;
+  const oldValue = props[axis];
+  const newMarker = {
+    _rel: constraintType,
+    group: groupName
+  };
   props[axis] = newMarker;
   const rerender = sk._rerenderSlide;
   if (!rerender) return;
@@ -2589,10 +2634,37 @@ async function addConstraint(elementId, axis, constraintType, refId, gap, slideI
   s.redoStack.length = 0;
   updateDiffDirtyIndicator();
   debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
-  s.selectedElementId = null;
-  s.selectedConstraint = { elementId, axis };
-  renderConstraintDetail(elementId, axis, slideIndex);
-  updateConstraintHighlight(elementId, axis, slideIndex);
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+}
+async function addReflessConstraint(elementId, axis, constraintType, slideIndex) {
+  const sk = window.sk;
+  if (!sk?._definitions?.[slideIndex]) return;
+  const definition = sk._definitions[slideIndex];
+  const element = findElement3(definition, elementId);
+  if (!element) return;
+  const props = element.props;
+  const oldValue = props[axis];
+  const newMarker = {
+    _rel: constraintType
+  };
+  props[axis] = newMarker;
+  const rerender = sk._rerenderSlide;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+  const s = debugController.state;
+  s.undoStack.push({
+    elementId,
+    propKey: axis,
+    oldValue,
+    newValue: JSON.parse(JSON.stringify(newMarker)),
+    slideIndex
+  });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
 }
 function renderConstraintDetail(elementId, axis, slideIndex) {
   const s = debugController.state;
@@ -2675,7 +2747,7 @@ function renderConstraintDetail(elementId, axis, slideIndex) {
   body.appendChild(createSection("Properties", propsDiv));
   const actionsDiv = document.createElement("div");
   const breakBtn = document.createElement("button");
-  breakBtn.textContent = "Break Constraint";
+  breakBtn.textContent = "Unlock";
   breakBtn.style.cssText = `
     padding: 6px 12px; font-size: 12px; cursor: pointer;
     font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -2736,7 +2808,9 @@ function showTypeDropdown(elementId, currentAxis, currentType, typeRow, slideInd
   typeRow.appendChild(label);
   typeRow.appendChild(select);
   select.focus();
+  let committed = false;
   select.addEventListener("change", () => {
+    committed = true;
     const newType = select.value;
     if (newType !== currentType) {
       changeConstraintType(elementId, currentAxis, newType, slideIndex);
@@ -2745,6 +2819,7 @@ function showTypeDropdown(elementId, currentAxis, currentType, typeRow, slideInd
     }
   });
   select.addEventListener("blur", () => {
+    if (committed) return;
     renderConstraintDetail(elementId, currentAxis, slideIndex);
     updateConstraintHighlight(elementId, currentAxis, slideIndex);
   });
@@ -2758,6 +2833,8 @@ function showTypeDropdown(elementId, currentAxis, currentType, typeRow, slideInd
 }
 var Y_AXIS_TYPES;
 var X_AXIS_TYPES;
+var W_AXIS_TYPES;
+var H_AXIS_TYPES;
 var DIRECTIONAL_TYPES;
 var REFLESS_TYPES;
 var init_debug_inspector_constraint = __esm({
@@ -2770,6 +2847,8 @@ var init_debug_inspector_constraint = __esm({
     init_helpers();
     Y_AXIS_TYPES = ["below", "above", "centerV", "alignTop", "alignBottom", "centerVSlide"];
     X_AXIS_TYPES = ["rightOf", "leftOf", "centerH", "alignLeft", "alignRight", "centerHSlide"];
+    W_AXIS_TYPES = ["matchWidth", "matchMaxWidth"];
+    H_AXIS_TYPES = ["matchHeight", "matchMaxHeight"];
     DIRECTIONAL_TYPES = /* @__PURE__ */ new Set(["below", "above", "rightOf", "leftOf"]);
     REFLESS_TYPES = /* @__PURE__ */ new Set(["centerHSlide", "centerVSlide", "matchMaxWidth", "matchMaxHeight"]);
   }
@@ -3705,6 +3784,185 @@ var init_debug_context_menu = __esm({
     dismissListener = null;
   }
 });
+function closeConstraintPopover() {
+  if (activeConstraintPopover) {
+    activeConstraintPopover.remove();
+    activeConstraintPopover = null;
+  }
+  if (activePopoverCleanup) {
+    activePopoverCleanup();
+    activePopoverCleanup = null;
+  }
+}
+function collectGroupNames(slideIndex) {
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  const def = sk?._definitions?.[slideIndex];
+  if (!def) return [];
+  const { flatMap } = flattenElements(def.elements);
+  const names = /* @__PURE__ */ new Set();
+  for (const [, el2] of flatMap) {
+    const props = el2.props;
+    if (!props) continue;
+    for (const axis of ["w", "h"]) {
+      const val = props[axis];
+      if (isRelMarker(val) && val.group) {
+        names.add(val.group);
+      }
+    }
+  }
+  return Array.from(names).sort();
+}
+function showConstraintPopover(btnEl, axis, elementId, slideIndex) {
+  closeConstraintPopover();
+  const options = CONSTRAINT_REGISTRY.filter((c) => c.axis === axis);
+  if (options.length === 0) return;
+  const popover = document.createElement("div");
+  popover.setAttribute("data-sk-debug", "constraint-popover");
+  popover.style.cssText = `
+    position: fixed; background: #fff; border: 1px solid #ddd;
+    border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 4px 0; z-index: 100001; font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    min-width: 180px;
+  `;
+  const rect = btnEl.getBoundingClientRect();
+  popover.style.top = `${rect.bottom + 2}px`;
+  popover.style.left = `${rect.left}px`;
+  for (const opt of options) {
+    const row = document.createElement("div");
+    row.style.cssText = `
+      padding: 4px 12px; cursor: pointer; color: #1a1a2e;
+      white-space: nowrap;
+    `;
+    row.textContent = opt.label;
+    row.addEventListener("mouseenter", () => {
+      row.style.background = "#e8f0fe";
+    });
+    row.addEventListener("mouseleave", () => {
+      row.style.background = "";
+    });
+    row.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleConstraintPickerSelection(opt, elementId, slideIndex, popover);
+    });
+    popover.appendChild(row);
+  }
+  document.body.appendChild(popover);
+  activeConstraintPopover = popover;
+  const popRect = popover.getBoundingClientRect();
+  if (popRect.right > window.innerWidth) {
+    popover.style.left = `${window.innerWidth - popRect.width - 8}px`;
+  }
+  if (popRect.bottom > window.innerHeight) {
+    popover.style.top = `${rect.top - popRect.height - 2}px`;
+  }
+  const onClickOutside = (e) => {
+    if (!popover.contains(e.target) && e.target !== btnEl) {
+      closeConstraintPopover();
+    }
+  };
+  const onKeyDown2 = (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeConstraintPopover();
+    }
+  };
+  const onScroll = () => {
+    closeConstraintPopover();
+  };
+  const inspectorPanel = debugController.state.inspectorPanel;
+  document.addEventListener("pointerdown", onClickOutside, true);
+  document.addEventListener("keydown", onKeyDown2, true);
+  window.addEventListener("resize", onScroll);
+  if (inspectorPanel) inspectorPanel.addEventListener("scroll", onScroll);
+  activePopoverCleanup = () => {
+    document.removeEventListener("pointerdown", onClickOutside, true);
+    document.removeEventListener("keydown", onKeyDown2, true);
+    window.removeEventListener("resize", onScroll);
+    if (inspectorPanel) inspectorPanel.removeEventListener("scroll", onScroll);
+  };
+}
+function handleConstraintPickerSelection(opt, elementId, slideIndex, popover) {
+  if (!opt.requiresRef && !opt.requiresGroup) {
+    closeConstraintPopover();
+    addReflessConstraint(elementId, opt.axis, opt.id, slideIndex);
+  } else if (opt.requiresRef) {
+    closeConstraintPopover();
+    const pickAxis = opt.axis === "w" || opt.axis === "x" ? "x" : "y";
+    enterPickMode(elementId, pickAxis, opt.id, slideIndex);
+  } else if (opt.requiresGroup) {
+    showGroupNameInput(popover, opt, elementId, slideIndex);
+  }
+}
+function showGroupNameInput(popover, opt, elementId, slideIndex) {
+  popover.innerHTML = "";
+  const title = document.createElement("div");
+  title.style.cssText = "padding: 6px 12px 4px; font-weight: 600; color: #1a1a2e; font-size: 11px;";
+  title.textContent = opt.label.replace("...", "");
+  popover.appendChild(title);
+  const inputWrap = document.createElement("div");
+  inputWrap.style.cssText = "padding: 0 12px 6px;";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Group name";
+  input.style.cssText = `
+    width: 100%; padding: 4px 6px; font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    border: 1px solid #4a9eff; border-radius: 3px;
+    background: #fff; color: #1a1a2e; outline: none;
+    box-sizing: border-box;
+  `;
+  inputWrap.appendChild(input);
+  popover.appendChild(inputWrap);
+  const existingGroups = collectGroupNames(slideIndex);
+  let autocompleteDiv = null;
+  const showAutocomplete = (filter) => {
+    if (autocompleteDiv) {
+      autocompleteDiv.remove();
+      autocompleteDiv = null;
+    }
+    const matches = filter ? existingGroups.filter((g) => g.toLowerCase().includes(filter.toLowerCase())) : existingGroups;
+    if (matches.length === 0) return;
+    autocompleteDiv = document.createElement("div");
+    autocompleteDiv.style.cssText = "padding: 0 12px 4px;";
+    for (const name of matches) {
+      const item = document.createElement("div");
+      item.style.cssText = "padding: 3px 6px; cursor: pointer; color: #555; border-radius: 3px;";
+      item.textContent = name;
+      item.addEventListener("mouseenter", () => {
+        item.style.background = "#e8f0fe";
+      });
+      item.addEventListener("mouseleave", () => {
+        item.style.background = "";
+      });
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        applyGroupConstraint(opt, elementId, name, slideIndex);
+      });
+      autocompleteDiv.appendChild(item);
+    }
+    popover.appendChild(autocompleteDiv);
+  };
+  input.addEventListener("input", () => {
+    showAutocomplete(input.value);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && input.value.trim()) {
+      e.preventDefault();
+      applyGroupConstraint(opt, elementId, input.value.trim(), slideIndex);
+    }
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeConstraintPopover();
+    }
+  });
+  showAutocomplete("");
+  requestAnimationFrame(() => input.focus());
+}
+function applyGroupConstraint(opt, elementId, groupName, slideIndex) {
+  closeConstraintPopover();
+  addGroupConstraint(elementId, opt.axis, opt.id, groupName, slideIndex);
+}
 function createInspectorPanel() {
   const s = debugController.state;
   const panel2 = document.createElement("div");
@@ -4015,6 +4273,117 @@ function highlightElementOnSlide(elementId, slideIndex, show) {
   `;
   s.debugOverlay.appendChild(highlight);
 }
+function buildReflessConstraintRows(elementId, slideIndex, authored) {
+  if (!authored?.props) return [];
+  const props = authored.props;
+  const rows = [];
+  for (const axis of ["x", "y", "w", "h"]) {
+    const val = props[axis];
+    if (!isRelMarker(val)) continue;
+    if (!REFLESS_TYPES.has(val._rel)) continue;
+    const marker = val;
+    const label = REFLESS_LABELS[marker._rel] ?? marker._rel;
+    const axisKey = REFLESS_AXIS[marker._rel] ?? axis;
+    const badgeColor = AXIS_BADGE_COLORS[axisKey] ?? "#666";
+    const row = document.createElement("div");
+    row.style.cssText = "padding:3px 0;display:flex;align-items:center;gap:6px;";
+    const axisBadge = document.createElement("span");
+    axisBadge.textContent = axisKey.toUpperCase();
+    axisBadge.style.cssText = `
+      display:inline-block;padding:1px 5px;border-radius:3px;
+      font-size:10px;font-weight:700;color:#fff;background:${badgeColor};
+      line-height:1.4;letter-spacing:0.5px;flex-shrink:0;
+    `;
+    row.appendChild(axisBadge);
+    const labelSpan = document.createElement("span");
+    labelSpan.style.cssText = "color:#1a1a2e;flex:1;";
+    if (marker._rel === "matchMaxWidth" || marker._rel === "matchMaxHeight") {
+      const groupName = marker.group ?? "(unnamed)";
+      const memberCount = getGroupMemberIds(marker._rel, groupName, slideIndex).length;
+      labelSpan.innerHTML = `${escapeHtml(label)} <span style="color:#4a9eff;font-weight:600;">"${escapeHtml(groupName)}"</span><span style="color:#999;"> \xB7 ${memberCount} member${memberCount !== 1 ? "s" : ""}</span>`;
+      row.addEventListener("mouseenter", () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, true);
+        }
+      });
+      row.addEventListener("mouseleave", () => {
+        const memberIds = getGroupMemberIds(marker._rel, groupName, slideIndex);
+        for (const mid of memberIds) {
+          highlightElementOnSlide(mid, slideIndex, false);
+        }
+      });
+    } else {
+      labelSpan.textContent = label;
+    }
+    row.appendChild(labelSpan);
+    const freezeBtn = document.createElement("button");
+    freezeBtn.textContent = "Unlock";
+    freezeBtn.style.cssText = `
+      padding:3px 8px;font-size:10px;cursor:pointer;
+      font-family:'SF Mono','Fira Code','Consolas',monospace;
+      background:#fff;color:#4a9eff;border:1px solid #4a9eff;
+      border-radius:3px;font-weight:600;flex-shrink:0;
+    `;
+    freezeBtn.addEventListener("mouseenter", () => {
+      freezeBtn.style.background = "#4a9eff";
+      freezeBtn.style.color = "#fff";
+    });
+    freezeBtn.addEventListener("mouseleave", () => {
+      freezeBtn.style.background = "#fff";
+      freezeBtn.style.color = "#4a9eff";
+    });
+    freezeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      freezeReflessConstraint(elementId, axisKey, slideIndex);
+    });
+    row.appendChild(freezeBtn);
+    rows.push(row);
+  }
+  return rows;
+}
+function getGroupMemberIds(relType, groupName, slideIndex) {
+  const sk = typeof window !== "undefined" ? window.sk : null;
+  const def = sk?._definitions?.[slideIndex];
+  if (!def) return [];
+  const { flatMap } = flattenElements(def.elements);
+  const ids = [];
+  for (const [id, el2] of flatMap) {
+    const props = el2.props;
+    if (!props) continue;
+    const axis = relType === "matchMaxWidth" ? "w" : "h";
+    const val = props[axis];
+    if (isRelMarker(val) && val._rel === relType && val.group === groupName) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+async function freezeReflessConstraint(elementId, axis, slideIndex) {
+  const sk = window.sk;
+  if (!sk?._definitions?.[slideIndex] || !sk?.layouts?.[slideIndex]) return;
+  const layoutResult = sk.layouts[slideIndex];
+  const sceneEl = layoutResult.elements[elementId];
+  if (!sceneEl?.resolved) return;
+  const definition = sk._definitions[slideIndex];
+  const { flatMap } = flattenElements(definition.elements);
+  const element = flatMap.get(elementId);
+  if (!element) return;
+  const props = element.props;
+  const oldValue = props[axis];
+  const resolvedValue = sceneEl.resolved[axis];
+  props[axis] = resolvedValue;
+  const rerender = sk._rerenderSlide;
+  if (!rerender) return;
+  await rerender(slideIndex, definition);
+  const s = debugController.state;
+  s.undoStack.push({ elementId, propKey: axis, oldValue, newValue: resolvedValue, slideIndex });
+  s.redoStack.length = 0;
+  updateDiffDirtyIndicator();
+  debugController.callbacks.renderDebugOverlay?.({ slideIndex, showInspector: false });
+  s.selectedElementId = elementId;
+  debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
+}
 function showRelTypeDropdown(elementId, currentAxis, currentType, typeSpan, slideIndex) {
   const sameAxisTypes = typesForAxis(currentAxis);
   const otherAxis = currentAxis === "x" ? "y" : "x";
@@ -4059,13 +4428,16 @@ function showRelTypeDropdown(elementId, currentAxis, currentType, typeSpan, slid
     s.selectedElementId = elementId;
     debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   };
-  select.addEventListener("change", commit);
+  let committed = false;
+  select.addEventListener("change", () => {
+    committed = true;
+    commit();
+  });
   select.addEventListener("blur", () => {
-    if (select.parentNode) {
-      const s = debugController.state;
-      s.selectedElementId = elementId;
-      debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
-    }
+    if (committed) return;
+    const s = debugController.state;
+    s.selectedElementId = elementId;
+    debugController.callbacks.renderElementDetail?.(elementId, slideIndex);
   });
   select.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -4259,6 +4631,15 @@ function renderElementDetail(elementId, slideIndex) {
         propsEntries.push(["cornerRadius", 0]);
       }
     }
+    const priorityOrder = ["x", "y", "w", "h", "anchor"];
+    propsEntries.sort((a, b) => {
+      const ai = priorityOrder.indexOf(a[0]);
+      const bi = priorityOrder.indexOf(b[0]);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return 0;
+    });
     for (const [key, val] of propsEntries) {
       if (key.startsWith("_")) continue;
       hasProps = true;
@@ -4341,6 +4722,28 @@ function renderElementDetail(elementId, slideIndex) {
         propRow.setAttribute("data-sk-prop-status", "readonly");
         propRow.textContent = `${key}: ${displayVal}`;
       }
+      const constraintAxes = /* @__PURE__ */ new Set(["x", "y", "w", "h"]);
+      if (constraintAxes.has(key) && !isLocked && !isRelMarker(val)) {
+        const addBtn = document.createElement("span");
+        addBtn.textContent = "+ add";
+        addBtn.title = "Add constraint";
+        addBtn.style.cssText = `
+          font-size: 10px; color: #fff; background: #4a9eff; cursor: pointer;
+          margin-left: 6px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+          display: inline-block; line-height: 1.3;
+        `;
+        addBtn.addEventListener("mouseenter", () => {
+          addBtn.style.background = "#1a73e8";
+        });
+        addBtn.addEventListener("mouseleave", () => {
+          addBtn.style.background = "#4a9eff";
+        });
+        addBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          showConstraintPopover(addBtn, key, elementId, slideIndex);
+        });
+        propRow.appendChild(addBtn);
+      }
       propsDiv.appendChild(propRow);
     }
     if (!hasProps) {
@@ -4378,18 +4781,22 @@ function renderElementDetail(elementId, slideIndex) {
   const relsDiv = document.createElement("div");
   const allEdges = extractRelationshipEdges(layoutResult.elements);
   const relEdges = allEdges.filter((e) => e.fromId === elementId || e.toId === elementId);
-  if (relEdges.length > 0) {
+  const constrainedAxes = /* @__PURE__ */ new Set();
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
+  const hasAnyConstraints = relEdges.length > 0 || reflessRows.length > 0;
+  if (hasAnyConstraints) {
     for (const edge of relEdges) {
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
       const otherId = dir === "incoming" ? edge.fromId : edge.toId;
       const edgeAxis = axisForType(edge.type);
       const row = document.createElement("div");
-      row.style.padding = "2px 0";
+      row.style.cssText = "padding: 2px 0; display: flex; align-items: center;";
       const arrowSpan = document.createElement("span");
       arrowSpan.textContent = arrow + " ";
       row.appendChild(arrowSpan);
       if (dir === "incoming" && edgeAxis) {
+        constrainedAxes.add(edgeAxis);
         const refSpan = document.createElement("span");
         refSpan.textContent = otherId;
         refSpan.style.color = "#1a1a2e";
@@ -4433,44 +4840,110 @@ function renderElementDetail(elementId, slideIndex) {
         anchorSpan.textContent = ` [${edge.sourceAnchor}\u2192${edge.targetAnchor}]`;
         anchorSpan.style.color = "#999";
         row.appendChild(anchorSpan);
+        if (edge.gap !== void 0 && isEditableGap(edge.type)) {
+          const axis = edge.type === "below" || edge.type === "above" ? "y" : "x";
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#1a1a2e";
+          gapSpan.style.textDecoration = "underline";
+          gapSpan.style.textDecorationStyle = "dashed";
+          gapSpan.style.textUnderlineOffset = "2px";
+          gapSpan.style.cursor = "pointer";
+          gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
+          gapSpan.addEventListener("mouseenter", () => {
+            gapSpan.style.background = "#e8f0fe";
+          });
+          gapSpan.addEventListener("mouseleave", () => {
+            gapSpan.style.background = "";
+          });
+          gapSpan.addEventListener("click", (e) => {
+            e.stopPropagation();
+            startGapTokenEdit(elementId, `${axis}.gap`, edge.gap, gapSpan, slideIndex);
+          });
+          row.appendChild(gapSpan);
+        } else if (edge.gap !== void 0) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
+        const unlockBtn = document.createElement("button");
+        unlockBtn.textContent = "Unlock";
+        unlockBtn.style.cssText = `
+          padding: 2px 6px; font-size: 9px; cursor: pointer;
+          font-family: monospace; background: #fff; color: #ea4335;
+          border: 1px solid #ea4335; border-radius: 3px; font-weight: 600;
+          margin-left: auto; flex-shrink: 0;
+        `;
+        unlockBtn.addEventListener("mouseenter", () => {
+          unlockBtn.style.background = "#ea4335";
+          unlockBtn.style.color = "#fff";
+        });
+        unlockBtn.addEventListener("mouseleave", () => {
+          unlockBtn.style.background = "#fff";
+          unlockBtn.style.color = "#ea4335";
+        });
+        unlockBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          breakConstraint(elementId, edgeAxis, slideIndex);
+        });
+        row.appendChild(unlockBtn);
       } else {
         const textPart = document.createElement("span");
         textPart.innerHTML = `<span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
         row.appendChild(textPart);
+        if (edge.gap !== void 0) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
       }
-      if (edge.gap !== void 0 && dir === "incoming" && isEditableGap(edge.type)) {
-        const axis = edge.type === "below" || edge.type === "above" ? "y" : "x";
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#1a1a2e";
-        gapSpan.style.textDecoration = "underline";
-        gapSpan.style.textDecorationStyle = "dashed";
-        gapSpan.style.textUnderlineOffset = "2px";
-        gapSpan.style.cursor = "pointer";
-        gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
-        gapSpan.addEventListener("mouseenter", () => {
-          gapSpan.style.background = "#e8f0fe";
-        });
-        gapSpan.addEventListener("mouseleave", () => {
-          gapSpan.style.background = "";
-        });
-        gapSpan.addEventListener("click", (e) => {
-          e.stopPropagation();
-          startGapTokenEdit(elementId, `${axis}.gap`, edge.gap, gapSpan, slideIndex);
-        });
-        row.appendChild(gapSpan);
-      } else if (edge.gap !== void 0) {
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#999";
-        row.appendChild(gapSpan);
-      }
+      relsDiv.appendChild(row);
+    }
+    for (const row of reflessRows) {
       relsDiv.appendChild(row);
     }
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
-  body.appendChild(createSection("Relationships", relsDiv));
+  if (authored?.props) {
+    const authoredProps = authored.props;
+    for (const axis of ["x", "y", "w", "h"]) {
+      if (isRelMarker(authoredProps[axis])) {
+        constrainedAxes.add(axis);
+      }
+    }
+  }
+  const availableAxes = ["x", "y", "w", "h"].filter((a) => !constrainedAxes.has(a));
+  if (availableAxes.length > 0) {
+    const addRow = document.createElement("div");
+    addRow.style.cssText = "margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;";
+    for (const axis of availableAxes) {
+      const btn = document.createElement("button");
+      btn.textContent = `+ ${axis.toUpperCase()}`;
+      btn.style.cssText = `
+        padding: 4px 10px; font-size: 10px; cursor: pointer;
+        background: #f0f7ff; color: #4a9eff; border: 1px solid #4a9eff;
+        border-radius: 4px; font-weight: 600;
+      `;
+      btn.addEventListener("mouseenter", () => {
+        btn.style.background = "#4a9eff";
+        btn.style.color = "#fff";
+      });
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = "#f0f7ff";
+        btn.style.color = "#4a9eff";
+      });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showConstraintPopover(btn, axis, elementId, slideIndex);
+      });
+      addRow.appendChild(btn);
+    }
+    relsDiv.appendChild(addRow);
+  }
+  body.appendChild(createSection("Constraints", relsDiv));
   const stylesDiv = document.createElement("div");
   const styleObj = authored?.props?.style;
   if (styleObj && Object.keys(styleObj).length > 0) {
@@ -4565,9 +5038,15 @@ function detachClickHandler() {
   detachContextMenuHandler();
   s.clickHandlerAttached = false;
 }
+var CONSTRAINT_REGISTRY;
+var activeConstraintPopover;
+var activePopoverCleanup;
 var VISIBILITY_OPTIONS;
 var LAYER_ORDER;
 var LAYER_LABELS;
+var AXIS_BADGE_COLORS;
+var REFLESS_LABELS;
+var REFLESS_AXIS;
 var init_debug_inspector = __esm({
   "slidekit/src/debug-inspector.ts"() {
     "use strict";
@@ -4582,6 +5061,30 @@ var init_debug_inspector = __esm({
     init_debug_inspector_constraint();
     init_debug_context_menu();
     init_debug_inspector_pick();
+    CONSTRAINT_REGISTRY = [
+      // x axis
+      { id: "rightOf", label: "Right of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "leftOf", label: "Left of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerH", label: "Center with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignLeft", label: "Align left with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignRight", label: "Align right with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerHSlide", label: "Center on slide", axis: "x", targetAxis: "x", requiresRef: false, hasGap: false, requiresGroup: false },
+      // y axis
+      { id: "below", label: "Below...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "above", label: "Above...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerV", label: "Center with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignTop", label: "Align top with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignBottom", label: "Align bottom with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerVSlide", label: "Center on slide", axis: "y", targetAxis: "y", requiresRef: false, hasGap: false, requiresGroup: false },
+      // w axis
+      { id: "matchWidth", label: "Match width of...", axis: "w", targetAxis: "w", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxWidth", label: "Match widest in group...", axis: "w", targetAxis: "w", requiresRef: false, hasGap: false, requiresGroup: true },
+      // h axis
+      { id: "matchHeight", label: "Match height of...", axis: "h", targetAxis: "h", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxHeight", label: "Match tallest in group...", axis: "h", targetAxis: "h", requiresRef: false, hasGap: false, requiresGroup: true }
+    ];
+    activeConstraintPopover = null;
+    activePopoverCleanup = null;
     VISIBILITY_OPTIONS = [
       { key: "showBoxes", label: "Boxes", default: true },
       { key: "showIds", label: "Labels", default: true },
@@ -4592,6 +5095,24 @@ var init_debug_inspector = __esm({
     ];
     LAYER_ORDER = ["overlay", "content", "bg"];
     LAYER_LABELS = { overlay: "Overlay", content: "Content", bg: "Background" };
+    AXIS_BADGE_COLORS = {
+      x: "#4a9eff",
+      y: "#34a853",
+      w: "#ff8c32",
+      h: "#ea4335"
+    };
+    REFLESS_LABELS = {
+      centerHSlide: "Centered horizontally on slide",
+      centerVSlide: "Centered vertically on slide",
+      matchMaxWidth: "Match widest in group",
+      matchMaxHeight: "Match tallest in group"
+    };
+    REFLESS_AXIS = {
+      centerHSlide: "x",
+      centerVSlide: "y",
+      matchMaxWidth: "w",
+      matchMaxHeight: "h"
+    };
   }
 });
 var VERSION = true ? "0.3.5" : "dev";
@@ -8232,7 +8753,8 @@ function panel(children, props = {}) {
   const id = customId || nextId();
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const panelW = rest.w;
+  const isFillWidth = rest.w === "fill";
+  const panelW = isFillWidth ? void 0 : rest.w;
   const panelH = rest.h;
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : void 0;
   const resolvedChildren = children.map((child) => {
@@ -8270,9 +8792,10 @@ function panel(children, props = {}) {
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl"
   };
-  if (panelW != null) groupProps.w = panelW;
+  if (isFillWidth) groupProps.w = "fill";
+  else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
-  const panelConfig = { padding, gap, panelW, panelH };
+  const panelConfig = { padding, gap, panelW: isFillWidth ? void 0 : panelW, panelH };
   const groupBase = group([bgRect, childStack], groupProps);
   const result = {
     ...groupBase,
@@ -8573,6 +9096,9 @@ async function getEffectiveWidth(element) {
   if (typeof props.w === "number") {
     return { w: props.w, wMeasured: false, hMeasured: needsAutoHeight };
   }
+  if (props.w === "fill") {
+    return { w: 0, wMeasured: false, hMeasured: needsAutoHeight };
+  }
   if (type === "el") {
     const html = element.content || "";
     if (!html && (!props.style || Object.keys(props.style).length === 0)) {
@@ -8657,6 +9183,50 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       pendingStacks.add(id);
     }
   }
+  for (const stackId of pendingStacks) {
+    const stackEl = mustGet(flatMap, stackId, `flatMap missing stack: ${stackId}`);
+    if (stackEl.type !== "vstack") continue;
+    const stackW = stackEl.props.w ?? 0;
+    if (typeof stackW !== "number" || stackW <= 0) continue;
+    const childIds = stackChildren.get(stackId) || [];
+    for (const cid of childIds) {
+      const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
+      if (child.props.w === "fill") {
+        const childSize = resolvedSizes.get(cid);
+        if (childSize) {
+          childSize.w = stackW;
+          if (isPanelElement(child)) {
+            const config = child._panelConfig;
+            if (config) {
+              const innerContentW = Math.max(0, stackW - 2 * config.padding);
+              const panelChildren = child.children || [];
+              const bgRect = panelChildren[0];
+              const innerStack = panelChildren[1];
+              if (bgRect && resolvedSizes.has(bgRect.id)) {
+                resolvedSizes.get(bgRect.id).w = stackW;
+              }
+              if (innerStack) {
+                if (resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id).w = innerContentW;
+                } else {
+                  resolvedSizes.set(innerStack.id, { w: innerContentW, h: 0, wMeasured: false, hMeasured: true });
+                }
+                innerStack.props.w = innerContentW;
+                const innerChildIds = stackChildren.get(innerStack.id) || [];
+                for (const icid of innerChildIds) {
+                  const ic = flatMap.get(icid);
+                  if (ic && ic.props.w === "fill") {
+                    const ics = resolvedSizes.get(icid);
+                    if (ics) ics.w = innerContentW;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   let progress = true;
   while (pendingStacks.size > 0 && progress) {
     progress = false;
@@ -8690,9 +9260,45 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       if (el2.type === "vstack") {
         for (const cid of childIds) {
           const child = mustGet(flatMap, cid, `flatMap missing vstack child: ${cid}`);
-          if ((child.props.w === void 0 || child.props.w === null) && stackW > 0) {
+          if ((child.props.w === void 0 || child.props.w === null || child.props.w === "fill") && stackW > 0) {
             const childSize = mustGet(resolvedSizes, cid, `resolvedSizes missing vstack child: ${cid}`);
             childSize.w = stackW;
+            if (isPanelElement(child) && child.props.w === "fill") {
+              const config = child._panelConfig;
+              if (config) {
+                const innerContentW = Math.max(0, stackW - 2 * config.padding);
+                const panelChildren = child.children || [];
+                const bgRect = panelChildren[0];
+                const innerStack = panelChildren[1];
+                if (bgRect && resolvedSizes.has(bgRect.id)) {
+                  resolvedSizes.get(bgRect.id).w = stackW;
+                }
+                if (innerStack && resolvedSizes.has(innerStack.id)) {
+                  resolvedSizes.get(innerStack.id).w = innerContentW;
+                  const innerChildIds = stackChildren.get(innerStack.id) || [];
+                  for (const icid of innerChildIds) {
+                    const ic = flatMap.get(icid);
+                    if (ic && (ic.props.w === void 0 || ic.props.w === null || ic.props.w === "fill")) {
+                      const ics = resolvedSizes.get(icid);
+                      if (ics) ics.w = innerContentW;
+                      if (isPanelElement(ic) && ic.props.w === "fill") {
+                        const nestedConfig = ic._panelConfig;
+                        if (nestedConfig) {
+                          const nestedContentW = Math.max(0, innerContentW - 2 * nestedConfig.padding);
+                          const nestedChildren = ic.children || [];
+                          if (nestedChildren[0] && resolvedSizes.has(nestedChildren[0].id)) {
+                            resolvedSizes.get(nestedChildren[0].id).w = innerContentW;
+                          }
+                          if (nestedChildren[1] && resolvedSizes.has(nestedChildren[1].id)) {
+                            resolvedSizes.get(nestedChildren[1].id).w = nestedContentW;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
         let maxW = 0;
