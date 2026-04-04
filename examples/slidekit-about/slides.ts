@@ -754,8 +754,8 @@ w: 800, h: 400`,
         const { left, right } = splitRect(safe, { ratio: 0.48, gap: 60 });
 
         // Small colored bar for stack demos
-        const bar = (id: string, color: string, w: number, h: number) =>
-          el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, w, h });
+        const bar = (id: string, color: string, props: Record<string, unknown>) =>
+          el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, ...props });
 
         const sectionLabel = (text: string, id: string, color: string, extra: Record<string, unknown> = {}) =>
           el(`<p style="font-family:${FONT};font-size:28px;font-weight:700;color:${color};">${text}</p>`, { id, w: 300, h: 36, ...extra });
@@ -771,14 +771,19 @@ w: 800, h: 400`,
         for (let i = 0; i < vstackAligns.length; i++) {
           const align = vstackAligns[i];
           const panelId = `s7-vs-panel-${align}`;
+          const isStretch = align === 'stretch';
           vstackPanelIds.push(panelId);
+          // For stretch, omit explicit w so the stack's align:'stretch' controls width
+          const barA = isStretch ? { h: 16 } : { w: 100, h: 16 };
+          const barB = isStretch ? { h: 16 } : { w: 60, h: 16 };
+          const barC = isStretch ? { h: 16 } : { w: 130, h: 16 };
           vstackDemos.push(
             panel([
               modeLabel(align, `s7-vs-lbl-${align}`),
               vstack([
-                bar(`s7-vs-${align}-a`, C.accent1, 100, 16),
-                bar(`s7-vs-${align}-b`, C.accent2, 60, 16),
-                bar(`s7-vs-${align}-c`, C.accent3, 130, 16),
+                bar(`s7-vs-${align}-a`, C.accent1, barA),
+                bar(`s7-vs-${align}-b`, C.accent2, barB),
+                bar(`s7-vs-${align}-c`, C.accent3, barC),
               ], {
                 id: `s7-vs-${align}`,
                 w: 160, gap: 'sm',
@@ -801,13 +806,18 @@ w: 800, h: 400`,
 
         for (let i = 0; i < hstackAligns.length; i++) {
           const align = hstackAligns[i];
+          const isStretch = align === 'stretch';
+          // For stretch, omit explicit h so the stack's align:'stretch' controls height
+          const barA = isStretch ? { w: 30 } : { w: 30, h: 50 };
+          const barB = isStretch ? { w: 30 } : { w: 30, h: 30 };
+          const barC = isStretch ? { w: 30 } : { w: 30, h: 70 };
           hstackDemos.push(
             panel([
               modeLabel(align, `s7-hs-lbl-${align}`),
               hstack([
-                bar(`s7-hs-${align}-a`, C.accent1, 30, 50),
-                bar(`s7-hs-${align}-b`, C.accent2, 30, 30),
-                bar(`s7-hs-${align}-c`, C.accent3, 30, 70),
+                bar(`s7-hs-${align}-a`, C.accent1, barA),
+                bar(`s7-hs-${align}-b`, C.accent2, barB),
+                bar(`s7-hs-${align}-c`, C.accent3, barC),
               ], {
                 id: `s7-hs-${align}`,
                 h: 80, gap: 'sm',
@@ -1403,7 +1413,7 @@ w: 800, h: 400`,
           }),
 
           caption('caption + captionGap', 's12-label3', {
-            x: safe.x + 160 + (320 + getSpacing('lg')) * 2, y: below('s12-figures-row', { gap: 'sm' }),
+            x: safe.x + 160 + (320 + getSpacing('lg')) * 2, y: below('s12-fig3', { gap: 'sm' }),
             w: 320, h: 24, anchor: 'tc',
             style: { textAlign: 'center' },
           }),

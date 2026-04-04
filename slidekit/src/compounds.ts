@@ -175,9 +175,8 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
 
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const isFillWidth = rest.w === 'fill';
-  const panelW = isFillWidth ? undefined : (rest.w as number | undefined);
-  const panelH = rest.h as number | undefined;
+  const panelW = typeof rest.w === 'number' ? rest.w : undefined;
+  const panelH = typeof rest.h === 'number' ? rest.h : undefined;
 
   // Resolve "fill" width on children: fill = panelW - 2 * padding
   // When panelW is numeric, compute content width now. When panelW is "fill",
@@ -231,11 +230,12 @@ export function panel(children: SlideElement[], props: PanelInputProps = {}): Pa
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl",
   };
-  if (isFillWidth) groupProps.w = 'fill' as unknown as number; // preserved for layout to resolve
+  // Preserve non-numeric width tokens (e.g. 'fill') for layout to resolve
+  if (typeof rest.w === 'string') groupProps.w = rest.w as unknown as number;
   else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
 
-  const panelConfig: PanelConfig = { padding, gap, panelW: isFillWidth ? undefined : panelW, panelH };
+  const panelConfig: PanelConfig = { padding, gap, panelW, panelH };
 
   // Construct the PanelElement directly — avoids @ts-ignore on group return
   const groupBase = group([bgRect, childStack], groupProps);

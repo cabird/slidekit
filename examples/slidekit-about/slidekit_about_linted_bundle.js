@@ -8753,9 +8753,8 @@ function panel(children, props = {}) {
   const id = customId || nextId();
   const padding = resolveSpacing(rest.padding ?? 24);
   const gap = resolveSpacing(rest.gap ?? 16);
-  const isFillWidth = rest.w === "fill";
-  const panelW = isFillWidth ? void 0 : rest.w;
-  const panelH = rest.h;
+  const panelW = typeof rest.w === "number" ? rest.w : void 0;
+  const panelH = typeof rest.h === "number" ? rest.h : void 0;
   const contentW = panelW != null ? Math.max(0, panelW - 2 * padding) : void 0;
   const resolvedChildren = children.map((child) => {
     if (child.props && child.props.w === "fill" && contentW !== void 0) {
@@ -8792,10 +8791,10 @@ function panel(children, props = {}) {
     opacity: rest.opacity ?? 1,
     anchor: rest.anchor || "tl"
   };
-  if (isFillWidth) groupProps.w = "fill";
+  if (typeof rest.w === "string") groupProps.w = rest.w;
   else if (panelW != null) groupProps.w = panelW;
   if (panelH != null) groupProps.h = panelH;
-  const panelConfig = { padding, gap, panelW: isFillWidth ? void 0 : panelW, panelH };
+  const panelConfig = { padding, gap, panelW, panelH };
   const groupBase = group([bgRect, childStack], groupProps);
   const result = {
     ...groupBase,
@@ -11761,7 +11760,7 @@ w: 800, h: 400`,
       notes: "Stacks resolve to absolute coordinates \u2014 they're syntactic sugar over the coordinate system, not CSS flexbox.",
       elements: (() => {
         const { left, right } = splitRect(safe, { ratio: 0.48, gap: 60 });
-        const bar = (id, color, w, h) => el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, w, h });
+        const bar = (id, color, props) => el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, ...props });
         const sectionLabel = (text, id, color, extra = {}) => el(`<p style="font-family:${FONT};font-size:28px;font-weight:700;color:${color};">${text}</p>`, { id, w: 300, h: 36, ...extra });
         const modeLabel = (text, id) => el(`<span style="font-family:${MONO};font-size:14px;color:${C.textTer};">${text}</span>`, { id, w: 120, h: 20 });
         const vstackAligns = ["left", "center", "right", "stretch"];
@@ -11770,14 +11769,18 @@ w: 800, h: 400`,
         for (let i = 0; i < vstackAligns.length; i++) {
           const align = vstackAligns[i];
           const panelId = `s7-vs-panel-${align}`;
+          const isStretch = align === "stretch";
           vstackPanelIds.push(panelId);
+          const barA = isStretch ? { h: 16 } : { w: 100, h: 16 };
+          const barB = isStretch ? { h: 16 } : { w: 60, h: 16 };
+          const barC = isStretch ? { h: 16 } : { w: 130, h: 16 };
           vstackDemos.push(
             panel([
               modeLabel(align, `s7-vs-lbl-${align}`),
               vstack([
-                bar(`s7-vs-${align}-a`, C.accent1, 100, 16),
-                bar(`s7-vs-${align}-b`, C.accent2, 60, 16),
-                bar(`s7-vs-${align}-c`, C.accent3, 130, 16)
+                bar(`s7-vs-${align}-a`, C.accent1, barA),
+                bar(`s7-vs-${align}-b`, C.accent2, barB),
+                bar(`s7-vs-${align}-c`, C.accent3, barC)
               ], {
                 id: `s7-vs-${align}`,
                 w: 160,
@@ -11799,13 +11802,17 @@ w: 800, h: 400`,
         const hstackDemos = [];
         for (let i = 0; i < hstackAligns.length; i++) {
           const align = hstackAligns[i];
+          const isStretch = align === "stretch";
+          const barA = isStretch ? { w: 30 } : { w: 30, h: 50 };
+          const barB = isStretch ? { w: 30 } : { w: 30, h: 30 };
+          const barC = isStretch ? { w: 30 } : { w: 30, h: 70 };
           hstackDemos.push(
             panel([
               modeLabel(align, `s7-hs-lbl-${align}`),
               hstack([
-                bar(`s7-hs-${align}-a`, C.accent1, 30, 50),
-                bar(`s7-hs-${align}-b`, C.accent2, 30, 30),
-                bar(`s7-hs-${align}-c`, C.accent3, 30, 70)
+                bar(`s7-hs-${align}-a`, C.accent1, barA),
+                bar(`s7-hs-${align}-b`, C.accent2, barB),
+                bar(`s7-hs-${align}-c`, C.accent3, barC)
               ], {
                 id: `s7-hs-${align}`,
                 h: 80,
@@ -12444,7 +12451,7 @@ w: 800, h: 400`,
           }),
           caption("caption + captionGap", "s12-label3", {
             x: safe.x + 160 + (320 + getSpacing("lg")) * 2,
-            y: below("s12-figures-row", { gap: "sm" }),
+            y: below("s12-fig3", { gap: "sm" }),
             w: 320,
             h: 24,
             anchor: "tc",
