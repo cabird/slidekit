@@ -3866,11 +3866,19 @@ function showConstraintPopover(btnEl, axis, elementId, slideIndex) {
       closeConstraintPopover();
     }
   };
+  const onScroll = () => {
+    closeConstraintPopover();
+  };
+  const inspectorPanel = debugController.state.inspectorPanel;
   document.addEventListener("pointerdown", onClickOutside, true);
   document.addEventListener("keydown", onKeyDown2, true);
+  window.addEventListener("resize", onScroll);
+  if (inspectorPanel) inspectorPanel.addEventListener("scroll", onScroll);
   activePopoverCleanup = () => {
     document.removeEventListener("pointerdown", onClickOutside, true);
     document.removeEventListener("keydown", onKeyDown2, true);
+    window.removeEventListener("resize", onScroll);
+    if (inspectorPanel) inspectorPanel.removeEventListener("scroll", onScroll);
   };
 }
 function handleConstraintPickerSelection(opt, elementId, slideIndex, popover) {
@@ -4622,6 +4630,15 @@ function renderElementDetail(elementId, slideIndex) {
         propsEntries.push(["cornerRadius", 0]);
       }
     }
+    const priorityOrder = ["x", "y", "w", "h", "anchor"];
+    propsEntries.sort((a, b) => {
+      const ai = priorityOrder.indexOf(a[0]);
+      const bi = priorityOrder.indexOf(b[0]);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return 0;
+    });
     for (const [key, val] of propsEntries) {
       if (key.startsWith("_")) continue;
       hasProps = true;
@@ -4707,18 +4724,18 @@ function renderElementDetail(elementId, slideIndex) {
       const constraintAxes = /* @__PURE__ */ new Set(["x", "y", "w", "h"]);
       if (constraintAxes.has(key) && !isLocked && !isRelMarker(val)) {
         const addBtn = document.createElement("span");
-        addBtn.textContent = "+";
+        addBtn.textContent = "+ add";
         addBtn.title = "Add constraint";
         addBtn.style.cssText = `
-          font-size: 10px; color: #4a9eff; cursor: pointer;
-          margin-left: 4px; font-weight: 700; display: inline-block;
-          line-height: 1; padding: 0 2px;
+          font-size: 10px; color: #fff; background: #4a9eff; cursor: pointer;
+          margin-left: 6px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+          display: inline-block; line-height: 1.3;
         `;
         addBtn.addEventListener("mouseenter", () => {
-          addBtn.style.color = "#1a73e8";
+          addBtn.style.background = "#1a73e8";
         });
         addBtn.addEventListener("mouseleave", () => {
-          addBtn.style.color = "#4a9eff";
+          addBtn.style.background = "#4a9eff";
         });
         addBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -4763,18 +4780,22 @@ function renderElementDetail(elementId, slideIndex) {
   const relsDiv = document.createElement("div");
   const allEdges = extractRelationshipEdges(layoutResult.elements);
   const relEdges = allEdges.filter((e) => e.fromId === elementId || e.toId === elementId);
-  if (relEdges.length > 0) {
+  const constrainedAxes = /* @__PURE__ */ new Set();
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
+  const hasAnyConstraints = relEdges.length > 0 || reflessRows.length > 0;
+  if (hasAnyConstraints) {
     for (const edge of relEdges) {
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
       const otherId = dir === "incoming" ? edge.fromId : edge.toId;
       const edgeAxis = axisForType(edge.type);
       const row = document.createElement("div");
-      row.style.padding = "2px 0";
+      row.style.cssText = "padding: 2px 0; display: flex; align-items: center;";
       const arrowSpan = document.createElement("span");
       arrowSpan.textContent = arrow + " ";
       row.appendChild(arrowSpan);
       if (dir === "incoming" && edgeAxis) {
+        constrainedAxes.add(edgeAxis);
         const refSpan = document.createElement("span");
         refSpan.textContent = otherId;
         refSpan.style.color = "#1a1a2e";
@@ -4818,57 +4839,110 @@ function renderElementDetail(elementId, slideIndex) {
         anchorSpan.textContent = ` [${edge.sourceAnchor}\u2192${edge.targetAnchor}]`;
         anchorSpan.style.color = "#999";
         row.appendChild(anchorSpan);
+        if (edge.gap !== void 0 && isEditableGap(edge.type)) {
+          const axis = edge.type === "below" || edge.type === "above" ? "y" : "x";
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#1a1a2e";
+          gapSpan.style.textDecoration = "underline";
+          gapSpan.style.textDecorationStyle = "dashed";
+          gapSpan.style.textUnderlineOffset = "2px";
+          gapSpan.style.cursor = "pointer";
+          gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
+          gapSpan.addEventListener("mouseenter", () => {
+            gapSpan.style.background = "#e8f0fe";
+          });
+          gapSpan.addEventListener("mouseleave", () => {
+            gapSpan.style.background = "";
+          });
+          gapSpan.addEventListener("click", (e) => {
+            e.stopPropagation();
+            startGapTokenEdit(elementId, `${axis}.gap`, edge.gap, gapSpan, slideIndex);
+          });
+          row.appendChild(gapSpan);
+        } else if (edge.gap !== void 0) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
+        const unlockBtn = document.createElement("button");
+        unlockBtn.textContent = "Unlock";
+        unlockBtn.style.cssText = `
+          padding: 2px 6px; font-size: 9px; cursor: pointer;
+          font-family: monospace; background: #fff; color: #ea4335;
+          border: 1px solid #ea4335; border-radius: 3px; font-weight: 600;
+          margin-left: auto; flex-shrink: 0;
+        `;
+        unlockBtn.addEventListener("mouseenter", () => {
+          unlockBtn.style.background = "#ea4335";
+          unlockBtn.style.color = "#fff";
+        });
+        unlockBtn.addEventListener("mouseleave", () => {
+          unlockBtn.style.background = "#fff";
+          unlockBtn.style.color = "#ea4335";
+        });
+        unlockBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          breakConstraint(elementId, edgeAxis, slideIndex);
+        });
+        row.appendChild(unlockBtn);
       } else {
         const textPart = document.createElement("span");
         textPart.innerHTML = `<span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
         row.appendChild(textPart);
+        if (edge.gap !== void 0) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
       }
-      if (edge.gap !== void 0 && dir === "incoming" && isEditableGap(edge.type)) {
-        const axis = edge.type === "below" || edge.type === "above" ? "y" : "x";
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#1a1a2e";
-        gapSpan.style.textDecoration = "underline";
-        gapSpan.style.textDecorationStyle = "dashed";
-        gapSpan.style.textUnderlineOffset = "2px";
-        gapSpan.style.cursor = "pointer";
-        gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
-        gapSpan.addEventListener("mouseenter", () => {
-          gapSpan.style.background = "#e8f0fe";
-        });
-        gapSpan.addEventListener("mouseleave", () => {
-          gapSpan.style.background = "";
-        });
-        gapSpan.addEventListener("click", (e) => {
-          e.stopPropagation();
-          startGapTokenEdit(elementId, `${axis}.gap`, edge.gap, gapSpan, slideIndex);
-        });
-        row.appendChild(gapSpan);
-      } else if (edge.gap !== void 0) {
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#999";
-        row.appendChild(gapSpan);
-      }
+      relsDiv.appendChild(row);
+    }
+    for (const row of reflessRows) {
       relsDiv.appendChild(row);
     }
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
-  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
-  if (reflessRows.length > 0) {
-    if (relEdges.length === 0) {
-      relsDiv.innerHTML = "";
-    }
-    const subHeader = document.createElement("div");
-    subHeader.style.cssText = "color:#999;font-size:10px;margin-top:6px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;";
-    subHeader.textContent = "Relative to slide/group";
-    relsDiv.appendChild(subHeader);
-    for (const row of reflessRows) {
-      relsDiv.appendChild(row);
+  if (authored?.props) {
+    const authoredProps = authored.props;
+    for (const axis of ["x", "y", "w", "h"]) {
+      if (isRelMarker(authoredProps[axis])) {
+        constrainedAxes.add(axis);
+      }
     }
   }
-  body.appendChild(createSection("Relationships", relsDiv));
+  const availableAxes = ["x", "y", "w", "h"].filter((a) => !constrainedAxes.has(a));
+  if (availableAxes.length > 0) {
+    const addRow = document.createElement("div");
+    addRow.style.cssText = "margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;";
+    for (const axis of availableAxes) {
+      const btn = document.createElement("button");
+      btn.textContent = `+ ${axis.toUpperCase()}`;
+      btn.style.cssText = `
+        padding: 4px 10px; font-size: 10px; cursor: pointer;
+        background: #f0f7ff; color: #4a9eff; border: 1px solid #4a9eff;
+        border-radius: 4px; font-weight: 600;
+      `;
+      btn.addEventListener("mouseenter", () => {
+        btn.style.background = "#4a9eff";
+        btn.style.color = "#fff";
+      });
+      btn.addEventListener("mouseleave", () => {
+        btn.style.background = "#f0f7ff";
+        btn.style.color = "#4a9eff";
+      });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showConstraintPopover(btn, axis, elementId, slideIndex);
+      });
+      addRow.appendChild(btn);
+    }
+    relsDiv.appendChild(addRow);
+  }
+  body.appendChild(createSection("Constraints", relsDiv));
   const stylesDiv = document.createElement("div");
   const styleObj = authored?.props?.style;
   if (styleObj && Object.keys(styleObj).length > 0) {
@@ -4988,25 +5062,25 @@ var init_debug_inspector = __esm({
     init_debug_inspector_pick();
     CONSTRAINT_REGISTRY = [
       // x axis
-      { id: "rightOf", label: "Right of...", axis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "leftOf", label: "Left of...", axis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "centerH", label: "Center with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignLeft", label: "Align left with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignRight", label: "Align right with...", axis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "centerHSlide", label: "Center on slide", axis: "x", requiresRef: false, hasGap: false, requiresGroup: false },
+      { id: "rightOf", label: "Right of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "leftOf", label: "Left of...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerH", label: "Center with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignLeft", label: "Align left with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignRight", label: "Align right with...", axis: "x", targetAxis: "x", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerHSlide", label: "Center on slide", axis: "x", targetAxis: "x", requiresRef: false, hasGap: false, requiresGroup: false },
       // y axis
-      { id: "below", label: "Below...", axis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "above", label: "Above...", axis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
-      { id: "centerV", label: "Center with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignTop", label: "Align top with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "alignBottom", label: "Align bottom with...", axis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "centerVSlide", label: "Center on slide", axis: "y", requiresRef: false, hasGap: false, requiresGroup: false },
+      { id: "below", label: "Below...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "above", label: "Above...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: true, requiresGroup: false },
+      { id: "centerV", label: "Center with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignTop", label: "Align top with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "alignBottom", label: "Align bottom with...", axis: "y", targetAxis: "y", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "centerVSlide", label: "Center on slide", axis: "y", targetAxis: "y", requiresRef: false, hasGap: false, requiresGroup: false },
       // w axis
-      { id: "matchWidth", label: "Match width of...", axis: "w", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "matchMaxWidth", label: "Match widest in group...", axis: "w", requiresRef: false, hasGap: false, requiresGroup: true },
+      { id: "matchWidth", label: "Match width of...", axis: "w", targetAxis: "w", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxWidth", label: "Match widest in group...", axis: "w", targetAxis: "w", requiresRef: false, hasGap: false, requiresGroup: true },
       // h axis
-      { id: "matchHeight", label: "Match height of...", axis: "h", requiresRef: true, hasGap: false, requiresGroup: false },
-      { id: "matchMaxHeight", label: "Match tallest in group...", axis: "h", requiresRef: false, hasGap: false, requiresGroup: true }
+      { id: "matchHeight", label: "Match height of...", axis: "h", targetAxis: "h", requiresRef: true, hasGap: false, requiresGroup: false },
+      { id: "matchMaxHeight", label: "Match tallest in group...", axis: "h", targetAxis: "h", requiresRef: false, hasGap: false, requiresGroup: true }
     ];
     activeConstraintPopover = null;
     activePopoverCleanup = null;

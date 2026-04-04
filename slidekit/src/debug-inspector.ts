@@ -17,7 +17,7 @@ import { renderResizeHandles, removeResizeHandles } from './debug-inspector-drag
 import {
   clearConstraintSelection, renderConstraintDetail, updateConstraintHighlight,
   changeConstraintType, typesForAxis, axisForType, REFLESS_TYPES,
-  addReflessConstraint, addGroupConstraint,
+  addReflessConstraint, addGroupConstraint, breakConstraint,
 } from './debug-inspector-constraint.js';
 import { attachContextMenuHandler, detachContextMenuHandler } from './debug-context-menu.js';
 import { enterPickMode } from './debug-inspector-pick.js';
@@ -1230,6 +1230,17 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       }
     }
 
+    // Sort so x, y, w, h, anchor appear first in that order
+    const priorityOrder = ['x', 'y', 'w', 'h', 'anchor'];
+    propsEntries.sort((a, b) => {
+      const ai = priorityOrder.indexOf(a[0]);
+      const bi = priorityOrder.indexOf(b[0]);
+      if (ai >= 0 && bi >= 0) return ai - bi;
+      if (ai >= 0) return -1;
+      if (bi >= 0) return 1;
+      return 0;
+    });
+
     for (const [key, val] of propsEntries) {
       if (key.startsWith('_')) continue;
       hasProps = true;
@@ -1320,15 +1331,15 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       const constraintAxes = new Set(['x', 'y', 'w', 'h']);
       if (constraintAxes.has(key) && !isLocked && !isRelMarker(val)) {
         const addBtn = document.createElement('span');
-        addBtn.textContent = '+';
+        addBtn.textContent = '+ add';
         addBtn.title = 'Add constraint';
         addBtn.style.cssText = `
-          font-size: 10px; color: #4a9eff; cursor: pointer;
-          margin-left: 4px; font-weight: 700; display: inline-block;
-          line-height: 1; padding: 0 2px;
+          font-size: 10px; color: #fff; background: #4a9eff; cursor: pointer;
+          margin-left: 6px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
+          display: inline-block; line-height: 1.3;
         `;
-        addBtn.addEventListener('mouseenter', () => { addBtn.style.color = '#1a73e8'; });
-        addBtn.addEventListener('mouseleave', () => { addBtn.style.color = '#4a9eff'; });
+        addBtn.addEventListener('mouseenter', () => { addBtn.style.background = '#1a73e8'; });
+        addBtn.addEventListener('mouseleave', () => { addBtn.style.background = '#4a9eff'; });
         addBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           showConstraintPopover(addBtn, key as 'x' | 'y' | 'w' | 'h', elementId, slideIndex);
@@ -1375,11 +1386,21 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
   provDiv.innerHTML = provHtml;
   body.appendChild(createSection("Provenance", provDiv));
 
-  // Section 6: Relationships
+  // Section 6: Constraints
   const relsDiv = document.createElement("div");
   const allEdges = extractRelationshipEdges(layoutResult.elements);
   const relEdges = allEdges.filter(e => e.fromId === elementId || e.toId === elementId);
-  if (relEdges.length > 0) {
+
+  // Track which axes already have constraints (for "Add Constraint" buttons)
+  const constrainedAxes = new Set<string>();
+
+  // Refless constraints (centerHSlide, centerVSlide, matchMaxWidth, matchMaxHeight)
+  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
+
+  const hasAnyConstraints = relEdges.length > 0 || reflessRows.length > 0;
+
+  if (hasAnyConstraints) {
+    // Ref-based constraint rows
     for (const edge of relEdges) {
       const dir = edge.toId === elementId ? "incoming" : "outgoing";
       const arrow = dir === "incoming" ? "\u2190" : "\u2192";
@@ -1387,7 +1408,7 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       const edgeAxis = axisForType(edge.type);
 
       const row = document.createElement("div");
-      row.style.padding = "2px 0";
+      row.style.cssText = "padding: 2px 0; display: flex; align-items: center;";
 
       // Arrow
       const arrowSpan = document.createElement("span");
@@ -1395,6 +1416,8 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
       row.appendChild(arrowSpan);
 
       if (dir === "incoming" && edgeAxis) {
+        constrainedAxes.add(edgeAxis);
+
         // Editable reference element (click to pick new reference)
         const refSpan = document.createElement("span");
         refSpan.textContent = otherId;
@@ -1435,61 +1458,121 @@ export function renderElementDetail(elementId: string, slideIndex: number): void
         anchorSpan.textContent = ` [${edge.sourceAnchor}\u2192${edge.targetAnchor}]`;
         anchorSpan.style.color = "#999";
         row.appendChild(anchorSpan);
+
+        // Gap value — editable for incoming constraints with gap
+        if (edge.gap !== undefined && isEditableGap(edge.type)) {
+          const axis = (edge.type === 'below' || edge.type === 'above') ? 'y' : 'x';
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#1a1a2e";
+          gapSpan.style.textDecoration = "underline";
+          gapSpan.style.textDecorationStyle = "dashed";
+          gapSpan.style.textUnderlineOffset = "2px";
+          gapSpan.style.cursor = "pointer";
+          gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
+          gapSpan.addEventListener("mouseenter", () => { gapSpan.style.background = "#e8f0fe"; });
+          gapSpan.addEventListener("mouseleave", () => { gapSpan.style.background = ""; });
+          gapSpan.addEventListener("click", (e) => {
+            e.stopPropagation();
+            startGapTokenEdit(elementId, `${axis}.gap`, edge.gap!, gapSpan, slideIndex);
+          });
+          row.appendChild(gapSpan);
+        } else if (edge.gap !== undefined) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
+
+        // Unlock button for incoming ref-based constraints
+        const unlockBtn = document.createElement('button');
+        unlockBtn.textContent = 'Unlock';
+        unlockBtn.style.cssText = `
+          padding: 2px 6px; font-size: 9px; cursor: pointer;
+          font-family: monospace; background: #fff; color: #ea4335;
+          border: 1px solid #ea4335; border-radius: 3px; font-weight: 600;
+          margin-left: auto; flex-shrink: 0;
+        `;
+        unlockBtn.addEventListener('mouseenter', () => {
+          unlockBtn.style.background = '#ea4335';
+          unlockBtn.style.color = '#fff';
+        });
+        unlockBtn.addEventListener('mouseleave', () => {
+          unlockBtn.style.background = '#fff';
+          unlockBtn.style.color = '#ea4335';
+        });
+        unlockBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          breakConstraint(elementId, edgeAxis, slideIndex);
+        });
+        row.appendChild(unlockBtn);
       } else {
         // Outgoing — read-only display
         const textPart = document.createElement("span");
         textPart.innerHTML = `<span style="color:#1a1a2e;">${escapeHtml(otherId)}</span> <span style="color:#666;">${escapeHtml(edge.type)} [${edge.sourceAnchor}\u2192${edge.targetAnchor}]</span>`;
         row.appendChild(textPart);
+
+        // Gap value for outgoing
+        if (edge.gap !== undefined) {
+          const gapSpan = document.createElement("span");
+          gapSpan.textContent = ` gap=${edge.gap}`;
+          gapSpan.style.color = "#999";
+          row.appendChild(gapSpan);
+        }
       }
 
-      // Gap value — editable for incoming constraints with gap
-      if (edge.gap !== undefined && dir === "incoming" && isEditableGap(edge.type)) {
-        const axis = (edge.type === 'below' || edge.type === 'above') ? 'y' : 'x';
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#1a1a2e";
-        gapSpan.style.textDecoration = "underline";
-        gapSpan.style.textDecorationStyle = "dashed";
-        gapSpan.style.textUnderlineOffset = "2px";
-        gapSpan.style.cursor = "pointer";
-        gapSpan.setAttribute("data-sk-gap-edit", `${axis}.gap`);
-        gapSpan.addEventListener("mouseenter", () => { gapSpan.style.background = "#e8f0fe"; });
-        gapSpan.addEventListener("mouseleave", () => { gapSpan.style.background = ""; });
-        gapSpan.addEventListener("click", (e) => {
-          e.stopPropagation();
-          startGapTokenEdit(elementId, `${axis}.gap`, edge.gap!, gapSpan, slideIndex);
-        });
-        row.appendChild(gapSpan);
-      } else if (edge.gap !== undefined) {
-        const gapSpan = document.createElement("span");
-        gapSpan.textContent = ` gap=${edge.gap}`;
-        gapSpan.style.color = "#999";
-        row.appendChild(gapSpan);
-      }
+      relsDiv.appendChild(row);
+    }
 
+    // Refless constraint rows (merged into the same flat list)
+    for (const row of reflessRows) {
       relsDiv.appendChild(row);
     }
   } else {
     relsDiv.innerHTML = '<span style="color:#aaa;">(none)</span>';
   }
 
-  // Refless constraints sub-section (centerHSlide, centerVSlide, matchMaxWidth, matchMaxHeight)
-  const reflessRows = buildReflessConstraintRows(elementId, slideIndex, authored);
-  if (reflessRows.length > 0) {
-    // If the only content was "(none)", replace it
-    if (relEdges.length === 0) {
-      relsDiv.innerHTML = '';
-    }
-    const subHeader = document.createElement("div");
-    subHeader.style.cssText = "color:#999;font-size:10px;margin-top:6px;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;";
-    subHeader.textContent = "Relative to slide/group";
-    relsDiv.appendChild(subHeader);
-    for (const row of reflessRows) {
-      relsDiv.appendChild(row);
+  // Track refless constrained axes
+  if (authored?.props) {
+    const authoredProps = authored.props as Record<string, unknown>;
+    for (const axis of ['x', 'y', 'w', 'h'] as const) {
+      if (isRelMarker(authoredProps[axis])) {
+        constrainedAxes.add(axis);
+      }
     }
   }
 
-  body.appendChild(createSection("Relationships", relsDiv));
+  // "Add Constraint" buttons — one per unconstrained axis
+  const availableAxes = (['x', 'y', 'w', 'h'] as const).filter(a => !constrainedAxes.has(a));
+  if (availableAxes.length > 0) {
+    const addRow = document.createElement('div');
+    addRow.style.cssText = 'margin-top: 6px; display: flex; gap: 4px; flex-wrap: wrap;';
+    for (const axis of availableAxes) {
+      const btn = document.createElement('button');
+      btn.textContent = `+ ${axis.toUpperCase()}`;
+      btn.style.cssText = `
+        padding: 4px 10px; font-size: 10px; cursor: pointer;
+        background: #f0f7ff; color: #4a9eff; border: 1px solid #4a9eff;
+        border-radius: 4px; font-weight: 600;
+      `;
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = '#4a9eff';
+        btn.style.color = '#fff';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = '#f0f7ff';
+        btn.style.color = '#4a9eff';
+      });
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showConstraintPopover(btn, axis, elementId, slideIndex);
+      });
+      addRow.appendChild(btn);
+    }
+    relsDiv.appendChild(addRow);
+  }
+
+  body.appendChild(createSection("Constraints", relsDiv));
 
   // Section 7: CSS Pass-through Styles
   const stylesDiv = document.createElement("div");

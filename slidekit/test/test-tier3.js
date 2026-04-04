@@ -1972,8 +1972,8 @@ describe("inspector panel — content sections", () => {
       const target = container.querySelector('[data-sk-id="edge-b"]');
       target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      const section = document.querySelector('[data-sk-inspector-section="Relationships"]');
-      assert.ok(section, "Relationships section should exist");
+      const section = document.querySelector('[data-sk-inspector-section="Constraints"]');
+      assert.ok(section, "Constraints section should exist");
       assert.ok(section.textContent.includes("edge-a"), "should show related element");
       assert.ok(section.textContent.includes("below"), "should show relationship type");
 
@@ -3214,8 +3214,8 @@ describe("inspector panel — editable constraint spans", () => {
       const target = container.querySelector('[data-sk-id="ec-b"]');
       target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      const relSection = document.querySelector('[data-sk-inspector-section="Relationships"]');
-      assert.ok(relSection, "Relationships section should exist");
+      const relSection = document.querySelector('[data-sk-inspector-section="Constraints"]');
+      assert.ok(relSection, "Constraints section should exist");
 
       // Find all spans in the relationships section
       const spans = relSection.querySelectorAll('span');
@@ -3255,8 +3255,8 @@ describe("inspector panel — editable constraint spans", () => {
       const target = container.querySelector('[data-sk-id="eco-a"]');
       target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-      const relSection = document.querySelector('[data-sk-inspector-section="Relationships"]');
-      assert.ok(relSection, "Relationships section should exist");
+      const relSection = document.querySelector('[data-sk-inspector-section="Constraints"]');
+      assert.ok(relSection, "Constraints section should exist");
 
       // For outgoing constraints, the type should NOT be a clickable/editable span
       const spans = relSection.querySelectorAll('span');
