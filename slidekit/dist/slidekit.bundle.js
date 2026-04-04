@@ -597,6 +597,7 @@ function formatRelMarker(marker) {
   const opts = [];
   if (marker.gap !== void 0) opts.push(`gap: ${marker.gap}`);
   if (marker.bias !== void 0) opts.push(`bias: ${marker.bias}`);
+  if (marker.group) opts.push(`group: ${JSON.stringify(marker.group)}`);
   if (marker.ref2 !== void 0) opts.push(`ref2: ${JSON.stringify(marker.ref2)}`);
   if (opts.length > 0) parts.push(`{${opts.join(", ")}}`);
   return `${marker._rel}(${parts.join(", ")})`;

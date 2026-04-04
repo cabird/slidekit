@@ -30,6 +30,7 @@ function formatRelMarker(marker: RelMarker): string {
   const opts: string[] = [];
   if (marker.gap !== undefined) opts.push(`gap: ${marker.gap}`);
   if (marker.bias !== undefined) opts.push(`bias: ${marker.bias}`);
+  if (marker.group) opts.push(`group: ${JSON.stringify(marker.group)}`);
   if (marker.ref2 !== undefined) opts.push(`ref2: ${JSON.stringify(marker.ref2)}`);
   if (opts.length > 0) parts.push(`{${opts.join(', ')}}`);
   return `${marker._rel}(${parts.join(', ')})`;
