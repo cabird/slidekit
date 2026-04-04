@@ -4,7 +4,7 @@
 import {
   init, render, safeRect, splitRect, el,
   below, above, rightOf, leftOf, centerHWith, centerVWith, centerIn,
-  alignTopWith, between,
+  alignTopWith, placeBetween,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchWidth, matchHeight, fitToRect,
   cardGrid, figure, grid, snap, repeat,
@@ -193,7 +193,7 @@ export async function run() {
           id: 's1-badges',
           x: 960, y: 880,
           anchor: 'bc',
-          gap: 'md',
+          gap: 16,
           align: 'middle',
         }),
 
@@ -330,7 +330,7 @@ export async function run() {
             ], {
               id: 's3-code-panel',
               w: left.w,
-              padding: 'md', gap: 'sm',
+              padding: 'md', gap: 8,
               fill: 'rgba(0,255,136,0.04)',
               radius: 12,
               border: `1px solid rgba(0,255,136,0.15)`,
@@ -685,10 +685,10 @@ w: 800, h: 400`,
           (() => { const b = mkBox('C', 's6-boxC', C.accent3); (b as any).props.x = rightOf('s6-boxA', { gap: 40 }); (b as any).props.y = alignTopWith('s6-boxA'); return b; })(),
 
           // Box D — left of A, above A
-          (() => { const b = mkBox('D', 's6-boxD', C.accent4); (b as any).props.x = leftOf('s6-boxA', { gap: 40 }); (b as any).props.y = above('s6-boxA', { gap: 'lg' }); return b; })(),
+          (() => { const b = mkBox('D', 's6-boxD', C.accent4); (b as any).props.x = leftOf('s6-boxA', { gap: 40 }); (b as any).props.y = above('s6-boxA', { gap: 24 }); return b; })(),
 
           // Box E — placed between A and B, offset right
-          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = between('s6-boxA', 's6-boxB', { axis: 'y' }); return b; })(),
+          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = placeBetween('s6-boxA', 's6-boxB'); return b; })(),
 
           // Connectors
           connect('s6-boxA', 's6-boxB', {
@@ -710,16 +710,16 @@ w: 800, h: 400`,
 
           // Code labels next to each box
           codeLabel('below(\'A\', {gap:150})', 's6-labelB', C.accent2, {
-            x: leftOf('s6-boxB', { gap: 'md' }), y: centerVWith('s6-boxB'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxB', { gap: 16 }), y: centerVWith('s6-boxB'), style: { textAlign: 'right' },
           }),
           codeLabel('rightOf(\'A\') + alignTopWith(\'A\')', 's6-labelC', C.accent3, {
-            x: rightOf('s6-boxC', { gap: 'md' }), y: centerVWith('s6-boxC'),
+            x: rightOf('s6-boxC', { gap: 16 }), y: centerVWith('s6-boxC'),
           }),
           codeLabel('leftOf(\'A\') + above(\'A\')', 's6-labelD', C.accent4, {
-            x: leftOf('s6-boxD', { gap: 'md' }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
+            x: leftOf('s6-boxD', { gap: 16 }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
           }),
-          codeLabel('between(\'A\', \'B\', {axis:\'y\'})', 's6-labelE', C.textSec, {
-            x: rightOf('s6-boxE', { gap: 'md' }), y: centerVWith('s6-boxE'),
+          codeLabel('placeBetween(\'A\', \'B\')', 's6-labelE', C.textSec, {
+            x: rightOf('s6-boxE', { gap: 16 }), y: centerVWith('s6-boxE'),
           }),
 
           // centerIn() demo — outlined rect with centered label
@@ -754,8 +754,8 @@ w: 800, h: 400`,
         const { left, right } = splitRect(safe, { ratio: 0.48, gap: 60 });
 
         // Small colored bar for stack demos
-        const bar = (id: string, color: string, props: Record<string, unknown>) =>
-          el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, ...props });
+        const bar = (id: string, color: string, w: number, h: number) =>
+          el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, w, h });
 
         const sectionLabel = (text: string, id: string, color: string, extra: Record<string, unknown> = {}) =>
           el(`<p style="font-family:${FONT};font-size:28px;font-weight:700;color:${color};">${text}</p>`, { id, w: 300, h: 36, ...extra });
@@ -771,28 +771,23 @@ w: 800, h: 400`,
         for (let i = 0; i < vstackAligns.length; i++) {
           const align = vstackAligns[i];
           const panelId = `s7-vs-panel-${align}`;
-          const isStretch = align === 'stretch';
           vstackPanelIds.push(panelId);
-          // For stretch, omit explicit w so the stack's align:'stretch' controls width
-          const barA = isStretch ? { h: 16 } : { w: 100, h: 16 };
-          const barB = isStretch ? { h: 16 } : { w: 60, h: 16 };
-          const barC = isStretch ? { h: 16 } : { w: 130, h: 16 };
           vstackDemos.push(
             panel([
               modeLabel(align, `s7-vs-lbl-${align}`),
               vstack([
-                bar(`s7-vs-${align}-a`, C.accent1, barA),
-                bar(`s7-vs-${align}-b`, C.accent2, barB),
-                bar(`s7-vs-${align}-c`, C.accent3, barC),
+                bar(`s7-vs-${align}-a`, C.accent1, 100, 16),
+                bar(`s7-vs-${align}-b`, C.accent2, 60, 16),
+                bar(`s7-vs-${align}-c`, C.accent3, 130, 16),
               ], {
                 id: `s7-vs-${align}`,
-                w: isStretch ? 'fill' : 160, gap: 'sm',
+                w: 160, gap: 8,
                 align: align as any,
               }),
             ], {
               id: panelId,
               w: left.w,
-              padding: 'sm', gap: 'sm',
+              padding: 'sm', gap: 8,
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`,
@@ -806,27 +801,22 @@ w: 800, h: 400`,
 
         for (let i = 0; i < hstackAligns.length; i++) {
           const align = hstackAligns[i];
-          const isStretch = align === 'stretch';
-          // For stretch, omit explicit h so the stack's align:'stretch' controls height
-          const barA = isStretch ? { w: 30 } : { w: 30, h: 50 };
-          const barB = isStretch ? { w: 30 } : { w: 30, h: 30 };
-          const barC = isStretch ? { w: 30 } : { w: 30, h: 70 };
           hstackDemos.push(
             panel([
               modeLabel(align, `s7-hs-lbl-${align}`),
               hstack([
-                bar(`s7-hs-${align}-a`, C.accent1, barA),
-                bar(`s7-hs-${align}-b`, C.accent2, barB),
-                bar(`s7-hs-${align}-c`, C.accent3, barC),
+                bar(`s7-hs-${align}-a`, C.accent1, 30, 50),
+                bar(`s7-hs-${align}-b`, C.accent2, 30, 30),
+                bar(`s7-hs-${align}-c`, C.accent3, 30, 70),
               ], {
                 id: `s7-hs-${align}`,
-                h: 80, gap: 'sm',
+                h: 80, gap: 8,
                 align: align as any,
               }),
             ], {
               id: `s7-hs-panel-${align}`,
               w: right.w,
-              padding: 'sm', gap: 'sm',
+              padding: 'sm', gap: 8,
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`,
@@ -1413,7 +1403,7 @@ w: 800, h: 400`,
           }),
 
           caption('caption + captionGap', 's12-label3', {
-            x: safe.x + 160 + (320 + getSpacing('lg')) * 2, y: below('s12-fig3', { gap: 'sm' }),
+            x: safe.x + 160 + (320 + getSpacing('lg')) * 2, y: below('s12-figures-row', { gap: 'sm' }),
             w: 320, h: 24, anchor: 'tc',
             style: { textAlign: 'center' },
           }),
@@ -1725,7 +1715,7 @@ w: 800, h: 400`,
             }),
           ], {
             id: 's14-mini-group',
-            x: between('s14-measure-panel', 's14-valid-panel', { axis: 'x' }),
+            x: placeBetween('s14-measure-panel', 's14-valid-panel'),
             y: below('s14-measure-panel', { gap: 'lg' }),
             w: 400, h: 225,
             bounds: 'hug',

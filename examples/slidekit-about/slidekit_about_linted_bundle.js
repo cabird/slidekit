@@ -6028,22 +6028,10 @@ function centerIn(rectParam) {
   const marker = { _rel: "centerIn", rect: rectParam };
   return { x: marker, y: marker };
 }
-function between(refA, refB, { axis, bias = 0.5 }) {
+function placeBetween(topRef, bottomYOrRef, { bias = 0.5 } = {}) {
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
-  let ref;
-  let ref2;
-  if (typeof refA === "number" && typeof refB === "number") {
-    throw new Error("between() requires at least one element ID reference");
-  } else if (typeof refA === "number") {
-    ref = refB;
-    ref2 = refA;
-    return { _rel: "between", ref, ref2, bias: 1 - clampedBias, axis };
-  } else {
-    ref = refA;
-    ref2 = refB;
-  }
-  return { _rel: "between", ref, ref2, bias: clampedBias, axis };
+  return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
 }
 function mustGet(map, key, msg) {
   const value = map.get(key);
@@ -11154,7 +11142,7 @@ async function run() {
           x: 960,
           y: 880,
           anchor: "bc",
-          gap: "md",
+          gap: 16,
           align: "middle"
         }),
         // Decorative rotated rectangle (bottom-right)
@@ -11296,7 +11284,7 @@ async function run() {
               id: "s3-code-panel",
               w: left.w,
               padding: "md",
-              gap: "sm",
+              gap: 8,
               fill: "rgba(0,255,136,0.04)",
               radius: 12,
               border: `1px solid rgba(0,255,136,0.15)`
@@ -11680,14 +11668,14 @@ w: 800, h: 400`,
           (() => {
             const b = mkBox("D", "s6-boxD", C.accent4);
             b.props.x = leftOf("s6-boxA", { gap: 40 });
-            b.props.y = above("s6-boxA", { gap: "lg" });
+            b.props.y = above("s6-boxA", { gap: 24 });
             return b;
           })(),
           // Box E — placed between A and B, offset right
           (() => {
             const b = mkBox("E", "s6-boxE", "rgba(255,255,255,0.6)");
             b.props.x = 700;
-            b.props.y = between("s6-boxA", "s6-boxB", { axis: "y" });
+            b.props.y = placeBetween("s6-boxA", "s6-boxB");
             return b;
           })(),
           // Connectors
@@ -11709,21 +11697,21 @@ w: 800, h: 400`,
           }),
           // Code labels next to each box
           codeLabel("below('A', {gap:150})", "s6-labelB", C.accent2, {
-            x: leftOf("s6-boxB", { gap: "md" }),
+            x: leftOf("s6-boxB", { gap: 16 }),
             y: centerVWith("s6-boxB"),
             style: { textAlign: "right" }
           }),
           codeLabel("rightOf('A') + alignTopWith('A')", "s6-labelC", C.accent3, {
-            x: rightOf("s6-boxC", { gap: "md" }),
+            x: rightOf("s6-boxC", { gap: 16 }),
             y: centerVWith("s6-boxC")
           }),
           codeLabel("leftOf('A') + above('A')", "s6-labelD", C.accent4, {
-            x: leftOf("s6-boxD", { gap: "md" }),
+            x: leftOf("s6-boxD", { gap: 16 }),
             y: centerVWith("s6-boxD"),
             style: { textAlign: "right" }
           }),
-          codeLabel("between('A', 'B', {axis:'y'})", "s6-labelE", C.textSec, {
-            x: rightOf("s6-boxE", { gap: "md" }),
+          codeLabel("placeBetween('A', 'B')", "s6-labelE", C.textSec, {
+            x: rightOf("s6-boxE", { gap: 16 }),
             y: centerVWith("s6-boxE")
           }),
           // centerIn() demo — outlined rect with centered label
@@ -11762,7 +11750,7 @@ w: 800, h: 400`,
       notes: "Stacks resolve to absolute coordinates \u2014 they're syntactic sugar over the coordinate system, not CSS flexbox.",
       elements: (() => {
         const { left, right } = splitRect(safe, { ratio: 0.48, gap: 60 });
-        const bar = (id, color, props) => el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, ...props });
+        const bar = (id, color, w, h) => el(`<div style="width:100%;height:100%;background:${color};border-radius:4px;"></div>`, { id, w, h });
         const sectionLabel = (text, id, color, extra = {}) => el(`<p style="font-family:${FONT};font-size:28px;font-weight:700;color:${color};">${text}</p>`, { id, w: 300, h: 36, ...extra });
         const modeLabel = (text, id) => el(`<span style="font-family:${MONO};font-size:14px;color:${C.textTer};">${text}</span>`, { id, w: 120, h: 20 });
         const vstackAligns = ["left", "center", "right", "stretch"];
@@ -11771,29 +11759,25 @@ w: 800, h: 400`,
         for (let i = 0; i < vstackAligns.length; i++) {
           const align = vstackAligns[i];
           const panelId = `s7-vs-panel-${align}`;
-          const isStretch = align === "stretch";
           vstackPanelIds.push(panelId);
-          const barA = isStretch ? { h: 16 } : { w: 100, h: 16 };
-          const barB = isStretch ? { h: 16 } : { w: 60, h: 16 };
-          const barC = isStretch ? { h: 16 } : { w: 130, h: 16 };
           vstackDemos.push(
             panel([
               modeLabel(align, `s7-vs-lbl-${align}`),
               vstack([
-                bar(`s7-vs-${align}-a`, C.accent1, barA),
-                bar(`s7-vs-${align}-b`, C.accent2, barB),
-                bar(`s7-vs-${align}-c`, C.accent3, barC)
+                bar(`s7-vs-${align}-a`, C.accent1, 100, 16),
+                bar(`s7-vs-${align}-b`, C.accent2, 60, 16),
+                bar(`s7-vs-${align}-c`, C.accent3, 130, 16)
               ], {
                 id: `s7-vs-${align}`,
-                w: isStretch ? "fill" : 160,
-                gap: "sm",
+                w: 160,
+                gap: 8,
                 align
               })
             ], {
               id: panelId,
               w: left.w,
               padding: "sm",
-              gap: "sm",
+              gap: 8,
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`
@@ -11804,28 +11788,24 @@ w: 800, h: 400`,
         const hstackDemos = [];
         for (let i = 0; i < hstackAligns.length; i++) {
           const align = hstackAligns[i];
-          const isStretch = align === "stretch";
-          const barA = isStretch ? { w: 30 } : { w: 30, h: 50 };
-          const barB = isStretch ? { w: 30 } : { w: 30, h: 30 };
-          const barC = isStretch ? { w: 30 } : { w: 30, h: 70 };
           hstackDemos.push(
             panel([
               modeLabel(align, `s7-hs-lbl-${align}`),
               hstack([
-                bar(`s7-hs-${align}-a`, C.accent1, barA),
-                bar(`s7-hs-${align}-b`, C.accent2, barB),
-                bar(`s7-hs-${align}-c`, C.accent3, barC)
+                bar(`s7-hs-${align}-a`, C.accent1, 30, 50),
+                bar(`s7-hs-${align}-b`, C.accent2, 30, 30),
+                bar(`s7-hs-${align}-c`, C.accent3, 30, 70)
               ], {
                 id: `s7-hs-${align}`,
                 h: 80,
-                gap: "sm",
+                gap: 8,
                 align
               })
             ], {
               id: `s7-hs-panel-${align}`,
               w: right.w,
               padding: "sm",
-              gap: "sm",
+              gap: 8,
               fill: C.glass,
               radius: 12,
               border: `1px solid ${C.glassBorder}`
@@ -12453,7 +12433,7 @@ w: 800, h: 400`,
           }),
           caption("caption + captionGap", "s12-label3", {
             x: safe.x + 160 + (320 + getSpacing("lg")) * 2,
-            y: below("s12-fig3", { gap: "sm" }),
+            y: below("s12-figures-row", { gap: "sm" }),
             w: 320,
             h: 24,
             anchor: "tc",
@@ -12877,7 +12857,7 @@ w: 800, h: 400`,
             })
           ], {
             id: "s14-mini-group",
-            x: between("s14-measure-panel", "s14-valid-panel", { axis: "x" }),
+            x: placeBetween("s14-measure-panel", "s14-valid-panel"),
             y: below("s14-measure-panel", { gap: "lg" }),
             w: 400,
             h: 225,
