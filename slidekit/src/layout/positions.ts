@@ -273,34 +273,38 @@ export async function resolvePositions(
         } else if (marker._rel === "between") {
           // P2.2: placeBetween / between on x-axis (left/right references)
           if (marker.axis && marker.axis !== 'x') {
-            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'x', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x` });
-          }
-          const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
-          const leftEdge = leftBounds.x + leftBounds.w;
-          const rightEdge = typeof marker.ref2 === "string"
-            ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x
-            : marker.ref2;
-          if (typeof rightEdge !== 'number' || !Number.isFinite(rightEdge)) {
-            warnings.push({ type: 'between_invalid_ref', elementId: id, axis: 'x', message: `Invalid ref2 value for between constraint` });
-            x = leftEdge + resolveSpacing("xs");
-            resolvedBounds.set(id, { x, y: (el.props.y ?? 0) as number, w, h });
-            continue;
-          }
-          const availableGapX = rightEdge - leftEdge;
-          const availableSlack = availableGapX - w;
-          if (availableSlack < 0) {
-            const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
-            warnings.push({
-              type: "between_no_fit",
-              elementId: id,
-              ref1: marker.ref,
-              ref2: marker.ref2,
-              message: `Element "${id}" (w=${w}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapX}px). Using minimum gap fallback.`,
-              suggestion: `Increase horizontal space between "${marker.ref}" and ${ref2Label} to at least ${w + 2 * resolveSpacing('xs')}px, or reduce element width.`,
-            });
-            x = leftEdge + resolveSpacing("xs");
+            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'x', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x — using fallback position` });
+            x = (typeof marker.ref === 'string' && resolvedBounds.has(marker.ref))
+              ? resolvedBounds.get(marker.ref)!.x + resolvedBounds.get(marker.ref)!.w + resolveSpacing('xs')
+              : 0;
           } else {
-            x = leftEdge + availableSlack * (marker.bias ?? 0.5);
+            const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
+            const leftEdge = leftBounds.x + leftBounds.w;
+            const rightEdge = typeof marker.ref2 === "string"
+              ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x
+              : marker.ref2;
+            if (typeof rightEdge !== 'number' || !Number.isFinite(rightEdge)) {
+              warnings.push({ type: 'between_invalid_ref', elementId: id, axis: 'x', message: `Invalid ref2 value for between constraint` });
+              x = leftEdge + resolveSpacing("xs");
+              resolvedBounds.set(id, { x, y: (el.props.y ?? 0) as number, w, h });
+              continue;
+            }
+            const availableGapX = rightEdge - leftEdge;
+            const availableSlack = availableGapX - w;
+            if (availableSlack < 0) {
+              const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
+              warnings.push({
+                type: "between_no_fit",
+                elementId: id,
+                ref1: marker.ref,
+                ref2: marker.ref2,
+                message: `Element "${id}" (w=${w}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapX}px). Using minimum gap fallback.`,
+                suggestion: `Increase horizontal space between "${marker.ref}" and ${ref2Label} to at least ${w + 2 * resolveSpacing('xs')}px, or reduce element width.`,
+              });
+              x = leftEdge + resolveSpacing("xs");
+            } else {
+              x = leftEdge + availableSlack * (marker.bias ?? 0.5);
+            }
           }
         } else if (marker._rel === "centerHSlide") {
           const slideW = state.config?.slide?.w ?? 1920;
@@ -328,34 +332,38 @@ export async function resolvePositions(
         } else if (marker._rel === "between") {
           // P2.2: placeBetween / between — position between two vertical references
           if (marker.axis && marker.axis !== 'y') {
-            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'y', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y` });
-          }
-          const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
-          const topEdge = topBounds.y + topBounds.h;
-          const bottomEdge = typeof marker.ref2 === "string"
-            ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y
-            : marker.ref2;
-          if (typeof bottomEdge !== 'number' || !Number.isFinite(bottomEdge)) {
-            warnings.push({ type: 'between_invalid_ref', elementId: id, axis: 'y', message: `Invalid ref2 value for between constraint` });
-            y = topEdge + resolveSpacing("xs");
-            resolvedBounds.set(id, { x: (el.props.x ?? 0) as number, y, w, h });
-            continue;
-          }
-          const availableGapY = bottomEdge - topEdge;
-          const availableSlack = availableGapY - h;
-          if (availableSlack < 0) {
-            const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
-            warnings.push({
-              type: "between_no_fit",
-              elementId: id,
-              ref1: marker.ref,
-              ref2: marker.ref2,
-              message: `Element "${id}" (h=${h}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapY}px). Using minimum gap fallback.`,
-              suggestion: `Increase vertical space between "${marker.ref}" and ${ref2Label} to at least ${h + 2 * resolveSpacing('xs')}px, or reduce element height.`,
-            });
-            y = topEdge + resolveSpacing("xs");
+            warnings.push({ type: 'between_axis_mismatch', elementId: id, axis: 'y', declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y — using fallback position` });
+            y = (typeof marker.ref === 'string' && resolvedBounds.has(marker.ref))
+              ? resolvedBounds.get(marker.ref)!.y + resolvedBounds.get(marker.ref)!.h + resolveSpacing('xs')
+              : 0;
           } else {
-            y = topEdge + availableSlack * (marker.bias ?? 0.5);
+            const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
+            const topEdge = topBounds.y + topBounds.h;
+            const bottomEdge = typeof marker.ref2 === "string"
+              ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y
+              : marker.ref2;
+            if (typeof bottomEdge !== 'number' || !Number.isFinite(bottomEdge)) {
+              warnings.push({ type: 'between_invalid_ref', elementId: id, axis: 'y', message: `Invalid ref2 value for between constraint` });
+              y = topEdge + resolveSpacing("xs");
+              resolvedBounds.set(id, { x: (el.props.x ?? 0) as number, y, w, h });
+              continue;
+            }
+            const availableGapY = bottomEdge - topEdge;
+            const availableSlack = availableGapY - h;
+            if (availableSlack < 0) {
+              const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
+              warnings.push({
+                type: "between_no_fit",
+                elementId: id,
+                ref1: marker.ref,
+                ref2: marker.ref2,
+                message: `Element "${id}" (h=${h}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapY}px). Using minimum gap fallback.`,
+                suggestion: `Increase vertical space between "${marker.ref}" and ${ref2Label} to at least ${h + 2 * resolveSpacing('xs')}px, or reduce element height.`,
+              });
+              y = topEdge + resolveSpacing("xs");
+            } else {
+              y = topEdge + availableSlack * (marker.bias ?? 0.5);
+            }
           }
         } else {
           const refId = marker.ref;

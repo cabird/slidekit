@@ -157,7 +157,7 @@ export async function resolveIntrinsicSizes(
   stackChildren: Map<string, string[]>,
   groupChildren: Map<string, string[]>,
   errors: Array<Record<string, unknown>>,
-  _warnings: Array<Record<string, unknown>>,
+  warnings: Array<Record<string, unknown>>,
 ): Promise<IntrinsicSizeResult> {
   // =========================================================================
   // Step A: Authored specs + percentages + validation
@@ -214,6 +214,50 @@ export async function resolveIntrinsicSizes(
         elementId: id,
         property: "h",
         message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() or matchMaxHeight() are valid on h.`,
+      });
+    }
+  }
+
+  // Warn if stack children have positional RelMarkers on x/y — these will be
+  // ignored because stack layout determines children's positions.
+  // (Also warned later in positions.ts, but catching it early helps authors.)
+  const stackChildSet = new Set<string>();
+  const childToStack = new Map<string, string>();
+  for (const [stackId, childIds] of stackChildren) {
+    for (const cid of childIds) {
+      stackChildSet.add(cid);
+      childToStack.set(cid, stackId);
+    }
+  }
+  for (const [id, el] of flatMap) {
+    if (!stackChildSet.has(id)) continue;
+    const offendingProps: string[] = [];
+    if (isRelMarker(el.props.x)) offendingProps.push('x');
+    if (isRelMarker(el.props.y)) offendingProps.push('y');
+    if (offendingProps.length > 0) {
+      const stackId = childToStack.get(id)!;
+      warnings.push({
+        type: "ignored_rel_on_stack_child",
+        elementId: id,
+        stackId,
+        properties: offendingProps,
+        message: `Element "${id}" is a child of stack "${stackId}", so its relative positioning markers on ${offendingProps.join(', ')} are ignored. Use gap/align on the stack instead.`,
+      });
+    }
+  }
+
+  // Warn if root elements (not inside a stack or panel) use 'fill' on w or h
+  for (const [id, el] of flatMap) {
+    if (stackChildSet.has(id)) continue;
+    const fillProps: string[] = [];
+    if (el.props.w === 'fill') fillProps.push('w');
+    if (el.props.h === 'fill') fillProps.push('h');
+    if (fillProps.length > 0) {
+      warnings.push({
+        type: "fill_outside_container",
+        elementId: id,
+        properties: fillProps,
+        message: `Element "${id}" has ${fillProps.join('/')}: 'fill' but is not inside a stack or panel. Fill is only valid inside containers.`,
       });
     }
   }

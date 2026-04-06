@@ -10,12 +10,20 @@ import {
   centerVWith, centerHWith,
   alignTopWith, alignBottomWith,
   alignLeftWith, alignRightWith,
-  centerIn, placeBetween, between,
+  centerIn, between,
   matchWidthOf, matchHeightOf,
   centerHOnSlide, centerVOnSlide,
   matchMaxWidth, matchMaxHeight,
   vstack, hstack, panel,
 } from '../slidekit.js';
+
+// placeBetween is no longer part of the public API (use between() instead),
+// but tests still exercise it for backward-compat coverage.
+function placeBetween(topRef, bottomYOrRef, { bias = 0.5 } = {}) {
+  const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
+  const clampedBias = Math.max(0, Math.min(1, numBias));
+  return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+}
 
 // =============================================================================
 // Helper: create a temporary container for render tests
