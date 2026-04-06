@@ -8,6 +8,596 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// slidekit/src/state.ts
+var state;
+var init_state = __esm({
+  "slidekit/src/state.ts"() {
+    "use strict";
+    state = {
+      idCounter: 0,
+      config: null,
+      safeRectCache: null,
+      loadedFonts: /* @__PURE__ */ new Set(),
+      measureContainer: null,
+      measureCache: /* @__PURE__ */ new Map(),
+      fontWarnings: [],
+      injectedFontLinks: /* @__PURE__ */ new Set(),
+      transformIdCounter: 0
+    };
+  }
+});
+
+// slidekit/src/style.ts
+function toCamelCase(name) {
+  if (name.startsWith("--")) return name;
+  if (!name.includes("-")) return name;
+  let normalized = name;
+  if (normalized.startsWith("-ms-")) {
+    normalized = "ms-" + normalized.slice(4);
+  } else if (normalized.startsWith("-webkit-")) {
+    normalized = "Webkit-" + normalized.slice(8);
+  } else if (normalized.startsWith("-moz-")) {
+    normalized = "Moz-" + normalized.slice(5);
+  } else if (normalized.startsWith("-o-")) {
+    normalized = "O-" + normalized.slice(3);
+  }
+  return normalized.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+function stripVendorPrefix(camelName) {
+  const prefixes = ["Webkit", "Moz", "ms", "O"];
+  for (const prefix of prefixes) {
+    if (camelName.startsWith(prefix) && camelName.length > prefix.length) {
+      const rest = camelName.slice(prefix.length);
+      if (rest[0] >= "A" && rest[0] <= "Z") {
+        return rest[0].toLowerCase() + rest.slice(1);
+      }
+    }
+  }
+  return camelName;
+}
+function detectMisplacedCssProps(props) {
+  const cssProps = {};
+  const warnings = [];
+  const elementId = props.id || "(anonymous)";
+  for (const key of Object.keys(props)) {
+    if (KNOWN_LAYOUT_PROPS.has(key)) continue;
+    if (!CSS_LIKE_PROPS.has(key)) continue;
+    cssProps[key] = props[key];
+    warnings.push({
+      type: "misplaced_css_prop",
+      elementId,
+      property: key,
+      value: props[key],
+      message: `CSS property "${key}" should be inside style: { ${key}: ${JSON.stringify(props[key])} }. It was auto-promoted but please move it to style for clarity.`,
+      suggestion: `Move "${key}" into the style object: style: { ${key}: ... }`
+    });
+  }
+  return { cssProps, warnings };
+}
+function filterStyle(style = {}, _elementType = "unknown") {
+  const warnings = [];
+  const filtered = {};
+  for (const [rawKey, value] of Object.entries(style)) {
+    const camelKey = toCamelCase(rawKey);
+    const unprefixedKey = stripVendorPrefix(camelKey);
+    const blockedKey = BLOCKED_PROPERTIES.has(camelKey) ? camelKey : BLOCKED_PROPERTIES.has(unprefixedKey) ? unprefixedKey : null;
+    if (blockedKey) {
+      warnings.push({
+        type: "blocked_css_property",
+        property: camelKey,
+        originalProperty: rawKey,
+        value,
+        suggestion: BLOCKED_SUGGESTIONS[blockedKey] || "This property conflicts with SlideKit's positioning system"
+      });
+      continue;
+    }
+    filtered[camelKey] = value;
+  }
+  return { filtered, warnings };
+}
+function _baselineCSS(prefix) {
+  const p = prefix.trim();
+  if (p.includes(",")) {
+    throw new Error(`_baselineCSS prefix must be a single selector, got: ${p}`);
+  }
+  const P = `${p}${p}${p}`;
+  return `
+/* ===================================================================
+ * SlideKit Baseline CSS Reset
+ * Tripled attribute selector -> specificity (0,3,0+), always beats
+ * Reveal.js selectors (max ~0,2,4).  User inline styles still win
+ * because inline specificity (1,0,0) > any selector.
+ * =================================================================== */
+
+/* --- Container boundary: establish a clean context --- */
+${P} {
+  text-align: left;
+  font-size: initial;
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: normal;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-transform: none;
+  text-decoration: none;
+  text-shadow: none;
+  white-space: normal;
+  word-break: normal;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  hyphens: manual;
+  box-sizing: border-box;
+  color: inherit;
+}
+${P} *, ${P} *::before, ${P} *::after {
+  box-sizing: inherit;
+}
+
+/* --- Direct children reset --- */
+${P} > * {
+  margin: 0;
+  padding: 0;
+  text-align: inherit;
+  line-height: inherit;
+}
+
+/* --- Paragraphs ---
+ * Counters: .reveal p { margin: 20px 0; line-height: 1.3 } */
+${P} p {
+  margin: 0;
+  padding: 0;
+  line-height: inherit;
+}
+
+/* --- Headings ---
+ * Counters: .reveal h1-h6 { margin: 0 0 20px 0; font-weight: 600;
+ *   text-transform: uppercase; text-shadow; color; font-size: 2.5em/etc;
+ *   font-family; line-height: 1.2; letter-spacing } */
+${P} h1, ${P} h2, ${P} h3,
+${P} h4, ${P} h5, ${P} h6 {
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: none;
+  text-shadow: none;
+  letter-spacing: inherit;
+  word-wrap: normal;
+}
+
+/* --- Lists ---
+ * Counters: .reveal ol/ul/dl { display: inline-block; margin: 0 0 0 1em }
+ *           .reveal ul ul   { display: block; margin-left: 40px }
+ *           .reveal ul ul ul { list-style-type: circle } */
+${P} ul, ${P} ol, ${P} dl {
+  margin: 0;
+  padding: 0;
+  display: block;
+  text-align: inherit;
+  list-style-position: outside;
+}
+${P} li {
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Definition lists ---
+ * Counters: .reveal dt { font-weight: bold }
+ *           .reveal dd { margin-left: 40px } */
+${P} dt {
+  font-weight: inherit;
+}
+${P} dd {
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Media: prevent Reveal's responsive constraints ---
+ * Counters: .reveal img/video/iframe { max-width: 95%; max-height: 95% }
+ *           .reveal img { margin: 20px 0 }
+ *           .reveal iframe { z-index: 1 } */
+${P} img, ${P} svg, ${P} video,
+${P} canvas, ${P} iframe {
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+${P} iframe {
+  z-index: auto;
+}
+${P} img, ${P} svg {
+  vertical-align: baseline;
+}
+
+/* --- Blockquote ---
+ * Counters: .reveal blockquote { width: 70%; margin: 20px auto; padding: 5px;
+ *   font-style: italic; background: rgba(...); box-shadow; position: relative }
+ *           .reveal blockquote p:first/last-child { display: inline-block } */
+${P} blockquote {
+  margin: 0;
+  padding: 0;
+  width: auto;
+  position: static;
+  font-style: inherit;
+  background: none;
+  box-shadow: none;
+}
+${P} q {
+  font-style: inherit;
+}
+
+/* --- Pre/Code ---
+ * Counters: .reveal pre { width: 90%; margin: 20px auto; font-size: 0.55em;
+ *   position: relative; box-shadow; line-height: 1.2em }
+ *           .reveal code { font-family: monospace; text-transform: none }
+ *           .reveal pre code { padding: 5px; max-height: 400px } */
+${P} pre {
+  margin: 0;
+  padding: 0;
+  width: auto;
+  position: static;
+  font-size: 1em;
+  line-height: 1.2;
+  white-space: pre;
+  word-wrap: normal;
+  box-shadow: none;
+  text-align: inherit;
+}
+${P} code {
+  margin: 0;
+  padding: 0;
+  font-size: 1em;
+  line-height: inherit;
+  text-transform: none;
+  white-space: normal;
+}
+${P} pre code {
+  display: block;
+  padding: 0;
+  overflow: visible;
+  max-height: none;
+  word-wrap: normal;
+  white-space: pre;
+}
+
+/* --- Tables ---
+ * Counters: .reveal table { margin: auto }
+ *           .reveal table th/td { padding: 0.2em 0.5em; border-bottom: 1px solid }
+ *           .reveal table th { font-weight: bold } */
+${P} table {
+  margin: 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+${P} th, ${P} td {
+  padding: 0;
+  border: none;
+  text-align: inherit;
+  font-weight: inherit;
+}
+
+/* --- Small ---
+ * Counters: .reveal small { display: inline-block; font-size: 0.6em;
+ *   line-height: 1.2em; vertical-align: top } */
+${P} small {
+  display: inline;
+  font-size: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+
+/* --- Links ---
+ * Counters: .reveal a { color: var(--r-link-color); text-decoration: none;
+ *   transition: color .15s; position: relative }
+ *           .reveal a:hover { color: var(--r-link-color-hover) } */
+${P} a, ${P} a:hover {
+  color: inherit;
+  text-decoration: inherit;
+  background: none;
+  text-shadow: none;
+}
+`;
+}
+function resolveShadow(value) {
+  if (!value) return "";
+  if (value in SHADOWS) return SHADOWS[value];
+  return value;
+}
+function getShadowPresets() {
+  return { ...SHADOWS };
+}
+var CSS_LIKE_PROPS, KNOWN_LAYOUT_PROPS, BLOCKED_PROPERTIES, BLOCKED_SUGGESTIONS, SHADOWS;
+var init_style = __esm({
+  "slidekit/src/style.ts"() {
+    "use strict";
+    CSS_LIKE_PROPS = /* @__PURE__ */ new Set([
+      // Text
+      "textAlign",
+      "textDecoration",
+      "textTransform",
+      "textIndent",
+      "textShadow",
+      "letterSpacing",
+      "wordSpacing",
+      "whiteSpace",
+      "wordBreak",
+      "wordWrap",
+      "textOverflow",
+      // Font
+      "fontSize",
+      "fontFamily",
+      "fontWeight",
+      "fontStyle",
+      "fontVariant",
+      "lineHeight",
+      // Color / Background
+      "backgroundColor",
+      "background",
+      "backgroundImage",
+      "backgroundSize",
+      "backgroundPosition",
+      "backgroundRepeat",
+      // Border
+      "border",
+      "borderRadius",
+      "borderWidth",
+      "borderStyle",
+      "borderColor",
+      "borderTop",
+      "borderBottom",
+      "borderLeft",
+      "borderRight",
+      // Spacing (padding only — margin is blocked by filterStyle)
+      "padding",
+      "paddingTop",
+      "paddingBottom",
+      "paddingLeft",
+      "paddingRight",
+      // Other visual
+      "boxShadow",
+      "cursor",
+      "visibility",
+      "verticalAlign",
+      "listStyle",
+      "outline"
+    ]);
+    KNOWN_LAYOUT_PROPS = /* @__PURE__ */ new Set([
+      // Position / size
+      "x",
+      "y",
+      "w",
+      "h",
+      "maxW",
+      "maxH",
+      // Layout
+      "anchor",
+      "layer",
+      "vAlign",
+      "overflow",
+      // Visual (SlideKit-owned)
+      "style",
+      "opacity",
+      "rotate",
+      "flipH",
+      "flipV",
+      "className",
+      "shadow",
+      "z",
+      // Stack / group
+      "gap",
+      "align",
+      "bounds",
+      "scale",
+      "clip",
+      // Internal
+      "_layoutFlags",
+      "id",
+      // Connector-specific
+      "dash",
+      "type",
+      "arrow",
+      "color",
+      "thickness",
+      "label",
+      "labelStyle",
+      "fromAnchor",
+      "toAnchor",
+      "fromId",
+      "toId",
+      "connectorType",
+      // Content-bearing
+      "text",
+      "src",
+      "alt"
+    ]);
+    BLOCKED_PROPERTIES = /* @__PURE__ */ new Set([
+      // Layout position — library owns absolute positioning
+      "position",
+      "top",
+      "left",
+      "right",
+      "bottom",
+      "inset",
+      "insetBlock",
+      "insetBlockStart",
+      "insetBlockEnd",
+      "insetInline",
+      "insetInlineStart",
+      "insetInlineEnd",
+      // Sizing — library owns via w/h props
+      "width",
+      "height",
+      "minWidth",
+      "maxWidth",
+      "minHeight",
+      "maxHeight",
+      "blockSize",
+      "inlineSize",
+      "minBlockSize",
+      "maxBlockSize",
+      "minInlineSize",
+      "maxInlineSize",
+      // Display — library needs block
+      "display",
+      // Overflow — library manages via overflow prop
+      "overflow",
+      "overflowX",
+      "overflowY",
+      "overflowBlock",
+      "overflowInline",
+      // Margin — breaks absolute positioning
+      "margin",
+      "marginTop",
+      "marginRight",
+      "marginBottom",
+      "marginLeft",
+      "marginBlock",
+      "marginBlockStart",
+      "marginBlockEnd",
+      "marginInline",
+      "marginInlineStart",
+      "marginInlineEnd",
+      // Transform — library owns via rotate prop
+      "transform",
+      "translate",
+      "rotate",
+      "scale",
+      // Containment — can suppress layout/paint
+      "contain",
+      "contentVisibility"
+    ]);
+    BLOCKED_SUGGESTIONS = {
+      position: "SlideKit uses absolute positioning; use x/y/anchor props",
+      top: "Use the y prop instead",
+      left: "Use the x prop instead",
+      right: "Use x and w props instead",
+      bottom: "Use y and h props instead",
+      width: "Use the w prop instead",
+      height: "Use the h prop instead",
+      display: "The container display mode is managed by SlideKit",
+      margin: "Margins break absolute positioning; use x/y for spacing",
+      overflow: "Use SlideKit's overflow prop (e.g., overflow: 'clip')",
+      transform: "Use the rotate prop for rotation; transform is blocked because the library owns positioning",
+      translate: "Use x/y props for positioning",
+      rotate: "Use the rotate prop instead (e.g., rotate: 45)",
+      scale: "Scaling is not supported; use w/h to control size",
+      contain: "contain can suppress layout/paint and conflict with measurement",
+      contentVisibility: "contentVisibility can suppress rendering and conflict with measurement"
+    };
+    SHADOWS = {
+      sm: "0 1px 3px rgba(0,0,0,0.2)",
+      md: "0 4px 12px rgba(0,0,0,0.3)",
+      lg: "0 8px 32px rgba(0,0,0,0.4)",
+      xl: "0 16px 48px rgba(0,0,0,0.5)",
+      glow: "0 0 40px rgba(124,92,191,0.3)"
+    };
+  }
+});
+
+// slidekit/src/dom-helpers.ts
+function applyStyleToDOM(domEl, styleObj) {
+  for (const [key, value] of Object.entries(styleObj)) {
+    if (key.startsWith("--")) {
+      domEl.style.setProperty(key, value);
+    } else {
+      domEl.style[key] = value;
+    }
+  }
+}
+var init_dom_helpers = __esm({
+  "slidekit/src/dom-helpers.ts"() {
+    "use strict";
+  }
+});
+
+// slidekit/src/measure.ts
+function _ensureMeasureContainer() {
+  if (state.measureContainer && state.measureContainer.parentNode) return;
+  if (typeof document === "undefined" || !document.body) {
+    throw new Error(
+      "SlideKit.measure requires a DOM with document.body available."
+    );
+  }
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.top = "-9999px";
+  container.style.visibility = "hidden";
+  container.style.overflow = "hidden";
+  container.style.pointerEvents = "none";
+  container.setAttribute("data-sk-role", "measure-container");
+  const baselineStyle = document.createElement("style");
+  baselineStyle.textContent = _baselineCSS("[data-sk-measure]");
+  container.appendChild(baselineStyle);
+  document.body.appendChild(container);
+  state.measureContainer = container;
+}
+function clearMeasureCache() {
+  state.measureCache.clear();
+}
+function _elMeasureCacheKey(html, props) {
+  const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
+  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || "", props.shrinkWrap || false]);
+}
+async function measure(html, props = {}) {
+  const cacheKey = _elMeasureCacheKey(html, props);
+  if (state.measureCache.has(cacheKey)) {
+    return state.measureCache.get(cacheKey);
+  }
+  _ensureMeasureContainer();
+  const div = document.createElement("div");
+  div.style.boxSizing = "border-box";
+  if (props.w != null) {
+    div.style.width = `${props.w}px`;
+  } else if (props.shrinkWrap) {
+    div.style.display = "inline-block";
+  }
+  if (props.className) div.className = props.className;
+  if (props.style) {
+    const { filtered } = filterStyle(props.style, "el");
+    applyStyleToDOM(div, filtered);
+  }
+  div.setAttribute("data-sk-measure", "");
+  div.innerHTML = html;
+  state.measureContainer.appendChild(div);
+  const FONT_TIMEOUT_MS = 5e3;
+  if (document.fonts?.ready) {
+    await Promise.race([
+      document.fonts.ready,
+      new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
+    ]);
+  }
+  const imgs = div.querySelectorAll("img");
+  if (imgs.length > 0) {
+    const IMAGE_TIMEOUT_MS = 3e3;
+    await Promise.all([...imgs].map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise((resolve) => {
+        const timer = setTimeout(resolve, IMAGE_TIMEOUT_MS);
+        const done = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        img.addEventListener("load", done, { once: true });
+        img.addEventListener("error", done, { once: true });
+      });
+    }));
+  }
+  const result = { w: div.offsetWidth, h: div.scrollHeight };
+  state.measureContainer.removeChild(div);
+  state.measureCache.set(cacheKey, result);
+  return result;
+}
+var init_measure = __esm({
+  "slidekit/src/measure.ts"() {
+    "use strict";
+    init_state();
+    init_style();
+    init_style();
+    init_dom_helpers();
+  }
+});
+
 // slidekit/src/debug-state.ts
 function initialState() {
   return {
@@ -3968,7 +4558,48 @@ function createInspectorPanel() {
   header.style.color = "#1a1a2e";
   header.textContent = "Inspector";
   panel2.appendChild(header);
-  panel2.appendChild(createDiffActionBar());
+  const actionBar = document.createElement("div");
+  actionBar.style.cssText = "padding: 8px 16px; border-bottom: 1px solid #e8e8e8; display: flex; gap: 8px; align-items: center;";
+  actionBar.appendChild(createDiffActionBar());
+  const relayoutBtn = document.createElement("button");
+  relayoutBtn.textContent = "Re-layout";
+  relayoutBtn.title = "Clear measure cache and re-run the full layout pipeline for the current slide";
+  relayoutBtn.style.cssText = `
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: #fff; color: #4a9eff; border: 1px solid #4a9eff;
+    border-radius: 4px; font-weight: 600; white-space: nowrap;
+  `;
+  relayoutBtn.addEventListener("mouseenter", () => {
+    relayoutBtn.style.background = "#4a9eff";
+    relayoutBtn.style.color = "#fff";
+  });
+  relayoutBtn.addEventListener("mouseleave", () => {
+    relayoutBtn.style.background = "#fff";
+    relayoutBtn.style.color = "#4a9eff";
+  });
+  relayoutBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const sk = window.sk;
+    const ds = debugController.state;
+    if (!sk?._definitions?.[ds.currentSlideIndex]) return;
+    clearMeasureCache();
+    const rerender = sk._rerenderSlide;
+    if (rerender) {
+      relayoutBtn.textContent = "Re-laying out...";
+      relayoutBtn.style.opacity = "0.5";
+      await rerender(ds.currentSlideIndex, sk._definitions[ds.currentSlideIndex]);
+      relayoutBtn.textContent = "Re-layout";
+      relayoutBtn.style.opacity = "1";
+      debugController.callbacks.refreshOverlayOnly?.(ds.currentSlideIndex);
+      if (ds.selectedElementId) {
+        debugController.callbacks.renderElementDetail?.(ds.selectedElementId, ds.currentSlideIndex);
+      }
+      refreshElementList();
+    }
+  });
+  actionBar.appendChild(relayoutBtn);
+  panel2.appendChild(actionBar);
   panel2.appendChild(createVisibilitySection());
   const elementListContainer = document.createElement("div");
   elementListContainer.setAttribute("data-sk-role", "element-list");
@@ -5026,6 +5657,7 @@ var init_debug_inspector = __esm({
     init_debug_inspector_viewport();
     init_debug_inspector_diff();
     init_debug_overlay();
+    init_measure();
     init_helpers();
     init_debug_inspector_edit();
     init_debug_inspector_drag();
@@ -5090,20 +5722,8 @@ var init_debug_inspector = __esm({
 // slidekit/src/version.ts
 var VERSION = true ? "0.3.5" : "dev";
 
-// slidekit/src/state.ts
-var state = {
-  idCounter: 0,
-  config: null,
-  safeRectCache: null,
-  loadedFonts: /* @__PURE__ */ new Set(),
-  measureContainer: null,
-  measureCache: /* @__PURE__ */ new Map(),
-  fontWarnings: [],
-  injectedFontLinks: /* @__PURE__ */ new Set(),
-  transformIdCounter: 0
-};
-
 // slidekit/src/id.ts
+init_state();
 function resetIdCounter() {
   state.idCounter = 0;
 }
@@ -5113,6 +5733,7 @@ function nextId() {
 }
 
 // slidekit/src/spacing.ts
+init_state();
 var DEFAULT_SPACING = {
   xs: 8,
   sm: 16,
@@ -5256,468 +5877,11 @@ function resolveAnchor(x, y, w, h, anchor) {
   return { left, top };
 }
 
-// slidekit/src/style.ts
-function toCamelCase(name) {
-  if (name.startsWith("--")) return name;
-  if (!name.includes("-")) return name;
-  let normalized = name;
-  if (normalized.startsWith("-ms-")) {
-    normalized = "ms-" + normalized.slice(4);
-  } else if (normalized.startsWith("-webkit-")) {
-    normalized = "Webkit-" + normalized.slice(8);
-  } else if (normalized.startsWith("-moz-")) {
-    normalized = "Moz-" + normalized.slice(5);
-  } else if (normalized.startsWith("-o-")) {
-    normalized = "O-" + normalized.slice(3);
-  }
-  return normalized.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-function stripVendorPrefix(camelName) {
-  const prefixes = ["Webkit", "Moz", "ms", "O"];
-  for (const prefix of prefixes) {
-    if (camelName.startsWith(prefix) && camelName.length > prefix.length) {
-      const rest = camelName.slice(prefix.length);
-      if (rest[0] >= "A" && rest[0] <= "Z") {
-        return rest[0].toLowerCase() + rest.slice(1);
-      }
-    }
-  }
-  return camelName;
-}
-var CSS_LIKE_PROPS = /* @__PURE__ */ new Set([
-  // Text
-  "textAlign",
-  "textDecoration",
-  "textTransform",
-  "textIndent",
-  "textShadow",
-  "letterSpacing",
-  "wordSpacing",
-  "whiteSpace",
-  "wordBreak",
-  "wordWrap",
-  "textOverflow",
-  // Font
-  "fontSize",
-  "fontFamily",
-  "fontWeight",
-  "fontStyle",
-  "fontVariant",
-  "lineHeight",
-  // Color / Background
-  "backgroundColor",
-  "background",
-  "backgroundImage",
-  "backgroundSize",
-  "backgroundPosition",
-  "backgroundRepeat",
-  // Border
-  "border",
-  "borderRadius",
-  "borderWidth",
-  "borderStyle",
-  "borderColor",
-  "borderTop",
-  "borderBottom",
-  "borderLeft",
-  "borderRight",
-  // Spacing (padding only — margin is blocked by filterStyle)
-  "padding",
-  "paddingTop",
-  "paddingBottom",
-  "paddingLeft",
-  "paddingRight",
-  // Other visual
-  "boxShadow",
-  "cursor",
-  "visibility",
-  "verticalAlign",
-  "listStyle",
-  "outline"
-]);
-var KNOWN_LAYOUT_PROPS = /* @__PURE__ */ new Set([
-  // Position / size
-  "x",
-  "y",
-  "w",
-  "h",
-  "maxW",
-  "maxH",
-  // Layout
-  "anchor",
-  "layer",
-  "vAlign",
-  "overflow",
-  // Visual (SlideKit-owned)
-  "style",
-  "opacity",
-  "rotate",
-  "flipH",
-  "flipV",
-  "className",
-  "shadow",
-  "z",
-  // Stack / group
-  "gap",
-  "align",
-  "bounds",
-  "scale",
-  "clip",
-  // Internal
-  "_layoutFlags",
-  "id",
-  // Connector-specific
-  "dash",
-  "type",
-  "arrow",
-  "color",
-  "thickness",
-  "label",
-  "labelStyle",
-  "fromAnchor",
-  "toAnchor",
-  "fromId",
-  "toId",
-  "connectorType",
-  // Content-bearing
-  "text",
-  "src",
-  "alt"
-]);
-function detectMisplacedCssProps(props) {
-  const cssProps = {};
-  const warnings = [];
-  const elementId = props.id || "(anonymous)";
-  for (const key of Object.keys(props)) {
-    if (KNOWN_LAYOUT_PROPS.has(key)) continue;
-    if (!CSS_LIKE_PROPS.has(key)) continue;
-    cssProps[key] = props[key];
-    warnings.push({
-      type: "misplaced_css_prop",
-      elementId,
-      property: key,
-      value: props[key],
-      message: `CSS property "${key}" should be inside style: { ${key}: ${JSON.stringify(props[key])} }. It was auto-promoted but please move it to style for clarity.`,
-      suggestion: `Move "${key}" into the style object: style: { ${key}: ... }`
-    });
-  }
-  return { cssProps, warnings };
-}
-var BLOCKED_PROPERTIES = /* @__PURE__ */ new Set([
-  // Layout position — library owns absolute positioning
-  "position",
-  "top",
-  "left",
-  "right",
-  "bottom",
-  "inset",
-  "insetBlock",
-  "insetBlockStart",
-  "insetBlockEnd",
-  "insetInline",
-  "insetInlineStart",
-  "insetInlineEnd",
-  // Sizing — library owns via w/h props
-  "width",
-  "height",
-  "minWidth",
-  "maxWidth",
-  "minHeight",
-  "maxHeight",
-  "blockSize",
-  "inlineSize",
-  "minBlockSize",
-  "maxBlockSize",
-  "minInlineSize",
-  "maxInlineSize",
-  // Display — library needs block
-  "display",
-  // Overflow — library manages via overflow prop
-  "overflow",
-  "overflowX",
-  "overflowY",
-  "overflowBlock",
-  "overflowInline",
-  // Margin — breaks absolute positioning
-  "margin",
-  "marginTop",
-  "marginRight",
-  "marginBottom",
-  "marginLeft",
-  "marginBlock",
-  "marginBlockStart",
-  "marginBlockEnd",
-  "marginInline",
-  "marginInlineStart",
-  "marginInlineEnd",
-  // Transform — library owns via rotate prop
-  "transform",
-  "translate",
-  "rotate",
-  "scale",
-  // Containment — can suppress layout/paint
-  "contain",
-  "contentVisibility"
-]);
-var BLOCKED_SUGGESTIONS = {
-  position: "SlideKit uses absolute positioning; use x/y/anchor props",
-  top: "Use the y prop instead",
-  left: "Use the x prop instead",
-  right: "Use x and w props instead",
-  bottom: "Use y and h props instead",
-  width: "Use the w prop instead",
-  height: "Use the h prop instead",
-  display: "The container display mode is managed by SlideKit",
-  margin: "Margins break absolute positioning; use x/y for spacing",
-  overflow: "Use SlideKit's overflow prop (e.g., overflow: 'clip')",
-  transform: "Use the rotate prop for rotation; transform is blocked because the library owns positioning",
-  translate: "Use x/y props for positioning",
-  rotate: "Use the rotate prop instead (e.g., rotate: 45)",
-  scale: "Scaling is not supported; use w/h to control size",
-  contain: "contain can suppress layout/paint and conflict with measurement",
-  contentVisibility: "contentVisibility can suppress rendering and conflict with measurement"
-};
-function filterStyle(style = {}, _elementType = "unknown") {
-  const warnings = [];
-  const filtered = {};
-  for (const [rawKey, value] of Object.entries(style)) {
-    const camelKey = toCamelCase(rawKey);
-    const unprefixedKey = stripVendorPrefix(camelKey);
-    const blockedKey = BLOCKED_PROPERTIES.has(camelKey) ? camelKey : BLOCKED_PROPERTIES.has(unprefixedKey) ? unprefixedKey : null;
-    if (blockedKey) {
-      warnings.push({
-        type: "blocked_css_property",
-        property: camelKey,
-        originalProperty: rawKey,
-        value,
-        suggestion: BLOCKED_SUGGESTIONS[blockedKey] || "This property conflicts with SlideKit's positioning system"
-      });
-      continue;
-    }
-    filtered[camelKey] = value;
-  }
-  return { filtered, warnings };
-}
-function _baselineCSS(prefix) {
-  const p = prefix.trim();
-  if (p.includes(",")) {
-    throw new Error(`_baselineCSS prefix must be a single selector, got: ${p}`);
-  }
-  const P = `${p}${p}${p}`;
-  return `
-/* ===================================================================
- * SlideKit Baseline CSS Reset
- * Tripled attribute selector -> specificity (0,3,0+), always beats
- * Reveal.js selectors (max ~0,2,4).  User inline styles still win
- * because inline specificity (1,0,0) > any selector.
- * =================================================================== */
-
-/* --- Container boundary: establish a clean context --- */
-${P} {
-  text-align: left;
-  font-size: initial;
-  font-style: normal;
-  font-weight: 400;
-  font-stretch: normal;
-  line-height: 1.2;
-  letter-spacing: normal;
-  text-transform: none;
-  text-decoration: none;
-  text-shadow: none;
-  white-space: normal;
-  word-break: normal;
-  word-wrap: normal;
-  overflow-wrap: normal;
-  hyphens: manual;
-  box-sizing: border-box;
-  color: inherit;
-}
-${P} *, ${P} *::before, ${P} *::after {
-  box-sizing: inherit;
-}
-
-/* --- Direct children reset --- */
-${P} > * {
-  margin: 0;
-  padding: 0;
-  text-align: inherit;
-  line-height: inherit;
-}
-
-/* --- Paragraphs ---
- * Counters: .reveal p { margin: 20px 0; line-height: 1.3 } */
-${P} p {
-  margin: 0;
-  padding: 0;
-  line-height: inherit;
-}
-
-/* --- Headings ---
- * Counters: .reveal h1-h6 { margin: 0 0 20px 0; font-weight: 600;
- *   text-transform: uppercase; text-shadow; color; font-size: 2.5em/etc;
- *   font-family; line-height: 1.2; letter-spacing } */
-${P} h1, ${P} h2, ${P} h3,
-${P} h4, ${P} h5, ${P} h6 {
-  margin: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  text-transform: none;
-  text-shadow: none;
-  letter-spacing: inherit;
-  word-wrap: normal;
-}
-
-/* --- Lists ---
- * Counters: .reveal ol/ul/dl { display: inline-block; margin: 0 0 0 1em }
- *           .reveal ul ul   { display: block; margin-left: 40px }
- *           .reveal ul ul ul { list-style-type: circle } */
-${P} ul, ${P} ol, ${P} dl {
-  margin: 0;
-  padding: 0;
-  display: block;
-  text-align: inherit;
-  list-style-position: outside;
-}
-${P} li {
-  margin: 0;
-  padding: 0;
-}
-
-/* --- Definition lists ---
- * Counters: .reveal dt { font-weight: bold }
- *           .reveal dd { margin-left: 40px } */
-${P} dt {
-  font-weight: inherit;
-}
-${P} dd {
-  margin: 0;
-  padding: 0;
-}
-
-/* --- Media: prevent Reveal's responsive constraints ---
- * Counters: .reveal img/video/iframe { max-width: 95%; max-height: 95% }
- *           .reveal img { margin: 20px 0 }
- *           .reveal iframe { z-index: 1 } */
-${P} img, ${P} svg, ${P} video,
-${P} canvas, ${P} iframe {
-  max-width: none;
-  max-height: none;
-  margin: 0;
-}
-${P} iframe {
-  z-index: auto;
-}
-${P} img, ${P} svg {
-  vertical-align: baseline;
-}
-
-/* --- Blockquote ---
- * Counters: .reveal blockquote { width: 70%; margin: 20px auto; padding: 5px;
- *   font-style: italic; background: rgba(...); box-shadow; position: relative }
- *           .reveal blockquote p:first/last-child { display: inline-block } */
-${P} blockquote {
-  margin: 0;
-  padding: 0;
-  width: auto;
-  position: static;
-  font-style: inherit;
-  background: none;
-  box-shadow: none;
-}
-${P} q {
-  font-style: inherit;
-}
-
-/* --- Pre/Code ---
- * Counters: .reveal pre { width: 90%; margin: 20px auto; font-size: 0.55em;
- *   position: relative; box-shadow; line-height: 1.2em }
- *           .reveal code { font-family: monospace; text-transform: none }
- *           .reveal pre code { padding: 5px; max-height: 400px } */
-${P} pre {
-  margin: 0;
-  padding: 0;
-  width: auto;
-  position: static;
-  font-size: 1em;
-  line-height: 1.2;
-  white-space: pre;
-  word-wrap: normal;
-  box-shadow: none;
-  text-align: inherit;
-}
-${P} code {
-  margin: 0;
-  padding: 0;
-  font-size: 1em;
-  line-height: inherit;
-  text-transform: none;
-  white-space: normal;
-}
-${P} pre code {
-  display: block;
-  padding: 0;
-  overflow: visible;
-  max-height: none;
-  word-wrap: normal;
-  white-space: pre;
-}
-
-/* --- Tables ---
- * Counters: .reveal table { margin: auto }
- *           .reveal table th/td { padding: 0.2em 0.5em; border-bottom: 1px solid }
- *           .reveal table th { font-weight: bold } */
-${P} table {
-  margin: 0;
-  border-collapse: collapse;
-  border-spacing: 0;
-}
-${P} th, ${P} td {
-  padding: 0;
-  border: none;
-  text-align: inherit;
-  font-weight: inherit;
-}
-
-/* --- Small ---
- * Counters: .reveal small { display: inline-block; font-size: 0.6em;
- *   line-height: 1.2em; vertical-align: top } */
-${P} small {
-  display: inline;
-  font-size: inherit;
-  line-height: inherit;
-  vertical-align: baseline;
-}
-
-/* --- Links ---
- * Counters: .reveal a { color: var(--r-link-color); text-decoration: none;
- *   transition: color .15s; position: relative }
- *           .reveal a:hover { color: var(--r-link-color-hover) } */
-${P} a, ${P} a:hover {
-  color: inherit;
-  text-decoration: inherit;
-  background: none;
-  text-shadow: none;
-}
-`;
-}
-var SHADOWS = {
-  sm: "0 1px 3px rgba(0,0,0,0.2)",
-  md: "0 4px 12px rgba(0,0,0,0.3)",
-  lg: "0 8px 32px rgba(0,0,0,0.4)",
-  xl: "0 16px 48px rgba(0,0,0,0.5)",
-  glow: "0 0 40px rgba(124,92,191,0.3)"
-};
-function resolveShadow(value) {
-  if (!value) return "";
-  if (value in SHADOWS) return SHADOWS[value];
-  return value;
-}
-function getShadowPresets() {
-  return { ...SHADOWS };
-}
+// slidekit/slidekit.ts
+init_style();
 
 // slidekit/src/config.ts
+init_state();
 function parseSemver(v) {
   const m = /^(\d+)\.(\d+)\.(\d+)/.exec(v);
   if (!m) return null;
@@ -5924,95 +6088,8 @@ function _resetForTests() {
   state.injectedFontLinks = /* @__PURE__ */ new Set();
 }
 
-// slidekit/src/dom-helpers.ts
-function applyStyleToDOM(domEl, styleObj) {
-  for (const [key, value] of Object.entries(styleObj)) {
-    if (key.startsWith("--")) {
-      domEl.style.setProperty(key, value);
-    } else {
-      domEl.style[key] = value;
-    }
-  }
-}
-
-// slidekit/src/measure.ts
-function _ensureMeasureContainer() {
-  if (state.measureContainer && state.measureContainer.parentNode) return;
-  if (typeof document === "undefined" || !document.body) {
-    throw new Error(
-      "SlideKit.measure requires a DOM with document.body available."
-    );
-  }
-  const container = document.createElement("div");
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
-  container.style.top = "-9999px";
-  container.style.visibility = "hidden";
-  container.style.overflow = "hidden";
-  container.style.pointerEvents = "none";
-  container.setAttribute("data-sk-role", "measure-container");
-  const baselineStyle = document.createElement("style");
-  baselineStyle.textContent = _baselineCSS("[data-sk-measure]");
-  container.appendChild(baselineStyle);
-  document.body.appendChild(container);
-  state.measureContainer = container;
-}
-function clearMeasureCache() {
-  state.measureCache.clear();
-}
-function _elMeasureCacheKey(html, props) {
-  const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
-  return JSON.stringify(["el", html, props.w ?? null, styleKey, props.className || "", props.shrinkWrap || false]);
-}
-async function measure(html, props = {}) {
-  const cacheKey = _elMeasureCacheKey(html, props);
-  if (state.measureCache.has(cacheKey)) {
-    return state.measureCache.get(cacheKey);
-  }
-  _ensureMeasureContainer();
-  const div = document.createElement("div");
-  div.style.boxSizing = "border-box";
-  if (props.w != null) {
-    div.style.width = `${props.w}px`;
-  } else if (props.shrinkWrap) {
-    div.style.display = "inline-block";
-  }
-  if (props.className) div.className = props.className;
-  if (props.style) {
-    const { filtered } = filterStyle(props.style, "el");
-    applyStyleToDOM(div, filtered);
-  }
-  div.setAttribute("data-sk-measure", "");
-  div.innerHTML = html;
-  state.measureContainer.appendChild(div);
-  const FONT_TIMEOUT_MS = 5e3;
-  if (document.fonts?.ready) {
-    await Promise.race([
-      document.fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
-    ]);
-  }
-  const imgs = div.querySelectorAll("img");
-  if (imgs.length > 0) {
-    const IMAGE_TIMEOUT_MS = 3e3;
-    await Promise.all([...imgs].map((img) => {
-      if (img.complete) return Promise.resolve();
-      return new Promise((resolve) => {
-        const timer = setTimeout(resolve, IMAGE_TIMEOUT_MS);
-        const done = () => {
-          clearTimeout(timer);
-          resolve();
-        };
-        img.addEventListener("load", done, { once: true });
-        img.addEventListener("error", done, { once: true });
-      });
-    }));
-  }
-  const result = { w: div.offsetWidth, h: div.scrollHeight };
-  state.measureContainer.removeChild(div);
-  state.measureCache.set(cacheKey, result);
-  return result;
-}
+// slidekit/slidekit.ts
+init_measure();
 
 // slidekit/src/relative.ts
 function normalizeGapArg(arg) {
@@ -6094,6 +6171,9 @@ function between(refA, refB, { axis, bias = 0.5 }) {
   }
   return { _rel: "between", ref, ref2, bias: clampedBias, axis };
 }
+
+// slidekit/src/transforms.ts
+init_state();
 
 // slidekit/src/assertions.ts
 function mustGet(map, key, msg) {
@@ -6367,7 +6447,13 @@ function applyTransform(transform, resolvedBounds, _flatMap) {
   return transformWarnings;
 }
 
+// slidekit/src/renderer.ts
+init_state();
+init_style();
+init_dom_helpers();
+
 // slidekit/src/lint.ts
+init_style();
 var THRESHOLDS = {
   minFontSize: 18,
   warnFontSize: 24,
@@ -8148,6 +8234,7 @@ function _resetDebugForTests() {
 }
 
 // slidekit/src/renderer.ts
+init_dom_helpers();
 var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
@@ -8927,6 +9014,7 @@ function panel(children, props = {}) {
 }
 
 // slidekit/src/utilities.ts
+init_state();
 function deepClone2(obj) {
   if (typeof structuredClone === "function") {
     return structuredClone(obj);
@@ -9075,9 +9163,11 @@ function rotatedAABB(w, h, degrees) {
 }
 
 // slidekit/src/layout/index.ts
+init_state();
 init_helpers();
 
 // slidekit/src/layout/overflow.ts
+init_measure();
 async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolvedBounds, warnings, errors) {
   for (const id of sortedOrder) {
     const el2 = mustGet(flatMap, id, `flatMap missing element in overflow check: ${id}`);
@@ -9121,6 +9211,7 @@ async function checkOverflowPolicies(sortedOrder, flatMap, authoredSpecs, resolv
 }
 
 // slidekit/src/layout/intrinsics.ts
+init_measure();
 init_helpers();
 
 // slidekit/src/types.ts
@@ -9784,6 +9875,8 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
 
 // slidekit/src/layout/positions.ts
 init_helpers();
+init_measure();
+init_state();
 async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSizes, authoredSpecs, warnings, errors) {
   const initialErrorCount = errors.length;
   const deps = /* @__PURE__ */ new Map();
@@ -10205,6 +10298,7 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
 }
 
 // slidekit/src/layout/finalize.ts
+init_state();
 init_helpers();
 function finalize({
   sortedOrder,
@@ -10867,6 +10961,7 @@ function finalize({
 }
 
 // slidekit/src/layout/index.ts
+init_measure();
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
@@ -11154,6 +11249,8 @@ async function layout(slideDefinition, options = {}) {
 }
 
 // slidekit/slidekit.ts
+init_style();
+init_measure();
 _setLayoutFn(layout);
 if (typeof document !== "undefined" && typeof window !== "undefined") {
   setTimeout(() => {

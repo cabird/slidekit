@@ -6,6 +6,7 @@ import { PROVENANCE_COLORS, TYPE_BADGE_COLORS, escapeHtml, badge } from './debug
 import { createResizeHandle, adjustViewport, resetViewport } from './debug-inspector-viewport.js';
 import { createDiffActionBar, updateDiffDirtyIndicator } from './debug-inspector-diff.js';
 import { extractRelationshipEdges, absoluteBounds } from './debug-overlay.js';
+import { clearMeasureCache } from './measure.js';
 import { flattenElements, isRelMarker } from './layout/helpers.js';
 import {
   isEditableProp, isEditableGap, isGapProp, getEnumOptions,
@@ -337,8 +338,50 @@ export function createInspectorPanel(): HTMLDivElement {
   header.textContent = "Inspector";
   panel.appendChild(header);
 
-  // Diff action bar
-  panel.appendChild(createDiffActionBar());
+  // Diff action bar + Re-layout button
+  const actionBar = document.createElement('div');
+  actionBar.style.cssText = 'padding: 8px 16px; border-bottom: 1px solid #e8e8e8; display: flex; gap: 8px; align-items: center;';
+  actionBar.appendChild(createDiffActionBar());
+
+  const relayoutBtn = document.createElement('button');
+  relayoutBtn.textContent = 'Re-layout';
+  relayoutBtn.title = 'Clear measure cache and re-run the full layout pipeline for the current slide';
+  relayoutBtn.style.cssText = `
+    padding: 4px 10px; font-size: 11px; cursor: pointer;
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: #fff; color: #4a9eff; border: 1px solid #4a9eff;
+    border-radius: 4px; font-weight: 600; white-space: nowrap;
+  `;
+  relayoutBtn.addEventListener('mouseenter', () => { relayoutBtn.style.background = '#4a9eff'; relayoutBtn.style.color = '#fff'; });
+  relayoutBtn.addEventListener('mouseleave', () => { relayoutBtn.style.background = '#fff'; relayoutBtn.style.color = '#4a9eff'; });
+  relayoutBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const sk = (window as any).sk;
+    const ds = debugController.state;
+    if (!sk?._definitions?.[ds.currentSlideIndex]) return;
+
+    // Clear the measure cache so everything is re-measured from scratch
+    clearMeasureCache();
+
+    // Re-render the slide from its definition
+    const rerender = sk._rerenderSlide;
+    if (rerender) {
+      relayoutBtn.textContent = 'Re-laying out...';
+      relayoutBtn.style.opacity = '0.5';
+      await rerender(ds.currentSlideIndex, sk._definitions[ds.currentSlideIndex]);
+      relayoutBtn.textContent = 'Re-layout';
+      relayoutBtn.style.opacity = '1';
+
+      // Refresh the debug overlay
+      debugController.callbacks.refreshOverlayOnly?.(ds.currentSlideIndex);
+      if (ds.selectedElementId) {
+        debugController.callbacks.renderElementDetail?.(ds.selectedElementId, ds.currentSlideIndex);
+      }
+      refreshElementList();
+    }
+  });
+  actionBar.appendChild(relayoutBtn);
+  panel.appendChild(actionBar);
 
   // Visibility toggles
   panel.appendChild(createVisibilitySection());
