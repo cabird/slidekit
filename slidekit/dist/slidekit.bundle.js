@@ -9225,6 +9225,19 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
       });
     }
   }
+  for (const [id, el2] of flatMap) {
+    for (const axis of ["x", "y"]) {
+      const val = el2.props[axis];
+      if (val && typeof val === "object" && !isRelMarker(val) && "x" in val && "y" in val) {
+        warnings.push({
+          type: "centerIn_misuse",
+          elementId: id,
+          property: axis,
+          message: `Element "${id}": ${axis} appears to be assigned a centerIn() result directly. centerIn() returns {x, y} \u2014 destructure it: const { x, y } = centerIn(rect); then use x: and y: separately.`
+        });
+      }
+    }
+  }
   const stackChildSet = /* @__PURE__ */ new Set();
   const childToStack = /* @__PURE__ */ new Map();
   for (const [stackId, childIds] of stackChildren) {
@@ -9603,7 +9616,18 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
           const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
           maxH = Math.max(maxH, cs.h);
         }
-        stackSizes.h = stackH || maxH;
+        const finalStackH = stackH || maxH;
+        stackSizes.h = finalStackH;
+        if (finalStackH > 0) {
+          for (const cid of childIds) {
+            const child = flatMap.get(cid);
+            if (!child) continue;
+            if (child.props.h === void 0 || child.props.h === null || child.props.h === "fill") {
+              const cs = resolvedSizes.get(cid);
+              if (cs) cs.h = finalStackH;
+            }
+          }
+        }
       }
       pendingStacksH.delete(stackId);
       progress = true;

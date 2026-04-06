@@ -218,6 +218,22 @@ export async function resolveIntrinsicSizes(
     }
   }
 
+  // Detect centerIn() misuse: centerIn() returns {x: RelMarker, y: RelMarker},
+  // so assigning it directly to x or y (instead of destructuring) is a common mistake.
+  for (const [id, el] of flatMap) {
+    for (const axis of ['x', 'y'] as const) {
+      const val = el.props[axis];
+      if (val && typeof val === 'object' && !isRelMarker(val) && 'x' in (val as Record<string, unknown>) && 'y' in (val as Record<string, unknown>)) {
+        warnings.push({
+          type: "centerIn_misuse",
+          elementId: id,
+          property: axis,
+          message: `Element "${id}": ${axis} appears to be assigned a centerIn() result directly. centerIn() returns {x, y} — destructure it: const { x, y } = centerIn(rect); then use x: and y: separately.`,
+        });
+      }
+    }
+  }
+
   // Warn if stack children have positional RelMarkers on x/y — these will be
   // ignored because stack layout determines children's positions.
   // (Also warned later in positions.ts, but catching it early helps authors.)
@@ -664,7 +680,20 @@ export async function resolveIntrinsicSizes(
           const cs = mustGet(resolvedSizes, cid, `resolvedSizes missing hstack child: ${cid}`);
           maxH = Math.max(maxH, cs.h);
         }
-        stackSizes.h = stackH || maxH;
+        const finalStackH = stackH || maxH;
+        stackSizes.h = finalStackH;
+
+        // Height inheritance: hstack children without explicit h (or with "fill") get stack height
+        if (finalStackH > 0) {
+          for (const cid of childIds) {
+            const child = flatMap.get(cid);
+            if (!child) continue;
+            if (child.props.h === undefined || child.props.h === null || child.props.h === 'fill') {
+              const cs = resolvedSizes.get(cid);
+              if (cs) cs.h = finalStackH;
+            }
+          }
+        }
       }
 
       pendingStacksH.delete(stackId);
