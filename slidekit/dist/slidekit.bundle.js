@@ -11030,16 +11030,17 @@ async function layout(slideDefinition, options = {}) {
         if (!stackBounds || !stackSizes) continue;
         const gap = resolveSpacing(stackEl.props.gap ?? 0);
         if (stackEl.type === "vstack") {
+          const align = stackEl.props.align || "left";
+          const stackW = stackBounds.w;
           let curY = stackBounds.y;
-          const parentId = stackParent.get(stackId);
-          if (!parentId) {
-          }
           for (let i = 0; i < childIds.length; i++) {
             const cs = resolvedBounds.get(childIds[i]);
             if (!cs) continue;
-            if (i === 0) curY = stackBounds.y;
-            else curY += gap;
+            if (i > 0) curY += gap;
             cs.y = curY;
+            if (align === "center") cs.x = stackBounds.x + (stackW - cs.w) / 2;
+            else if (align === "right") cs.x = stackBounds.x + stackW - cs.w;
+            else if (align !== "stretch") cs.x = stackBounds.x;
             curY += cs.h;
           }
           const totalH = curY - stackBounds.y;
@@ -11047,11 +11048,33 @@ async function layout(slideDefinition, options = {}) {
             stackBounds.h = totalH;
             stackSizes.h = totalH;
           }
+          const vAlign = stackEl.props.vAlign;
+          if (vAlign && vAlign !== "top" && childIds.length > 0) {
+            const stackAuthH = stackEl.props.h;
+            if (typeof stackAuthH === "number" && stackBounds.h > totalH) {
+              const slack = stackBounds.h - totalH;
+              const offsetY = vAlign === "center" ? slack / 2 : slack;
+              for (const cid of childIds) {
+                const cs = resolvedBounds.get(cid);
+                if (cs) cs.y += offsetY;
+              }
+            }
+          }
         } else if (stackEl.type === "hstack") {
+          const align = stackEl.props.align || "top";
+          const stackH = stackBounds.h;
+          let curX = stackBounds.x;
           let maxH = 0;
-          for (const cid of childIds) {
-            const cs = resolvedBounds.get(cid);
-            if (cs && cs.h > maxH) maxH = cs.h;
+          for (let i = 0; i < childIds.length; i++) {
+            const cs = resolvedBounds.get(childIds[i]);
+            if (!cs) continue;
+            if (i > 0) curX += gap;
+            cs.x = curX;
+            if (align === "middle") cs.y = stackBounds.y + (stackH - cs.h) / 2;
+            else if (align === "bottom") cs.y = stackBounds.y + stackH - cs.h;
+            else if (align !== "stretch") cs.y = stackBounds.y;
+            curX += cs.w;
+            if (cs.h > maxH) maxH = cs.h;
           }
           if (stackSizes.hMeasured) {
             stackBounds.h = maxH;

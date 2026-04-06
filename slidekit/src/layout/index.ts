@@ -301,19 +301,20 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
 
         const gap = resolveSpacing((stackEl.props.gap as string | number) ?? 0);
         if (stackEl.type === 'vstack') {
-          // Recompute child y-positions and total height
+          const align = (stackEl.props.align as string) || 'left';
+          const stackW = stackBounds.w;
+
+          // Recompute child y-positions, cross-axis x-alignment, and total height
           let curY = stackBounds.y;
-          // Account for panel padding if this vstack is inside a panel
-          const parentId = stackParent.get(stackId);
-          if (!parentId) {
-            // Root-level or group child — children positioned from stack's y
-          }
           for (let i = 0; i < childIds.length; i++) {
             const cs = resolvedBounds.get(childIds[i]);
             if (!cs) continue;
-            if (i === 0) curY = stackBounds.y;
-            else curY += gap;
+            if (i > 0) curY += gap;
             cs.y = curY;
+            // Re-apply cross-axis alignment
+            if (align === 'center') cs.x = stackBounds.x + (stackW - cs.w) / 2;
+            else if (align === 'right') cs.x = stackBounds.x + stackW - cs.w;
+            else if (align !== 'stretch') cs.x = stackBounds.x;
             curY += cs.h;
           }
           const totalH = curY - stackBounds.y;
@@ -321,12 +322,38 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
             stackBounds.h = totalH;
             stackSizes.h = totalH;
           }
+
+          // Re-apply vAlign if stack has explicit height larger than content
+          const vAlign = stackEl.props.vAlign as string | undefined;
+          if (vAlign && vAlign !== 'top' && childIds.length > 0) {
+            const stackAuthH = stackEl.props.h;
+            if (typeof stackAuthH === 'number' && stackBounds.h > totalH) {
+              const slack = stackBounds.h - totalH;
+              const offsetY = vAlign === 'center' ? slack / 2 : slack;
+              for (const cid of childIds) {
+                const cs = resolvedBounds.get(cid);
+                if (cs) cs.y += offsetY;
+              }
+            }
+          }
         } else if (stackEl.type === 'hstack') {
-          // Recompute child x-positions and total width (height = max child height)
+          const align = (stackEl.props.align as string) || 'top';
+          const stackH = stackBounds.h;
+
+          // Recompute child x-positions, cross-axis y-alignment, and max height
+          let curX = stackBounds.x;
           let maxH = 0;
-          for (const cid of childIds) {
-            const cs = resolvedBounds.get(cid);
-            if (cs && cs.h > maxH) maxH = cs.h;
+          for (let i = 0; i < childIds.length; i++) {
+            const cs = resolvedBounds.get(childIds[i]);
+            if (!cs) continue;
+            if (i > 0) curX += gap;
+            cs.x = curX;
+            // Re-apply cross-axis alignment
+            if (align === 'middle') cs.y = stackBounds.y + (stackH - cs.h) / 2;
+            else if (align === 'bottom') cs.y = stackBounds.y + stackH - cs.h;
+            else if (align !== 'stretch') cs.y = stackBounds.y;
+            curX += cs.w;
+            if (cs.h > maxH) maxH = cs.h;
           }
           if (stackSizes.hMeasured) {
             stackBounds.h = maxH;
