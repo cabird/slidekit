@@ -512,7 +512,7 @@ var init_dom_helpers = __esm({
 
 // slidekit/src/measure.ts
 function _skMeasureDebug() {
-  return typeof window !== "undefined" && !!window.__skMeasureDebug();
+  return typeof window !== "undefined" && !!window.__SK_MEASURE_DEBUG;
 }
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;

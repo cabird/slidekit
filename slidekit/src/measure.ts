@@ -1,9 +1,9 @@
 // SlideKit — Measurement utilities (container management, HTML measurement)
 
-// Set window.__skMeasureDebug() = true in console to enable logging.
+// Set window.__SK_MEASURE_DEBUG = true in console to enable logging.
 // Checked at call time, not module load time, so you can set it anytime.
 function _skMeasureDebug(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).__skMeasureDebug();
+  return typeof window !== 'undefined' && !!(window as any).__SK_MEASURE_DEBUG;
 }
 
 import { state } from './state.js';
