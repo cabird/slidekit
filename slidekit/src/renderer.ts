@@ -11,6 +11,7 @@ import { applyStyleToDOM } from './dom-helpers.js';
 import { lintSlide, lintDeck } from './lint.js';
 import { routeConnector } from './connectorRouting.js';
 import { enableKeyboardToggle } from './debug.js';
+import { clearMeasureCache } from './measure.js';
 import type { SlideElement, SlideDefinition, LayoutResult } from './types.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
@@ -900,6 +901,36 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
     };
     (window as unknown as Record<string, unknown>).sk = skObj;
     enableKeyboardToggle();
+
+    // Watch for late font loads that happen after render. When a web font swaps
+    // in after layout, text reflows but element positions are stale. Detect this
+    // and automatically re-layout all slides.
+    if (typeof document !== 'undefined' && document.fonts) {
+      let fontWatcherAttached = false;
+      const reLayoutOnFontSwap = () => {
+        if (fontWatcherAttached) return;  // only trigger once
+        fontWatcherAttached = true;
+        // Debounce: wait for font loading to settle, then re-layout
+        setTimeout(async () => {
+          const sk = (window as any).sk;
+          if (!sk?._definitions || !sk._rerenderSlide) return;
+          // Clear measure cache — old measurements used wrong font metrics
+          clearMeasureCache();
+          // Re-layout each slide
+          for (let i = 0; i < sk._definitions.length; i++) {
+            try {
+              await sk._rerenderSlide(i, sk._definitions[i]);
+            } catch (_) { /* slide may not exist in DOM */ }
+          }
+        }, 100);
+      };
+      // Listen for font loads that happen after render
+      document.fonts.addEventListener('loadingdone', reLayoutOnFontSwap);
+      // Auto-remove after 10 seconds (fonts should be loaded by then)
+      setTimeout(() => {
+        document.fonts.removeEventListener('loadingdone', reLayoutOnFontSwap);
+      }, 10000);
+    }
   }
 
   return { sections, layouts };

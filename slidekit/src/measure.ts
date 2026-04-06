@@ -6,9 +6,6 @@ function _skMeasureDebug(): boolean {
   return typeof window !== 'undefined' && !!(window as any).__SK_MEASURE_DEBUG;
 }
 
-// Track whether we've yielded a frame for font metrics since the last cache clear.
-// This avoids yielding ~16ms per element — we only need one yield per batch.
-let _hasYieldedForFonts = false;
 
 import { state } from './state.js';
 
@@ -70,7 +67,6 @@ export function _ensureMeasureContainer(): void {
  */
 export function clearMeasureCache(): void {
   state.measureCache.clear();
-  _hasYieldedForFonts = false;  // next measurement batch will yield again
 }
 
 // =============================================================================
@@ -183,16 +179,7 @@ export async function measure(
     ]);
   }
 
-  // Yield to the browser's render loop once per measurement batch. This ensures
-  // the browser has fully processed font metrics and text shaping. Without this,
-  // fonts may report as "loaded" but the layout engine hasn't applied the real
-  // metrics yet. We only yield once (on the first uncached measurement after a
-  // cache clear) to avoid adding ~16ms per element.
-  if (!_hasYieldedForFonts) {
-    _hasYieldedForFonts = true;
-    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-  }
-  // Force a synchronous reflow
+  // Force a synchronous reflow to ensure font metrics are applied
   void div.offsetHeight;
 
   // Wait for all images to load (with timeout to prevent hanging)

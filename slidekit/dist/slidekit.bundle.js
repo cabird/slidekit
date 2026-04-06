@@ -537,7 +537,6 @@ function _ensureMeasureContainer() {
 }
 function clearMeasureCache() {
   state.measureCache.clear();
-  _hasYieldedForFonts = false;
 }
 function _elMeasureCacheKey(html, props) {
   const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
@@ -597,10 +596,6 @@ async function measure(html, props = {}) {
       new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
     ]);
   }
-  if (!_hasYieldedForFonts) {
-    _hasYieldedForFonts = true;
-    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-  }
   void div.offsetHeight;
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
@@ -627,7 +622,6 @@ async function measure(html, props = {}) {
   state.measureCache.set(cacheKey, result);
   return result;
 }
-var _hasYieldedForFonts;
 var init_measure = __esm({
   "slidekit/src/measure.ts"() {
     "use strict";
@@ -635,7 +629,6 @@ var init_measure = __esm({
     init_style();
     init_style();
     init_dom_helpers();
-    _hasYieldedForFonts = false;
   }
 });
 
@@ -8275,6 +8268,7 @@ function _resetDebugForTests() {
 }
 
 // slidekit/src/renderer.ts
+init_measure();
 init_dom_helpers();
 var _layoutFn;
 function _setLayoutFn(fn) {
@@ -8902,6 +8896,28 @@ async function render(slides, options = {}) {
     };
     window.sk = skObj;
     enableKeyboardToggle();
+    if (typeof document !== "undefined" && document.fonts) {
+      let fontWatcherAttached = false;
+      const reLayoutOnFontSwap = () => {
+        if (fontWatcherAttached) return;
+        fontWatcherAttached = true;
+        setTimeout(async () => {
+          const sk = window.sk;
+          if (!sk?._definitions || !sk._rerenderSlide) return;
+          clearMeasureCache();
+          for (let i = 0; i < sk._definitions.length; i++) {
+            try {
+              await sk._rerenderSlide(i, sk._definitions[i]);
+            } catch (_) {
+            }
+          }
+        }, 100);
+      };
+      document.fonts.addEventListener("loadingdone", reLayoutOnFontSwap);
+      setTimeout(() => {
+        document.fonts.removeEventListener("loadingdone", reLayoutOnFontSwap);
+      }, 1e4);
+    }
   }
   return { sections, layouts };
 }
