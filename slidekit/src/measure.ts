@@ -178,14 +178,13 @@ export async function measure(
     ]);
   }
 
-  // Force the browser to recalculate layout with the loaded font.
-  // Some browsers cache text shaping results from fallback fonts and don't
-  // automatically re-shape after the web font loads. Toggling a layout-
-  // affecting property forces a full recalc.
-  div.style.display = 'none';
-  void div.offsetHeight;  // flush pending style changes
-  div.style.display = '';
-  void div.offsetHeight;  // force layout with the real font
+  // Yield to the browser's render loop before measuring. This ensures the
+  // browser has fully processed font metrics and text shaping. Without this,
+  // fonts may report as "loaded" but the browser's layout engine hasn't
+  // applied the real metrics yet (still using cached fallback shaping).
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  // Force a synchronous reflow after the frame
+  void div.offsetHeight;
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");
