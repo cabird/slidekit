@@ -129,8 +129,30 @@ export async function measure(
   // is what triggers the browser to start loading that font. Measuring
   // before fonts are ready produces incorrect heights (fallback font metrics
   // differ from the real font).
+  //
+  // We use a two-phase approach:
+  // 1. Explicitly load fonts detected in the measurement node's computed styles
+  //    (this forces the browser to start loading them NOW, not deferred)
+  // 2. Then wait for document.fonts.ready as a catch-all
   const FONT_TIMEOUT_MS = 5000;
-  if (document.fonts?.ready) {
+  if (document.fonts) {
+    // Phase 1: detect and explicitly request fonts used in this content
+    try {
+      const computed = window.getComputedStyle(div);
+      const fontFamily = computed.fontFamily;
+      const fontSize = computed.fontSize || '16px';
+      const fontWeight = computed.fontWeight || '400';
+      if (fontFamily) {
+        const fontSpec = `${fontWeight} ${fontSize} ${fontFamily}`;
+        await Promise.race([
+          document.fonts.load(fontSpec, 'BESbswy'),  // standard font test string
+          new Promise<void>(resolve => setTimeout(resolve, FONT_TIMEOUT_MS)),
+        ]);
+      }
+    } catch (_) {
+      // fonts.load can throw for invalid font specs — fall through to ready
+    }
+    // Phase 2: catch-all for any remaining font loads
     await Promise.race([
       document.fonts.ready,
       new Promise<void>(resolve => setTimeout(resolve, FONT_TIMEOUT_MS)),

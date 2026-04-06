@@ -561,7 +561,22 @@ async function measure(html, props = {}) {
   div.innerHTML = html;
   state.measureContainer.appendChild(div);
   const FONT_TIMEOUT_MS = 5e3;
-  if (document.fonts?.ready) {
+  if (document.fonts) {
+    try {
+      const computed = window.getComputedStyle(div);
+      const fontFamily = computed.fontFamily;
+      const fontSize = computed.fontSize || "16px";
+      const fontWeight = computed.fontWeight || "400";
+      if (fontFamily) {
+        const fontSpec = `${fontWeight} ${fontSize} ${fontFamily}`;
+        await Promise.race([
+          document.fonts.load(fontSpec, "BESbswy"),
+          // standard font test string
+          new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
+        ]);
+      }
+    } catch (_) {
+    }
     await Promise.race([
       document.fonts.ready,
       new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
