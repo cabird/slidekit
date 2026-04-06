@@ -596,6 +596,9 @@ async function measure(html, props = {}) {
       new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
     ]);
   }
+  div.style.display = "none";
+  void div.offsetHeight;
+  div.style.display = "";
   void div.offsetHeight;
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
