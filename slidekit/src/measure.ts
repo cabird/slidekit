@@ -1,5 +1,8 @@
 // SlideKit — Measurement utilities (container management, HTML measurement)
 
+// Set window.__SK_MEASURE_DEBUG = true in console before render() to enable logging
+const _SK_MEASURE_DEBUG = typeof window !== 'undefined' && (window as any).__SK_MEASURE_DEBUG;
+
 import { state } from './state.js';
 
 import { _baselineCSS } from './style.js';
@@ -144,13 +147,26 @@ export async function measure(
       const fontWeight = computed.fontWeight || '400';
       if (fontFamily) {
         const fontSpec = `${fontWeight} ${fontSize} ${fontFamily}`;
-        await Promise.race([
-          document.fonts.load(fontSpec, 'BESbswy'),  // standard font test string
-          new Promise<void>(resolve => setTimeout(resolve, FONT_TIMEOUT_MS)),
-        ]);
+        // Check if the font is already loaded
+        const alreadyLoaded = document.fonts.check(fontSpec, 'BESbswy');
+        if (!alreadyLoaded) {
+          // Font not loaded yet — wait for it
+          if (_SK_MEASURE_DEBUG) {
+            console.log(`[sk-measure] Font not loaded, waiting: ${fontSpec}`);
+          }
+          const loadResult = await Promise.race([
+            document.fonts.load(fontSpec, 'BESbswy'),
+            new Promise<FontFace[]>(resolve => setTimeout(() => resolve([]), FONT_TIMEOUT_MS)),
+          ]);
+          if (_SK_MEASURE_DEBUG) {
+            console.log(`[sk-measure] Font load result: ${loadResult.length} faces loaded for ${fontSpec}`);
+          }
+        }
       }
-    } catch (_) {
-      // fonts.load can throw for invalid font specs — fall through to ready
+    } catch (err) {
+      if (_SK_MEASURE_DEBUG) {
+        console.warn(`[sk-measure] Font load error:`, err);
+      }
     }
     // Phase 2: catch-all for any remaining font loads
     await Promise.race([
@@ -158,6 +174,9 @@ export async function measure(
       new Promise<void>(resolve => setTimeout(resolve, FONT_TIMEOUT_MS)),
     ]);
   }
+
+  // Measure BEFORE reading — force a layout reflow to ensure fonts are applied
+  void div.offsetHeight;
 
   // Wait for all images to load (with timeout to prevent hanging)
   const imgs = div.querySelectorAll("img");
@@ -176,6 +195,10 @@ export async function measure(
 
   // Read dimensions
   const result = { w: div.offsetWidth, h: div.scrollHeight };
+  if (_SK_MEASURE_DEBUG) {
+    const snippet = html.length > 60 ? html.slice(0, 60) + '...' : html;
+    console.log(`[sk-measure] ${result.w}x${result.h} (w=${props.w ?? 'auto'}) "${snippet}"`);
+  }
   state.measureContainer!.removeChild(div);
 
   // Cache result

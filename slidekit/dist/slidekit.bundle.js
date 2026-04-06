@@ -569,19 +569,31 @@ async function measure(html, props = {}) {
       const fontWeight = computed.fontWeight || "400";
       if (fontFamily) {
         const fontSpec = `${fontWeight} ${fontSize} ${fontFamily}`;
-        await Promise.race([
-          document.fonts.load(fontSpec, "BESbswy"),
-          // standard font test string
-          new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
-        ]);
+        const alreadyLoaded = document.fonts.check(fontSpec, "BESbswy");
+        if (!alreadyLoaded) {
+          if (_SK_MEASURE_DEBUG) {
+            console.log(`[sk-measure] Font not loaded, waiting: ${fontSpec}`);
+          }
+          const loadResult = await Promise.race([
+            document.fonts.load(fontSpec, "BESbswy"),
+            new Promise((resolve) => setTimeout(() => resolve([]), FONT_TIMEOUT_MS))
+          ]);
+          if (_SK_MEASURE_DEBUG) {
+            console.log(`[sk-measure] Font load result: ${loadResult.length} faces loaded for ${fontSpec}`);
+          }
+        }
       }
-    } catch (_) {
+    } catch (err) {
+      if (_SK_MEASURE_DEBUG) {
+        console.warn(`[sk-measure] Font load error:`, err);
+      }
     }
     await Promise.race([
       document.fonts.ready,
       new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
     ]);
   }
+  void div.offsetHeight;
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
     const IMAGE_TIMEOUT_MS = 3e3;
@@ -599,10 +611,15 @@ async function measure(html, props = {}) {
     }));
   }
   const result = { w: div.offsetWidth, h: div.scrollHeight };
+  if (_SK_MEASURE_DEBUG) {
+    const snippet = html.length > 60 ? html.slice(0, 60) + "..." : html;
+    console.log(`[sk-measure] ${result.w}x${result.h} (w=${props.w ?? "auto"}) "${snippet}"`);
+  }
   state.measureContainer.removeChild(div);
   state.measureCache.set(cacheKey, result);
   return result;
 }
+var _SK_MEASURE_DEBUG;
 var init_measure = __esm({
   "slidekit/src/measure.ts"() {
     "use strict";
@@ -610,6 +627,7 @@ var init_measure = __esm({
     init_style();
     init_style();
     init_dom_helpers();
+    _SK_MEASURE_DEBUG = typeof window !== "undefined" && window.__SK_MEASURE_DEBUG;
   }
 });
 
