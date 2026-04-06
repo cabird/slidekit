@@ -35,6 +35,13 @@ interface LayoutOptions {
 export async function layout(slideDefinition: SlideDefinition, options: LayoutOptions = {}): Promise<LayoutResult> {
   const errors: Array<Record<string, unknown>> = [];
   const warnings: Array<Record<string, unknown>> = [];
+
+  if (state.config === null) {
+    warnings.push({
+      type: "layout_before_init",
+      message: "SlideKit.layout() called before init(). Using default config.",
+    });
+  }
   const elements = slideDefinition.elements || [];
   const transforms = slideDefinition.transforms || [];
   const collisionThreshold = options.collisionThreshold ?? 0;
@@ -283,7 +290,7 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
       }
     }
 
-    // If any heights changed, recompute ancestor stack/panel heights bottom-up
+    // If any heights changed, recompute stack heights, child positions, and panel auto-heights
     if (heightsChanged) {
       for (const [stackId, childIds] of stackChildren) {
         const stackEl = flatMap.get(stackId);
@@ -291,27 +298,40 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
         const stackBounds = resolvedBounds.get(stackId);
         const stackSizes = resolvedSizes.get(stackId);
         if (!stackBounds || !stackSizes) continue;
-        // Only recompute if stack height is auto (hMeasured)
-        if (!stackSizes.hMeasured) continue;
 
         const gap = resolveSpacing((stackEl.props.gap as string | number) ?? 0);
         if (stackEl.type === 'vstack') {
-          let totalH = 0;
+          // Recompute child y-positions and total height
+          let curY = stackBounds.y;
+          // Account for panel padding if this vstack is inside a panel
+          const parentId = stackParent.get(stackId);
+          if (!parentId) {
+            // Root-level or group child — children positioned from stack's y
+          }
           for (let i = 0; i < childIds.length; i++) {
             const cs = resolvedBounds.get(childIds[i]);
-            if (cs) totalH += cs.h;
-            if (i > 0) totalH += gap;
+            if (!cs) continue;
+            if (i === 0) curY = stackBounds.y;
+            else curY += gap;
+            cs.y = curY;
+            curY += cs.h;
           }
-          stackBounds.h = totalH;
-          stackSizes.h = totalH;
+          const totalH = curY - stackBounds.y;
+          if (stackSizes.hMeasured) {
+            stackBounds.h = totalH;
+            stackSizes.h = totalH;
+          }
         } else if (stackEl.type === 'hstack') {
+          // Recompute child x-positions and total width (height = max child height)
           let maxH = 0;
           for (const cid of childIds) {
             const cs = resolvedBounds.get(cid);
             if (cs && cs.h > maxH) maxH = cs.h;
           }
-          stackBounds.h = maxH;
-          stackSizes.h = maxH;
+          if (stackSizes.hMeasured) {
+            stackBounds.h = maxH;
+            stackSizes.h = maxH;
+          }
         }
       }
       // Update panel auto-heights
@@ -323,9 +343,9 @@ export async function layout(slideDefinition: SlideDefinition, options: LayoutOp
         const childStack = panelChildren[1];
         const bgRect = panelChildren[0];
         if (!childStack) continue;
-        const stackBounds = resolvedBounds.get(childStack.id);
-        if (!stackBounds) continue;
-        const autoH = stackBounds.h + 2 * config.padding;
+        const childStackBounds = resolvedBounds.get(childStack.id);
+        if (!childStackBounds) continue;
+        const autoH = childStackBounds.h + 2 * config.padding;
         const panelBounds = resolvedBounds.get(id);
         const panelSizes = resolvedSizes.get(id);
         if (panelBounds) panelBounds.h = autoH;

@@ -4,7 +4,7 @@
 import {
   init, render, safeRect, splitRect, el,
   below, above, rightOf, leftOf, centerHWith, centerVWith, centerIn,
-  alignTopWith, placeBetween,
+  alignTopWith, between,
   panel, hstack, vstack, group, connect,
   alignTop, distributeH, matchWidth, matchHeight, fitToRect,
   cardGrid, grid, snap, repeat,
@@ -687,7 +687,7 @@ w: 800, h: 400`,
           (() => { const b = mkBox('D', 's6-boxD', C.accent4); (b as any).props.x = leftOf('s6-boxA', { gap: 40 }); (b as any).props.y = above('s6-boxA', { gap: 24 }); return b; })(),
 
           // Box E — placed between A and B, offset right
-          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = placeBetween('s6-boxA', 's6-boxB'); return b; })(),
+          (() => { const b = mkBox('E', 's6-boxE', 'rgba(255,255,255,0.6)'); (b as any).props.x = 700; (b as any).props.y = between('s6-boxA', 's6-boxB', { axis: 'y' }); return b; })(),
 
           // Connectors
           connect('s6-boxA', 's6-boxB', {
@@ -717,7 +717,7 @@ w: 800, h: 400`,
           codeLabel('leftOf(\'A\') + above(\'A\')', 's6-labelD', C.accent4, {
             x: leftOf('s6-boxD', { gap: 16 }), y: centerVWith('s6-boxD'), style: { textAlign: 'right' },
           }),
-          codeLabel('placeBetween(\'A\', \'B\')', 's6-labelE', C.textSec, {
+          codeLabel('between(\'A\', \'B\', {axis:\'y\'})', 's6-labelE', C.textSec, {
             x: rightOf('s6-boxE', { gap: 16 }), y: centerVWith('s6-boxE'),
           }),
 
@@ -1590,7 +1590,7 @@ w: 800, h: 400`,
             }),
           ], {
             id: 's14-mini-group',
-            x: placeBetween('s14-measure-panel', 's14-valid-panel'),
+            x: between('s14-measure-panel', 's14-valid-panel', { axis: 'x' }),
             y: below('s14-measure-panel', { gap: 'lg' }),
             w: 400, h: 225,
             bounds: 'hug',

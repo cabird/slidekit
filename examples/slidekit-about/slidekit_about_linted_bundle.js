@@ -6020,10 +6020,22 @@ function centerIn(rectParam) {
   const marker = { _rel: "centerIn", rect: rectParam };
   return { x: marker, y: marker };
 }
-function placeBetween(topRef, bottomYOrRef, { bias = 0.5 } = {}) {
+function between(refA, refB, { axis, bias = 0.5 }) {
   const numBias = typeof bias === "number" && Number.isFinite(bias) ? bias : 0.5;
   const clampedBias = Math.max(0, Math.min(1, numBias));
-  return { _rel: "between", ref: topRef, ref2: bottomYOrRef, bias: clampedBias };
+  let ref;
+  let ref2;
+  if (typeof refA === "number" && typeof refB === "number") {
+    throw new Error("between() requires at least one element ID reference");
+  } else if (typeof refA === "number") {
+    ref = refB;
+    ref2 = refA;
+    return { _rel: "between", ref, ref2, bias: 1 - clampedBias, axis };
+  } else {
+    ref = refA;
+    ref2 = refB;
+  }
+  return { _rel: "between", ref, ref2, bias: clampedBias, axis };
 }
 function mustGet(map, key, msg) {
   const value = map.get(key);
@@ -6042,11 +6054,17 @@ function alignTop(ids, options = {}) {
 function distributeH(ids, options = {}) {
   return { _transform: "distributeH", _transformId: nextTransformId(), ids, options: { mode: "equal-gap", ...options } };
 }
-function matchWidth(ids) {
+function equalizeWidth(ids) {
   return { _transform: "matchWidth", _transformId: nextTransformId(), ids, options: {} };
 }
-function matchHeight(ids) {
+function equalizeHeight(ids) {
   return { _transform: "matchHeight", _transformId: nextTransformId(), ids, options: {} };
+}
+function matchWidth(ids) {
+  return equalizeWidth(ids);
+}
+function matchHeight(ids) {
+  return equalizeHeight(ids);
 }
 function fitToRect(ids, rectParam) {
   return { _transform: "fitToRect", _transformId: nextTransformId(), ids, options: { rect: rectParam } };
@@ -9019,7 +9037,7 @@ async function getEffectiveWidth(element) {
   }
   return { w: props.w || 0, wMeasured: false, hMeasured: needsAutoHeight };
 }
-async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, _warnings) {
+async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, errors, warnings) {
   const authoredSpecs = /* @__PURE__ */ new Map();
   for (const [id, el2] of flatMap) {
     const spec = {
@@ -9065,6 +9083,44 @@ async function resolveIntrinsicSizes(flatMap, stackChildren, groupChildren, erro
         elementId: id,
         property: "h",
         message: `Element "${id}": _rel marker on "h" is invalid. Only matchHeightOf() or matchMaxHeight() are valid on h.`
+      });
+    }
+  }
+  const stackChildSet = /* @__PURE__ */ new Set();
+  const childToStack = /* @__PURE__ */ new Map();
+  for (const [stackId, childIds] of stackChildren) {
+    for (const cid of childIds) {
+      stackChildSet.add(cid);
+      childToStack.set(cid, stackId);
+    }
+  }
+  for (const [id, el2] of flatMap) {
+    if (!stackChildSet.has(id)) continue;
+    const offendingProps = [];
+    if (isRelMarker(el2.props.x)) offendingProps.push("x");
+    if (isRelMarker(el2.props.y)) offendingProps.push("y");
+    if (offendingProps.length > 0) {
+      const stackId = childToStack.get(id);
+      warnings.push({
+        type: "ignored_rel_on_stack_child",
+        elementId: id,
+        stackId,
+        properties: offendingProps,
+        message: `Element "${id}" is a child of stack "${stackId}", so its relative positioning markers on ${offendingProps.join(", ")} are ignored. Use gap/align on the stack instead.`
+      });
+    }
+  }
+  for (const [id, el2] of flatMap) {
+    if (stackChildSet.has(id)) continue;
+    const fillProps = [];
+    if (el2.props.w === "fill") fillProps.push("w");
+    if (el2.props.h === "fill") fillProps.push("h");
+    if (fillProps.length > 0) {
+      warnings.push({
+        type: "fill_outside_container",
+        elementId: id,
+        properties: fillProps,
+        message: `Element "${id}" has ${fillProps.join("/")}: 'fill' but is not inside a stack or panel. Fill is only valid inside containers.`
       });
     }
   }
@@ -9739,32 +9795,34 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           x = r.x + r.w / 2 - w / 2;
         } else if (marker._rel === "between") {
           if (marker.axis && marker.axis !== "x") {
-            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "x", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x` });
-          }
-          const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
-          const leftEdge = leftBounds.x + leftBounds.w;
-          const rightEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x : marker.ref2;
-          if (typeof rightEdge !== "number" || !Number.isFinite(rightEdge)) {
-            warnings.push({ type: "between_invalid_ref", elementId: id, axis: "x", message: `Invalid ref2 value for between constraint` });
-            x = leftEdge + resolveSpacing("xs");
-            resolvedBounds.set(id, { x, y: el2.props.y ?? 0, w, h });
-            continue;
-          }
-          const availableGapX = rightEdge - leftEdge;
-          const availableSlack = availableGapX - w;
-          if (availableSlack < 0) {
-            const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
-            warnings.push({
-              type: "between_no_fit",
-              elementId: id,
-              ref1: marker.ref,
-              ref2: marker.ref2,
-              message: `Element "${id}" (w=${w}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapX}px). Using minimum gap fallback.`,
-              suggestion: `Increase horizontal space between "${marker.ref}" and ${ref2Label} to at least ${w + 2 * resolveSpacing("xs")}px, or reduce element width.`
-            });
-            x = leftEdge + resolveSpacing("xs");
+            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "x", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to x \u2014 using fallback position` });
+            x = typeof marker.ref === "string" && resolvedBounds.has(marker.ref) ? resolvedBounds.get(marker.ref).x + resolvedBounds.get(marker.ref).w + resolveSpacing("xs") : 0;
           } else {
-            x = leftEdge + availableSlack * (marker.bias ?? 0.5);
+            const leftBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-x: ${marker.ref}`);
+            const leftEdge = leftBounds.x + leftBounds.w;
+            const rightEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-x: ${marker.ref2}`).x : marker.ref2;
+            if (typeof rightEdge !== "number" || !Number.isFinite(rightEdge)) {
+              warnings.push({ type: "between_invalid_ref", elementId: id, axis: "x", message: `Invalid ref2 value for between constraint` });
+              x = leftEdge + resolveSpacing("xs");
+              resolvedBounds.set(id, { x, y: el2.props.y ?? 0, w, h });
+              continue;
+            }
+            const availableGapX = rightEdge - leftEdge;
+            const availableSlack = availableGapX - w;
+            if (availableSlack < 0) {
+              const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
+              warnings.push({
+                type: "between_no_fit",
+                elementId: id,
+                ref1: marker.ref,
+                ref2: marker.ref2,
+                message: `Element "${id}" (w=${w}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapX}px). Using minimum gap fallback.`,
+                suggestion: `Increase horizontal space between "${marker.ref}" and ${ref2Label} to at least ${w + 2 * resolveSpacing("xs")}px, or reduce element width.`
+              });
+              x = leftEdge + resolveSpacing("xs");
+            } else {
+              x = leftEdge + availableSlack * (marker.bias ?? 0.5);
+            }
           }
         } else if (marker._rel === "centerHSlide") {
           const slideW = state.config?.slide?.w ?? 1920;
@@ -9789,32 +9847,34 @@ async function resolvePositions(flatMap, stackParent, stackChildren, resolvedSiz
           y = slideH / 2 - h / 2;
         } else if (marker._rel === "between") {
           if (marker.axis && marker.axis !== "y") {
-            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "y", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y` });
-          }
-          const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
-          const topEdge = topBounds.y + topBounds.h;
-          const bottomEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y : marker.ref2;
-          if (typeof bottomEdge !== "number" || !Number.isFinite(bottomEdge)) {
-            warnings.push({ type: "between_invalid_ref", elementId: id, axis: "y", message: `Invalid ref2 value for between constraint` });
-            y = topEdge + resolveSpacing("xs");
-            resolvedBounds.set(id, { x: el2.props.x ?? 0, y, w, h });
-            continue;
-          }
-          const availableGapY = bottomEdge - topEdge;
-          const availableSlack = availableGapY - h;
-          if (availableSlack < 0) {
-            const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
-            warnings.push({
-              type: "between_no_fit",
-              elementId: id,
-              ref1: marker.ref,
-              ref2: marker.ref2,
-              message: `Element "${id}" (h=${h}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapY}px). Using minimum gap fallback.`,
-              suggestion: `Increase vertical space between "${marker.ref}" and ${ref2Label} to at least ${h + 2 * resolveSpacing("xs")}px, or reduce element height.`
-            });
-            y = topEdge + resolveSpacing("xs");
+            warnings.push({ type: "between_axis_mismatch", elementId: id, axis: "y", declaredAxis: marker.axis, message: `between() declared axis "${marker.axis}" but assigned to y \u2014 using fallback position` });
+            y = typeof marker.ref === "string" && resolvedBounds.has(marker.ref) ? resolvedBounds.get(marker.ref).y + resolvedBounds.get(marker.ref).h + resolveSpacing("xs") : 0;
           } else {
-            y = topEdge + availableSlack * (marker.bias ?? 0.5);
+            const topBounds = mustGet(resolvedBounds, marker.ref, `resolvedBounds missing ref for between-y: ${marker.ref}`);
+            const topEdge = topBounds.y + topBounds.h;
+            const bottomEdge = typeof marker.ref2 === "string" ? mustGet(resolvedBounds, marker.ref2, `resolvedBounds missing ref2 for between-y: ${marker.ref2}`).y : marker.ref2;
+            if (typeof bottomEdge !== "number" || !Number.isFinite(bottomEdge)) {
+              warnings.push({ type: "between_invalid_ref", elementId: id, axis: "y", message: `Invalid ref2 value for between constraint` });
+              y = topEdge + resolveSpacing("xs");
+              resolvedBounds.set(id, { x: el2.props.x ?? 0, y, w, h });
+              continue;
+            }
+            const availableGapY = bottomEdge - topEdge;
+            const availableSlack = availableGapY - h;
+            if (availableSlack < 0) {
+              const ref2Label = typeof marker.ref2 === "string" ? `"${marker.ref2}"` : marker.ref2;
+              warnings.push({
+                type: "between_no_fit",
+                elementId: id,
+                ref1: marker.ref,
+                ref2: marker.ref2,
+                message: `Element "${id}" (h=${h}) does not fit between "${marker.ref}" and ${ref2Label} (available: ${availableGapY}px). Using minimum gap fallback.`,
+                suggestion: `Increase vertical space between "${marker.ref}" and ${ref2Label} to at least ${h + 2 * resolveSpacing("xs")}px, or reduce element height.`
+              });
+              y = topEdge + resolveSpacing("xs");
+            } else {
+              y = topEdge + availableSlack * (marker.bias ?? 0.5);
+            }
           }
         } else {
           const refId = marker.ref;
@@ -10641,6 +10701,12 @@ function finalize({
 async function layout(slideDefinition, options = {}) {
   const errors = [];
   const warnings = [];
+  if (state.config === null) {
+    warnings.push({
+      type: "layout_before_init",
+      message: "SlideKit.layout() called before init(). Using default config."
+    });
+  }
   const elements = slideDefinition.elements || [];
   const transforms = slideDefinition.transforms || [];
   const collisionThreshold = options.collisionThreshold ?? 0;
@@ -10817,25 +10883,35 @@ async function layout(slideDefinition, options = {}) {
         const stackBounds = resolvedBounds.get(stackId);
         const stackSizes = resolvedSizes.get(stackId);
         if (!stackBounds || !stackSizes) continue;
-        if (!stackSizes.hMeasured) continue;
         const gap = resolveSpacing(stackEl.props.gap ?? 0);
         if (stackEl.type === "vstack") {
-          let totalH = 0;
+          let curY = stackBounds.y;
+          const parentId = stackParent.get(stackId);
+          if (!parentId) {
+          }
           for (let i = 0; i < childIds.length; i++) {
             const cs = resolvedBounds.get(childIds[i]);
-            if (cs) totalH += cs.h;
-            if (i > 0) totalH += gap;
+            if (!cs) continue;
+            if (i === 0) curY = stackBounds.y;
+            else curY += gap;
+            cs.y = curY;
+            curY += cs.h;
           }
-          stackBounds.h = totalH;
-          stackSizes.h = totalH;
+          const totalH = curY - stackBounds.y;
+          if (stackSizes.hMeasured) {
+            stackBounds.h = totalH;
+            stackSizes.h = totalH;
+          }
         } else if (stackEl.type === "hstack") {
           let maxH = 0;
           for (const cid of childIds) {
             const cs = resolvedBounds.get(cid);
             if (cs && cs.h > maxH) maxH = cs.h;
           }
-          stackBounds.h = maxH;
-          stackSizes.h = maxH;
+          if (stackSizes.hMeasured) {
+            stackBounds.h = maxH;
+            stackSizes.h = maxH;
+          }
         }
       }
       for (const [id, el2] of flatMap) {
@@ -10846,9 +10922,9 @@ async function layout(slideDefinition, options = {}) {
         const childStack = panelChildren[1];
         const bgRect = panelChildren[0];
         if (!childStack) continue;
-        const stackBounds = resolvedBounds.get(childStack.id);
-        if (!stackBounds) continue;
-        const autoH = stackBounds.h + 2 * config.padding;
+        const childStackBounds = resolvedBounds.get(childStack.id);
+        if (!childStackBounds) continue;
+        const autoH = childStackBounds.h + 2 * config.padding;
         const panelBounds = resolvedBounds.get(id);
         const panelSizes = resolvedSizes.get(id);
         if (panelBounds) panelBounds.h = autoH;
@@ -10885,8 +10961,10 @@ async function layout(slideDefinition, options = {}) {
   });
 }
 _setLayoutFn(layout);
-if (typeof document !== "undefined") {
-  enableKeyboardToggle();
+if (typeof document !== "undefined" && typeof window !== "undefined") {
+  setTimeout(() => {
+    enableKeyboardToggle();
+  }, 0);
 }
 
 // examples/slidekit-about/slides.ts
@@ -11565,7 +11643,7 @@ w: 800, h: 400`,
           (() => {
             const b = mkBox("E", "s6-boxE", "rgba(255,255,255,0.6)");
             b.props.x = 700;
-            b.props.y = placeBetween("s6-boxA", "s6-boxB");
+            b.props.y = between("s6-boxA", "s6-boxB", { axis: "y" });
             return b;
           })(),
           // Connectors
@@ -11600,7 +11678,7 @@ w: 800, h: 400`,
             y: centerVWith("s6-boxD"),
             style: { textAlign: "right" }
           }),
-          codeLabel("placeBetween('A', 'B')", "s6-labelE", C.textSec, {
+          codeLabel("between('A', 'B', {axis:'y'})", "s6-labelE", C.textSec, {
             x: rightOf("s6-boxE", { gap: 16 }),
             y: centerVWith("s6-boxE")
           }),
@@ -12592,7 +12670,7 @@ w: 800, h: 400`,
             })
           ], {
             id: "s14-mini-group",
-            x: placeBetween("s14-measure-panel", "s14-valid-panel"),
+            x: between("s14-measure-panel", "s14-valid-panel", { axis: "x" }),
             y: below("s14-measure-panel", { gap: "lg" }),
             w: 400,
             h: 225,

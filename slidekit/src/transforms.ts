@@ -128,23 +128,35 @@ export function distributeV(ids: string[], options: Record<string, unknown> = {}
 }
 
 /**
- * Match the width of all specified elements to the widest.
+ * Equalize the width of all specified elements to the widest.
+ * (Post-layout transform — NOT a live constraint. For live constraints, use matchWidthOf().)
  *
  * @param {string[]} ids - Array of element IDs
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function matchWidth(ids: string[]): TransformMarker {
+export function equalizeWidth(ids: string[]): TransformMarker {
   return { _transform: "matchWidth", _transformId: nextTransformId(), ids, options: {} };
 }
 
 /**
- * Match the height of all specified elements to the tallest.
+ * Equalize the height of all specified elements to the tallest.
+ * (Post-layout transform — NOT a live constraint. For live constraints, use matchHeightOf().)
  *
  * @param {string[]} ids - Array of element IDs
  * @returns {{ _transform: string, _transformId: string, ids: string[], options: object }}
  */
-export function matchHeight(ids: string[]): TransformMarker {
+export function equalizeHeight(ids: string[]): TransformMarker {
   return { _transform: "matchHeight", _transformId: nextTransformId(), ids, options: {} };
+}
+
+/** @deprecated Use equalizeWidth() instead. */
+export function matchWidth(ids: string[]): TransformMarker {
+  return equalizeWidth(ids);
+}
+
+/** @deprecated Use equalizeHeight() instead. */
+export function matchHeight(ids: string[]): TransformMarker {
+  return equalizeHeight(ids);
 }
 
 /**
