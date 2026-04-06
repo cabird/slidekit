@@ -537,6 +537,7 @@ function _ensureMeasureContainer() {
 }
 function clearMeasureCache() {
   state.measureCache.clear();
+  _hasYieldedForFonts = false;
 }
 function _elMeasureCacheKey(html, props) {
   const styleKey = props.style ? JSON.stringify(props.style, Object.keys(props.style).sort()) : null;
@@ -596,7 +597,10 @@ async function measure(html, props = {}) {
       new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS))
     ]);
   }
-  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  if (!_hasYieldedForFonts) {
+    _hasYieldedForFonts = true;
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
   void div.offsetHeight;
   const imgs = div.querySelectorAll("img");
   if (imgs.length > 0) {
@@ -623,6 +627,7 @@ async function measure(html, props = {}) {
   state.measureCache.set(cacheKey, result);
   return result;
 }
+var _hasYieldedForFonts;
 var init_measure = __esm({
   "slidekit/src/measure.ts"() {
     "use strict";
@@ -630,6 +635,7 @@ var init_measure = __esm({
     init_style();
     init_style();
     init_dom_helpers();
+    _hasYieldedForFonts = false;
   }
 });
 
