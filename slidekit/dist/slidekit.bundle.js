@@ -511,6 +511,9 @@ var init_dom_helpers = __esm({
 });
 
 // slidekit/src/measure.ts
+function _skMeasureDebug() {
+  return typeof window !== "undefined" && !!window.__skMeasureDebug();
+}
 function _ensureMeasureContainer() {
   if (state.measureContainer && state.measureContainer.parentNode) return;
   if (typeof document === "undefined" || !document.body) {
@@ -571,20 +574,20 @@ async function measure(html, props = {}) {
         const fontSpec = `${fontWeight} ${fontSize} ${fontFamily}`;
         const alreadyLoaded = document.fonts.check(fontSpec, "BESbswy");
         if (!alreadyLoaded) {
-          if (_SK_MEASURE_DEBUG) {
+          if (_skMeasureDebug()) {
             console.log(`[sk-measure] Font not loaded, waiting: ${fontSpec}`);
           }
           const loadResult = await Promise.race([
             document.fonts.load(fontSpec, "BESbswy"),
             new Promise((resolve) => setTimeout(() => resolve([]), FONT_TIMEOUT_MS))
           ]);
-          if (_SK_MEASURE_DEBUG) {
+          if (_skMeasureDebug()) {
             console.log(`[sk-measure] Font load result: ${loadResult.length} faces loaded for ${fontSpec}`);
           }
         }
       }
     } catch (err) {
-      if (_SK_MEASURE_DEBUG) {
+      if (_skMeasureDebug()) {
         console.warn(`[sk-measure] Font load error:`, err);
       }
     }
@@ -611,7 +614,7 @@ async function measure(html, props = {}) {
     }));
   }
   const result = { w: div.offsetWidth, h: div.scrollHeight };
-  if (_SK_MEASURE_DEBUG) {
+  if (_skMeasureDebug()) {
     const snippet = html.length > 60 ? html.slice(0, 60) + "..." : html;
     console.log(`[sk-measure] ${result.w}x${result.h} (w=${props.w ?? "auto"}) "${snippet}"`);
   }
@@ -619,7 +622,6 @@ async function measure(html, props = {}) {
   state.measureCache.set(cacheKey, result);
   return result;
 }
-var _SK_MEASURE_DEBUG;
 var init_measure = __esm({
   "slidekit/src/measure.ts"() {
     "use strict";
@@ -627,7 +629,6 @@ var init_measure = __esm({
     init_style();
     init_style();
     init_dom_helpers();
-    _SK_MEASURE_DEBUG = typeof window !== "undefined" && window.__SK_MEASURE_DEBUG;
   }
 });
 

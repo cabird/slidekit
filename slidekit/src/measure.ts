@@ -1,7 +1,10 @@
 // SlideKit — Measurement utilities (container management, HTML measurement)
 
-// Set window.__SK_MEASURE_DEBUG = true in console before render() to enable logging
-const _SK_MEASURE_DEBUG = typeof window !== 'undefined' && (window as any).__SK_MEASURE_DEBUG;
+// Set window.__skMeasureDebug() = true in console to enable logging.
+// Checked at call time, not module load time, so you can set it anytime.
+function _skMeasureDebug(): boolean {
+  return typeof window !== 'undefined' && !!(window as any).__skMeasureDebug();
+}
 
 import { state } from './state.js';
 
@@ -151,20 +154,20 @@ export async function measure(
         const alreadyLoaded = document.fonts.check(fontSpec, 'BESbswy');
         if (!alreadyLoaded) {
           // Font not loaded yet — wait for it
-          if (_SK_MEASURE_DEBUG) {
+          if (_skMeasureDebug()) {
             console.log(`[sk-measure] Font not loaded, waiting: ${fontSpec}`);
           }
           const loadResult = await Promise.race([
             document.fonts.load(fontSpec, 'BESbswy'),
             new Promise<FontFace[]>(resolve => setTimeout(() => resolve([]), FONT_TIMEOUT_MS)),
           ]);
-          if (_SK_MEASURE_DEBUG) {
+          if (_skMeasureDebug()) {
             console.log(`[sk-measure] Font load result: ${loadResult.length} faces loaded for ${fontSpec}`);
           }
         }
       }
     } catch (err) {
-      if (_SK_MEASURE_DEBUG) {
+      if (_skMeasureDebug()) {
         console.warn(`[sk-measure] Font load error:`, err);
       }
     }
@@ -195,7 +198,7 @@ export async function measure(
 
   // Read dimensions
   const result = { w: div.offsetWidth, h: div.scrollHeight };
-  if (_SK_MEASURE_DEBUG) {
+  if (_skMeasureDebug()) {
     const snippet = html.length > 60 ? html.slice(0, 60) + '...' : html;
     console.log(`[sk-measure] ${result.w}x${result.h} (w=${props.w ?? 'auto'}) "${snippet}"`);
   }
