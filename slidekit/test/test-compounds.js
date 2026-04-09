@@ -133,11 +133,27 @@ describe("M7.2: connect — layout integration", () => {
     // Source cr: x=100+200=300, y=100+50=150
     // Target cl: x=500, y=100+50=150
     const connData = scene.elements["conn1"];
-    assert.ok(connData._connectorResolved, "connector should have resolved data");
-    assert.equal(connData._connectorResolved.from.x, 300);
-    assert.equal(connData._connectorResolved.from.y, 150);
-    assert.equal(connData._connectorResolved.to.x, 500);
-    assert.equal(connData._connectorResolved.to.y, 150);
+    assert.ok(connData.connector, "connector should have resolved data");
+    assert.equal(connData.connector.from.x, 300);
+    assert.equal(connData.connector.from.y, 150);
+    assert.equal(connData.connector.to.x, 500);
+    assert.equal(connData.connector.to.y, 150);
+    // Logical references should round-trip with default anchors (cr -> cl)
+    assert.equal(connData.connector.from.elementId, "src");
+    assert.equal(connData.connector.from.anchor, "cr");
+    assert.equal(connData.connector.to.elementId, "tgt");
+    assert.equal(connData.connector.to.anchor, "cl");
+    // Resolved path endpoints should mirror the numeric anchor points
+    assert.equal(connData.connector.path.x1, 300);
+    assert.equal(connData.connector.path.y1, 150);
+    assert.equal(connData.connector.path.x2, 500);
+    assert.equal(connData.connector.path.y2, 150);
+    // Default style should be populated with renderer defaults
+    assert.equal(connData.connector.style.type, "straight");
+    assert.equal(connData.connector.style.arrow, "end");
+    assert.equal(connData.connector.style.thickness, 2);
+    assert.equal(connData.connector.style.dash, null);
+    assert.equal(connData.connector.style.opacity, 1);
   });
 
   it("resolves connector with custom anchors", async () => {
@@ -150,13 +166,15 @@ describe("M7.2: connect — layout integration", () => {
     const scene = await layout({ elements: [src, tgt, conn] });
 
     const connData = scene.elements["c2"];
-    assert.ok(connData._connectorResolved);
+    assert.ok(connData.connector);
     // Source bc: x=0+50=50, y=0+100=100
-    assert.equal(connData._connectorResolved.from.x, 50);
-    assert.equal(connData._connectorResolved.from.y, 100);
+    assert.equal(connData.connector.from.x, 50);
+    assert.equal(connData.connector.from.y, 100);
+    assert.equal(connData.connector.from.anchor, "bc");
     // Target tc: x=300+50=350, y=300
-    assert.equal(connData._connectorResolved.to.x, 350);
-    assert.equal(connData._connectorResolved.to.y, 300);
+    assert.equal(connData.connector.to.x, 350);
+    assert.equal(connData.connector.to.y, 300);
+    assert.equal(connData.connector.to.anchor, "tc");
   });
 
   it("connector resolvedBounds are populated with bounding box", async () => {
@@ -212,10 +230,10 @@ describe("M7.2: connect — layout integration", () => {
 
     assert.equal(scene.errors.length, 0, "no errors expected");
     const connData = scene.elements["c6"];
-    assert.ok(connData._connectorResolved, "connector should be resolved");
+    assert.ok(connData.connector, "connector should be resolved");
     // box-a cr: x=150, y=90 | box-b cl: x=400, y=90
-    assert.equal(connData._connectorResolved.from.x, 150);
-    assert.equal(connData._connectorResolved.to.x, 400);
+    assert.equal(connData.connector.from.x, 150);
+    assert.equal(connData.connector.to.x, 400);
   });
 
   it("warns when connector endpoint cannot be resolved", async () => {
@@ -239,8 +257,8 @@ describe("M7.2: connect — layout integration", () => {
     const scene = await layout({ elements: [a, b, c, conn1, conn2] });
 
     assert.equal(scene.errors.length, 0);
-    assert.ok(scene.elements["mc1"]._connectorResolved);
-    assert.ok(scene.elements["mc2"]._connectorResolved);
+    assert.ok(scene.elements["mc1"].connector);
+    assert.ok(scene.elements["mc2"].connector);
   });
 });
 
@@ -802,7 +820,7 @@ describe("M7: integration — mixed compounds on a slide", () => {
     assert.ok(scene.elements["box1"], "box1 resolved");
     assert.ok(scene.elements["box2"], "box2 resolved");
     assert.ok(scene.elements["arrow1"], "connector resolved");
-    assert.ok(scene.elements["arrow1"]._connectorResolved, "connector endpoints resolved");
+    assert.ok(scene.elements["arrow1"].connector, "connector endpoints resolved");
     assert.ok(scene.elements["info-panel"], "panel resolved");
   });
 

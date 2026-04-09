@@ -25,7 +25,7 @@ export function adjustViewport(panelWidth: number): void {
   }
 
   if (s.revealContainer) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const Reveal = (window as any).Reveal;
 
     // Set width FIRST so any subsequent layout() reads the reduced size
@@ -66,7 +66,7 @@ export function resetViewport(): void {
     s.revealContainer.style.width = '';
     s.revealContainer.style.height = '';
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const Reveal = (window as any).Reveal;
 
     if (s.wasEmbedded && Reveal && typeof Reveal.configure === 'function') {

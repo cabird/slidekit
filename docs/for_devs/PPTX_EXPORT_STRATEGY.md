@@ -559,7 +559,65 @@ const elements = window.sk.slides[slideIndex].elements;
 // - x, y, w, h (resolved positions)
 // - authored props (font, color, constraints, etc.)
 // - children (for groups/stacks)
-// - _connectorResolved (waypoints for connectors)
+// - connector (present when type === "connector"; see below)
+```
+
+### Connectors
+
+Connector elements carry a first-class `connector` field with everything an
+exporter needs — logical references, resolved anchor geometry, resolved style
+(with renderer defaults applied and CSS custom properties pre-resolved), and
+drawable path data:
+
+```javascript
+const conn = window.sk.slides[slideIndex].elements[connectorId].connector;
+
+// Logical references (what an exporter writes into the .pptx graph)
+conn.from.elementId;  // source element id
+conn.from.anchor;     // "cr" | "cl" | "tc" | "bc" | "tl" | "tr" | "bl" | "br" | "cc"
+conn.to.elementId;
+conn.to.anchor;
+
+// Numeric anchor points in slide-level CSS px (post port-spreading),
+// plus outward-pointing direction vectors used by the renderer.
+conn.from.x; conn.from.y; conn.from.dx; conn.from.dy;
+conn.to.x;   conn.to.y;   conn.to.dx;   conn.to.dy;
+
+// Resolved style — effective visual style after defaults are applied.
+// `opacity` mirrors the renderer's effective value (1 unless explicitly set),
+// so exporters can trust it as the on-screen value without extra defaulting.
+conn.style.type;      // "straight" | "curved" | "elbow" | "orthogonal"
+conn.style.color;     // CSS var(--...) resolved to a concrete color when possible
+conn.style.thickness; // CSS px
+conn.style.arrow;     // "none" | "start" | "end" | "both"
+conn.style.dash;      // SVG stroke-dasharray string, or null for solid
+conn.style.opacity;   // [0, 1]
+
+// Drawable path data in slide-level CSS px
+conn.path.x1; conn.path.y1; conn.path.x2; conn.path.y2;
+// Curved connectors only — cubic Bezier control points
+conn.path.cx1; conn.path.cy1; conn.path.cx2; conn.path.cy2;
+// Elbow / orthogonal connectors only — polyline waypoints (includes endpoints)
+conn.path.waypoints;
+// Elbow / orthogonal connectors only — rounded-corner radius, if authored.
+// Exporters wanting visual parity should fillet each interior waypoint by
+// this amount (CSS px).
+conn.path.cornerRadius;
+
+// Resolved label — only present when a label is authored. All coordinates
+// are slide-level CSS px and already include the authored label offset,
+// so the exporter can treat (label.x, label.y) as the final text anchor.
+// The label should be rotated around that anchor by `angle` degrees.
+if (conn.label) {
+  conn.label.text;       // label string
+  conn.label.x;          // text anchor x (slide-level, post-offset)
+  conn.label.y;          // text anchor y (slide-level, post-offset)
+  conn.label.angle;      // degrees, typically 0 or -90
+  conn.label.style.fontFamily;
+  conn.label.style.fontSize;
+  conn.label.style.fontWeight;
+  conn.label.style.color;  // CSS custom properties resolved best-effort
+}
 ```
 
 ### Computed Styles

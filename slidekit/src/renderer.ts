@@ -9,7 +9,7 @@ import { resolveAnchor } from './anchor.js';
 import { getConfig } from './config.js';
 import { applyStyleToDOM } from './dom-helpers.js';
 import { lintSlide, lintDeck } from './lint.js';
-import { routeConnector } from './connectorRouting.js';
+import type { ConnectorResolved } from './types.js';
 import { enableKeyboardToggle } from './debug.js';
 import { clearMeasureCache } from './measure.js';
 import type { SlideElement, SlideDefinition, LayoutResult } from './types.js';
@@ -93,33 +93,33 @@ export function applySlideBackground(section: HTMLElement, background: string): 
  * @param {object} connProps - Connector properties from the element
  * @returns {HTMLElement} An absolutely positioned div containing the SVG
  */
-function buildConnectorSVG(
-  from: {x: number, y: number, dx: number, dy: number},
-  to: {x: number, y: number, dx: number, dy: number},
-  connProps: Record<string, any>
-): HTMLElement {
+/**
+ * Build an absolutely-positioned div containing the SVG for a connector.
+ *
+ * This consumes the fully resolved `ConnectorResolved` as its single source
+ * of truth: endpoints, control points, waypoints, style, and pre-placed
+ * label geometry all come from the scene graph. No authored-prop fallbacks.
+ */
+function buildConnectorSVG(conn: ConnectorResolved, elementMarkerId: string): HTMLElement {
+  const { from, to, style, path, label } = conn;
+  const connType = style.type;
+  const thickness = style.thickness;
+  const color = style.color;
+  const dash = style.dash;
+  const arrow = style.arrow;
+
   // Dynamic padding: enough room for arrowhead markers + stroke width
-  const thickness = connProps.thickness ?? 2;
   const markerSize = 8; // matches marker markerWidth/markerHeight
   const padding = Math.max(20, markerSize + thickness * 2);
-  const connType = connProps.connectorType || "straight";
   let minX = Math.min(from.x, to.x) - padding;
   let minY = Math.min(from.y, to.y) - padding;
   let maxX = Math.max(from.x, to.x) + padding;
   let maxY = Math.max(from.y, to.y) + padding;
 
-  // Use cached waypoints from layout if available, otherwise compute
-  let elbowWaypoints: {x: number, y: number}[] | null = null;
-  if (connType === "elbow" || connType === "orthogonal") {
-    if (connProps._cachedWaypoints) {
-      elbowWaypoints = connProps._cachedWaypoints;
-    } else {
-      const cornerRadius = (connProps.cornerRadius as number) ?? 0;
-      const stubLength = Math.max(40, markerSize * thickness + cornerRadius + 15);
-      const route = routeConnector({ from, to, orthogonal: connType === "orthogonal", stubLength });
-      elbowWaypoints = route.waypoints;
-    }
-    for (const wp of elbowWaypoints!) {
+  // Elbow/orthogonal: waypoints are pre-routed by finalize.
+  const elbowWaypoints = path.waypoints ?? null;
+  if (elbowWaypoints) {
+    for (const wp of elbowWaypoints) {
       if (wp.x < minX) minX = wp.x;
       if (wp.y < minY) minY = wp.y;
       if (wp.x > maxX) maxX = wp.x;
@@ -127,20 +127,14 @@ function buildConnectorSVG(
     }
   }
 
-  // Clamp control point offset for curved connectors
-  let cpOffset = 0;
-  if (connType === "curved") {
-    const dist = Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2);
-    cpOffset = Math.min(200, Math.max(40, dist * 0.4));
-    const cx1 = from.x + from.dx * cpOffset;
-    const cy1 = from.y + from.dy * cpOffset;
-    const cx2 = to.x + to.dx * cpOffset;
-    const cy2 = to.y + to.dy * cpOffset;
-    minX = Math.min(minX, cx1, cx2);
-    minY = Math.min(minY, cy1, cy2);
-    maxX = Math.max(maxX, cx1, cx2);
-    maxY = Math.max(maxY, cy1, cy2);
+  // Curved: control points are pre-computed by finalize.
+  if (connType === "curved" && path.cx1 !== undefined) {
+    minX = Math.min(minX, path.cx1!, path.cx2!);
+    minY = Math.min(minY, path.cy1!, path.cy2!);
+    maxX = Math.max(maxX, path.cx1!, path.cx2!);
+    maxY = Math.max(maxY, path.cy1!, path.cy2!);
   }
+
   const svgW = maxX - minX;
   const svgH = maxY - minY;
 
@@ -157,10 +151,6 @@ function buildConnectorSVG(
   svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
   svg.style.overflow = "visible";
 
-  const color = connProps.color || "#ffffff";
-  const dash = connProps.dash;
-  const arrow = connProps.arrow || "end";
-
   // Arrowhead trim: move path endpoints inward so the stroke ends at the
   // arrowhead midpoint (refX=5) rather than extending through to the tip.
   // The marker tip extends past the shortened endpoint to the original anchor.
@@ -169,9 +159,8 @@ function buildConnectorSVG(
   const arrowTrim = (10 - arrowRefX) / 10 * markerSize * thickness;
 
   // Create marker definitions for arrow heads
-  // Use element ID for deterministic marker IDs (avoid Math.random)
   const defs = document.createElementNS(ns, "defs");
-  const markerId = `sk-arrow-${connProps._markerId || 'default'}`;
+  const markerId = `sk-arrow-${elementMarkerId}`;
 
   if (arrow !== "none") {
     const marker = document.createElementNS(ns, "marker");
@@ -241,26 +230,28 @@ function buildConnectorSVG(
     pathEl = document.createElementNS(ns, "path");
     let d;
     if (connType === "curved") {
-      // Trim curved path endpoints
+      // Use pre-computed control points from the scene graph (slide-level)
+      // and convert to SVG-local coordinates.
+      const cx1 = (path.cx1 ?? from.x) - minX;
+      const cy1 = (path.cy1 ?? from.y) - minY;
+      const cx2 = (path.cx2 ?? to.x) - minX;
+      const cy2 = (path.cy2 ?? to.y) - minY;
       let startPt = {x: lx1, y: ly1};
       let endPt = {x: lx2, y: ly2};
+      // Trim curved path endpoints along the tangent into each control point.
       if (hasStartArrow) {
-        const trimmed = trimStart([startPt, {x: lx1 + from.dx * cpOffset, y: ly1 + from.dy * cpOffset}], arrowTrim);
+        const trimmed = trimStart([startPt, {x: cx1, y: cy1}], arrowTrim);
         startPt = trimmed[0];
       }
       if (hasEndArrow) {
-        const trimmed = trimEnd([{x: lx2 + to.dx * cpOffset, y: ly2 + to.dy * cpOffset}, endPt], arrowTrim);
+        const trimmed = trimEnd([{x: cx2, y: cy2}, endPt], arrowTrim);
         endPt = trimmed[trimmed.length - 1];
       }
-      const cx1 = lx1 + from.dx * cpOffset;
-      const cy1 = ly1 + from.dy * cpOffset;
-      const cx2 = lx2 + to.dx * cpOffset;
-      const cy2 = ly2 + to.dy * cpOffset;
       d = `M ${startPt.x} ${startPt.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${endPt.x} ${endPt.y}`;
     } else if (connType === "elbow" || connType === "orthogonal") {
-      // Use orthogonal routing with direction-aware waypoints
+      // Waypoints are pre-routed by finalize (slide-level). Convert to
+      // SVG-local coordinates.
       const waypoints = elbowWaypoints!;
-      // Convert waypoints to SVG-local coordinates
       let localWaypoints = waypoints.map(p => ({
         x: p.x - minX,
         y: p.y - minY
@@ -269,7 +260,7 @@ function buildConnectorSVG(
       if (hasEndArrow) localWaypoints = trimEnd(localWaypoints, arrowTrim);
       if (hasStartArrow) localWaypoints = trimStart(localWaypoints, arrowTrim);
       if (localWaypoints.length >= 2) {
-        const cornerRadius = connProps.cornerRadius ?? 0;
+        const cornerRadius = path.cornerRadius ?? 0;
         if (cornerRadius > 0 && localWaypoints.length >= 3) {
           d = buildRoundedElbowPath(localWaypoints, cornerRadius);
         } else {
@@ -303,76 +294,42 @@ function buildConnectorSVG(
 
   svg.appendChild(pathEl);
 
-  // Optional label — placed along the actual path
-  if (connProps.label) {
-    const labelStyle = connProps.labelStyle || {};
-    const labelSize = labelStyle.size ?? labelStyle.fontSize ?? 14;
-    const labelColor = labelStyle.color ?? "#999999";
-    const labelFont = labelStyle.font || labelStyle.fontFamily || "Inter";
-    const labelWeight = labelStyle.weight ?? labelStyle.fontWeight ?? 400;
-    const labelPosition = connProps.labelPosition ?? 0.5;
-    const labelOffsetX = connProps.labelOffset?.x ?? 0;
-    const labelOffsetY = connProps.labelOffset?.y ?? -8;
+  // Optional label — placement and style are pre-resolved by finalize.
+  if (label) {
+    // Convert slide-level anchor to SVG-local coordinates.
+    const anchorX = label.x - minX;
+    const anchorY = label.y - minY;
+    const { angle, text, style: ls } = label;
 
-    // Compute label position along the actual path
-    let midLX: number, midLY: number;
-    let segAngle = 0; // rotation angle for the label
-    if ((connType === "elbow" || connType === "orthogonal") && elbowWaypoints && elbowWaypoints.length >= 2) {
-      const localWaypoints = elbowWaypoints.map(p => ({ x: p.x - minX, y: p.y - minY }));
-      const pt = pointAlongPolyline(localWaypoints, labelPosition);
-      midLX = pt.x;
-      midLY = pt.y;
-      // Find which segment the label falls on and compute angle
-      const segInfo = segmentAtFraction(localWaypoints, labelPosition);
-      if (segInfo) {
-        const dx = segInfo.p2.x - segInfo.p1.x;
-        const dy = segInfo.p2.y - segInfo.p1.y;
-        if (Math.abs(dx) < 0.5 && Math.abs(dy) > 0.5) {
-          segAngle = -90; // vertical segment: rotate label
-        }
-      }
-    } else {
-      midLX = lx1 + (lx2 - lx1) * labelPosition;
-      midLY = ly1 + (ly2 - ly1) * labelPosition;
-      // For straight/curved, check if mostly vertical
-      if (Math.abs(lx2 - lx1) < Math.abs(ly2 - ly1) * 0.3) {
-        segAngle = -90;
-      }
-    }
-
-    // Add a background rect behind the label so the line doesn't cross it
-    // First measure approximate text width
-    const approxCharWidth = (typeof labelSize === 'number' ? labelSize : 14) * 0.6;
-    const textWidth = connProps.label.length * approxCharWidth + 8;
-    const textHeight = (typeof labelSize === 'number' ? labelSize : 14) + 6;
+    // Approximate background sizing so the stroke doesn't cross the label.
+    const fontSize = typeof ls.fontSize === 'number' ? ls.fontSize : 14;
+    const approxCharWidth = fontSize * 0.6;
+    const textWidth = text.length * approxCharWidth + 8;
+    const textHeight = fontSize + 6;
     const bgRect = document.createElementNS(ns, "rect");
-    const bgX = midLX + labelOffsetX - textWidth / 2;
-    const bgY = midLY + labelOffsetY - textHeight + 2;
-    bgRect.setAttribute("x", String(bgX));
-    bgRect.setAttribute("y", String(bgY));
+    bgRect.setAttribute("x", String(anchorX - textWidth / 2));
+    bgRect.setAttribute("y", String(anchorY - textHeight + 2));
     bgRect.setAttribute("width", String(textWidth));
     bgRect.setAttribute("height", String(textHeight));
-    bgRect.setAttribute("fill", connProps._bgColor || "#0a0a1a");
+    bgRect.setAttribute("fill", "#0a0a1a");
     bgRect.setAttribute("rx", "3");
-    if (segAngle !== 0) {
-      bgRect.setAttribute("transform",
-        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`);
+    if (angle !== 0) {
+      bgRect.setAttribute("transform", `rotate(${angle} ${anchorX} ${anchorY})`);
     }
     svg.appendChild(bgRect);
 
     const textNode = document.createElementNS(ns, "text");
-    textNode.setAttribute("x", String(midLX + labelOffsetX));
-    textNode.setAttribute("y", String(midLY + labelOffsetY));
+    textNode.setAttribute("x", String(anchorX));
+    textNode.setAttribute("y", String(anchorY));
     textNode.setAttribute("text-anchor", "middle");
-    textNode.setAttribute("font-family", `"${labelFont}", sans-serif`);
-    textNode.setAttribute("font-size", String(labelSize));
-    textNode.setAttribute("font-weight", String(labelWeight));
-    textNode.setAttribute("fill", labelColor);
-    if (segAngle !== 0) {
-      textNode.setAttribute("transform",
-        `rotate(${segAngle} ${midLX + labelOffsetX} ${midLY + labelOffsetY})`);
+    textNode.setAttribute("font-family", `"${ls.fontFamily}", sans-serif`);
+    textNode.setAttribute("font-size", String(ls.fontSize));
+    textNode.setAttribute("font-weight", String(ls.fontWeight));
+    textNode.setAttribute("fill", ls.color);
+    if (angle !== 0) {
+      textNode.setAttribute("transform", `rotate(${angle} ${anchorX} ${anchorY})`);
     }
-    textNode.textContent = connProps.label;
+    textNode.textContent = text;
     svg.appendChild(textNode);
   }
 
@@ -387,69 +344,6 @@ function buildConnectorSVG(
   wrapper.appendChild(svg);
 
   return wrapper;
-}
-
-/**
- * Find a point at a given fraction (0–1) along a polyline's total length.
- */
-function pointAlongPolyline(points: {x: number, y: number}[], t: number): {x: number, y: number} {
-  if (points.length < 2) return points[0] || { x: 0, y: 0 };
-
-  // Compute total length
-  const segLengths: number[] = [];
-  let totalLength = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    const dx = points[i + 1].x - points[i].x;
-    const dy = points[i + 1].y - points[i].y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    segLengths.push(len);
-    totalLength += len;
-  }
-
-  if (totalLength === 0) return points[0];
-
-  const targetLength = t * totalLength;
-  let accumulated = 0;
-  for (let i = 0; i < segLengths.length; i++) {
-    if (accumulated + segLengths[i] >= targetLength) {
-      const segFraction = segLengths[i] > 0 ? (targetLength - accumulated) / segLengths[i] : 0;
-      return {
-        x: points[i].x + (points[i + 1].x - points[i].x) * segFraction,
-        y: points[i].y + (points[i + 1].y - points[i].y) * segFraction,
-      };
-    }
-    accumulated += segLengths[i];
-  }
-
-  return points[points.length - 1];
-}
-
-/**
- * Return the segment endpoints at a given fraction along a polyline.
- */
-function segmentAtFraction(
-  points: {x: number, y: number}[],
-  t: number
-): { p1: {x: number, y: number}, p2: {x: number, y: number} } | null {
-  if (points.length < 2) return null;
-  const segLengths: number[] = [];
-  let totalLength = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    const dx = points[i + 1].x - points[i].x;
-    const dy = points[i + 1].y - points[i].y;
-    segLengths.push(Math.sqrt(dx * dx + dy * dy));
-    totalLength += segLengths[i];
-  }
-  if (totalLength === 0) return null;
-  const targetLength = t * totalLength;
-  let accumulated = 0;
-  for (let i = 0; i < segLengths.length; i++) {
-    if (accumulated + segLengths[i] >= targetLength) {
-      return { p1: points[i], p2: points[i + 1] };
-    }
-    accumulated += segLengths[i];
-  }
-  return { p1: points[points.length - 2], p2: points[points.length - 1] };
 }
 
 /**
@@ -707,22 +601,13 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
     case "connector": {
       // Connector elements are rendered as SVG overlays.
       // The scene graph contains resolved endpoint coordinates.
-      const connectorData = sceneElements[element.id]?._connectorResolved;
+      const connectorData = sceneElements[element.id]?.connector;
       if (connectorData) {
-        const svgWrapper = buildConnectorSVG(
-          connectorData.from,
-          connectorData.to,
-          {
-            ...props,
-            _markerId: element.id,
-            _cachedWaypoints: connectorData.waypoints,
-          }
-        );
-        // Return the SVG wrapper directly instead of the div
+        const svgWrapper = buildConnectorSVG(connectorData, element.id);
         svgWrapper.setAttribute("data-sk-id", element.id);
         svgWrapper.style.zIndex = String(zIndex);
-        if (props.opacity !== undefined && props.opacity !== 1) {
-          svgWrapper.style.opacity = String(props.opacity);
+        if (connectorData.style.opacity !== 1) {
+          svgWrapper.style.opacity = String(connectorData.style.opacity);
         }
         return svgWrapper;
       }

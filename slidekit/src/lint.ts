@@ -161,17 +161,17 @@ function ruleDuplicateId(slideData: LintSlideData): LintFinding[] {
 /** Check if one element is a connector and the other is one of its endpoints. */
 function isConnectorEndpointPair(a: SceneElement, b: SceneElement): boolean {
   if (a.type === 'connector') {
-    const cr = a._connectorResolved;
+    const cr = a.connector;
     const props = a.authored?.props as Record<string, unknown>;
-    const fromId = cr?.fromId ?? props?.fromId;
-    const toId = cr?.toId ?? props?.toId;
+    const fromId = cr?.from.elementId ?? (props?.fromId as string | undefined);
+    const toId = cr?.to.elementId ?? (props?.toId as string | undefined);
     if (b.id === fromId || b.id === toId) return true;
   }
   if (b.type === 'connector') {
-    const cr = b._connectorResolved;
+    const cr = b.connector;
     const props = b.authored?.props as Record<string, unknown>;
-    const fromId = cr?.fromId ?? props?.fromId;
-    const toId = cr?.toId ?? props?.toId;
+    const fromId = cr?.from.elementId ?? (props?.fromId as string | undefined);
+    const toId = cr?.to.elementId ?? (props?.toId as string | undefined);
     if (a.id === fromId || a.id === toId) return true;
   }
   return false;

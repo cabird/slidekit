@@ -482,8 +482,58 @@ classDiagram
         +boolean _internal
         +Provenance provenance
         +Object _layoutFlags
-        +Object _connectorResolved
+        +ConnectorResolved connector
         +Warning[] styleWarnings
+    }
+
+    class ConnectorResolved {
+        +ConnectorEndpoint from
+        +ConnectorEndpoint to
+        +ConnectorResolvedStyle style
+        +ConnectorResolvedPath path
+        +ConnectorResolvedLabel label
+    }
+
+    class ConnectorResolvedLabel {
+        +string text
+        +number x
+        +number y
+        +number angle
+        +number position
+        +number offsetX
+        +number offsetY
+        +Object style
+    }
+
+    class ConnectorEndpoint {
+        +string elementId
+        +AnchorPoint anchor
+        +number x
+        +number y
+        +number dx
+        +number dy
+    }
+
+    class ConnectorResolvedStyle {
+        +ConnectorType type
+        +string color
+        +number thickness
+        +ArrowType arrow
+        +string|null dash
+        +number opacity
+    }
+
+    class ConnectorResolvedPath {
+        +number x1
+        +number y1
+        +number x2
+        +number y2
+        +number cx1
+        +number cy1
+        +number cx2
+        +number cy2
+        +Point[] waypoints
+        +number cornerRadius
     }
 
     class Authored {

@@ -70,7 +70,7 @@ declare global {
 
 /** Get the current horizontal slide index from Reveal.js, or 0 if unavailable. */
 function _getCurrentSlideIndex(): number {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const Reveal = (window as any).Reveal;
   if (Reveal && typeof Reveal.getIndices === 'function') {
     return Reveal.getIndices().h ?? 0;
@@ -98,7 +98,7 @@ function _onSlideChanged(): void {
 
 /** Start listening for Reveal.js slide changes. */
 function _attachSlideChangeListener(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const Reveal = (window as any).Reveal;
   if (Reveal && typeof Reveal.on === 'function') {
     Reveal.on('slidechanged', _onSlideChanged);
@@ -107,7 +107,7 @@ function _attachSlideChangeListener(): void {
 
 /** Stop listening for Reveal.js slide changes. */
 function _detachSlideChangeListener(): void {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const Reveal = (window as any).Reveal;
   if (Reveal && typeof Reveal.off === 'function') {
     Reveal.off('slidechanged', _onSlideChanged);

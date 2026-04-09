@@ -10,7 +10,147 @@ import { buildProvenance, computeAABBIntersection } from './helpers.js';
 import { mustGet } from '../assertions.js';
 import { isPanelElement } from '../types.js';
 import { routeConnector } from '../connectorRouting.js';
-import type { SlideElement, Rect, Point, AnchorPointResult, ResolvedSize, TransformMarker, AuthoredSpec, LayoutResult, SceneElement, Provenance, ElementType } from '../types.js';
+import type { SlideElement, Rect, Point, AnchorPointResult, ResolvedSize, TransformMarker, AuthoredSpec, LayoutResult, SceneElement, Provenance, ElementType, ConnectorType, ArrowType, ConnectorResolvedPath, ConnectorResolvedLabel } from '../types.js';
+
+/**
+ * Resolve a CSS color string to a concrete value if possible. Handles
+ * `var(--name)` (and `var(--name, fallback)`) by looking up the custom
+ * property on `document.documentElement`. Any other input (hex, rgb, named
+ * color) is returned unchanged. Safe to call in non-browser environments.
+ */
+function resolveCssColor(input: string): string {
+  if (!input) return input;
+  const trimmed = input.trim();
+  if (!trimmed.startsWith('var(')) return trimmed;
+  if (typeof document === 'undefined') return trimmed;
+  // Parse var(--name) or var(--name, fallback)
+  const inner = trimmed.slice(4, -1); // strip "var(" and ")"
+  const commaIdx = inner.indexOf(',');
+  const name = (commaIdx === -1 ? inner : inner.slice(0, commaIdx)).trim();
+  const fallback = commaIdx === -1 ? '' : inner.slice(commaIdx + 1).trim();
+  try {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (value) return value;
+  } catch {
+    // ignore
+  }
+  return fallback || trimmed;
+}
+
+/**
+ * Find a point at a given fraction (0–1) along a polyline's total arc length.
+ * Used for resolving label placement along elbow/orthogonal connector routes.
+ */
+function pointAlongPolyline(points: Point[], t: number): Point {
+  if (points.length < 2) return points[0] || { x: 0, y: 0 };
+  const segLengths: number[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    segLengths.push(len);
+    totalLength += len;
+  }
+  if (totalLength === 0) return points[0];
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      const segFraction = segLengths[i] > 0 ? (targetLength - accumulated) / segLengths[i] : 0;
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * segFraction,
+        y: points[i].y + (points[i + 1].y - points[i].y) * segFraction,
+      };
+    }
+    accumulated += segLengths[i];
+  }
+  return points[points.length - 1];
+}
+
+/** Return the endpoints of the segment that contains fraction `t`. */
+function segmentAtFraction(points: Point[], t: number): { p1: Point; p2: Point } | null {
+  if (points.length < 2) return null;
+  const segLengths: number[] = [];
+  let totalLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const dx = points[i + 1].x - points[i].x;
+    const dy = points[i + 1].y - points[i].y;
+    segLengths.push(Math.sqrt(dx * dx + dy * dy));
+    totalLength += segLengths[i];
+  }
+  if (totalLength === 0) return null;
+  const targetLength = t * totalLength;
+  let accumulated = 0;
+  for (let i = 0; i < segLengths.length; i++) {
+    if (accumulated + segLengths[i] >= targetLength) {
+      return { p1: points[i], p2: points[i + 1] };
+    }
+    accumulated += segLengths[i];
+  }
+  return { p1: points[points.length - 2], p2: points[points.length - 1] };
+}
+
+/**
+ * Compute the exact axis-aligned bounding box of a cubic Bezier curve.
+ * Cubic Beziers can extend beyond their control polygon, so bounding by
+ * the hull of {P0, P1, P2, P3} is only an approximation. This finds all
+ * real roots of `B'(t) = 0` in [0, 1] per axis and includes those extrema
+ * alongside the endpoints.
+ */
+function cubicBezierBBox(
+  p0: Point, p1: Point, p2: Point, p3: Point,
+): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Math.min(p0.x, p3.x);
+  let maxX = Math.max(p0.x, p3.x);
+  let minY = Math.min(p0.y, p3.y);
+  let maxY = Math.max(p0.y, p3.y);
+
+  // Derivative of a cubic Bezier is quadratic:
+  //   B'(t) = 3(1-t)^2 (P1-P0) + 6(1-t)t (P2-P1) + 3t^2 (P3-P2)
+  // Expanding and grouping: a*t^2 + b*t + c = 0 with
+  //   a = 3*(P3 - 3*P2 + 3*P1 - P0)
+  //   b = 6*(P2 - 2*P1 + P0)
+  //   c = 3*(P1 - P0)
+  const extremaForAxis = (v0: number, v1: number, v2: number, v3: number): number[] => {
+    const a = 3 * (v3 - 3 * v2 + 3 * v1 - v0);
+    const b = 6 * (v2 - 2 * v1 + v0);
+    const c = 3 * (v1 - v0);
+    const ts: number[] = [];
+    if (Math.abs(a) < 1e-9) {
+      // Linear: b*t + c = 0
+      if (Math.abs(b) > 1e-9) {
+        const t = -c / b;
+        if (t > 0 && t < 1) ts.push(t);
+      }
+      return ts;
+    }
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) return ts;
+    const sq = Math.sqrt(disc);
+    const t1 = (-b + sq) / (2 * a);
+    const t2 = (-b - sq) / (2 * a);
+    if (t1 > 0 && t1 < 1) ts.push(t1);
+    if (t2 > 0 && t2 < 1) ts.push(t2);
+    return ts;
+  };
+  const evalCubic = (v0: number, v1: number, v2: number, v3: number, t: number): number => {
+    const mt = 1 - t;
+    return mt * mt * mt * v0 + 3 * mt * mt * t * v1 + 3 * mt * t * t * v2 + t * t * t * v3;
+  };
+
+  for (const t of extremaForAxis(p0.x, p1.x, p2.x, p3.x)) {
+    const x = evalCubic(p0.x, p1.x, p2.x, p3.x, t);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+  }
+  for (const t of extremaForAxis(p0.y, p1.y, p2.y, p3.y)) {
+    const y = evalCubic(p0.y, p1.y, p2.y, p3.y, t);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  return { minX, minY, maxX, maxY };
+}
 
 /** Context passed from earlier layout phases into finalize. */
 interface FinalizeContext {
@@ -253,9 +393,23 @@ export function finalize({
     return 'center'; // cc — no edge spreading
   }
 
-  // Port group: connectors sharing the same (elementId, edge, direction)
-  // direction = 'from' or 'to'
-  const portGroups = new Map<string, Array<{ idx: number; targetPt: Point; portOrder: number }>>();
+  // Port group: connectors sharing the same (direction, elementId, edge).
+  // We use a string map key for O(1) lookup, but the key is treated as
+  // opaque — we never split it. The structured fields are stored on the
+  // group itself so lookups are parse-free and robust to any character
+  // (including ':') appearing in element IDs.
+  type PortDirection = 'from' | 'to';
+  type PortEdge = 'top' | 'bottom' | 'left' | 'right';
+  interface PortGroup {
+    direction: PortDirection;
+    elementId: string;
+    edge: PortEdge;
+    entries: Array<{ idx: number; targetPt: Point; portOrder: number }>;
+  }
+  // Key uses a NUL separator so ordinary printable IDs cannot collide.
+  const portGroupKey = (direction: PortDirection, elementId: string, edge: PortEdge): string =>
+    `${direction}\x00${elementId}\x00${edge}`;
+  const portGroups = new Map<string, PortGroup>();
 
   for (const id of sortedOrder) {
     const el = mustGet(flatMap, id, `flatMap missing element: ${id}`);
@@ -316,9 +470,14 @@ export function finalize({
     // Register in port groups for spreading
     const fromEdge = anchorEdge(fromAnchor);
     if (fromEdge !== 'center') {
-      const key = `from:${fromId}:${fromEdge}`;
-      if (!portGroups.has(key)) portGroups.set(key, []);
-      portGroups.get(key)!.push({
+      const edge = fromEdge as PortEdge;
+      const key = portGroupKey('from', fromId, edge);
+      let group = portGroups.get(key);
+      if (!group) {
+        group = { direction: 'from', elementId: fromId, edge, entries: [] };
+        portGroups.set(key, group);
+      }
+      group.entries.push({
         idx,
         targetPt: { x: toPt.x, y: toPt.y },
         portOrder: (el.props.fromPortOrder as number) ?? 0,
@@ -327,9 +486,14 @@ export function finalize({
 
     const toEdge = anchorEdge(toAnchor);
     if (toEdge !== 'center') {
-      const key = `to:${toId}:${toEdge}`;
-      if (!portGroups.has(key)) portGroups.set(key, []);
-      portGroups.get(key)!.push({
+      const edge = toEdge as PortEdge;
+      const key = portGroupKey('to', toId, edge);
+      let group = portGroups.get(key);
+      if (!group) {
+        group = { direction: 'to', elementId: toId, edge, entries: [] };
+        portGroups.set(key, group);
+      }
+      group.entries.push({
         idx,
         targetPt: { x: fromPt.x, y: fromPt.y },
         portOrder: (el.props.toPortOrder as number) ?? 0,
@@ -342,19 +506,18 @@ export function finalize({
   const DEFAULT_PORT_SPACING = 14; // px between spread ports
   const DEFAULT_EDGE_MARGIN = 8;   // px margin from edge corners
 
-  for (const [key, group] of portGroups) {
+  for (const group of portGroups.values()) {
+    const { direction, elementId, edge, entries } = group;
+    const isHorizontalEdge = edge === 'top' || edge === 'bottom';
+
     // For single-connector groups, only apply if there's an explicit offset
-    if (group.length <= 1) {
-      if (group.length === 1) {
-        const parts = key.split(':');
-        const direction = parts[0];
-        const info = connectorInfos[group[0].idx];
+    if (entries.length <= 1) {
+      if (entries.length === 1) {
+        const info = connectorInfos[entries[0].idx];
         const explicitOffset = direction === 'from'
           ? (info.el.props.fromPortOffset as number | undefined)
           : (info.el.props.toPortOffset as number | undefined);
         if (explicitOffset !== undefined) {
-          const edge = parts[2];
-          const isHorizontalEdge = edge === 'top' || edge === 'bottom';
           if (direction === 'from') {
             if (isHorizontalEdge) info.fromPt.x += explicitOffset;
             else info.fromPt.y += explicitOffset;
@@ -367,11 +530,6 @@ export function finalize({
       continue;
     }
 
-    const parts = key.split(':');
-    const direction = parts[0]; // 'from' or 'to'
-    const elementId = parts[1];
-    const edge = parts[2];
-
     const bounds = resolvedBounds.get(elementId);
     if (!bounds) continue;
 
@@ -381,8 +539,7 @@ export function finalize({
     const EDGE_MARGIN = (targetEl?.props.edgeMargin as number) ?? DEFAULT_EDGE_MARGIN;
 
     // Sort by (portOrder, target projection along edge tangent)
-    const isHorizontalEdge = edge === 'top' || edge === 'bottom';
-    group.sort((a, b) => {
+    entries.sort((a, b) => {
       if (a.portOrder !== b.portOrder) return a.portOrder - b.portOrder;
       // Sort by target projection to avoid crossings
       return isHorizontalEdge
@@ -393,15 +550,15 @@ export function finalize({
     // Compute available edge span and spacing
     const edgeLength = isHorizontalEdge ? bounds.w : bounds.h;
     const usable = edgeLength - 2 * EDGE_MARGIN;
-    const totalSpread = (group.length - 1) * PORT_SPACING;
+    const totalSpread = (entries.length - 1) * PORT_SPACING;
     const spacing = totalSpread > usable
-      ? usable / (group.length - 1)
+      ? usable / (entries.length - 1)
       : PORT_SPACING;
 
-    const startOffset = -((group.length - 1) * spacing / 2);
+    const startOffset = -((entries.length - 1) * spacing / 2);
 
-    for (let i = 0; i < group.length; i++) {
-      const entry = group[i];
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
       const info = connectorInfos[entry.idx];
       const offset = startOffset + i * spacing;
 
@@ -487,18 +644,28 @@ export function finalize({
       }
     }
 
-    // For curved connectors, account for control point bounds
+    // For curved connectors, compute control points and the *exact* cubic
+    // Bezier bounding box. Cubic Beziers can extend beyond the convex hull
+    // of their control points, so bounding by {P0,P1,P2,P3} alone is only
+    // approximate. See `cubicBezierBBox` for the extrema solver.
+    let cx1: number | undefined, cy1: number | undefined, cx2: number | undefined, cy2: number | undefined;
     if (connType === 'curved') {
       const dist = Math.sqrt((toPt.x - fromPt.x) ** 2 + (toPt.y - fromPt.y) ** 2);
       const cpOff = Math.min(200, Math.max(40, dist * 0.4));
-      const cx1 = fromPt.x + fromPt.dx * cpOff;
-      const cy1 = fromPt.y + fromPt.dy * cpOff;
-      const cx2 = toPt.x + toPt.dx * cpOff;
-      const cy2 = toPt.y + toPt.dy * cpOff;
-      connMinX = Math.min(connMinX, cx1, cx2);
-      connMinY = Math.min(connMinY, cy1, cy2);
-      connMaxX = Math.max(connMaxX, cx1, cx2);
-      connMaxY = Math.max(connMaxY, cy1, cy2);
+      cx1 = fromPt.x + fromPt.dx * cpOff;
+      cy1 = fromPt.y + fromPt.dy * cpOff;
+      cx2 = toPt.x + toPt.dx * cpOff;
+      cy2 = toPt.y + toPt.dy * cpOff;
+      const bbox = cubicBezierBBox(
+        { x: fromPt.x, y: fromPt.y },
+        { x: cx1, y: cy1 },
+        { x: cx2, y: cy2 },
+        { x: toPt.x, y: toPt.y },
+      );
+      connMinX = Math.min(connMinX, bbox.minX);
+      connMinY = Math.min(connMinY, bbox.minY);
+      connMaxX = Math.max(connMaxX, bbox.maxX);
+      connMaxY = Math.max(connMaxY, bbox.maxY);
     }
 
     resolvedBounds.set(id, {
@@ -518,14 +685,123 @@ export function finalize({
       };
       sceneElements[id].resolved = { ...connBounds };
       sceneElements[id].localResolved = { ...connBounds };
-      sceneElements[id]._connectorResolved = {
-        from: fromPt,
-        to: toPt,
-        fromId,
-        toId,
-        fromAnchor,
-        toAnchor,
-        waypoints,
+      // Build resolved style with defaults matching the renderer.
+      const rawColor = (el.props.color as string | undefined) ?? '#ffffff';
+      const resolvedColor = resolveCssColor(rawColor);
+      const thicknessResolved = (el.props.thickness as number | undefined) ?? 2;
+      const arrowResolved = ((el.props.arrow as string | undefined) ?? 'end') as ArrowType;
+      const dashResolved = (el.props.dash as string | null | undefined) ?? null;
+      const opacityResolved = (el.props.opacity as number | undefined) ?? 1;
+
+      const resolvedPath: ConnectorResolvedPath = {
+        x1: fromPt.x,
+        y1: fromPt.y,
+        x2: toPt.x,
+        y2: toPt.y,
+      };
+      if (connType === 'curved') {
+        resolvedPath.cx1 = cx1;
+        resolvedPath.cy1 = cy1;
+        resolvedPath.cx2 = cx2;
+        resolvedPath.cy2 = cy2;
+      }
+      if (waypoints) {
+        resolvedPath.waypoints = waypoints;
+      }
+      if (connType === 'elbow' || connType === 'orthogonal') {
+        const cornerRadius = el.props.cornerRadius as number | undefined;
+        if (cornerRadius !== undefined && cornerRadius > 0) {
+          resolvedPath.cornerRadius = cornerRadius;
+        }
+      }
+
+      // Resolve label placement (if authored). This mirrors the logic that
+      // previously lived in the renderer, so the scene graph carries a
+      // single source of truth for both render and export paths.
+      let resolvedLabel: ConnectorResolvedLabel | undefined;
+      const labelText = el.props.label as string | null | undefined;
+      if (labelText) {
+        const labelStyle = (el.props.labelStyle as Record<string, unknown> | undefined) ?? {};
+        const fontSize = (labelStyle.size as number | undefined) ?? (labelStyle.fontSize as number | undefined) ?? 14;
+        const fontColor = (labelStyle.color as string | undefined) ?? '#999999';
+        const fontFamily = (labelStyle.font as string | undefined) ?? (labelStyle.fontFamily as string | undefined) ?? 'Inter';
+        const fontWeight = (labelStyle.weight as number | string | undefined) ?? (labelStyle.fontWeight as number | string | undefined) ?? 400;
+        const labelPosition = (el.props.labelPosition as number | undefined) ?? 0.5;
+        const labelOffset = (el.props.labelOffset as { x?: number; y?: number } | undefined) ?? {};
+        const labelOffsetX = labelOffset.x ?? 0;
+        const labelOffsetY = labelOffset.y ?? -8;
+
+        // Compute the point along the path at `labelPosition` and the local
+        // segment angle. For elbow/orthogonal we walk the waypoint polyline;
+        // for straight/curved we linearly interpolate between endpoints
+        // (matching the previous renderer behavior — the curved midpoint is
+        // approximate but visually consistent with what was shipped).
+        let midX: number, midY: number;
+        let angle = 0;
+        if (waypoints && waypoints.length >= 2) {
+          const pt = pointAlongPolyline(waypoints, labelPosition);
+          midX = pt.x;
+          midY = pt.y;
+          const seg = segmentAtFraction(waypoints, labelPosition);
+          if (seg) {
+            const sdx = seg.p2.x - seg.p1.x;
+            const sdy = seg.p2.y - seg.p1.y;
+            if (Math.abs(sdx) < 0.5 && Math.abs(sdy) > 0.5) {
+              angle = -90;
+            }
+          }
+        } else {
+          midX = fromPt.x + (toPt.x - fromPt.x) * labelPosition;
+          midY = fromPt.y + (toPt.y - fromPt.y) * labelPosition;
+          if (Math.abs(toPt.x - fromPt.x) < Math.abs(toPt.y - fromPt.y) * 0.3) {
+            angle = -90;
+          }
+        }
+
+        resolvedLabel = {
+          text: labelText,
+          x: midX + labelOffsetX,
+          y: midY + labelOffsetY,
+          angle,
+          position: labelPosition,
+          offsetX: labelOffsetX,
+          offsetY: labelOffsetY,
+          style: {
+            fontFamily,
+            fontSize,
+            fontWeight,
+            color: resolveCssColor(fontColor),
+          },
+        };
+      }
+
+      sceneElements[id].connector = {
+        from: {
+          elementId: fromId,
+          anchor: fromAnchor,
+          x: fromPt.x,
+          y: fromPt.y,
+          dx: fromPt.dx,
+          dy: fromPt.dy,
+        },
+        to: {
+          elementId: toId,
+          anchor: toAnchor,
+          x: toPt.x,
+          y: toPt.y,
+          dx: toPt.dx,
+          dy: toPt.dy,
+        },
+        style: {
+          type: connType as ConnectorType,
+          color: resolvedColor,
+          thickness: thicknessResolved,
+          arrow: arrowResolved,
+          dash: dashResolved,
+          opacity: opacityResolved,
+        },
+        path: resolvedPath,
+        ...(resolvedLabel ? { label: resolvedLabel } : {}),
       };
     }
   }
@@ -536,37 +812,8 @@ export function finalize({
 
   const collisions = [];
 
-  // Helper: compute absolute (slide-level) bounds for an element by walking
-  // up the group/stack parent ancestry chain.  Stack children have coords set
-  // by their parent stack; if that stack lives inside a group, the coords are
-  // group-relative and need the group's offset added.
-  function absoluteBounds(id: string) {
-    const bounds = resolvedBounds.get(id);
-    if (!bounds) return null;
-    let offsetX = 0, offsetY = 0;
-    let current = id;
-    while (true) {
-      const gp = groupParent.get(current);
-      if (gp) {
-        const gpBounds = resolvedBounds.get(gp);
-        if (gpBounds) {
-          offsetX += gpBounds.x;
-          offsetY += gpBounds.y;
-        }
-        current = gp;
-        continue;
-      }
-      const sp = stackParent.get(current);
-      if (sp) {
-        // Stack children's coords already include the stack's position,
-        // but the stack itself might be inside a group — keep walking.
-        current = sp;
-        continue;
-      }
-      break;
-    }
-    return { x: bounds.x + offsetX, y: bounds.y + offsetY, w: bounds.w, h: bounds.h };
-  }
+  // (absoluteBoundsOf is defined earlier in the connector resolution section
+  // and is reused here for collision detection.)
 
   // Helper: check if `ancestorId` is an ancestor of `id` by walking the
   // stack-parent / group-parent chains.  Used to skip ancestor-descendant
@@ -627,8 +874,8 @@ export function finalize({
 
         // Use absolute bounds so elements inside groups are compared
         // correctly (their resolvedBounds may be group-relative).
-        let boundsA = absoluteBounds(idA);
-        let boundsB = absoluteBounds(idB);
+        let boundsA = absoluteBoundsOf(idA);
+        let boundsB = absoluteBoundsOf(idB);
         if (!boundsA || !boundsB) continue;
 
         // Apply AABB expansion for rotated elements

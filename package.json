@@ -22,6 +22,8 @@
     "test": "node run-tests.js"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
     "esbuild": "^0.27.3",
     "eslint": "^9.39.3",
     "eslint-plugin-import": "^2.32.0",

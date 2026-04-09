@@ -243,6 +243,128 @@ export interface ConnectorProps {
   [key: string]: unknown;
 }
 
+/**
+ * Resolved connector data, attached to the scene graph as `SceneElement.connector`.
+ *
+ * Shape is designed for exporters and renderers alike:
+ * - `from`/`to` combine the *logical* reference (`elementId`, `anchor`) with the
+ *   *numeric* anchor point (`x`, `y`) and outward direction vector (`dx`, `dy`).
+ *   Values reflect the final post-port-spreading positions. Invariant:
+ *   `from.x === path.x1`, `from.y === path.y1`, `to.x === path.x2`, `to.y === path.y2`.
+ * - `style` holds the effective style (defaults applied; CSS custom properties
+ *   like `var(--sk-color-primary)` resolved to concrete colors when a DOM is
+ *   available — see `ConnectorResolvedStyle.color`).
+ * - `path` holds the drawable geometry: straight endpoints, optional bezier
+ *   control points for curved connectors, and optional waypoints + cornerRadius
+ *   for elbow/orthogonal connectors.
+ * - `label` holds pre-placed label geometry + resolved text style (when a
+ *   label is authored).
+ */
+export interface ConnectorEndpoint {
+  /** ID of the referenced element. */
+  elementId: string;
+  /** Anchor point on the referenced element (e.g., "cr", "bc", "tl"). */
+  anchor: AnchorPoint;
+  /** Resolved absolute x coordinate (slide-level CSS px, post port-spreading). */
+  x: number;
+  /** Resolved absolute y coordinate (slide-level CSS px, post port-spreading). */
+  y: number;
+  /** Outward-pointing direction vector x component. */
+  dx: number;
+  /** Outward-pointing direction vector y component. */
+  dy: number;
+}
+
+export interface ConnectorResolvedStyle {
+  /** Routing type. */
+  type: ConnectorType;
+  /**
+   * Effective stroke color. CSS custom properties (`var(--name)`) are
+   * resolved to concrete values on a best-effort basis: when a DOM is
+   * available (browser render path) they resolve via
+   * `getComputedStyle(document.documentElement)`; in non-DOM contexts
+   * (headless export, Node) the authored string is returned unchanged.
+   * Exporters running in non-DOM contexts should be prepared to handle
+   * unresolved `var(...)` tokens or re-run in a DOM.
+   */
+  color: string;
+  /** Stroke width in CSS px. */
+  thickness: number;
+  /** Arrowhead style. */
+  arrow: ArrowType;
+  /** SVG dash pattern (e.g., "4 2") or null for solid. */
+  dash: string | null;
+  /** Opacity in [0, 1]. Mirrors the effective on-screen opacity. */
+  opacity: number;
+}
+
+export interface ConnectorResolvedPath {
+  /** Start point x (slide-level CSS px). Mirrors `from.x`. */
+  x1: number;
+  /** Start point y. Mirrors `from.y`. */
+  y1: number;
+  /** End point x. Mirrors `to.x`. */
+  x2: number;
+  /** End point y. Mirrors `to.y`. */
+  y2: number;
+  /** First Bezier control point x — present only when `style.type === "curved"`. */
+  cx1?: number;
+  /** First Bezier control point y — present only when `style.type === "curved"`. */
+  cy1?: number;
+  /** Second Bezier control point x — present only when `style.type === "curved"`. */
+  cx2?: number;
+  /** Second Bezier control point y — present only when `style.type === "curved"`. */
+  cy2?: number;
+  /**
+   * Polyline waypoints in slide-level CSS px — present only for elbow or
+   * orthogonal routing. Includes both endpoints as the first and last items.
+   */
+  waypoints?: Point[];
+  /**
+   * Corner radius used for rounded-elbow rendering (CSS px). Present only
+   * for elbow/orthogonal routing when a non-zero value is authored.
+   * Exporters wanting visual parity with the renderer should round each
+   * interior waypoint by this amount.
+   */
+  cornerRadius?: number;
+}
+
+/** Resolved connector label — pre-placed text geometry + effective style. */
+export interface ConnectorResolvedLabel {
+  /** Label text. */
+  text: string;
+  /**
+   * Text anchor x in slide-level CSS px — already includes `offsetX`.
+   * The renderer rotates text around (`x`, `y`) by `angle` degrees.
+   */
+  x: number;
+  /** Text anchor y in slide-level CSS px — already includes `offsetY`. */
+  y: number;
+  /** Rotation angle in degrees, around (`x`, `y`). Typically 0 or -90. */
+  angle: number;
+  /** Authored position along the path as a fraction in [0, 1]. */
+  position: number;
+  /** Offset applied from the path midpoint (already folded into `x`). */
+  offsetX: number;
+  /** Offset applied from the path midpoint (already folded into `y`). */
+  offsetY: number;
+  /** Effective text style. */
+  style: {
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: number | string;
+    color: string;
+  };
+}
+
+export interface ConnectorResolved {
+  from: ConnectorEndpoint;
+  to: ConnectorEndpoint;
+  style: ConnectorResolvedStyle;
+  path: ConnectorResolvedPath;
+  label?: ConnectorResolvedLabel;
+}
+
 // =============================================================================
 // Discriminated Union — Element Types
 // =============================================================================
@@ -525,17 +647,13 @@ export interface SceneElement {
   };
   /** Internal layout flags. */
   _layoutFlags?: Record<string, unknown>;
-  /** Resolved connector geometry. */
-  _connectorResolved?: {
-    from: AnchorPointResult;
-    to: AnchorPointResult;
-    fromId: string;
-    toId: string;
-    fromAnchor: string;
-    toAnchor: string;
-    /** Cached elbow waypoints from layout (avoids re-routing in renderer). */
-    waypoints?: Point[];
-  };
+  /**
+   * Resolved connector data. Present only when `type === "connector"`.
+   * Carries everything an exporter or renderer needs: logical references,
+   * numeric anchor points (with direction vectors), resolved style, and
+   * resolved path geometry (endpoints + bezier control points + waypoints).
+   */
+  connector?: ConnectorResolved;
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
   /** Panel child positions — present only on panel compound elements. */
