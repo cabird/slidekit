@@ -72,6 +72,8 @@ function extractRunStyle(_el: Element, cs: CSSStyleDeclaration): TextRunStyle {
     // Preserve the full text-decoration-line value (e.g. "underline line-through")
     textDecoration: cs.textDecorationLine || cs.textDecoration || 'none',
     textTransform: cs.textTransform || 'none',
+    opacity: parseFloat(cs.opacity) || 1,
+    backgroundColor: cs.backgroundColor || 'rgba(0, 0, 0, 0)',
   };
 }
 
@@ -84,7 +86,9 @@ function stylesMatch(a: TextRunStyle, b: TextRunStyle): boolean {
     && a.color === b.color
     && a.letterSpacing === b.letterSpacing
     && a.textDecoration === b.textDecoration
-    && a.textTransform === b.textTransform;
+    && a.textTransform === b.textTransform
+    && a.opacity === b.opacity
+    && a.backgroundColor === b.backgroundColor;
   // lineHeight is per-paragraph, not a run-merge criterion
 }
 

@@ -713,6 +713,13 @@ export interface TextRunStyle {
    * rendering. PPTX maps this to `<a:rPr cap="...">`.
    */
   textTransform: string;
+  /** Opacity in [0, 1]. Maps to PPTX font-level alpha. */
+  opacity: number;
+  /**
+   * Inline background color (e.g. "rgba(0, 0, 0, 0)" when transparent).
+   * Maps to PPTX `<a:highlight>`. Only meaningful when not transparent.
+   */
+  backgroundColor: string;
 }
 
 /**

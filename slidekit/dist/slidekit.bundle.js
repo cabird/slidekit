@@ -8076,11 +8076,13 @@ function extractRunStyle(_el, cs) {
     lineHeight,
     // Preserve the full text-decoration-line value (e.g. "underline line-through")
     textDecoration: cs.textDecorationLine || cs.textDecoration || "none",
-    textTransform: cs.textTransform || "none"
+    textTransform: cs.textTransform || "none",
+    opacity: parseFloat(cs.opacity) || 1,
+    backgroundColor: cs.backgroundColor || "rgba(0, 0, 0, 0)"
   };
 }
 function stylesMatch(a, b) {
-  return a.fontFamily === b.fontFamily && a.fontSize === b.fontSize && a.fontWeight === b.fontWeight && a.fontStyle === b.fontStyle && a.color === b.color && a.letterSpacing === b.letterSpacing && a.textDecoration === b.textDecoration && a.textTransform === b.textTransform;
+  return a.fontFamily === b.fontFamily && a.fontSize === b.fontSize && a.fontWeight === b.fontWeight && a.fontStyle === b.fontStyle && a.color === b.color && a.letterSpacing === b.letterSpacing && a.textDecoration === b.textDecoration && a.textTransform === b.textTransform && a.opacity === b.opacity && a.backgroundColor === b.backgroundColor;
 }
 function textNodeRects(node, containerDomRect, resolved, scaleX, scaleY) {
   const range = document.createRange();
