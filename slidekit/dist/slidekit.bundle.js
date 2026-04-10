@@ -8006,11 +8006,8 @@ function _resetDebugForTests() {
 
 // slidekit/src/renderer.ts
 init_measure();
-init_dom_helpers();
-var _layoutFn;
-function _setLayoutFn(fn) {
-  _layoutFn = fn;
-}
+
+// slidekit/src/text-extract.ts
 var PARAGRAPH_TAGS = /* @__PURE__ */ new Set([
   "p",
   "div",
@@ -8062,7 +8059,7 @@ function makeCsCache() {
     return cs;
   };
 }
-function extractRunStyle(_el, cs) {
+function extractRunStyle(cs) {
   const fontSize = parseFloat(cs.fontSize) || 0;
   let lineHeight = parseFloat(cs.lineHeight);
   if (isNaN(lineHeight)) lineHeight = fontSize * 1.2;
@@ -8074,7 +8071,6 @@ function extractRunStyle(_el, cs) {
     color: cs.color || "",
     letterSpacing: parseFloat(cs.letterSpacing) || 0,
     lineHeight,
-    // Preserve the full text-decoration-line value (e.g. "underline line-through")
     textDecoration: cs.textDecorationLine || cs.textDecoration || "none",
     textTransform: cs.textTransform || "none",
     opacity: parseFloat(cs.opacity) || 1,
@@ -8099,6 +8095,95 @@ function textNodeRects(node, containerDomRect, resolved, scaleX, scaleY) {
   }
   return result;
 }
+function extractTextBox(container, resolved) {
+  const containerRect = container.getBoundingClientRect();
+  if (containerRect.width <= 0 || containerRect.height <= 0) return null;
+  const scaleX = resolved.w / containerRect.width;
+  const scaleY = resolved.h / containerRect.height;
+  const getCs = makeCsCache();
+  const paragraphs = [];
+  let currentRuns = [];
+  let currentRun = null;
+  let currentBlockElement = null;
+  const flushParagraph = () => {
+    if (currentRuns.length === 0) return;
+    const runs = [];
+    for (const rb of currentRuns) {
+      if (rb.isLineBreak) {
+        runs.push({ text: "\n", style: rb.style, rects: [] });
+        continue;
+      }
+      if (rb.textNodes.length === 0) continue;
+      const rects = [];
+      for (const tn of rb.textNodes) {
+        rects.push(...textNodeRects(tn, containerRect, resolved, scaleX, scaleY));
+      }
+      if (rects.length === 0 && rb.text.trim().length === 0) continue;
+      runs.push({ text: rb.text, style: rb.style, rects });
+    }
+    if (runs.length > 0) {
+      const alignSource = currentBlockElement || container;
+      const textAlign = getCs(alignSource).textAlign || "start";
+      paragraphs.push({ runs, textAlign });
+    }
+    currentRuns = [];
+    currentRun = null;
+  };
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || "";
+      if (text.length === 0) return;
+      const parent = node.parentElement;
+      if (!parent) return;
+      const parentCs = getCs(parent);
+      if (parentCs.display === "none" || parentCs.visibility === "hidden") return;
+      const style = extractRunStyle(parentCs);
+      if (currentRun && !currentRun.isLineBreak && stylesMatch(currentRun.style, style)) {
+        currentRun.textNodes.push(node);
+        currentRun.text += text;
+      } else {
+        currentRun = { style, textNodes: [node], text, isLineBreak: false };
+        currentRuns.push(currentRun);
+      }
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el2 = node;
+    const tag = el2.tagName.toLowerCase();
+    const elCs = getCs(el2);
+    if (elCs.display === "none" || elCs.visibility === "hidden") return;
+    if (SKIP_TAGS.has(tag)) return;
+    if (tag === "br") {
+      const parent = el2.parentElement;
+      const style = parent ? extractRunStyle(getCs(parent)) : extractRunStyle(elCs);
+      currentRun = { style, textNodes: [], text: "\n", isLineBreak: true };
+      currentRuns.push(currentRun);
+      currentRun = null;
+      return;
+    }
+    if (PARAGRAPH_TAGS.has(tag)) {
+      flushParagraph();
+      currentBlockElement = el2;
+      for (const child of el2.childNodes) {
+        walk(child);
+      }
+      flushParagraph();
+      currentBlockElement = null;
+    } else {
+      for (const child of el2.childNodes) {
+        walk(child);
+      }
+    }
+  };
+  for (const child of container.childNodes) {
+    walk(child);
+  }
+  flushParagraph();
+  if (paragraphs.length === 0) return null;
+  return { paragraphs };
+}
+
+// slidekit/src/image-resolve.ts
 function parsePosSingle(s) {
   const t = s.trim().toLowerCase();
   if (t === "left" || t === "top") return { fraction: 0 };
@@ -8179,92 +8264,12 @@ function computeImageResolved(img, resolved) {
     destRect
   };
 }
-function extractTextBox(container, resolved) {
-  const containerRect = container.getBoundingClientRect();
-  if (containerRect.width <= 0 || containerRect.height <= 0) return null;
-  const scaleX = resolved.w / containerRect.width;
-  const scaleY = resolved.h / containerRect.height;
-  const getCs = makeCsCache();
-  const paragraphs = [];
-  let currentRuns = [];
-  let currentRun = null;
-  let currentBlockElement = null;
-  const flushParagraph = () => {
-    if (currentRuns.length === 0) return;
-    const runs = [];
-    for (const rb of currentRuns) {
-      if (rb.isLineBreak) {
-        runs.push({ text: "\n", style: rb.style, rects: [] });
-        continue;
-      }
-      if (rb.textNodes.length === 0) continue;
-      const rects = [];
-      for (const tn of rb.textNodes) {
-        rects.push(...textNodeRects(tn, containerRect, resolved, scaleX, scaleY));
-      }
-      if (rects.length === 0 && rb.text.trim().length === 0) continue;
-      runs.push({ text: rb.text, style: rb.style, rects });
-    }
-    if (runs.length > 0) {
-      const alignSource = currentBlockElement || container;
-      const textAlign = getCs(alignSource).textAlign || "start";
-      paragraphs.push({ runs, textAlign });
-    }
-    currentRuns = [];
-    currentRun = null;
-  };
-  const walk = (node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || "";
-      if (text.length === 0) return;
-      const parent = node.parentElement;
-      if (!parent) return;
-      const parentCs = getCs(parent);
-      if (parentCs.display === "none" || parentCs.visibility === "hidden") return;
-      const style = extractRunStyle(parent, parentCs);
-      if (currentRun && !currentRun.isLineBreak && stylesMatch(currentRun.style, style)) {
-        currentRun.textNodes.push(node);
-        currentRun.text += text;
-      } else {
-        currentRun = { style, textNodes: [node], text, isLineBreak: false };
-        currentRuns.push(currentRun);
-      }
-      return;
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const el2 = node;
-    const tag = el2.tagName.toLowerCase();
-    const elCs = getCs(el2);
-    if (elCs.display === "none" || elCs.visibility === "hidden") return;
-    if (SKIP_TAGS.has(tag)) return;
-    if (tag === "br") {
-      const parent = el2.parentElement;
-      const style = parent ? extractRunStyle(parent, getCs(parent)) : extractRunStyle(el2, elCs);
-      currentRun = { style, textNodes: [], text: "\n", isLineBreak: true };
-      currentRuns.push(currentRun);
-      currentRun = null;
-      return;
-    }
-    if (PARAGRAPH_TAGS.has(tag)) {
-      flushParagraph();
-      currentBlockElement = el2;
-      for (const child of el2.childNodes) {
-        walk(child);
-      }
-      flushParagraph();
-      currentBlockElement = null;
-    } else {
-      for (const child of el2.childNodes) {
-        walk(child);
-      }
-    }
-  };
-  for (const child of container.childNodes) {
-    walk(child);
-  }
-  flushParagraph();
-  if (paragraphs.length === 0) return null;
-  return { paragraphs };
+
+// slidekit/src/renderer.ts
+init_dom_helpers();
+var _layoutFn;
+function _setLayoutFn(fn) {
+  _layoutFn = fn;
 }
 var LAYER_ORDER2 = { bg: 0, content: 1, overlay: 2 };
 function computeZOrder(elements) {
@@ -8864,53 +8869,61 @@ async function rerenderSlide(slideIndex, slideDefinition) {
   oldLayer.replaceWith(layer);
   const section = layer.parentElement;
   const wasHidden = getComputedStyle(section).display === "none";
+  let origDisplay = "", origVisibility = "", origPosition = "", origLeft = "";
   if (wasHidden) {
+    origDisplay = section.style.display;
+    origVisibility = section.style.visibility;
+    origPosition = section.style.position;
+    origLeft = section.style.left;
     section.style.setProperty("display", "block", "important");
     section.style.visibility = "hidden";
     section.style.position = "absolute";
     section.style.left = "-9999px";
   }
   const sceneElements = layoutResult.elements;
-  for (const [id, entry] of Object.entries(sceneElements)) {
-    if (entry.type !== "el") continue;
-    const dom = section.querySelector(`[data-sk-id="${id}"]`);
-    if (!dom) continue;
-    const textContent = dom.textContent;
-    if (textContent && textContent.trim().length > 0) {
-      const textBox = extractTextBox(dom, entry.resolved);
-      if (textBox && textBox.paragraphs.length > 0) {
-        entry.text = textBox;
+  try {
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      if (entry.type !== "el") continue;
+      const dom = section.querySelector(`[data-sk-id="${id}"]`);
+      if (!dom) continue;
+      const textContent = dom.textContent;
+      if (textContent && textContent.trim().length > 0) {
+        const textBox = extractTextBox(dom, entry.resolved);
+        if (textBox && textBox.paragraphs.length > 0) {
+          entry.text = textBox;
+        }
+      }
+      const img = dom.querySelector("img");
+      if (img && img.naturalWidth && img.naturalHeight) {
+        const imgResolved = computeImageResolved(img, entry.resolved);
+        if (imgResolved) entry.image = imgResolved;
+      }
+      if (dom.scrollHeight > dom.clientHeight + 1) {
+        layoutResult.warnings.push({
+          type: "dom_overflow_y",
+          elementId: id,
+          clientHeight: dom.clientHeight,
+          scrollHeight: dom.scrollHeight,
+          overflow: dom.scrollHeight - dom.clientHeight
+        });
+      }
+      if (dom.scrollWidth > dom.clientWidth + 1) {
+        layoutResult.warnings.push({
+          type: "dom_overflow_x",
+          elementId: id,
+          clientWidth: dom.clientWidth,
+          scrollWidth: dom.scrollWidth,
+          overflow: dom.scrollWidth - dom.clientWidth
+        });
       }
     }
-    const img = dom.querySelector("img");
-    if (img && img.naturalWidth && img.naturalHeight) {
-      const imgResolved = computeImageResolved(img, entry.resolved);
-      if (imgResolved) entry.image = imgResolved;
+  } finally {
+    if (wasHidden) {
+      section.style.display = origDisplay;
+      section.style.visibility = origVisibility;
+      section.style.position = origPosition;
+      section.style.left = origLeft;
     }
-    if (dom.scrollHeight > dom.clientHeight + 1) {
-      layoutResult.warnings.push({
-        type: "dom_overflow_y",
-        elementId: id,
-        clientHeight: dom.clientHeight,
-        scrollHeight: dom.scrollHeight,
-        overflow: dom.scrollHeight - dom.clientHeight
-      });
-    }
-    if (dom.scrollWidth > dom.clientWidth + 1) {
-      layoutResult.warnings.push({
-        type: "dom_overflow_x",
-        elementId: id,
-        clientWidth: dom.clientWidth,
-        scrollWidth: dom.scrollWidth,
-        overflow: dom.scrollWidth - dom.clientWidth
-      });
-    }
-  }
-  if (wasHidden) {
-    section.style.display = "";
-    section.style.visibility = "";
-    section.style.position = "";
-    section.style.left = "";
   }
   const sk = window.sk;
   if (sk) {
