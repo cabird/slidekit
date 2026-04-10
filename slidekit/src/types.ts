@@ -671,10 +671,93 @@ export interface SceneElement {
    * Populated during render (requires DOM for `naturalWidth` / `naturalHeight`).
    */
   image?: ImageResolved;
+  /**
+   * Structured text content extracted from the browser's rendered DOM.
+   * Present only on `el`-type elements that contain visible text.
+   * Paragraphs correspond to block-level boundaries; runs within a
+   * paragraph share a text box and reflow together. Multiple rects per
+   * run indicate line wrapping — the exporter should keep them in the
+   * same text box. Populated during render (requires DOM).
+   */
+  text?: TextBoxResolved;
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
   /** Panel child positions — present only on panel compound elements. */
   panelChildren?: Array<{ id: string; type: ElementType; x?: number; y?: number; w?: number; h?: number }>;
+}
+
+// =============================================================================
+// Text Extraction — Structured Text Runs
+// =============================================================================
+
+/** Computed style for a text run, as resolved by the browser. */
+export interface TextRunStyle {
+  fontFamily: string;
+  /** Font size in CSS px. */
+  fontSize: number;
+  fontWeight: number | string;
+  /** "normal" | "italic" | "oblique". */
+  fontStyle: string;
+  /** Computed CSS color (e.g. "rgb(255, 255, 255)"). */
+  color: string;
+  /** Letter spacing in CSS px (0 when normal). */
+  letterSpacing: number;
+  /** Computed line height in CSS px. */
+  lineHeight: number;
+  /** Text decoration line value (e.g. "none", "underline", "underline line-through"). */
+  textDecoration: string;
+  /**
+   * CSS text-transform value (e.g. "none", "uppercase", "capitalize").
+   * The `text` field contains the *source* text, not the visually
+   * transformed text. Exporters should apply this property when
+   * rendering. PPTX maps this to `<a:rPr cap="...">`.
+   */
+  textTransform: string;
+}
+
+/**
+ * A contiguous span of text with uniform style. Multiple `rects` means
+ * the run wraps across lines — all fragments belong to the same logical
+ * text span and should be placed in the same text box by exporters.
+ */
+export interface TextRun {
+  /** The text content of this run. `"\n"` represents a `<br>` line break. */
+  text: string;
+  style: TextRunStyle;
+  /** Visual bounding rects in slide-level CSS px, one per line fragment. */
+  rects: Array<{ x: number; y: number; w: number; h: number }>;
+}
+
+/**
+ * A paragraph — a block-level grouping of text runs. Corresponds to a
+ * block element (`<p>`, `<div>`, `<h1>`, etc.) in the authored HTML.
+ * All runs within a paragraph belong in the same text box and should
+ * reflow together when the text is edited in the export target.
+ */
+export interface TextParagraph {
+  /** Ordered runs within this paragraph. */
+  runs: TextRun[];
+  /**
+   * Paragraph-level text alignment, captured from the block element that
+   * established this paragraph boundary. Maps to PPTX `<a:pPr algn="...">`.
+   */
+  textAlign: string;
+}
+
+/**
+ * Structured text content extracted from the browser's rendered DOM.
+ * Replaces the need for HTML parsing — all styling, positioning, and
+ * paragraph structure come directly from the browser's computed layout.
+ *
+ * Model: one text box per SlideKit `el()` element, containing paragraphs
+ * (from block-level boundaries) containing runs (from inline style changes)
+ * containing rects (from line wrapping).
+ *
+ * Populated during render (requires DOM). Present only on `el`-type
+ * elements that contain visible text content.
+ */
+export interface TextBoxResolved {
+  paragraphs: TextParagraph[];
 }
 
 /** Resolved image metadata for elements containing `<img>` tags. */

@@ -8011,6 +8011,179 @@ var _layoutFn;
 function _setLayoutFn(fn) {
   _layoutFn = fn;
 }
+var PARAGRAPH_TAGS = /* @__PURE__ */ new Set([
+  "p",
+  "div",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "li",
+  "blockquote",
+  "pre",
+  "section",
+  "article",
+  "header",
+  "footer",
+  "main",
+  "nav",
+  "aside",
+  "figcaption",
+  "details",
+  "summary",
+  "dt",
+  "dd",
+  "address",
+  "hgroup"
+]);
+var SKIP_TAGS = /* @__PURE__ */ new Set([
+  "img",
+  "svg",
+  "canvas",
+  "video",
+  "audio",
+  "iframe",
+  "object",
+  "embed",
+  "style",
+  "script",
+  "noscript"
+]);
+function makeCsCache() {
+  const cache = /* @__PURE__ */ new WeakMap();
+  return (el2) => {
+    let cs = cache.get(el2);
+    if (!cs) {
+      cs = getComputedStyle(el2);
+      cache.set(el2, cs);
+    }
+    return cs;
+  };
+}
+function extractRunStyle(_el, cs) {
+  const fontSize = parseFloat(cs.fontSize) || 0;
+  let lineHeight = parseFloat(cs.lineHeight);
+  if (isNaN(lineHeight)) lineHeight = fontSize * 1.2;
+  return {
+    fontFamily: cs.fontFamily,
+    fontSize,
+    fontWeight: isNaN(Number(cs.fontWeight)) ? cs.fontWeight : Number(cs.fontWeight),
+    fontStyle: cs.fontStyle || "normal",
+    color: cs.color || "",
+    letterSpacing: parseFloat(cs.letterSpacing) || 0,
+    lineHeight,
+    // Preserve the full text-decoration-line value (e.g. "underline line-through")
+    textDecoration: cs.textDecorationLine || cs.textDecoration || "none",
+    textTransform: cs.textTransform || "none"
+  };
+}
+function stylesMatch(a, b) {
+  return a.fontFamily === b.fontFamily && a.fontSize === b.fontSize && a.fontWeight === b.fontWeight && a.fontStyle === b.fontStyle && a.color === b.color && a.letterSpacing === b.letterSpacing && a.textDecoration === b.textDecoration && a.textTransform === b.textTransform;
+}
+function textNodeRects(node, containerDomRect, resolved, scaleX, scaleY) {
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const result = [];
+  for (const cr of range.getClientRects()) {
+    if (cr.width <= 0 && cr.height <= 0) continue;
+    result.push({
+      x: resolved.x + (cr.left - containerDomRect.left) * scaleX,
+      y: resolved.y + (cr.top - containerDomRect.top) * scaleY,
+      w: cr.width * scaleX,
+      h: cr.height * scaleY
+    });
+  }
+  return result;
+}
+function extractTextBox(container, resolved) {
+  const containerRect = container.getBoundingClientRect();
+  if (containerRect.width <= 0 || containerRect.height <= 0) return null;
+  const scaleX = resolved.w / containerRect.width;
+  const scaleY = resolved.h / containerRect.height;
+  const getCs = makeCsCache();
+  const paragraphs = [];
+  let currentRuns = [];
+  let currentRun = null;
+  let currentBlockElement = null;
+  const flushParagraph = () => {
+    if (currentRuns.length === 0) return;
+    const runs = [];
+    for (const rb of currentRuns) {
+      if (rb.isLineBreak) {
+        runs.push({ text: "\n", style: rb.style, rects: [] });
+        continue;
+      }
+      if (rb.textNodes.length === 0) continue;
+      const rects = [];
+      for (const tn of rb.textNodes) {
+        rects.push(...textNodeRects(tn, containerRect, resolved, scaleX, scaleY));
+      }
+      if (rects.length === 0 && rb.text.trim().length === 0) continue;
+      runs.push({ text: rb.text, style: rb.style, rects });
+    }
+    if (runs.length > 0) {
+      const alignSource = currentBlockElement || container;
+      const textAlign = getCs(alignSource).textAlign || "start";
+      paragraphs.push({ runs, textAlign });
+    }
+    currentRuns = [];
+    currentRun = null;
+  };
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent || "";
+      if (text.length === 0) return;
+      const parent = node.parentElement;
+      if (!parent) return;
+      const parentCs = getCs(parent);
+      if (parentCs.display === "none" || parentCs.visibility === "hidden") return;
+      const style = extractRunStyle(parent, parentCs);
+      if (currentRun && !currentRun.isLineBreak && stylesMatch(currentRun.style, style)) {
+        currentRun.textNodes.push(node);
+        currentRun.text += text;
+      } else {
+        currentRun = { style, textNodes: [node], text, isLineBreak: false };
+        currentRuns.push(currentRun);
+      }
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const el2 = node;
+    const tag = el2.tagName.toLowerCase();
+    const elCs = getCs(el2);
+    if (elCs.display === "none" || elCs.visibility === "hidden") return;
+    if (SKIP_TAGS.has(tag)) return;
+    if (tag === "br") {
+      const parent = el2.parentElement;
+      const style = parent ? extractRunStyle(parent, getCs(parent)) : extractRunStyle(el2, elCs);
+      currentRun = { style, textNodes: [], text: "\n", isLineBreak: true };
+      currentRuns.push(currentRun);
+      currentRun = null;
+      return;
+    }
+    if (PARAGRAPH_TAGS.has(tag)) {
+      flushParagraph();
+      currentBlockElement = el2;
+      for (const child of el2.childNodes) {
+        walk(child);
+      }
+      flushParagraph();
+      currentBlockElement = null;
+    } else {
+      for (const child of el2.childNodes) {
+        walk(child);
+      }
+    }
+  };
+  for (const child of container.childNodes) {
+    walk(child);
+  }
+  flushParagraph();
+  if (paragraphs.length === 0) return null;
+  return { paragraphs };
+}
 var LAYER_ORDER2 = { bg: 0, content: 1, overlay: 2 };
 function computeZOrder(elements) {
   const indexed = elements.map((el2, i) => ({ el: el2, idx: i }));
@@ -8477,6 +8650,22 @@ async function render(slides, options = {}) {
     }
     container.appendChild(section);
     sections.push(section);
+  }
+  for (let i = 0; i < layouts.length; i++) {
+    const layoutResult = layouts[i];
+    const sceneElements = layoutResult.elements;
+    const section = sections[i];
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      if (entry.type !== "el") continue;
+      const dom = section.querySelector(`[data-sk-id="${id}"]`);
+      if (!dom) continue;
+      const textContent = dom.textContent;
+      if (!textContent || textContent.trim().length === 0) continue;
+      const textBox = extractTextBox(dom, entry.resolved);
+      if (textBox && textBox.paragraphs.length > 0) {
+        entry.text = textBox;
+      }
+    }
   }
   for (let i = 0; i < layouts.length; i++) {
     const layoutResult = layouts[i];
