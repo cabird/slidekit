@@ -63,19 +63,34 @@ gh api repos/cabird/slidekit/contents/slidekit/dist/slidekit.bundle.min.js \
   --jq '.content' | base64 -d > slidekit.bundle.min.js
 ```
 
-### 4. Install Fonts
+### 4. Install Fonts — ALL weights + italic variants
 
-Download TTFs and install to `%LOCALAPPDATA%\Microsoft\Windows\Fonts\`.
-Register via PowerShell:
-```powershell
-Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" `
-  -Name "Font Name (TrueType)" -Value "<path>"
+**Always download ALL static weight files AND italic variants BEFORE building
+any slides.** The browser loads fonts from Google Fonts CDN, but PowerPoint
+needs them installed locally. If italic variants are missing, COM reports
+`Font.Italic = True` but the text renders as regular — silent failure.
+
+Download to `%LOCALAPPDATA%\Microsoft\Windows\Fonts\`. The files take effect
+on next PowerPoint launch — **restart PPT after installing new fonts.**
+
+Google Fonts GitHub has static TTFs at:
+```
+https://raw.githubusercontent.com/google/fonts/main/ofl/<fontname>/<FontName>-<Weight>.ttf
+```
+
+Example download script (from WSL):
+```bash
+FONT_DIR="/mnt/c/Users/$USER/AppData/Local/Microsoft/Windows/Fonts"
+BASE="https://raw.githubusercontent.com/google/fonts/main/ofl/poppins"
+for v in Poppins-Light Poppins-Regular Poppins-SemiBold Poppins-Bold \
+         Poppins-LightItalic Poppins-Italic Poppins-SemiBoldItalic Poppins-BoldItalic; do
+  curl -sL "$BASE/$v.ttf" -o "$FONT_DIR/$v.ttf"
+done
 ```
 
 For proper CSS font-weight support (300, 400, 500, 600, 700), install
-**static weight files** (e.g., `DMSans-Light.ttf`, `DMSans-SemiBold.ttf`).
-Variable fonts register as one family and PowerPoint can't select intermediate
-weights via COM.
+**static weight files** (e.g., `Poppins-SemiBold.ttf`). Variable fonts
+register as one family and PowerPoint can't select intermediate weights via COM.
 
 ---
 
@@ -224,20 +239,36 @@ el.connector = {
 
 ## COM/PPT Rules (Hard-Won Knowledge)
 
-### Font Weight
+### Font Weight (CRITICAL — use static font names, NOT Font.Bold)
 
-PowerPoint COM only has `Font.Bold` (True/False) — no weight spectrum. For
-proper weight support, install **static TTF files** for each weight:
+With static font files installed, use the **font name directly** and keep
+`Font.Bold = False`. If you set `Font.Name = "Poppins"` + `Font.Bold = True`,
+PPT applies **synthetic bold ON TOP** of the regular weight, making text
+visibly too thick.
+
+```python
+# WRONG — double-bold
+tr.Font.Name = "Poppins"
+tr.Font.Bold = True        # synthetic bold on regular = too thick!
+
+# RIGHT — use static font name
+tr.Font.Name = "Poppins Bold"
+tr.Font.Bold = False       # the file IS bold, no synthetic needed
+```
 
 | CSS weight | Font.Name | Font.Bold |
 |-----------|-----------|-----------|
-| 300 | "DM Sans Light" | False |
-| 400 | "DM Sans" | False |
-| 500 | "DM Sans Medium" | False |
-| 600 | "DM Sans SemiBold" | False |
-| 700 | "DM Sans Bold" | True |
+| 300 | "FontFamily Light" | False |
+| 400 | "FontFamily" | False |
+| 500 | "FontFamily Medium" | False |
+| 600 | "FontFamily SemiBold" | False |
+| 700 | "FontFamily Bold" | False |
 
-With only a variable font, weights 300/400/500 are indistinguishable.
+`Font.Italic = True` still works correctly alongside static font names —
+PPT picks the matching italic file (e.g., `Poppins-BoldItalic.ttf`).
+
+With only a variable font, weights 300/400/500 are indistinguishable and
+you must fall back to `Font.Bold = True` for weight 700.
 
 ### Line Spacing (CRITICAL)
 
@@ -273,6 +304,45 @@ COM doesn't support alpha on `Font.Color.RGB`. Pre-blend against background:
 blended = int(255 * alpha)
 color = rgb(blended, blended, blended)
 ```
+
+### Corner Radius — CSS × 0.25 (NOT × 0.5)
+
+PPT's Adjustments "radius" renders visually as 2× the CSS border-radius
+at the 0.5× coordinate scale. The effective conversion:
+```python
+target_radius_pt = css_border_radius_px * 0.25
+adj_value = target_radius_pt / (min(sh.Width, sh.Height) / 2.0)
+sh.Adjustments._oleobj_.Invoke(0, 0, 4, 0, 1, adj_value)
+```
+Example: CSS `border-radius: 12px` → 3pt target. Default (~0.167) is too large.
+Apply as a batch fix after building all shapes on a slide.
+
+### Opacity on Text — Pre-blend, Don't Set Alpha
+
+COM doesn't support font alpha. Pre-blend the color against the background:
+```python
+# rgba(r,g,b,a) over bg(br,bg,bb):
+blended_r = int(br + (r - br) * a)
+blended_g = int(bg + (g - bg) * a)
+blended_b = int(bb + (b - bb) * a)
+```
+Common case: decorative quote glyphs at 15-20% opacity.
+
+### Bullet Lists — Handle ● Marker as Separate Styled Run
+
+Scene graph encodes bullets as a `●` run (cyan, small) + text run.
+Build with `chr(8226) + "  " + text` per paragraph, then:
+1. Set full range to text font/size/color
+2. Per paragraph: color `Characters(1,1)` cyan with smaller size
+3. Set spacing per paragraph: `SpaceBefore=4, SpaceAfter=4`
+4. Reset textbox dimensions AFTER all text operations
+
+### Batch Scripts Lose Detail
+
+Automated builders miss per-run styling (underline, bold spans, different
+colors within a paragraph), bullet markers, panel border colors, and text
+alignment. Always verify every slide against browser screenshots. Manual
+per-element building produces much higher fidelity than batch approaches.
 
 ### Fill Transparency (WATCH THE INVERSION)
 
