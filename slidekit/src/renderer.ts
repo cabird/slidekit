@@ -499,6 +499,11 @@ export function renderElementFromScene(element: SlideElement, zIndex: number, sc
   const div = document.createElement("div");
   div.setAttribute("data-sk-id", element.id);
 
+  // Store z-order on scene graph for exporters
+  if (sceneElements[element.id]) {
+    sceneElements[element.id].zOrder = zIndex;
+  }
+
   // Base layout CSS (library-controlled)
   div.style.position = "absolute";
   div.style.left = `${left}px`;
@@ -755,6 +760,152 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
           overflow: dom.scrollWidth - dom.clientWidth,
         });
       }
+    }
+  }
+
+  // =========================================================================
+  // Post-render Phase: Image metadata enrichment
+  // =========================================================================
+  // For each element containing an <img>, capture natural dimensions, the
+  // effective object-fit/object-position, and pre-compute sourceRect (crop
+  // in image-pixel coordinates) and destRect (placement within the container).
+  // This gives exporters everything they need for drawImage() without having
+  // to reverse-engineer CSS object-fit geometry themselves.
+  // Parse a single CSS object-position component to an alignment fraction.
+  // CSS spec: `P%` means the P% point of the object aligns with the P%
+  // point of the content box. So 50% = centered, 0% = start edge, etc.
+  // Keywords map to percentages (left/top = 0%, center = 50%, right/bottom = 100%).
+  // Absolute px values are converted to equivalent fractions relative to
+  // `slack` (container_dim - rendered_object_dim). When slack is ≈0,
+  // position is irrelevant so we return 0.5.
+  type ParsedPos = { fraction: number } | { px: number };
+  const parsePosSingle = (s: string): ParsedPos => {
+    const t = s.trim().toLowerCase();
+    if (t === 'left' || t === 'top') return { fraction: 0 };
+    if (t === 'center') return { fraction: 0.5 };
+    if (t === 'right' || t === 'bottom') return { fraction: 1 };
+    if (t.endsWith('%')) return { fraction: parseFloat(t) / 100 };
+    // px or bare number — absolute offset
+    return { px: parseFloat(t) || 0 };
+  };
+  // Apply a parsed position against the available slack.
+  // For fraction: offset = fraction * slack
+  // For px: offset = px value directly
+  const applyPos = (pos: ParsedPos, slack: number): number =>
+    'fraction' in pos ? pos.fraction * slack : pos.px;
+  // Convert to a normalized fraction for the ImageResolved.objectPosition field.
+  const posToFraction = (pos: ParsedPos, slack: number): number => {
+    if ('fraction' in pos) return pos.fraction;
+    if (Math.abs(slack) < 0.001) return 0.5;
+    return Math.max(0, Math.min(1, pos.px / slack));
+  };
+
+  for (let i = 0; i < layouts.length; i++) {
+    const layoutResult = layouts[i];
+    const sceneElements = layoutResult.elements;
+    const section = sections[i];
+
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      if (entry.type !== "el") continue;
+      const dom = section.querySelector(`[data-sk-id="${id}"]`);
+      if (!dom) continue;
+      // First descendant <img> only. Elements with multiple images are
+      // uncommon in slide content; if needed, this could become an array.
+      const img = dom.querySelector("img") as HTMLImageElement | null;
+      if (!img || !img.naturalWidth || !img.naturalHeight) continue;
+
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      const cw = entry.resolved.w;
+      const ch = entry.resolved.h;
+      if (cw <= 0 || ch <= 0) continue; // degenerate container
+
+      const computed = getComputedStyle(img);
+      let objectFit = computed.objectFit || "fill";
+
+      // Parse object-position
+      const opStr = computed.objectPosition || "50% 50%";
+      const opParts = opStr.trim().split(/\s+/);
+      const posX = opParts.length >= 1 ? parsePosSingle(opParts[0]) : { fraction: 0.5 };
+      const posY = opParts.length >= 2 ? parsePosSingle(opParts[1]) : { fraction: 0.5 };
+
+      // scale-down = whichever of none / contain produces a smaller rendering.
+      // Equivalently: if the image fits in the container at natural size, use none;
+      // otherwise use contain.
+      if (objectFit === 'scale-down') {
+        objectFit = (nw <= cw && nh <= ch) ? 'none' : 'contain';
+      }
+
+      let sourceRect: { x: number; y: number; w: number; h: number };
+      let destRect: { x: number; y: number; w: number; h: number };
+      // Slack values for posToFraction — computed per branch because
+      // the rendered object dimensions differ.
+      let slackX = 0, slackY = 0;
+
+      if (objectFit === "cover") {
+        const scale = Math.max(cw / nw, ch / nh);
+        const objW = nw * scale;
+        const objH = nh * scale;
+        slackX = cw - objW; // negative (object larger than container)
+        slackY = ch - objH;
+        const offX = applyPos(posX, slackX);
+        const offY = applyPos(posY, slackY);
+        // offX is ≤ 0 — the object's left edge is offX px to the left of the container.
+        // Visible region in source-pixel coordinates:
+        let sx = -offX / scale;
+        let sy = -offY / scale;
+        let sw = cw / scale;
+        let sh = ch / scale;
+        // Clamp to image bounds
+        sx = Math.max(0, Math.min(nw - sw, sx));
+        sy = Math.max(0, Math.min(nh - sh, sy));
+        sw = Math.min(sw, nw - sx);
+        sh = Math.min(sh, nh - sy);
+        sourceRect = { x: sx, y: sy, w: sw, h: sh };
+        destRect = { x: 0, y: 0, w: cw, h: ch };
+
+      } else if (objectFit === "contain") {
+        const scale = Math.min(cw / nw, ch / nh);
+        const objW = nw * scale;
+        const objH = nh * scale;
+        slackX = cw - objW; // positive (letterbox)
+        slackY = ch - objH;
+        const offX = applyPos(posX, slackX);
+        const offY = applyPos(posY, slackY);
+        sourceRect = { x: 0, y: 0, w: nw, h: nh };
+        destRect = { x: offX, y: offY, w: objW, h: objH };
+
+      } else if (objectFit === "none") {
+        // Render at natural size, clipped to container.
+        slackX = cw - nw;
+        slackY = ch - nh;
+        const offX = applyPos(posX, slackX);
+        const offY = applyPos(posY, slackY);
+        // offX is the object's left edge relative to the container.
+        // Visible crop in source pixels:
+        const visX = Math.max(0, -offX);
+        const visY = Math.max(0, -offY);
+        const visW = Math.min(nw - visX, cw - Math.max(0, offX));
+        const visH = Math.min(nh - visY, ch - Math.max(0, offY));
+        if (visW <= 0 || visH <= 0) continue; // image completely outside container
+        sourceRect = { x: visX, y: visY, w: visW, h: visH };
+        destRect = { x: Math.max(0, offX), y: Math.max(0, offY), w: visW, h: visH };
+
+      } else {
+        // "fill" (and any unknown value) — stretch full source into full container
+        sourceRect = { x: 0, y: 0, w: nw, h: nh };
+        destRect = { x: 0, y: 0, w: cw, h: ch };
+      }
+
+      entry.image = {
+        src: img.getAttribute("src") || img.src,
+        naturalWidth: nw,
+        naturalHeight: nh,
+        objectFit,
+        objectPosition: [posToFraction(posX, slackX), posToFraction(posY, slackY)],
+        sourceRect,
+        destRect,
+      };
     }
   }
 

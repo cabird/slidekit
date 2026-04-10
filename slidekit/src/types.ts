@@ -654,10 +654,58 @@ export interface SceneElement {
    * resolved path geometry (endpoints + bezier control points + waypoints).
    */
   connector?: ConnectorResolved;
+  /**
+   * Computed z-order (1-based) within this element's stacking context.
+   * Higher values render in front of lower values.
+   * Determined by layer (bg < content < overlay), then explicit `z` prop,
+   * then declaration order. For nested elements (group/stack children),
+   * this is the local z-order within the parent; use `parentId` to
+   * reconstruct the full nesting when computing global paint order.
+   * Populated during render (requires DOM).
+   */
+  zOrder?: number;
+  /**
+   * Resolved image metadata — present when the element contains an `<img>`.
+   * Pre-computes the source crop rectangle so exporters don't have to
+   * reverse-engineer `object-fit` / `object-position` geometry.
+   * Populated during render (requires DOM for `naturalWidth` / `naturalHeight`).
+   */
+  image?: ImageResolved;
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
   /** Panel child positions — present only on panel compound elements. */
   panelChildren?: Array<{ id: string; type: ElementType; x?: number; y?: number; w?: number; h?: number }>;
+}
+
+/** Resolved image metadata for elements containing `<img>` tags. */
+export interface ImageResolved {
+  /** Image source URL (as authored in the `src` attribute). */
+  src: string;
+  /** Natural (intrinsic) width of the image in pixels. */
+  naturalWidth: number;
+  /** Natural (intrinsic) height of the image in pixels. */
+  naturalHeight: number;
+  /** Effective `object-fit` value (e.g. "cover", "contain", "fill", "none"). */
+  objectFit: string;
+  /**
+   * Effective `object-position` as normalized fractions `[x, y]` in `[0, 1]`.
+   * Default `[0.5, 0.5]` (centered) corresponds to CSS `50% 50%`.
+   */
+  objectPosition: [number, number];
+  /**
+   * Source rectangle in image-pixel coordinates — the visible region of the
+   * source image. For `object-fit: cover`, this is the cropped area; for
+   * `contain` and `fill` this is the full image `{ x: 0, y: 0, w: naturalWidth, h: naturalHeight }`.
+   * Suitable for `drawImage(img, sx, sy, sw, sh, ...)`.
+   */
+  sourceRect: { x: number; y: number; w: number; h: number };
+  /**
+   * Destination rectangle within the element's bounds (relative to element
+   * origin). For `cover` and `fill` this equals `{ x: 0, y: 0, w, h }` (fills the container).
+   * For `contain` this is the letterboxed area where the image actually appears.
+   * Suitable for `drawImage(..., dx, dy, dw, dh)`.
+   */
+  destRect: { x: number; y: number; w: number; h: number };
 }
 
 /** Result of the layout pass. */
