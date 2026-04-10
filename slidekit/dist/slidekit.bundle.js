@@ -8867,6 +8867,8 @@ async function rerenderSlide(slideIndex, slideDefinition) {
     layer.appendChild(renderElementFromScene(element, zIndex, layoutResult.elements));
   }
   oldLayer.replaceWith(layer);
+  const sk0 = window.sk;
+  const prevElements = sk0?.layouts?.[slideIndex]?.elements;
   const section = layer.parentElement;
   const wasHidden = getComputedStyle(section).display === "none";
   let origDisplay = "", origVisibility = "", origPosition = "", origLeft = "";
@@ -8923,6 +8925,15 @@ async function rerenderSlide(slideIndex, slideDefinition) {
       section.style.visibility = origVisibility;
       section.style.position = origPosition;
       section.style.left = origLeft;
+    }
+  }
+  if (prevElements) {
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      const prev = prevElements[id];
+      if (!prev) continue;
+      if (!entry.text && prev.text) entry.text = prev.text;
+      if (!entry.image && prev.image) entry.image = prev.image;
+      if (entry.zOrder === void 0 && prev.zOrder !== void 0) entry.zOrder = prev.zOrder;
     }
   }
   const sk = window.sk;

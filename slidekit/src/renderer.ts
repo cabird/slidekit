@@ -921,6 +921,14 @@ export async function rerenderSlide(
   // Reveal.js hides inactive slides with display:none, which makes
   // getBoundingClientRect() return zeros. Temporarily force the section
   // visible so we can measure text rects and image metadata.
+  //
+  // If enrichment fails (e.g., hidden slide where display:block !important
+  // doesn't fully propagate), preserve enrichment data from the previous
+  // layout result so a font re-render doesn't wipe data that the initial
+  // render (when all slides were visible) already computed.
+  const sk0 = (window as any).sk;
+  const prevElements = sk0?.layouts?.[slideIndex]?.elements as Record<string, any> | undefined;
+
   const section = layer.parentElement!;
   const wasHidden = getComputedStyle(section).display === 'none';
   // Save original inline styles before overriding for measurement
@@ -985,6 +993,18 @@ export async function rerenderSlide(
       section.style.visibility = origVisibility;
       section.style.position = origPosition;
       section.style.left = origLeft;
+    }
+  }
+
+  // Preserve enrichment from previous render for any elements that
+  // didn't get enriched this time (e.g., hidden slide).
+  if (prevElements) {
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      const prev = prevElements[id];
+      if (!prev) continue;
+      if (!entry.text && prev.text) entry.text = prev.text;
+      if (!entry.image && prev.image) entry.image = prev.image;
+      if (entry.zOrder === undefined && prev.zOrder !== undefined) entry.zOrder = prev.zOrder;
     }
   }
 
