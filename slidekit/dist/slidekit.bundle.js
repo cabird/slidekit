@@ -8099,6 +8099,86 @@ function textNodeRects(node, containerDomRect, resolved, scaleX, scaleY) {
   }
   return result;
 }
+function parsePosSingle(s) {
+  const t = s.trim().toLowerCase();
+  if (t === "left" || t === "top") return { fraction: 0 };
+  if (t === "center") return { fraction: 0.5 };
+  if (t === "right" || t === "bottom") return { fraction: 1 };
+  if (t.endsWith("%")) return { fraction: parseFloat(t) / 100 };
+  return { px: parseFloat(t) || 0 };
+}
+function applyPos(pos, slack) {
+  return "fraction" in pos ? pos.fraction * slack : pos.px;
+}
+function posToFraction(pos, slack) {
+  if ("fraction" in pos) return pos.fraction;
+  if (Math.abs(slack) < 1e-3) return 0.5;
+  return Math.max(0, Math.min(1, pos.px / slack));
+}
+function computeImageResolved(img, resolved) {
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  const cw = resolved.w;
+  const ch = resolved.h;
+  if (!nw || !nh || cw <= 0 || ch <= 0) return null;
+  const computed = getComputedStyle(img);
+  let objectFit = computed.objectFit || "fill";
+  const opStr = computed.objectPosition || "50% 50%";
+  const opParts = opStr.trim().split(/\s+/);
+  const posX = opParts.length >= 1 ? parsePosSingle(opParts[0]) : { fraction: 0.5 };
+  const posY = opParts.length >= 2 ? parsePosSingle(opParts[1]) : { fraction: 0.5 };
+  if (objectFit === "scale-down") {
+    objectFit = nw <= cw && nh <= ch ? "none" : "contain";
+  }
+  let sourceRect;
+  let destRect;
+  let slackX = 0, slackY = 0;
+  if (objectFit === "cover") {
+    const scale = Math.max(cw / nw, ch / nh);
+    const objW = nw * scale, objH = nh * scale;
+    slackX = cw - objW;
+    slackY = ch - objH;
+    const offX = applyPos(posX, slackX), offY = applyPos(posY, slackY);
+    let sx = -offX / scale, sy = -offY / scale;
+    let sw = cw / scale, sh = ch / scale;
+    sx = Math.max(0, Math.min(nw - sw, sx));
+    sy = Math.max(0, Math.min(nh - sh, sy));
+    sw = Math.min(sw, nw - sx);
+    sh = Math.min(sh, nh - sy);
+    sourceRect = { x: sx, y: sy, w: sw, h: sh };
+    destRect = { x: 0, y: 0, w: cw, h: ch };
+  } else if (objectFit === "contain") {
+    const scale = Math.min(cw / nw, ch / nh);
+    const objW = nw * scale, objH = nh * scale;
+    slackX = cw - objW;
+    slackY = ch - objH;
+    const offX = applyPos(posX, slackX), offY = applyPos(posY, slackY);
+    sourceRect = { x: 0, y: 0, w: nw, h: nh };
+    destRect = { x: offX, y: offY, w: objW, h: objH };
+  } else if (objectFit === "none") {
+    slackX = cw - nw;
+    slackY = ch - nh;
+    const offX = applyPos(posX, slackX), offY = applyPos(posY, slackY);
+    const visX = Math.max(0, -offX), visY = Math.max(0, -offY);
+    const visW = Math.min(nw - visX, cw - Math.max(0, offX));
+    const visH = Math.min(nh - visY, ch - Math.max(0, offY));
+    if (visW <= 0 || visH <= 0) return null;
+    sourceRect = { x: visX, y: visY, w: visW, h: visH };
+    destRect = { x: Math.max(0, offX), y: Math.max(0, offY), w: visW, h: visH };
+  } else {
+    sourceRect = { x: 0, y: 0, w: nw, h: nh };
+    destRect = { x: 0, y: 0, w: cw, h: ch };
+  }
+  return {
+    src: img.getAttribute("src") || img.src,
+    naturalWidth: nw,
+    naturalHeight: nh,
+    objectFit,
+    objectPosition: [posToFraction(posX, slackX), posToFraction(posY, slackY)],
+    sourceRect,
+    destRect
+  };
+}
 function extractTextBox(container, resolved) {
   const containerRect = container.getBoundingClientRect();
   if (containerRect.width <= 0 || containerRect.height <= 0) return null;
@@ -8697,20 +8777,6 @@ async function render(slides, options = {}) {
       }
     }
   }
-  const parsePosSingle = (s) => {
-    const t = s.trim().toLowerCase();
-    if (t === "left" || t === "top") return { fraction: 0 };
-    if (t === "center") return { fraction: 0.5 };
-    if (t === "right" || t === "bottom") return { fraction: 1 };
-    if (t.endsWith("%")) return { fraction: parseFloat(t) / 100 };
-    return { px: parseFloat(t) || 0 };
-  };
-  const applyPos = (pos, slack) => "fraction" in pos ? pos.fraction * slack : pos.px;
-  const posToFraction = (pos, slack) => {
-    if ("fraction" in pos) return pos.fraction;
-    if (Math.abs(slack) < 1e-3) return 0.5;
-    return Math.max(0, Math.min(1, pos.px / slack));
-  };
   for (let i = 0; i < layouts.length; i++) {
     const layoutResult = layouts[i];
     const sceneElements = layoutResult.elements;
@@ -8721,76 +8787,8 @@ async function render(slides, options = {}) {
       if (!dom) continue;
       const img = dom.querySelector("img");
       if (!img || !img.naturalWidth || !img.naturalHeight) continue;
-      const nw = img.naturalWidth;
-      const nh = img.naturalHeight;
-      const cw = entry.resolved.w;
-      const ch = entry.resolved.h;
-      if (cw <= 0 || ch <= 0) continue;
-      const computed = getComputedStyle(img);
-      let objectFit = computed.objectFit || "fill";
-      const opStr = computed.objectPosition || "50% 50%";
-      const opParts = opStr.trim().split(/\s+/);
-      const posX = opParts.length >= 1 ? parsePosSingle(opParts[0]) : { fraction: 0.5 };
-      const posY = opParts.length >= 2 ? parsePosSingle(opParts[1]) : { fraction: 0.5 };
-      if (objectFit === "scale-down") {
-        objectFit = nw <= cw && nh <= ch ? "none" : "contain";
-      }
-      let sourceRect;
-      let destRect;
-      let slackX = 0, slackY = 0;
-      if (objectFit === "cover") {
-        const scale = Math.max(cw / nw, ch / nh);
-        const objW = nw * scale;
-        const objH = nh * scale;
-        slackX = cw - objW;
-        slackY = ch - objH;
-        const offX = applyPos(posX, slackX);
-        const offY = applyPos(posY, slackY);
-        let sx = -offX / scale;
-        let sy = -offY / scale;
-        let sw = cw / scale;
-        let sh = ch / scale;
-        sx = Math.max(0, Math.min(nw - sw, sx));
-        sy = Math.max(0, Math.min(nh - sh, sy));
-        sw = Math.min(sw, nw - sx);
-        sh = Math.min(sh, nh - sy);
-        sourceRect = { x: sx, y: sy, w: sw, h: sh };
-        destRect = { x: 0, y: 0, w: cw, h: ch };
-      } else if (objectFit === "contain") {
-        const scale = Math.min(cw / nw, ch / nh);
-        const objW = nw * scale;
-        const objH = nh * scale;
-        slackX = cw - objW;
-        slackY = ch - objH;
-        const offX = applyPos(posX, slackX);
-        const offY = applyPos(posY, slackY);
-        sourceRect = { x: 0, y: 0, w: nw, h: nh };
-        destRect = { x: offX, y: offY, w: objW, h: objH };
-      } else if (objectFit === "none") {
-        slackX = cw - nw;
-        slackY = ch - nh;
-        const offX = applyPos(posX, slackX);
-        const offY = applyPos(posY, slackY);
-        const visX = Math.max(0, -offX);
-        const visY = Math.max(0, -offY);
-        const visW = Math.min(nw - visX, cw - Math.max(0, offX));
-        const visH = Math.min(nh - visY, ch - Math.max(0, offY));
-        if (visW <= 0 || visH <= 0) continue;
-        sourceRect = { x: visX, y: visY, w: visW, h: visH };
-        destRect = { x: Math.max(0, offX), y: Math.max(0, offY), w: visW, h: visH };
-      } else {
-        sourceRect = { x: 0, y: 0, w: nw, h: nh };
-        destRect = { x: 0, y: 0, w: cw, h: ch };
-      }
-      entry.image = {
-        src: img.getAttribute("src") || img.src,
-        naturalWidth: nw,
-        naturalHeight: nh,
-        objectFit,
-        objectPosition: [posToFraction(posX, slackX), posToFraction(posY, slackY)],
-        sourceRect,
-        destRect
-      };
+      const imgResolved = computeImageResolved(img, entry.resolved);
+      if (imgResolved) entry.image = imgResolved;
     }
   }
   if (typeof window !== "undefined") {
@@ -8864,6 +8862,56 @@ async function rerenderSlide(slideIndex, slideDefinition) {
     layer.appendChild(renderElementFromScene(element, zIndex, layoutResult.elements));
   }
   oldLayer.replaceWith(layer);
+  const section = layer.parentElement;
+  const wasHidden = getComputedStyle(section).display === "none";
+  if (wasHidden) {
+    section.style.setProperty("display", "block", "important");
+    section.style.visibility = "hidden";
+    section.style.position = "absolute";
+    section.style.left = "-9999px";
+  }
+  const sceneElements = layoutResult.elements;
+  for (const [id, entry] of Object.entries(sceneElements)) {
+    if (entry.type !== "el") continue;
+    const dom = section.querySelector(`[data-sk-id="${id}"]`);
+    if (!dom) continue;
+    const textContent = dom.textContent;
+    if (textContent && textContent.trim().length > 0) {
+      const textBox = extractTextBox(dom, entry.resolved);
+      if (textBox && textBox.paragraphs.length > 0) {
+        entry.text = textBox;
+      }
+    }
+    const img = dom.querySelector("img");
+    if (img && img.naturalWidth && img.naturalHeight) {
+      const imgResolved = computeImageResolved(img, entry.resolved);
+      if (imgResolved) entry.image = imgResolved;
+    }
+    if (dom.scrollHeight > dom.clientHeight + 1) {
+      layoutResult.warnings.push({
+        type: "dom_overflow_y",
+        elementId: id,
+        clientHeight: dom.clientHeight,
+        scrollHeight: dom.scrollHeight,
+        overflow: dom.scrollHeight - dom.clientHeight
+      });
+    }
+    if (dom.scrollWidth > dom.clientWidth + 1) {
+      layoutResult.warnings.push({
+        type: "dom_overflow_x",
+        elementId: id,
+        clientWidth: dom.clientWidth,
+        scrollWidth: dom.scrollWidth,
+        overflow: dom.scrollWidth - dom.clientWidth
+      });
+    }
+  }
+  if (wasHidden) {
+    section.style.display = "";
+    section.style.visibility = "";
+    section.style.position = "";
+    section.style.left = "";
+  }
   const sk = window.sk;
   if (sk) {
     sk.layouts[slideIndex] = layoutResult;

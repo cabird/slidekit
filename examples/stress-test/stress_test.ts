@@ -663,6 +663,126 @@ export async function run() {
       ],
     },
 
+    // ================================================================
+    // SLIDE 21: Scene Graph Export — Text Runs, Image, Z-Order
+    // ================================================================
+    {
+      id: 'scene-graph-export',
+      background: C.bg,
+      elements: [
+        title('Scene Graph Export Test', 's21-title', { x: safe.x, y: safe.y }),
+        label('Text runs, image metadata, z-order', 's21-subtitle', {
+          x: safe.x, y: below('s21-title', { gap: 8 }),
+        }),
+
+        // --- Text: multi-paragraph with mixed inline styles ---
+        el(`
+          <div>
+            <p style="font:400 24px ${FONT};color:${C.text};text-align:left;">
+              This is a <b>bold</b> word, an <i>italic</i> word,
+              and a <span style="color:${C.accent1}">colored span</span>
+              with <span style="text-decoration:underline">underlined text</span>.
+            </p>
+            <p style="font:300 20px ${FONT};color:${C.textSec};text-align:center;">
+              Second paragraph — centered, lighter weight, secondary color.
+              This line should be long enough to wrap at least once in the box
+              so we can verify that wrapped text gets multiple rects in the same run.
+            </p>
+            <p style="font:600 18px ${FONT};color:${C.accent3};text-align:right;text-transform:uppercase;">
+              right-aligned uppercase paragraph
+            </p>
+          </div>
+        `, {
+          id: 's21-text-mixed',
+          x: safe.x, y: below('s21-subtitle', { gap: 30 }),
+          w: 800, h: 300,
+        }),
+
+        // --- Text: <br> line breaks within one paragraph ---
+        el(`
+          <span style="font:400 22px ${FONT};color:${C.text};">
+            Line one<br>
+            Line two<br>
+            Line three — all in <b>one paragraph</b> with <span style="color:${C.accent4}">color</span>
+          </span>
+        `, {
+          id: 's21-text-br',
+          x: safe.x, y: below('s21-text-mixed', { gap: 20 }),
+          w: 600, h: 120,
+        }),
+
+        // --- Text: nested blocks (div > p > span) ---
+        el(`
+          <div style="font:400 20px ${FONT};color:${C.text};">
+            <div style="text-align:left;">
+              <p>Paragraph inside nested divs.</p>
+              <p>Another paragraph — <span style="opacity:0.5">half-opacity text</span>
+              and <span style="background-color:${C.accent2};padding:2px 6px;border-radius:3px;">highlighted</span></p>
+            </div>
+          </div>
+        `, {
+          id: 's21-text-nested',
+          x: rightOf('s21-text-mixed', { gap: 40 }),
+          y: below('s21-subtitle', { gap: 30 }),
+          w: 700, h: 200,
+        }),
+
+        // --- Text: superscript, subscript, letter-spacing ---
+        el(`
+          <p style="font:400 22px ${FONT};color:${C.text};">
+            E = mc<sup style="font-size:14px;">2</sup> and
+            H<sub style="font-size:14px;">2</sub>O with
+            <span style="letter-spacing:4px;">w i d e</span> spacing
+          </p>
+        `, {
+          id: 's21-text-special',
+          x: rightOf('s21-text-mixed', { gap: 40 }),
+          y: below('s21-text-nested', { gap: 20 }),
+          w: 700, h: 60,
+        }),
+
+        // --- Image: object-fit cover ---
+        el(`<img src="${PLACEHOLDER_SVG}" style="width:100%;height:100%;object-fit:cover;object-position:25% 75%;">`, {
+          id: 's21-img-cover',
+          x: safe.x, y: below('s21-text-br', { gap: 20 }),
+          w: 300, h: 200,
+        }),
+
+        // --- Image: object-fit contain ---
+        el(`<img src="${PLACEHOLDER_SVG}" style="width:100%;height:100%;object-fit:contain;">`, {
+          id: 's21-img-contain',
+          x: rightOf('s21-img-cover', { gap: 20 }),
+          y: below('s21-text-br', { gap: 20 }),
+          w: 300, h: 200,
+        }),
+
+        // --- Z-order: overlapping boxes at different z ---
+        el(`<div style="width:100%;height:100%;background:${C.accent1};opacity:0.7;border-radius:8px;display:flex;align-items:center;justify-content:center;font:600 16px ${FONT};color:#000;">z=1 (behind)</div>`, {
+          id: 's21-z1', x: rightOf('s21-img-contain', { gap: 40 }),
+          y: below('s21-text-br', { gap: 20 }),
+          w: 200, h: 150, z: 1,
+        }),
+        el(`<div style="width:100%;height:100%;background:${C.accent3};opacity:0.8;border-radius:8px;display:flex;align-items:center;justify-content:center;font:600 16px ${FONT};color:#000;">z=3 (front)</div>`, {
+          id: 's21-z3', x: rightOf('s21-img-contain', { gap: 70 }),
+          y: below('s21-text-br', { gap: 50 }),
+          w: 200, h: 150, z: 3,
+        }),
+        el(`<div style="width:100%;height:100%;background:${C.accent4};opacity:0.8;border-radius:8px;display:flex;align-items:center;justify-content:center;font:600 16px ${FONT};color:#000;">z=2 (middle)</div>`, {
+          id: 's21-z2', x: rightOf('s21-img-contain', { gap: 55 }),
+          y: below('s21-text-br', { gap: 35 }),
+          w: 200, h: 150, z: 2,
+        }),
+
+        // --- Connector between images ---
+        connect('s21-img-cover', 's21-img-contain', {
+          id: 's21-conn',
+          label: 'fit modes',
+          color: C.accent1,
+          thickness: 2,
+        }),
+      ],
+    },
+
   ];
 
   const result = await render(slides);
