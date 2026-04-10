@@ -680,6 +680,12 @@ export interface SceneElement {
    * same text box. Populated during render (requires DOM).
    */
   text?: TextBoxResolved;
+  /** SlideKit layer: "bg", "content", or "overlay". Determines paint order. */
+  layer?: string;
+  /** Visual container layers extracted from the rendered DOM. Each layer
+   * represents a DOM element with visible box styling (background, border,
+   * border-radius, shadow, etc.). Ordered in DOM/paint order. */
+  layers?: DOMVisualLayer[];
   /** Style-related warnings. */
   styleWarnings?: Array<Record<string, unknown>>;
   /** Panel child positions — present only on panel compound elements. */
@@ -765,6 +771,54 @@ export interface TextParagraph {
  */
 export interface TextBoxResolved {
   paragraphs: TextParagraph[];
+}
+
+/** Per-side border properties. */
+export interface DOMBorderSide {
+  width: number;
+  style: string;
+  color: string;
+}
+
+/** Visual layer extracted from a rendered DOM element's box model. */
+export interface DOMVisualLayer {
+  /** HTML tag name. */
+  tag: string;
+  /** Bounding rect in slide-level CSS px. */
+  rect: { x: number; y: number; w: number; h: number };
+  /** Computed background color (e.g. "rgba(255,255,255,0.08)"). */
+  backgroundColor: string;
+  /** Computed background image (e.g. "linear-gradient(...)"). Only present when not "none". */
+  backgroundImage?: string;
+  /**
+   * Effective opacity (compounded through ancestor chain within the
+   * SlideKit element). Does NOT include the outer SlideKit element's
+   * own opacity (`SceneElement.authored.props.opacity`); the exporter
+   * should apply that separately if needed.
+   */
+  opacity: number;
+  /** Element's own computed opacity (before ancestor compounding). */
+  ownOpacity: number;
+  /** Computed padding in CSS px. */
+  padding: { top: number; right: number; bottom: number; left: number };
+  /** Per-side border. Only present when at least one side has visible border. */
+  border?: {
+    top: DOMBorderSide;
+    right: DOMBorderSide;
+    bottom: DOMBorderSide;
+    left: DOMBorderSide;
+  };
+  /** Per-corner border radius in CSS px. Only present when any corner > 0. */
+  borderRadius?: {
+    topLeft: number;
+    topRight: number;
+    bottomRight: number;
+    bottomLeft: number;
+  };
+  /** Computed box-shadow. Only present when not "none". */
+  boxShadow?: string;
+  /** Computed backdrop-filter. Only present when not "none". */
+  backdropFilter?: string;
 }
 
 /** Resolved image metadata for elements containing `<img>` tags. */

@@ -15,6 +15,7 @@ import { clearMeasureCache } from './measure.js';
 import type { SlideElement, SlideDefinition, LayoutResult } from './types.js';
 import { extractTextBox } from './text-extract.js';
 import { computeImageResolved } from './image-resolve.js';
+import { extractDOMLayers } from './dom-layer-extract.js';
 
 // Layout function injected by slidekit.js to avoid circular imports.
 let _layoutFn: ((slide: SlideDefinition) => Promise<LayoutResult>) | undefined;
@@ -748,6 +749,35 @@ export async function render(slides: SlideDefinition[], options: Record<string, 
     }
   }
 
+  // =========================================================================
+  // Post-render Phase: DOM visual layer extraction
+  // =========================================================================
+  // Extract visual container properties (background, border, border-radius,
+  // shadow, etc.) from the rendered DOM for each element.
+  for (let i = 0; i < layouts.length; i++) {
+    const layoutResult = layouts[i];
+    const sceneElements = layoutResult.elements;
+    const section = sections[i];
+
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      if (entry.type !== "el") continue;
+      const dom = section.querySelector(`[data-sk-id="${id}"]`) as HTMLElement | null;
+      if (!dom) continue;
+
+      // Layer extraction
+      const layers = extractDOMLayers(dom, entry.resolved);
+      if (layers && layers.length > 0) {
+        entry.layers = layers;
+      }
+
+      // Promote layer from authored props
+      const authoredLayer = (entry.authored?.props as Record<string, unknown>)?.layer;
+      if (authoredLayer) {
+        entry.layer = authoredLayer as string;
+      }
+    }
+  }
+
   // Post-render Phase: DOM overflow detection (P0.2)
   // =========================================================================
   // After all slides are rendered to DOM, check every `el`-type element for
@@ -966,6 +996,18 @@ export async function rerenderSlide(
         if (imgResolved) entry.image = imgResolved;
       }
 
+      // Layer extraction
+      const layers = extractDOMLayers(dom, entry.resolved);
+      if (layers && layers.length > 0) {
+        entry.layers = layers;
+      }
+
+      // Promote layer from authored props
+      const authoredLayer = (entry.authored?.props as Record<string, unknown>)?.layer;
+      if (authoredLayer) {
+        entry.layer = authoredLayer as string;
+      }
+
       // Overflow detection
       if (dom.scrollHeight > dom.clientHeight + 1) {
         layoutResult.warnings.push({
@@ -1004,6 +1046,8 @@ export async function rerenderSlide(
       if (!prev) continue;
       if (!entry.text && prev.text) entry.text = prev.text;
       if (!entry.image && prev.image) entry.image = prev.image;
+      if (!entry.layers && prev.layers) entry.layers = prev.layers;
+      if (!entry.layer && prev.layer) entry.layer = prev.layer;
       if (entry.zOrder === undefined && prev.zOrder !== undefined) entry.zOrder = prev.zOrder;
     }
   }

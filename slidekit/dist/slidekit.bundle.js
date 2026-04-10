@@ -8265,6 +8265,152 @@ function computeImageResolved(img, resolved) {
   };
 }
 
+// slidekit/src/dom-layer-extract.ts
+var SKIP_TAGS2 = /* @__PURE__ */ new Set([
+  "script",
+  "style",
+  "noscript",
+  "svg",
+  "canvas",
+  "video",
+  "audio",
+  "iframe",
+  "img",
+  "object",
+  "embed"
+]);
+function makeCsCache2() {
+  const cache = /* @__PURE__ */ new WeakMap();
+  return (el2) => {
+    let cs = cache.get(el2);
+    if (!cs) {
+      cs = getComputedStyle(el2);
+      cache.set(el2, cs);
+    }
+    return cs;
+  };
+}
+function isTransparent(bg) {
+  if (!bg || bg === "transparent") return true;
+  const rgbaComma = bg.match(/^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/);
+  if (rgbaComma) return parseFloat(rgbaComma[1]) === 0;
+  const rgbaSlash = bg.match(/\/\s*([\d.]+)(%?)\s*\)$/);
+  if (rgbaSlash) {
+    const val = parseFloat(rgbaSlash[1]);
+    return rgbaSlash[2] === "%" ? val === 0 : val === 0;
+  }
+  if (bg.startsWith("rgb(")) return false;
+  return false;
+}
+function computeEffectiveOpacity(el2, container, getCs) {
+  const rawOwn = parseFloat(getCs(el2).opacity);
+  const ownOpacity = Number.isNaN(rawOwn) ? 1 : rawOwn;
+  let effective = ownOpacity;
+  let ancestor = el2.parentElement;
+  while (ancestor && ancestor !== container) {
+    const rawAnc = parseFloat(getCs(ancestor).opacity);
+    effective *= Number.isNaN(rawAnc) ? 1 : rawAnc;
+    ancestor = ancestor.parentElement;
+  }
+  return { ownOpacity, effectiveOpacity: effective };
+}
+function extractDOMLayers(container, resolved) {
+  const containerRect = container.getBoundingClientRect();
+  if (containerRect.width <= 0 || containerRect.height <= 0) return null;
+  const scaleX = resolved.w / containerRect.width;
+  const scaleY = resolved.h / containerRect.height;
+  const getCs = makeCsCache2();
+  const layers = [];
+  function walk(el2) {
+    const tag = el2.tagName.toLowerCase();
+    if (SKIP_TAGS2.has(tag)) return;
+    const cs = getCs(el2);
+    if (cs.display === "none" || cs.visibility === "hidden") return;
+    const backgroundColor = cs.backgroundColor;
+    const backgroundImage = cs.backgroundImage;
+    const hasBg = !isTransparent(backgroundColor);
+    const hasBgImage = !!backgroundImage && backgroundImage !== "none";
+    const borderTopWidth = parseFloat(cs.borderTopWidth) || 0;
+    const borderRightWidth = parseFloat(cs.borderRightWidth) || 0;
+    const borderBottomWidth = parseFloat(cs.borderBottomWidth) || 0;
+    const borderLeftWidth = parseFloat(cs.borderLeftWidth) || 0;
+    const borderTopStyle = cs.borderTopStyle;
+    const borderRightStyle = cs.borderRightStyle;
+    const borderBottomStyle = cs.borderBottomStyle;
+    const borderLeftStyle = cs.borderLeftStyle;
+    const hasTopBorder = borderTopWidth > 0 && borderTopStyle !== "none";
+    const hasRightBorder = borderRightWidth > 0 && borderRightStyle !== "none";
+    const hasBottomBorder = borderBottomWidth > 0 && borderBottomStyle !== "none";
+    const hasLeftBorder = borderLeftWidth > 0 && borderLeftStyle !== "none";
+    const hasBorder = hasTopBorder || hasRightBorder || hasBottomBorder || hasLeftBorder;
+    const topLeft = parseFloat(cs.borderTopLeftRadius) || 0;
+    const topRight = parseFloat(cs.borderTopRightRadius) || 0;
+    const bottomRight = parseFloat(cs.borderBottomRightRadius) || 0;
+    const bottomLeft = parseFloat(cs.borderBottomLeftRadius) || 0;
+    const hasRadius = topLeft > 0 || topRight > 0 || bottomRight > 0 || bottomLeft > 0;
+    const boxShadow = cs.boxShadow;
+    const hasBoxShadow = !!boxShadow && boxShadow !== "none";
+    const backdropFilter = cs.backdropFilter;
+    const hasBackdropFilter = !!backdropFilter && backdropFilter !== "none";
+    const hasVisualFootprint = hasBg || hasBgImage || hasBorder || hasBoxShadow || hasBackdropFilter || hasRadius && (hasBg || hasBgImage || hasBorder);
+    if (hasVisualFootprint) {
+      const rect = el2.getBoundingClientRect();
+      if (rect.width <= 0 && rect.height <= 0) {
+        for (let i = 0; i < el2.children.length; i++) walk(el2.children[i]);
+        return;
+      }
+      const slideRect = {
+        x: resolved.x + (rect.left - containerRect.left) * scaleX,
+        y: resolved.y + (rect.top - containerRect.top) * scaleY,
+        w: rect.width * scaleX,
+        h: rect.height * scaleY
+      };
+      const { ownOpacity, effectiveOpacity } = computeEffectiveOpacity(el2, container, getCs);
+      const layer = {
+        tag,
+        rect: slideRect,
+        backgroundColor,
+        opacity: effectiveOpacity,
+        ownOpacity,
+        padding: {
+          top: parseFloat(cs.paddingTop) || 0,
+          right: parseFloat(cs.paddingRight) || 0,
+          bottom: parseFloat(cs.paddingBottom) || 0,
+          left: parseFloat(cs.paddingLeft) || 0
+        }
+      };
+      if (hasBorder) {
+        layer.border = {
+          top: { width: borderTopWidth, style: borderTopStyle, color: cs.borderTopColor },
+          right: { width: borderRightWidth, style: borderRightStyle, color: cs.borderRightColor },
+          bottom: { width: borderBottomWidth, style: borderBottomStyle, color: cs.borderBottomColor },
+          left: { width: borderLeftWidth, style: borderLeftStyle, color: cs.borderLeftColor }
+        };
+      }
+      if (hasRadius) {
+        layer.borderRadius = { topLeft, topRight, bottomRight, bottomLeft };
+      }
+      if (hasBgImage) {
+        layer.backgroundImage = backgroundImage;
+      }
+      if (hasBoxShadow) {
+        layer.boxShadow = boxShadow;
+      }
+      if (hasBackdropFilter) {
+        layer.backdropFilter = backdropFilter;
+      }
+      layers.push(layer);
+    }
+    for (let i = 0; i < el2.children.length; i++) {
+      walk(el2.children[i]);
+    }
+  }
+  for (let i = 0; i < container.children.length; i++) {
+    walk(container.children[i]);
+  }
+  return layers.length > 0 ? layers : null;
+}
+
 // slidekit/src/renderer.ts
 init_dom_helpers();
 var _layoutFn;
@@ -8762,6 +8908,24 @@ async function render(slides, options = {}) {
       if (entry.type !== "el") continue;
       const dom = section.querySelector(`[data-sk-id="${id}"]`);
       if (!dom) continue;
+      const layers = extractDOMLayers(dom, entry.resolved);
+      if (layers && layers.length > 0) {
+        entry.layers = layers;
+      }
+      const authoredLayer = entry.authored?.props?.layer;
+      if (authoredLayer) {
+        entry.layer = authoredLayer;
+      }
+    }
+  }
+  for (let i = 0; i < layouts.length; i++) {
+    const layoutResult = layouts[i];
+    const sceneElements = layoutResult.elements;
+    const section = sections[i];
+    for (const [id, entry] of Object.entries(sceneElements)) {
+      if (entry.type !== "el") continue;
+      const dom = section.querySelector(`[data-sk-id="${id}"]`);
+      if (!dom) continue;
       if (dom.scrollHeight > dom.clientHeight + 1) {
         layoutResult.warnings.push({
           type: "dom_overflow_y",
@@ -8900,6 +9064,14 @@ async function rerenderSlide(slideIndex, slideDefinition) {
         const imgResolved = computeImageResolved(img, entry.resolved);
         if (imgResolved) entry.image = imgResolved;
       }
+      const layers = extractDOMLayers(dom, entry.resolved);
+      if (layers && layers.length > 0) {
+        entry.layers = layers;
+      }
+      const authoredLayer = entry.authored?.props?.layer;
+      if (authoredLayer) {
+        entry.layer = authoredLayer;
+      }
       if (dom.scrollHeight > dom.clientHeight + 1) {
         layoutResult.warnings.push({
           type: "dom_overflow_y",
@@ -8933,6 +9105,8 @@ async function rerenderSlide(slideIndex, slideDefinition) {
       if (!prev) continue;
       if (!entry.text && prev.text) entry.text = prev.text;
       if (!entry.image && prev.image) entry.image = prev.image;
+      if (!entry.layers && prev.layers) entry.layers = prev.layers;
+      if (!entry.layer && prev.layer) entry.layer = prev.layer;
       if (entry.zOrder === void 0 && prev.zOrder !== void 0) entry.zOrder = prev.zOrder;
     }
   }
