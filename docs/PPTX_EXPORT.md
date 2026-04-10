@@ -141,6 +141,7 @@ const el = elements["element-id"];
 el.type;          // "el" | "connector" | "group" | "vstack" | "hstack"
 el.resolved;      // { x, y, w, h } — absolute bounds in slide CSS px
 el.zOrder;        // number (1-based) — visual stacking order within parent context
+el.layer;         // "bg" | "content" | "overlay" — SlideKit paint layer
 el.authored;      // { content, props } — original authored data
 el.parentId;      // parent element ID, or null for root
 el.children;      // child element IDs
@@ -205,6 +206,72 @@ el.text = {
 - `<br>` emits a run with `text: "\n"` and empty rects → maps to `<a:br/>` in PPTX
 - Multiple rects per run = wrapped text that belongs in the **same text box**
 - Runs with identical style are pre-merged
+
+### Visual Layers (`el.layers`)
+
+Visual container layers extracted from the rendered DOM — backgrounds,
+borders, border-radius, padding, opacity, shadows, and backdrop filters.
+**No HTML parsing needed.** The browser already computed everything.
+
+```javascript
+el.layers = [{
+  tag: "div",
+  rect: { x: 120, y: 245, w: 1680, h: 198 },   // slide-level CSS px
+  backgroundColor: "rgba(255, 255, 255, 0.08)",   // glass fill
+  backgroundImage: "linear-gradient(...)",         // only if present
+  opacity: 1,                // effective (compounded through ancestors)
+  ownOpacity: 1,             // element's own opacity
+  padding: { top: 28, right: 32, bottom: 28, left: 32 },
+  border: {                  // per-side — only when at least one side visible
+    top:    { width: 2, style: "solid", color: "rgb(123, 104, 238)" },
+    right:  { width: 2, style: "solid", color: "rgb(123, 104, 238)" },
+    bottom: { width: 2, style: "solid", color: "rgb(123, 104, 238)" },
+    left:   { width: 2, style: "solid", color: "rgb(123, 104, 238)" },
+  },
+  borderRadius: {            // per-corner — only when any corner > 0
+    topLeft: 12, topRight: 12, bottomRight: 12, bottomLeft: 12,
+  },
+  boxShadow: "0 4px 24px rgba(0,0,0,0.3)",       // only if present
+  backdropFilter: "blur(16px)",                    // only if present
+}];
+```
+
+**Key points:**
+- Only emitted for elements with a visual box footprint (background, border,
+  shadow, or backdrop filter). Purely structural wrappers are excluded.
+- Ordered in DOM/paint order — draw layers first, then text on top.
+- `padding` tells you exactly where to inset text within the container.
+  Compare with text run rects: `text_start_x ≈ layer.rect.x + layer.padding.left`.
+- `opacity` is the effective opacity compounded through ancestor elements
+  within the SlideKit element. It does NOT include the outer element's own
+  opacity (`el.authored.props.opacity`); apply that separately.
+- Border color gives you the exact color — no more guessing purple vs gray.
+
+**Using layers for PPT export:**
+```python
+layer = el['layers'][0]
+# Glass panel rect
+panel = sl.Shapes.AddShape(5, pt(layer['rect']['x']), pt(layer['rect']['y']),
+                           pt(layer['rect']['w']), pt(layer['rect']['h']))
+# Background — pre-blend rgba over slide bg
+panel.Fill.Solid()
+panel.Fill.ForeColor.RGB = preblend(layer['backgroundColor'], slide_bg)
+# Border — read directly from layer, no HTML parsing
+if layer.get('border'):
+    b = layer['border']['top']
+    panel.Line.ForeColor.RGB = parse_rgb(b['color'])
+    panel.Line.Weight = b['width'] * 0.5
+# Border radius — CSS px × 0.25
+if layer.get('borderRadius'):
+    r = layer['borderRadius']['topLeft']
+    adj = (r * 0.25) / (min(panel.Width, panel.Height) / 2.0)
+    panel.Adjustments._oleobj_.Invoke(0, 0, 4, 0, 1, adj)
+# Text inset — use padding directly
+text_x = layer['rect']['x'] + layer['padding']['left']
+text_y = layer['rect']['y'] + layer['padding']['top']
+text_w = layer['rect']['w'] - layer['padding']['left'] - layer['padding']['right']
+text_h = layer['rect']['h'] - layer['padding']['top'] - layer['padding']['bottom']
+```
 
 ### Connector Data (`el.connector`)
 
